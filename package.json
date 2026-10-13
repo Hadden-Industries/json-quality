@@ -1,0 +1,50 @@
+{
+  "name": "@hadden-industries/json-quality",
+  "version": "0.1.0-dev.0",
+  "description": "Strict JSON quality controls with complete discovery and guarded source repair",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=24.21.0 <25 || >=26.11.1 <27"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hadden-Industries/json-quality.git"
+  },
+  "bin": {
+    "json-quality": "src/cli.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./eslint": "./src/eslint/index.js",
+    "./configuration-schema": "./schemas/configuration.schema.json",
+    "./result-schema": "./schemas/result.schema.json"
+  },
+  "files": [
+    "src/",
+    "schemas/",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
+    "README.md",
+    "docs/"
+  ],
+  "scripts": {
+    "check:focused": "node --test tests/contracts.test.js tests/identity.test.js",
+    "check:affected": "node --test tests/*.test.js",
+    "check:full": "npm run check:affected && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
+    "lint": "eslint src scripts tests eslint.config.js",
+    "format:check": "prettier --check src scripts tests eslint.config.js README.md docs THIRD-PARTY-NOTICES.md",
+    "format": "prettier --write src scripts tests eslint.config.js README.md docs THIRD-PARTY-NOTICES.md",
+    "check:json": "node src/cli.js check --root .",
+    "qualify:package": "node scripts/qualify-package.js"
+  },
+  "dependencies": {
+    "@eslint/json": "2.1.1",
+    "ajv": "8.20.0",
+    "eslint": "10.12.0",
+    "prettier": "3.9.10"
+  },
+  "devDependencies": {
+    "@humanwhocodes/momoa": ">=3.3.13"
+  }
+}

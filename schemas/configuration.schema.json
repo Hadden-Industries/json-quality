@@ -1,0 +1,243 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "defaults",
+    "exceptions"
+  ],
+  "properties": {
+    "limits": {
+      "anyOf": [
+        {
+          "const": false
+        },
+        {
+          "$ref": "#/definitions/limits"
+        }
+      ]
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "formatContract",
+        "allowFormatWrites",
+        "normalization"
+      ],
+      "properties": {
+        "formatContract": {
+          "const": "prettier-json"
+        },
+        "allowFormatWrites": {
+          "const": true
+        },
+        "normalization": {
+          "const": "NFC"
+        }
+      }
+    },
+    "exceptions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "paths",
+          "owner",
+          "reason"
+        ],
+        "minProperties": 4,
+        "properties": {
+          "paths": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "exclude": {
+            "const": true
+          },
+          "allowFormatWrites": {
+            "const": false
+          },
+          "normalization": {
+            "const": "preserve"
+          },
+          "allowEmptyKeys": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^(?:/(?:[^~/]|~[01])*)*/$"
+            }
+          },
+          "formatContract": {
+            "enum": [
+              "producer-json-body",
+              "producer-json-indent",
+              "producer-json-indent-body",
+              "producer-json-compact",
+              "producer-json-compact-body",
+              "preserved-bytes"
+            ]
+          },
+          "expected": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sha256",
+              "byteLength",
+              "diagnostics"
+            ],
+            "properties": {
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "byteLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "diagnostics": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "phase",
+                    "ruleId",
+                    "messageId",
+                    "line",
+                    "column"
+                  ],
+                  "properties": {
+                    "phase": {
+                      "enum": [
+                        "bytes",
+                        "lint"
+                      ]
+                    },
+                    "ruleId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "messageId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "line": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "column": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "endLine": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "endColumn": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxFiles": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 50000
+        },
+        "maxFileBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 33554432
+        },
+        "maxTotalBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 268435456
+        },
+        "maxLogicalDocuments": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 100000
+        },
+        "maxRecords": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 100000
+        },
+        "maxDiagnostics": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 10000
+        },
+        "maxPolicyBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 1048576
+        },
+        "maxGitOutputBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 16777216
+        },
+        "maxToolOutputBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 67108864
+        },
+        "maxToolTimeMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 60000
+        }
+      }
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

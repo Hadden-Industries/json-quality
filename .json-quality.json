@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "defaults": {
+    "formatContract": "prettier-json",
+    "allowFormatWrites": true,
+    "normalization": "NFC"
+  },
+  "exceptions": [
+    {
+      "paths": [
+        ".git/**",
+        "**/node_modules/**",
+        "coverage/**"
+      ],
+      "exclude": true,
+      "owner": "Git and package/test tooling",
+      "reason": "External installation and test coverage state; tracked JSON remains included."
+    },
+    {
+      "paths": [
+        "**/package-lock.json"
+      ],
+      "allowEmptyKeys": [
+        "/packages/"
+      ],
+      "allowFormatWrites": false,
+      "owner": "npm lockfile producer",
+      "reason": "npm owns lock serialization and uses the root package empty key; all other checks remain mandatory."
+    }
+  ]
+}

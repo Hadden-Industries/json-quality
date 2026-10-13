@@ -1,0 +1,329 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "operation",
+    "status",
+    "complete",
+    "counts",
+    "documents",
+    "findings",
+    "boundaries",
+    "writes"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "operation": {
+      "enum": [
+        "inventory",
+        "lint",
+        "check-format",
+        "check",
+        "producers",
+        "format",
+        "normalize",
+        "invalid"
+      ]
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed",
+        "error"
+      ]
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "counts": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "physical",
+            "logical",
+            "records",
+            "checked"
+          ],
+          "properties": {
+            "physical": {
+              "$ref": "#/definitions/count"
+            },
+            "logical": {
+              "$ref": "#/definitions/count"
+            },
+            "records": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/count"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "checked": {
+              "$ref": "#/definitions/count"
+            }
+          }
+        }
+      ]
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/document"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/finding"
+      }
+    },
+    "boundaries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "exceptions"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "exceptions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "owner",
+                "reason"
+              ],
+              "properties": {
+                "owner": {
+                  "type": "string",
+                  "pattern": "\\S"
+                },
+                "reason": {
+                  "type": "string",
+                  "pattern": "\\S"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "writes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "unchanged",
+        "failed",
+        "unprocessed"
+      ],
+      "properties": {
+        "changed": {
+          "$ref": "#/definitions/paths"
+        },
+        "unchanged": {
+          "$ref": "#/definitions/paths"
+        },
+        "failed": {
+          "$ref": "#/definitions/paths"
+        },
+        "unprocessed": {
+          "$ref": "#/definitions/paths"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "phase",
+        "ruleId",
+        "messageId",
+        "line",
+        "column"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase": {
+          "enum": [
+            "bytes",
+            "lint",
+            "presentation",
+            "expectation",
+            "framing",
+            "operation"
+          ]
+        },
+        "ruleId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "messageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endColumn": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "record": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "complete",
+        "syntaxValid",
+        "presentationChecked",
+        "findings",
+        "expectedFindings",
+        "representation"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "syntaxValid": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "presentationChecked": {
+          "type": "boolean"
+        },
+        "presentationContractVerified": {
+          "type": "boolean"
+        },
+        "representation": {
+          "enum": [
+            "physical",
+            "logical"
+          ]
+        },
+        "contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "formatContract",
+            "allowFormatWrites",
+            "normalization",
+            "exceptions"
+          ],
+          "properties": {
+            "formatContract": {
+              "type": "string",
+              "minLength": 1
+            },
+            "allowFormatWrites": {
+              "type": "boolean"
+            },
+            "normalization": {
+              "enum": [
+                "NFC",
+                "preserve"
+              ]
+            },
+            "exceptions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "owner",
+                  "reason"
+                ],
+                "properties": {
+                  "owner": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "recordCount": {
+          "$ref": "#/definitions/count"
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/finding"
+          }
+        },
+        "expectedFindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/finding"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+node_modules/
+coverage/
+**/*.json
+**/*.jsonld
+**/*.sarif
+**/*.jsonl
+**/*.ndjson
+**/*.jsonc
+**/*.json5
