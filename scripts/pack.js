@@ -19,6 +19,20 @@ const git = (args) =>
     windowsHide: true,
   }).trim();
 
+/** npm 12 keys pack reports by package; supported older npm emits an array. */
+export function readPackReport(text) {
+  const report = JSON.parse(text);
+  const entries = Array.isArray(report) ? report : Object.values(report);
+  if (
+    entries.length !== 1 ||
+    !entries[0] ||
+    typeof entries[0].name !== "string" ||
+    !Array.isArray(entries[0].files)
+  )
+    throw new Error("Expected exactly one native npm pack result.");
+  return entries[0];
+}
+
 /** Pack clean source into an explicit external destination with immutable identity.
  * Registry publication and source delivery are separate authorized operations.
  */
@@ -41,7 +55,7 @@ export function packCandidate(destination) {
   mkdirSync(destination, { recursive: true });
   const sourceCommit = git(["rev-parse", "HEAD"]);
   const sourceTree = git(["rev-parse", "HEAD^{tree}"]);
-  const [packed] = JSON.parse(
+  const packed = readPackReport(
     execFileSync(
       process.execPath,
       [
