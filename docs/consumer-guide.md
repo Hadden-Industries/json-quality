@@ -46,6 +46,7 @@ External boundaries never conceal tracked files.
 Producer presentation contracts retain the qualified native indented/compact serializers, final-LF and retained-envelope variants.
 Producer presentation intrinsically prohibits generic formatting and normalization writes; a sparse presentation exception needs no repeated write-protection setting.
 `preserved-bytes` requires one exact protected path, owner/reason and an independently owned SHA-256/byte-length/diagnostic expectation.
+For independently admitted native or pointer-linked logical originals, optional `preserveSourcePresentation` groups select `{ paths, owner, reason }`. Each group must match at least one admitted member. The package binds preserved presentation to the independently supplied member hash and size, disables writes and requires zero semantic diagnostics by default. Ordinary physical files never receive this contract. Known semantic differences still require a separately approved exact-path expectation; this setting neither excludes documents nor relaxes semantic rules. An exact NFC value pin can coexist with original presentation when the expected diagnostic sequence is empty.
 Expected diagnostics are an exact sequence of phase, native rule/message identity and source locations; any extra or missing finding fails.
 Matched findings appear under `expectedFindings`, and unperformable parse/presentation phases remain unperformed.
 Never create accepted expectations by learning a candidate's current failures.

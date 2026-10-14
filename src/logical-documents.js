@@ -6,6 +6,7 @@ import { inventoryDocument } from "./result.js";
 import { assertRepositoryPath } from "./paths.js";
 import { isDeepStrictEqual } from "node:util";
 import { jsonPointerValue } from "./json-pointers.js";
+import { sourcePresentationContract } from "./source-presentation.js";
 
 /** Discharge container expectations only after the complete logical census has
  * passed byte and physical-pointer reconciliation. Standalone analysis cannot
@@ -113,10 +114,14 @@ export async function checkLogicalDocuments(
       !decoded.equals(entry.bytes)
     )
       throw new Error(`Changed logical provenance bytes: ${entry.path}`);
-    const contract = {
-      ...jsonContract(entry.path, context.policy),
-      allowFormatWrites: false,
-    };
+    const contract = sourcePresentationContract(
+      {
+        ...jsonContract(entry.path, context.policy),
+        allowFormatWrites: false,
+      },
+      context,
+      pin,
+    );
     documents.push({
       ...(operation === "inventory"
         ? inventoryDocument(contract, "logical")

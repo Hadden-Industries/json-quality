@@ -41,6 +41,7 @@ Physical discovery reconciles Git with an owned-tree walk, including untracked a
 External boundaries require owner/reason exceptions; tracked files inside them remain checked.
 JSONL framing and cumulative logical-document inventory use the same strict JSON analysis.
 Configured native sources admit content-addressed documents and archive members through trusted, caller-supplied native owners. Their independent census, admitted bytes and source/authority snapshots participate in the same limits, phases and result accounting. Missing providers or changed native inputs fail; generic writers never modify native documents.
+Configuration can retain original presentation for independently admitted native or pointer-linked logical members. Their hashes, sizes and every semantic rule remain checked; each selected scope must exist. This never changes ordinary physical-file presentation or write policy.
 Pure `formatJsonSource` and `formatJsonValue` functions give producers the package-owned printer without changing normalization or historical digest protocols. Presentation alone establishes no JSON quality pass.
 JSONC/JSON5 remain detected and refused.
 Exact expected findings retain intentionally invalid corpus evidence visibly; unexpected or missing diagnostics, changed pinned bytes and missing logical members fail.
