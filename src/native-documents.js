@@ -5,6 +5,7 @@ import { assertRepositoryPath, assertRegularSource } from "./paths.js";
 import { captureSource, assertSourceUnchanged } from "./replacement.js";
 import { jsonContract } from "./quality.js";
 import { assertNativeIdentity } from "./native-identities.js";
+import { sourcePresentationContract } from "./source-presentation.js";
 import { checkJsonDocument } from "./documents.js";
 import { inventoryDocument } from "./result.js";
 
@@ -177,10 +178,14 @@ export async function checkNativeDocuments(
             },
           }
         : context.policy;
-      const contract = {
-        ...jsonContract(entry.path, policy),
-        allowFormatWrites: false,
-      };
+      const contract = sourcePresentationContract(
+        {
+          ...jsonContract(entry.path, policy),
+          allowFormatWrites: false,
+        },
+        context,
+        entry,
+      );
       if (contract.exclude) {
         context.boundaries.push({
           path: entry.path,

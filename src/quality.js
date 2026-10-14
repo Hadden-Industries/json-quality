@@ -395,6 +395,8 @@ export async function readJsonPolicy(root, options = {}) {
     throw new Error(
       `Invalid JSON policy structure: ${JSON.stringify(validatePolicy.errors)}`,
     );
+  for (const rule of policy.preserveSourcePresentation ?? [])
+    assertPolicyPatterns(rule.paths);
   for (const rule of policy.exceptions) {
     if (
       (rule.expected || rule.formatContract === "preserved-bytes") &&
@@ -434,16 +436,7 @@ export async function readJsonPolicy(root, options = {}) {
         identities.add(identity);
       }
     }
-    for (const pattern of rule.paths)
-      if (
-        pattern.startsWith("/") ||
-        pattern.includes("\\") ||
-        pattern.includes(":") ||
-        pattern
-          .split("/")
-          .some((part) => part === ".." || part === "." || !part)
-      )
-        throw new Error(`Unsafe JSON exception pattern: ${pattern}`);
+    assertPolicyPatterns(rule.paths);
     if (
       rule.exclude &&
       Object.keys(rule).some(
@@ -453,6 +446,17 @@ export async function readJsonPolicy(root, options = {}) {
       throw new Error("An external boundary cannot also redefine JSON checks.");
   }
   return policy;
+}
+
+function assertPolicyPatterns(patterns) {
+  for (const pattern of patterns)
+    if (
+      pattern.startsWith("/") ||
+      pattern.includes("\\") ||
+      pattern.includes(":") ||
+      pattern.split("/").some((part) => part === ".." || part === "." || !part)
+    )
+      throw new Error(`Unsafe JSON exception pattern: ${pattern}`);
 }
 
 /** Sparse exceptions amend mandatory defaults; contradictory overlaps fail closed. */
@@ -575,7 +579,7 @@ export function assertNfcPreservationContract(contract) {
     !validateNfcValues(contract.preserveNfcValues) ||
     contract.allowFormatWrites !== false ||
     contract.normalization === "preserve" ||
-    contract.expected ||
+    contract.expected?.diagnostics?.length ||
     !(
       (contract.owner?.trim() && contract.reason?.trim()) ||
       contract.exceptions?.some(

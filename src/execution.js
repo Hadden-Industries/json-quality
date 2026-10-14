@@ -51,6 +51,7 @@ export async function runJsonQuality(operation, options = {}) {
   if (!OPERATIONS.includes(operation))
     throw new TypeError("Unknown JSON quality operation.");
   const context = await inspectJsonInventory(options);
+  context.sourcePresentationMatches = new Set();
   if (
     (options.logicalInventory?.length ?? 0) >
       context.limits.maxLogicalDocuments ||
@@ -137,6 +138,13 @@ export async function runJsonQuality(operation, options = {}) {
     options,
     operation,
   );
+  if (
+    context.sourcePresentationMatches.size !==
+    (context.policy.preserveSourcePresentation?.length ?? 0)
+  )
+    throw new Error(
+      "Missing independently admitted source presentation scope.",
+    );
   const documents = [];
   for (const contract of context.files) {
     const verifiedContract = verifiedContainerContract(
