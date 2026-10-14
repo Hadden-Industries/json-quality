@@ -104,6 +104,24 @@ export async function inspectJsonInventory({
       throw new Error(`Unqualified JSON dialect: ${path}`);
     assertRegularSource(root, path, tracked.get(path));
     const file = jsonContract(path, policy, { tracked: tracked.has(path) });
+    // A hidden basename may not match a glob that pruned its ancestor. Git
+    // rescue still checks it, but must retain that boundary's write protection.
+    const boundary = boundaries.find(
+      (entry) => path === entry.path || path.startsWith(entry.path + "/"),
+    );
+    if (boundary) {
+      file.exclude = false;
+      file.allowFormatWrites = false;
+      for (const exception of boundary.exceptions)
+        if (
+          !file.exceptions.some(
+            (entry) =>
+              entry.owner === exception.owner &&
+              entry.reason === exception.reason,
+          )
+        )
+          file.exceptions.push(exception);
+    }
     if (isJsonLinesPath(path)) file.allowFormatWrites = false;
     // Git ignore affects generic writes only, never read-only discovery/checking.
     file.allowFormatWrites &&= tracked.has(path) || visible.has(path);

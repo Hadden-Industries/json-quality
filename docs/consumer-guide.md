@@ -42,6 +42,7 @@ For narrower preservation, `preserveNfcValues` pins decoded string values by exa
 JSONL pins additionally require `record: { pointer: "/id", value: "fixture-id" }`. Exactly one record must match that decoded string identity, regardless of its line number. No match or duplicate identities fail. Every unselected record remains checked normally. Preservation never enables generic formatting or normalization.
 Contradictory matching exceptions fail.
 External boundaries never conceal tracked files.
+Tracked files rescued from a pruned directory retain that boundary's write protection, including hidden basenames that do not themselves match its glob. They receive ordinary semantic and presentation checks; format and normalization operations cannot rewrite them.
 
 Producer presentation contracts retain the qualified native indented/compact serializers, final-LF and retained-envelope variants.
 Producer presentation intrinsically prohibits generic formatting and normalization writes; a sparse presentation exception needs no repeated write-protection setting.

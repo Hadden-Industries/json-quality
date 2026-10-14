@@ -67,6 +67,44 @@ test("discovery includes hidden, untracked and ignored generated JSON", async (t
   );
 });
 
+test("tracked hidden files rescued from an excluded boundary remain checked and never writable", async (t) => {
+  const root = repository(t);
+  mkdirSync(join(root, "node_modules"));
+  writeFileSync(join(root, ".gitignore"), "node_modules/\n");
+  const path = "node_modules/.hidden.json";
+  const original = '{"n":1}\n';
+  writeFileSync(join(root, path), original);
+  execFileSync("git", ["-C", root, "add", "--force", path], {
+    windowsHide: true,
+  });
+  const formatted = await runJsonQuality("format", { root });
+  assert.equal(formatted.status, "failed");
+  assert.ok(
+    formatted.findings.some(
+      (finding) => finding.path === path && finding.phase === "presentation",
+    ),
+  );
+  assert.deepEqual(formatted.writes.changed, []);
+  assert.equal(readFileSync(join(root, path), "utf8"), original);
+  const decomposed = '{"name":"A\\u030a"}\n';
+  writeFileSync(join(root, path), decomposed);
+  const normalized = await runJsonQuality("lint", { root });
+  assert.equal(normalized.status, "failed");
+  assert.ok(
+    normalized.findings.some(
+      (finding) =>
+        finding.path === path &&
+        finding.ruleId === "json-quality/normalized-strings",
+    ),
+  );
+  assert.deepEqual(normalized.writes.changed, []);
+  await assert.rejects(
+    runJsonQuality("normalize", { root, sourcePaths: [path] }),
+    /Protected or undiscovered JSON source/u,
+  );
+  assert.equal(readFileSync(join(root, path), "utf8"), decomposed);
+});
+
 test("consumer ESLint and formatter configuration cannot weaken checks", async (t) => {
   const root = repository(t);
   writeFileSync(
