@@ -218,6 +218,54 @@
           }
         }
       }
+    },
+    "nativeSources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "provider",
+          "owner",
+          "reason"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "parameters": {
+            "type": "object"
+          },
+          "minimumDocuments": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "formatContract": {
+            "enum": [
+              "prettier-json",
+              "producer-json-body",
+              "producer-json-indent",
+              "producer-json-indent-body",
+              "producer-json-compact",
+              "producer-json-compact-body"
+            ]
+          }
+        }
+      }
     }
   },
   "definitions": {

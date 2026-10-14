@@ -11,11 +11,12 @@
     "documents",
     "findings",
     "boundaries",
-    "writes"
+    "writes",
+    "nativeSources"
   ],
   "properties": {
     "schemaVersion": {
-      "const": 1
+      "const": 2
     },
     "operation": {
       "enum": [
@@ -51,7 +52,8 @@
             "physical",
             "logical",
             "records",
-            "checked"
+            "checked",
+            "native"
           ],
           "properties": {
             "physical": {
@@ -79,6 +81,9 @@
                   "type": "null"
                 }
               ]
+            },
+            "native": {
+              "$ref": "#/definitions/count"
             }
           }
         }
@@ -155,6 +160,57 @@
         },
         "unprocessed": {
           "$ref": "#/definitions/paths"
+        }
+      }
+    },
+    "nativeSources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "provider",
+          "owner",
+          "reason",
+          "authorities",
+          "inventoried",
+          "included",
+          "excluded"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "authorities": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/definitions/byteIdentity"
+            }
+          },
+          "inventoried": {
+            "$ref": "#/definitions/count"
+          },
+          "included": {
+            "$ref": "#/definitions/count"
+          },
+          "excluded": {
+            "$ref": "#/definitions/paths"
+          }
         }
       }
     }
@@ -266,7 +322,8 @@
         "representation": {
           "enum": [
             "physical",
-            "logical"
+            "logical",
+            "native"
           ]
         },
         "contract": {
@@ -336,6 +393,134 @@
           "items": {
             "$ref": "#/definitions/finding"
           }
+        },
+        "nativeSource": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "identity"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "identity": {
+              "$ref": "#/definitions/nativeIdentity"
+            }
+          }
+        }
+      }
+    },
+    "byteIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "byteLength"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "byteLength": {
+          "$ref": "#/definitions/count"
+        }
+      }
+    },
+    "nativeIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "byteLength",
+        "source"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "byteLength": {
+          "$ref": "#/definitions/count"
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "byteLength",
+            "kind"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "byteLength": {
+              "$ref": "#/definitions/count"
+            },
+            "kind": {
+              "enum": [
+                "content-addressed",
+                "archive-member"
+              ]
+            },
+            "memberPath": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "archive-member"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "memberPath": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "memberPath"
+                ]
+              },
+              "else": {
+                "not": {
+                  "properties": {
+                    "memberPath": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "memberPath"
+                  ]
+                }
+              }
+            }
+          ]
         }
       }
     }

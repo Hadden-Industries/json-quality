@@ -21,7 +21,7 @@ Markdown acquisition retains its separate frozen graph and disposable cache.
 `verifyJsonQualityInstallation({ toolingRoot, bootstrapPath })` also rejects bootstrap drift, allowing only checkout newline differences.
 `assertIsolatedJsonQuality(toolingRoot)` lets a thin bridge re-export the public API while rejecting fallback into a parent installation.
 
-The root library exports `runJsonQuality`, `runJsonQualityCli`, `inspectJsonInventory`, `checkJsonInventory`, `checkJsonDocument`, `checkJsonLines`, `normalizeJsonSource`, `decodeJsonBytes`, `readJsonPolicy`, `jsonContract`, `jsonFormatOptions`, `checkJsonPresentation`, and `validateJsonQualityResult`, plus the acquisition helpers above and `jsonQualitySourceCoordinate`.
+The root library exports `runJsonQuality`, `runJsonQualityCli`, `inspectJsonInventory`, `checkJsonInventory`, `checkJsonDocument`, `checkJsonLines`, `normalizeJsonSource`, `formatJsonSource`, `formatJsonValue`, `decodeJsonBytes`, `readJsonPolicy`, `jsonContract`, `jsonFormatOptions`, `checkJsonPresentation`, and `validateJsonQualityResult`, plus the acquisition helpers above and `jsonQualitySourceCoordinate`.
 The `./eslint` export supplies `no-json-stringify-identity`; consumers select their JavaScript scope and enable error severity and unused-disable reporting.
 `./configuration-schema` and `./result-schema` export the closed JSON schemas.
 Deep source imports are unsupported.
@@ -58,6 +58,13 @@ Each supplied logical document contains exactly its canonical `path` and an owne
 Every member must match its independently owned inventory and the actual pointed-to string in a physically discovered container.
 Repository adapters must also invoke their existing storage and domain validators.
 Logical and JSONL documents are always protected from generic writes.
+Native documents use optional `nativeSources` declarations in configuration and a trusted `nativeProviders` function map in `runJsonQuality` or its CLI context. JSON configuration selects a name; it never imports executable modules.
+Each declaration contains `id`, `provider`, `owner` and `reason`, with optional JSON `parameters`, `minimumDocuments` (default 1; explicitly 0 for a legitimate empty scope) and a source-default `formatContract`. Exact path exceptions still override that presentation default.
+The provider receives `{ root, parameters }` and returns exactly `{ inventory, documents, authorities }`. It must run its native storage and domain admission first; the package does not implement archive extraction, signature verification or manifest semantics.
+Each inventory entry contains exactly `path`, `sha256`, `byteLength` and `source`. A content-addressed source contains exactly `kind: "content-addressed"`, `path`, `sha256` and `byteLength`, identical to the document identity. An archive source contains `kind: "archive-member"`, the physical archive `path`, `sha256`, `byteLength` and a contained `memberPath`; its document path is `archivePath!/memberPath` and its document hash/length describes the original member bytes.
+Each supplied document contains exactly `{ path, bytes: Buffer }`. `authorities` contains at least one independently verified physical `{ path, sha256, byteLength }` identity, such as the native manifest or lock. All physical sources and authorities must be regular contained files. Missing, duplicate, unexpected, colliding or changed identities fail before writes. The package clones admitted buffers and rechecks source/authority snapshots before reporting and writing.
+Exclusions still require the complete native census and matching bytes; excluded member paths remain visible in the source summary and external boundaries. Native documents are always protected. Result schema 2 reports a separate `counts.native`, per-document `nativeSource` identity and `nativeSources` summaries with authority snapshots, inventoried/included counts and exact excluded paths.
+Pure `formatJsonSource(text, { limits })` preserves strict JSON token spelling and decoded values through the native printer's debug check. `formatJsonValue(value, { limits })` first requires plain acyclic JSON data; accessors, custom serialization, sparse arrays, unsupported values and nonfinite numbers are rejected rather than silently transformed. Both return text without acquiring tools or writing files; neither normalizes values or establishes a quality pass. Keep historical canonical/digest encoders separate.
 JSONL uses UTF-8 records, LF or CRLF framing, an optional final terminator, strict per-record analysis and native compact producer presentation; blank records fail.
 
 Operations are `check`, `inventory`, `lint`, `check-format`, `producers`, `format` and `normalize`.
@@ -68,7 +75,7 @@ It establishes scope, never a quality pass; there is no redundant `inspect` alia
 Ordinary inventory reads file identities and sizes without loading their contents; logical provenance still requires reading its declared physical containers. Undecodable JSONL bytes leave record and checked-document coverage null rather than reporting zero records.
 Lint omits presentation findings; presentation checking retains byte/expectation failures; producer checking reaches protected inputs.
 The CLI exits 0 for a complete pass, 1 for known findings or partial-write failure and 2 for invalid input or operational failure.
-Machine output is opt-in `--json` and validated against result schema 1 plus semantic count, identity, phase and write accounting.
+Machine output is opt-in `--json` and validated against result schema 2 plus semantic count, identity, phase and write accounting. Schema 1 results require regeneration; they are not silently admitted as current native-coverage proof.
 Unknown coverage is represented by null counts, never zero.
 
 Optional configuration `limits` and per-invocation API `limits` override resource defaults; invocation values take precedence.
@@ -76,6 +83,7 @@ Values are positive safe integers without arbitrary package ceilings; `limits: f
 The CLI exposes each setting, for example `--max-files 100000 --max-file-bytes 67108864`, plus `--no-limits` for the explicit bypass.
 Individual overrides and `--no-limits` cannot be combined in one invocation.
 Defaults are 50,000 physical files, 32 MiB per document, 256 MiB total physical/logical input, 100,000 logical members, 100,000 records per JSONL file and 10,000 diagnostics.
+Native member documents share the cumulative logical-member ceiling; physical/native document identities share the file ceiling. Native source and authority snapshot bytes, counted once per source path, and every admitted member buffer also consume total input capacity.
 Limits fail before writes and never disable semantic rules.
 Policy bootstrap bytes, Git/tool output and formatter time are capacity controls too, with corresponding override flags; enlarge policy bootstrap capacity using CLI/API overrides before loading a policy larger than the default.
 Operating-system/native-tool constraints still apply when package limits are bypassed; failures never become a pass.

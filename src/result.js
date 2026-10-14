@@ -14,12 +14,16 @@ export function analysisCounts(documents, operation) {
     (document) => document.representation === "physical",
   ).length;
   const inventory = operation === "inventory";
+  const native = documents.filter(
+    (document) => document.representation === "native",
+  ).length;
   const unknownRecords = documents.some(
     (document) => document.recordCount === null,
   );
   return {
     physical,
-    logical: documents.length - physical,
+    logical: documents.length - physical - native,
+    native,
     records:
       inventory || unknownRecords
         ? null
@@ -69,6 +73,7 @@ export function validateJsonQualityResult(result) {
       result.complete ||
       result.counts !== null ||
       result.documents.length ||
+      result.nativeSources.length ||
       writePaths.length ||
       !result.findings.length
     )
@@ -83,6 +88,44 @@ export function validateJsonQualityResult(result) {
       result.documents.length
   )
     throw new TypeError("Missing or duplicate JSON document accounting.");
+  if (
+    new Set(result.documents.map(({ path }) => path.toLowerCase())).size !==
+    result.documents.length
+  )
+    throw new TypeError("Case-colliding JSON document accounting.");
+  const sourceIds = new Set(result.nativeSources.map(({ id }) => id));
+  if (sourceIds.size !== result.nativeSources.length)
+    throw new TypeError("Duplicate native source accounting.");
+  for (const source of result.nativeSources) {
+    const count = result.documents.filter(
+      (document) => document.nativeSource?.id === source.id,
+    ).length;
+    if (
+      source.included !== count ||
+      source.inventoried !== count + source.excluded.length ||
+      source.excluded.some(
+        (path) =>
+          result.documents.some((document) => document.path === path) ||
+          !result.boundaries.some((boundary) => boundary.path === path),
+      )
+    )
+      throw new TypeError("Inconsistent native source accounting.");
+  }
+  for (const document of result.documents) {
+    if (document.representation === "native") {
+      if (
+        !document.nativeSource ||
+        !sourceIds.has(document.nativeSource.id) ||
+        document.nativeSource.identity.path !== document.path ||
+        document.recordCount !== undefined ||
+        document.contract?.allowFormatWrites !== false
+      )
+        throw new TypeError("Invalid native document provenance accounting.");
+    } else if (document.nativeSource)
+      throw new TypeError(
+        "Native provenance cannot label a physical or logical document.",
+      );
+  }
   const inventory = result.operation === "inventory";
   if (
     !isDeepStrictEqual(

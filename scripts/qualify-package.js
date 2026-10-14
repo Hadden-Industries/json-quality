@@ -66,14 +66,38 @@ try {
   writeFileSync(
     join(consumer, "probe.mjs"),
     `import assert from "node:assert/strict";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { createHash } from "node:crypto";
 import * as api from "@hadden-industries/json-quality";
 import plugin from "@hadden-industries/json-quality/eslint";
 import configuration from "@hadden-industries/json-quality/configuration-schema" with { type: "json" };
 import resultSchema from "@hadden-industries/json-quality/result-schema" with { type: "json" };
 assert.equal(configuration.properties.schemaVersion.const, 1);
-assert.equal(resultSchema.properties.schemaVersion.const, 1);
+assert.equal(resultSchema.properties.schemaVersion.const, 2);
 assert.equal(typeof plugin.rules["no-json-stringify-identity"].create, "function");
 assert.equal(api.validateJsonQualityResult(await api.runJsonQuality("check", {root: process.argv[2]})).status, "passed");
+assert.equal(await api.formatJsonValue({x: 1}), '{\\n  "x": 1\\n}\\n');
+assert.match(await api.formatJsonSource('{"x":1.00e+2}'), /1\\.00e\\+2/u);
+const root = process.argv[2];
+const policyPath = join(root, ".json-quality.json");
+const originalPolicy = readFileSync(policyPath);
+const policy = JSON.parse(originalPolicy);
+policy.nativeSources = [{id: "evidence", provider: "owner", owner: "Native evidence owner", reason: "Transported census proof."}];
+writeFileSync(policyPath, await api.formatJsonValue(policy));
+const bytes = Buffer.from("{}\\n");
+const identity = {path: "native.blob", byteLength: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex")};
+writeFileSync(join(root, identity.path), bytes);
+const nativeProviders = {owner: async () => ({
+  inventory: [{...identity, source: {...identity, kind: "content-addressed"}}],
+  documents: [{path: identity.path, bytes}], authorities: [identity]
+})};
+const native = await api.runJsonQuality("check", {root, nativeProviders});
+assert.equal(native.status, "passed");
+assert.equal(native.counts.native, 1);
+assert.equal(native.nativeSources[0].inventoried, 1);
+await assert.rejects(api.runJsonQuality("check", {root}), /Missing required native provider/u);
+writeFileSync(policyPath, originalPolicy);
 await assert.rejects(import("@hadden-industries/json-quality/src/quality.js"), {code:"ERR_PACKAGE_PATH_NOT_EXPORTED"});
 `,
   );

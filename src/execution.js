@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
-import * as prettier from "prettier";
+import { formatAdmittedJsonSource } from "./formatting.js";
 import { inspectJsonInventory } from "./inventory.js";
 import { checkJsonDocument } from "./documents.js";
 import {
   normalizeJsonSource,
-  jsonFormatOptions,
   isJsonLinesPath,
   decodeJsonBytes,
 } from "./quality.js";
 import { checkJsonLines } from "./json-lines.js";
+import { checkNativeDocuments } from "./native-documents.js";
 import {
   checkLogicalDocuments,
   verifiedContainerContract,
@@ -44,6 +42,7 @@ export async function runJsonQuality(operation, options = {}) {
           "sourcePaths",
           "logicalInventory",
           "logicalDocuments",
+          "nativeProviders",
           "limits",
         ].includes(key),
     )
@@ -68,6 +67,14 @@ export async function runJsonQuality(operation, options = {}) {
       throw new Error("JSON total byte limit exceeded.");
   }
   const writing = operation === "format" || operation === "normalize";
+  const policyOriginal = captureSource(context.root, ".json-quality.json");
+  const native = await checkNativeDocuments(
+    context,
+    options.nativeProviders,
+    operation,
+    totalBytes,
+    options.logicalInventory,
+  );
   const requiredContainers = new Set(
     (options.logicalInventory ?? []).map((entry) => entry?.containerPath),
   );
@@ -132,6 +139,7 @@ export async function runJsonQuality(operation, options = {}) {
     documents.push({ ...document, representation: "physical" });
   }
   documents.push(...logical);
+  documents.push(...native.documents);
   const physicalContracts = new Map(
     context.files.map((contract) => [contract.path, contract]),
   );
@@ -163,7 +171,7 @@ export async function runJsonQuality(operation, options = {}) {
   )
     throw new Error("JSON diagnostic limit exceeded; coverage is incomplete.");
   const result = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     operation,
     status: findings.length ? "failed" : "passed",
     complete: true,
@@ -171,56 +179,20 @@ export async function runJsonQuality(operation, options = {}) {
     documents,
     findings,
     boundaries: context.boundaries,
+    nativeSources: native.sources,
     writes: { changed: [], unchanged: [], failed: [], unprocessed: [] },
   };
+  native.recheck();
+  assertSourceUnchanged(context.root, ".json-quality.json", policyOriginal);
   if (!writing || findings.length) return validateJsonQualityResult(result);
   if (operation === "format") {
     for (const contract of context.files.filter(
       (file) => file.allowFormatWrites,
     )) {
       const text = originals.get(contract.path).bytes.toString("utf8");
-      const settings = await jsonFormatOptions();
-      // Native debug checking compares the supported formatter's parse/print
-      // preservation before any file is replaced; it does not normalize data.
-      if (
-        !Buffer.from(await prettier.format(text, settings)).equals(
-          originals.get(contract.path).bytes,
-        )
-      )
-        execFileSync(
-          process.execPath,
-          [
-            fileURLToPath(import.meta.resolve("prettier/bin/prettier.cjs")),
-            "--debug-check",
-            "--no-config",
-            "--no-editorconfig",
-            "--parser",
-            "json-stringify",
-            "--tab-width",
-            "2",
-            "--end-of-line",
-            "lf",
-            "--print-width",
-            "80",
-            "--trailing-comma",
-            "none",
-          ],
-          {
-            input: text,
-            encoding: "utf8",
-            windowsHide: true,
-            timeout: Number.isFinite(context.limits.maxToolTimeMs)
-              ? context.limits.maxToolTimeMs
-              : 0,
-            maxBuffer: Math.min(
-              context.limits.maxToolOutputBytes,
-              Number.MAX_SAFE_INTEGER,
-            ),
-          },
-        );
       replacements.set(
         contract.path,
-        Buffer.from(await prettier.format(text, settings)),
+        Buffer.from(await formatAdmittedJsonSource(text, context.limits)),
       );
     }
   }
@@ -232,6 +204,7 @@ export async function runJsonQuality(operation, options = {}) {
     throw new Error("JSON policy or inventory changed during preflight.");
   for (const [path, original] of originals)
     assertSourceUnchanged(context.root, path, original);
+  native.recheck();
   const pending = [...replacements.keys()];
   for (const [path, bytes] of replacements) {
     try {
