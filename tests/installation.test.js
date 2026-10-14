@@ -257,3 +257,55 @@ test("payload bounds can be raised or bypassed without waiving file identity", a
     /payload differs/u,
   );
 });
+
+for (const type of ["SolarisACL", "SparseFile", "ExtendedHeader"]) {
+  test(`cached payload rejects ignored ${type} members before installed-file comparison`, async (t) => {
+    const context = await installation(t);
+    const chunks = [];
+    const add = (path, memberType, payload) => {
+      const header = new (npmRequire("tar").Header)({
+        path,
+        type: memberType,
+        mode: 0o644,
+        size: payload.length,
+      });
+      header.encode();
+      chunks.push(
+        header.block,
+        payload,
+        Buffer.alloc((512 - (payload.length % 512)) % 512),
+      );
+    };
+    for (const path of ["package.json", "index.js", "src/acquire.js"])
+      add(
+        `package/${path}`,
+        "File",
+        readFileSync(join(context.installedRoot, path)),
+      );
+    add("package/../outside", type, Buffer.alloc(9000, 65));
+    chunks.push(Buffer.alloc(1024));
+    const bytes = gzipSync(Buffer.concat(chunks));
+    await npmRequire("cacache").put(
+      join(context.cachePath, "_cacache"),
+      "ignored-member-independent-fixture",
+      bytes,
+    );
+    context.lock.packages[`node_modules/${name}`].integrity =
+      `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
+    writeFileSync(
+      join(context.toolingRoot, "package-lock.json"),
+      JSON.stringify(context.lock),
+    );
+    await assert.rejects(
+      verifyJsonQualityInstallation({
+        ...context,
+        limits: { maxFileBytes: 8192, maxTotalBytes: 8192 },
+      }),
+      /Unsupported or oversized package archive member/u,
+    );
+    assert.equal(
+      readFileSync(join(context.installedRoot, "index.js"), "utf8"),
+      "export const approved = true;\n",
+    );
+  });
+}

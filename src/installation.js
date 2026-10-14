@@ -132,6 +132,13 @@ export async function verifyJsonQualityInstallation({
     });
     parser.on("error", reject);
     parser.on("end", resolve);
+    parser.on("ignoredEntry", () => {
+      const error = new Error(
+        "Unsupported or oversized package archive member.",
+      );
+      parser.abort(error);
+      reject(error);
+    });
     parser.on("entry", (member) => {
       try {
         if (!member.path.startsWith("package/"))
