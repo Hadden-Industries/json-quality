@@ -6,6 +6,12 @@ export { checkJsonDocument } from "./documents.js";
 export { checkJsonLines } from "./json-lines.js";
 export { validateJsonQualityResult } from "./result.js";
 export {
+  assertIsolatedJsonQuality,
+  jsonQualityAcquisitionBootstrap,
+  jsonQualitySourceCoordinate,
+  verifyJsonQualityInstallation,
+} from "./installation.js";
+export {
   decodeJsonBytes,
   normalizeJsonSource,
   jsonFormatOptions,

@@ -1,11 +1,27 @@
 # Consumer contract
 
-Install an explicitly qualified archive or release; checks never acquire tools.
-For source adoption, retain the clean full source commit, archive SHA-256, npm integrity, source lock identity and frozen consumer lock.
-An archive basename includes its source commit and must never be overwritten with different bytes.
-The package version alone does not identify a development candidate.
+Install one exact npm version or a full producer Git commit; checks never acquire tools.
+The only editable acquisition selector is `devDependencies["@hadden-industries/json-quality"]` in the isolated tooling manifest.
+Use an exact version such as `0.1.0`, an equivalent `npm:@hadden-industries/json-quality@0.1.0` alias, or `git+https://github.com/Hadden-Industries/json-quality.git#FULL_40_CHARACTER_COMMIT`.
+Native npm generates the lockfile; do not repeat the selected commit, version or integrity in a second maintained manifest or hand-edit the lock.
+Development adoption uses a commit until registry publication is separately authorized.
+Retain clean producer source and transported-package qualification evidence, while consumer repositories retain the selector and native lock rather than checked-in archives.
 
-The root library exports `runJsonQuality`, `runJsonQualityCli`, `inspectJsonInventory`, `checkJsonInventory`, `checkJsonDocument`, `checkJsonLines`, `normalizeJsonSource`, `decodeJsonBytes`, `readJsonPolicy`, `jsonContract`, `jsonFormatOptions`, `checkJsonPresentation`, and `validateJsonQualityResult`.
+`verifyJsonQualityInstallation({ toolingRoot })` admits the selector and lock, then uses the selected npm toolchain's bundled cache reader and tar parser to compare every installed package file with the independently cached locked payload.
+It performs no download, extraction or writes and rejects unexpected, linked or unsafe archive members.
+Nested installed dependencies retain their own frozen lock identities.
+Run this through npm after `npm ci`; the standard native npm cache must remain available for the proof.
+Git acquisition does not itself enforce tarball integrity, so this installed-payload check remains mandatory for either source choice.
+Its optional `limits` uses the shared resource-limit contract, including explicit `false` bypass; identity checks remain active.
+
+`jsonQualityAcquisitionBootstrap()` returns the producer-owned cold-install source for a consumer's `scripts/installRepositoryQualityTools.mjs` or `util/installRepositoryQualityTools.mjs`.
+Materialize this reviewed generated adapter verbatim rather than editing its logic in a consumer.
+It runs frozen, script-free acquisition with empty npm configuration files and a restricted environment, admits root Git acquisition only for JSON tooling, and verifies itself against the installed shared source after successful installation.
+Markdown acquisition retains its separate frozen graph and disposable cache.
+`verifyJsonQualityInstallation({ toolingRoot, bootstrapPath })` also rejects bootstrap drift, allowing only checkout newline differences.
+`assertIsolatedJsonQuality(toolingRoot)` lets a thin bridge re-export the public API while rejecting fallback into a parent installation.
+
+The root library exports `runJsonQuality`, `runJsonQualityCli`, `inspectJsonInventory`, `checkJsonInventory`, `checkJsonDocument`, `checkJsonLines`, `normalizeJsonSource`, `decodeJsonBytes`, `readJsonPolicy`, `jsonContract`, `jsonFormatOptions`, `checkJsonPresentation`, and `validateJsonQualityResult`, plus the acquisition helpers above and `jsonQualitySourceCoordinate`.
 The `./eslint` export supplies `no-json-stringify-identity`; consumers select their JavaScript scope and enable error severity and unused-disable reporting.
 `./configuration-schema` and `./result-schema` export the closed JSON schemas.
 Deep source imports are unsupported.
