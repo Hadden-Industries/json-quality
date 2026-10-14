@@ -12,6 +12,7 @@ const limitFlag = (name) =>
 
 /** Reuse native argument parsing and result reporting in thin repository adapters.
  * Context adds trusted output/logical obligations and may fix the repository root.
+ * A trusted async context factory runs inside the same operational error envelope.
  * Returns the process exit code; importing the API never runs a command.
  */
 export async function runJsonQualityCli(args, context = {}) {
@@ -19,21 +20,6 @@ export async function runJsonQualityCli(args, context = {}) {
   let machine = args.includes("--json");
   let operation = "invalid";
   try {
-    if (
-      !context ||
-      typeof context !== "object" ||
-      Array.isArray(context) ||
-      Object.keys(context).some(
-        (key) =>
-          ![
-            "root",
-            "requiredOutputs",
-            "logicalInventory",
-            "logicalDocuments",
-          ].includes(key),
-      )
-    )
-      throw new TypeError("Invalid JSON quality CLI context.");
     const { values, positionals } = parseArgs({
       args,
       allowPositionals: true,
@@ -73,6 +59,22 @@ export async function runJsonQualityCli(args, context = {}) {
       throw new TypeError(
         "Choose --no-limits or individual capacity overrides.",
       );
+    if (typeof context === "function") context = await context();
+    if (
+      !context ||
+      typeof context !== "object" ||
+      Array.isArray(context) ||
+      Object.keys(context).some(
+        (key) =>
+          ![
+            "root",
+            "requiredOutputs",
+            "logicalInventory",
+            "logicalDocuments",
+          ].includes(key),
+      )
+    )
+      throw new TypeError("Invalid JSON quality CLI context.");
     const root = resolve(context.root ?? values.root ?? process.cwd());
     if (
       context.root !== undefined &&

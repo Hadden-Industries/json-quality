@@ -13,6 +13,8 @@ import json from "@eslint/json";
 import Ajv from "ajv";
 import * as prettier from "prettier";
 import { operationLimits } from "./limits.js";
+import { createHash } from "node:crypto";
+import { jsonPointerToken } from "./json-pointers.js";
 
 const STRICT_JSON_EXTENSIONS = Object.freeze(["json", "jsonld", "sarif"]);
 export const JSON_SUFFIX = new RegExp(
@@ -72,8 +74,7 @@ function isUnsafeInteger(raw) {
 function memberPointer(sourceCode, member) {
   const parts = [];
   for (let node = member; node; node = sourceCode.getParent(node)) {
-    if (node.type === "Member")
-      parts.push(node.name.value.replaceAll("~", "~0").replaceAll("/", "~1"));
+    if (node.type === "Member") parts.push(jsonPointerToken(node.name.value));
     else if (node.type === "Element")
       parts.push(String(sourceCode.getParent(node).elements.indexOf(node)));
   }
@@ -81,13 +82,15 @@ function memberPointer(sourceCode, member) {
 }
 
 /** Analyze the native JSON AST once; lint and source/producer fixes share it. */
-function inspectNormalization(document) {
+function inspectNormalization(document, collectValues = false) {
   const changes = [];
   const collisions = [];
-  const pending = [{ node: document.body, kind: "value" }];
+  const valueStrings = new Map();
+  const pending = [{ node: document.body, kind: "value", pointer: "" }];
   while (pending.length) {
-    const { node, kind } = pending.pop();
+    const { node, kind, pointer } = pending.pop();
     if (node.type === "String") {
+      if (collectValues && kind === "value") valueStrings.set(pointer, node);
       const normalized = node.value.normalize("NFC");
       if (normalized !== node.value) changes.push({ node, kind, normalized });
     } else if (node.type === "Object") {
@@ -99,14 +102,24 @@ function inspectNormalization(document) {
           collisions.push({ node: member.name });
         names.set(normalized, member.name);
         pending.push({ node: member.name, kind: "key" });
-        pending.push({ node: member.value, kind: "value" });
+        pending.push({
+          node: member.value,
+          kind: "value",
+          pointer: collectValues
+            ? `${pointer}/${jsonPointerToken(member.name.value)}`
+            : "",
+        });
       }
     } else if (node.type === "Array") {
-      for (const element of node.elements)
-        pending.push({ node: element.value, kind: "value" });
+      for (const [index, element] of node.elements.entries())
+        pending.push({
+          node: element.value,
+          kind: "value",
+          pointer: collectValues ? `${pointer}/${index}` : "",
+        });
     }
   }
-  return { changes, collisions };
+  return { changes, collisions, valueStrings };
 }
 
 const qualityPlugin = {
@@ -193,25 +206,51 @@ const qualityPlugin = {
       meta: {
         type: "problem",
         languages: ["json/json"],
-        schema: [{ enum: ["NFC", "preserve"] }],
+        schema: [
+          { enum: ["NFC", "preserve"] },
+          configurationSchema.definitions.nfcValues,
+        ],
         messages: {
           unnormalized:
             "JSON {{kind}} is not NFC; fix its owning source or producer with collision preflight.",
           collision:
             "NFC would create duplicate keys in this object; resolve the owning source before normalization.",
+          preservationMismatch:
+            "The NFC preservation value at {{pointer}} is missing or changed; review its owning source and exact preservation identity.",
         },
       },
       create(context) {
         if (context.options[0] === "preserve") return {};
         return {
           Document(document) {
-            const { changes, collisions } = inspectNormalization(document);
+            const { changes, collisions, valueStrings } = inspectNormalization(
+              document,
+              Boolean(context.options[1]?.length),
+            );
+            const preserved = new Set();
+            for (const pin of context.options[1] ?? []) {
+              const node = valueStrings.get(pin.pointer);
+              const bytes = node && Buffer.from(node.value, "utf8");
+              if (
+                node &&
+                bytes.length === pin.byteLength &&
+                createHash("sha256").update(bytes).digest("hex") === pin.sha256
+              )
+                preserved.add(node);
+              else
+                context.report({
+                  node: node ?? document.body,
+                  messageId: "preservationMismatch",
+                  data: { pointer: pin.pointer },
+                });
+            }
             for (const { node, kind } of changes)
-              context.report({
-                node,
-                messageId: "unnormalized",
-                data: { kind },
-              });
+              if (!preserved.has(node))
+                context.report({
+                  node,
+                  messageId: "unnormalized",
+                  data: { kind },
+                });
             for (const { node } of collisions)
               context.report({ node, messageId: "collision" });
           },
@@ -275,6 +314,18 @@ export function jsonLintConfig(files) {
           },
         ]
       : []),
+    ...files
+      .filter((file) => file.preserveNfcValues?.length)
+      .map((file) => ({
+        files: [file.path],
+        rules: {
+          "json-quality/normalized-strings": [
+            "error",
+            "NFC",
+            file.preserveNfcValues,
+          ],
+        },
+      })),
     ...files
       .filter((file) => file.allowEmptyKeys?.length)
       .map((file) => ({
@@ -359,6 +410,30 @@ export async function readJsonPolicy(root, options = {}) {
       throw new Error(
         "A normalization preservation exception must prohibit generic writes.",
       );
+    if (rule.preserveNfcValues) {
+      assertNfcPreservationContract(rule);
+      if (rule.paths.length !== 1 || /[*?[\]{}!()]/u.test(rule.paths[0]))
+        throw new Error(
+          "NFC value preservation requires one exact protected file.",
+        );
+      const records = isJsonLinesPath(rule.paths[0]);
+      const identities = new Set();
+      for (const pin of rule.preserveNfcValues) {
+        if (Boolean(pin.record) !== records)
+          throw new Error(
+            "JSONL NFC preservation requires a record selector; document preservation forbids it.",
+          );
+        // json-identity-contract: ordered-tuple; owner: NFC preservation policy; reason: Decoded pointer and optional record selector are an ordered tuple of validated strings.
+        const identity = JSON.stringify([
+          pin.record?.pointer,
+          pin.record?.value,
+          pin.pointer,
+        ]);
+        if (identities.has(identity))
+          throw new Error("Duplicate NFC preservation location.");
+        identities.add(identity);
+      }
+    }
     for (const pattern of rule.paths)
       if (
         pattern.startsWith("/") ||
@@ -393,6 +468,7 @@ export function jsonContract(path, policy, { tracked = false } = {}) {
       "allowFormatWrites",
       "exclude",
       "normalization",
+      "preserveNfcValues",
       "allowEmptyKeys",
       "expected",
     ]) {
@@ -431,7 +507,10 @@ export function jsonPolicyLintFiles(policy) {
   return [
     ...STRICT_JSON_GLOBS.map((path) => ({ path, ...policy.defaults })),
     ...policy.exceptions
-      .filter((rule) => rule.normalization || rule.allowEmptyKeys)
+      .filter(
+        (rule) =>
+          rule.normalization || rule.allowEmptyKeys || rule.preserveNfcValues,
+      )
       .flatMap((rule) =>
         rule.paths.map((path) => ({ path, ...policy.defaults, ...rule })),
       ),
@@ -443,9 +522,9 @@ export function jsonPolicyLintFiles(policy) {
  */
 export async function normalizeJsonSource(
   text,
-  { normalization = "NFC", allowEmptyKeys } = {},
+  { normalization = "NFC", allowEmptyKeys, preserveNfcValues } = {},
 ) {
-  if (normalization !== "NFC")
+  if (normalization !== "NFC" || preserveNfcValues?.length)
     throw new Error("Preserved JSON string identity cannot be normalized.");
   const linter = new ESLint({
     overrideConfigFile: true,
@@ -477,6 +556,32 @@ export async function normalizeJsonSource(
   }
   chunks.push(text.slice(cursor));
   return chunks.join("");
+}
+
+const validateNfcValues = new Ajv({ strict: true }).compile(
+  configurationSchema.definitions.nfcValues,
+);
+
+/** Narrow value preservation is independently pinned, owner-attributed and
+ * write-protected. It cannot coexist with whole-file or expected-negative waivers.
+ */
+export function assertNfcPreservationContract(contract) {
+  if (!contract.preserveNfcValues) return;
+  if (
+    !validateNfcValues(contract.preserveNfcValues) ||
+    contract.allowFormatWrites !== false ||
+    contract.normalization === "preserve" ||
+    contract.expected ||
+    !(
+      (contract.owner?.trim() && contract.reason?.trim()) ||
+      contract.exceptions?.some(
+        (entry) => entry.owner?.trim() && entry.reason?.trim(),
+      )
+    )
+  )
+    throw new TypeError(
+      "Invalid protected owner/reason NFC value-preservation contract.",
+    );
 }
 
 /** The package owns the standard JSON presentation options. */

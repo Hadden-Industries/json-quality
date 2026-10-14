@@ -22,6 +22,8 @@ UO's former local schema 4 requires explicit migration; it is rejected rather th
 Defaults require `prettier-json`, writable eligible authored files and all-string NFC.
 The npm lock root key needs the precise `allowEmptyKeys: ["/packages/"]` exception.
 Preservation of normalization requires generic writes disabled.
+For narrower preservation, `preserveNfcValues` pins decoded string values by exact JSON Pointer, SHA-256 and UTF-8 byte length. It requires one exact protected file and an owner/reason; all keys and other values retain NFC checking. A changed, missing or non-string value fails. It cannot coexist with whole-file normalization preservation or expected-negative admission.
+JSONL pins additionally require `record: { pointer: "/id", value: "fixture-id" }`. Exactly one record must match that decoded string identity, regardless of its line number. No match or duplicate identities fail. Every unselected record remains checked normally. Preservation never enables generic formatting or normalization.
 Contradictory matching exceptions fail.
 External boundaries never conceal tracked files.
 
@@ -64,6 +66,7 @@ These are cooperative admission controls, not an OS sandbox or a promise that na
 The separate JavaScript identity rule accepts resource options `maxFrames` (default 64) and `maxSteps` (default 100000). Each accepts a positive safe integer or `false` to bypass that limit; an options value of `false` bypasses both. These options never disable the semantic guard or replace consumer permutation tests.
 
 Repository command adapters can call `await runJsonQualityCli(process.argv.slice(2), { root, requiredOutputs, logicalInventory, logicalDocuments })` and assign its returned exit code. A supplied root is fixed: a conflicting `--root` fails. Argument parsing, capacity overrides and human/machine result reporting remain package-owned; importing this API performs no command.
+Adapters that must load or verify repository-owned inputs may instead supply a trusted asynchronous factory returning that same closed context. It runs after argument admission, inside the package's error envelope. Native storage-verification failures then return exit 2 and an incomplete machine result rather than escaping as an unstructured stack trace.
 
 Producer archive qualification selects npm 12.2.0 or later within major 12 and admits its keyed native pack report. Older report shapes are rejected; the CI matrix explicitly selects the qualified package manager.
 Platform/runtime support requires the named source and transported tests on Windows and Linux; unobserved hosted results remain gaps.

@@ -7,6 +7,7 @@ import {
   jsonLintConfig,
   checkJsonPresentation,
   jsonFormatOptions,
+  assertNfcPreservationContract,
 } from "./quality.js";
 
 /** Analyze owned bytes without reading configuration, acquiring tools or writing.
@@ -14,6 +15,11 @@ import {
  * Native diagnostics retain decoded-key semantics and exact source locations.
  */
 export async function checkJsonDocument(bytes, contract = {}) {
+  assertNfcPreservationContract(contract);
+  if (contract.preserveNfcValues?.some((pin) => pin.record))
+    throw new TypeError(
+      "Record-selective NFC preservation requires JSONL analysis.",
+    );
   const path = contract.path ?? "input.json";
   const findings = [];
   let text;

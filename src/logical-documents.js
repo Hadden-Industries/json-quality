@@ -5,6 +5,7 @@ import { checkJsonDocument } from "./documents.js";
 import { inventoryDocument } from "./result.js";
 import { assertRepositoryPath } from "./paths.js";
 import { isDeepStrictEqual } from "node:util";
+import { jsonPointerValue } from "./json-pointers.js";
 
 /** Discharge container expectations only after the complete logical census has
  * passed byte and physical-pointer reconciliation. Standalone analysis cannot
@@ -100,13 +101,10 @@ export async function checkLogicalDocuments(
         pin.containerPath,
         JSON.parse(decodeJsonBytes(container.bytes)),
       );
-    let field = containers.get(pin.containerPath);
-    for (const part of pin.pointer.split("/").slice(1)) {
-      const key = part.replaceAll("~1", "/").replaceAll("~0", "~");
-      if (!field || typeof field !== "object" || !Object.hasOwn(field, key))
-        throw new Error(`Missing logical provenance pointer: ${entry.path}`);
-      field = field[key];
-    }
+    const field = jsonPointerValue(
+      containers.get(pin.containerPath),
+      pin.pointer,
+    );
     if (typeof field !== "string")
       throw new Error(`Logical provenance is not a string: ${entry.path}`);
     const decoded = Buffer.from(field, pin.encoding);

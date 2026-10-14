@@ -503,3 +503,49 @@ test("public CLI adapters retain required outputs, resource flags and a fixed re
   assert.equal(escape.status, 2);
   assert.equal(JSON.parse(escape.stdout).counts, null);
 });
+
+test("trusted asynchronous CLI context failures retain the public machine error envelope", () => {
+  const api = new URL("../src/index.js", import.meta.url).href;
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import {runJsonQualityCli} from ${JSON.stringify(api)}; process.exitCode = await runJsonQualityCli(["check", "--json"], async () => { throw new Error("Native corpus verification failed"); });`,
+    ],
+    { encoding: "utf8", windowsHide: true },
+  );
+  assert.equal(result.status, 2);
+  assert.equal(JSON.parse(result.stdout).operation, "check");
+  assert.equal(JSON.parse(result.stdout).complete, false);
+  assert.equal(JSON.parse(result.stdout).counts, null);
+});
+
+test("CLI argument admission precedes trusted context loading and validates its returned shape", (t) => {
+  const root = repository(t);
+  const api = new URL("../src/index.js", import.meta.url).href;
+  const invoke = (args, body) =>
+    spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import {runJsonQualityCli} from ${JSON.stringify(api)}; process.exitCode = await runJsonQualityCli(${JSON.stringify(args)}, async () => {${body}});`,
+      ],
+      { encoding: "utf8", windowsHide: true },
+    );
+  const invalid = invoke(
+    ["invalid", "--json"],
+    'console.error("CONTEXT_LOADED"); return {};',
+  );
+  assert.equal(invalid.status, 2);
+  assert(!invalid.stderr.includes("CONTEXT_LOADED"));
+  const good = invoke(
+    ["check", "--json"],
+    `return {root:${JSON.stringify(root)}};`,
+  );
+  assert.equal(good.status, 0, good.stderr);
+  assert.equal(JSON.parse(good.stdout).complete, true);
+  const unknown = invoke(["check", "--json"], "return {unexpected:true};");
+  assert.equal(unknown.status, 2);
+});
