@@ -499,6 +499,10 @@ export function jsonContract(path, policy, { tracked = false } = {}) {
       throw new Error(`Unsupported JSONL presentation contract: ${path}`);
     contract.allowFormatWrites = false;
   }
+  // A producer's presentation contract assigns writes to that producer even
+  // when its sparse exception does not repeat the default write setting.
+  if (contract.formatContract !== "prettier-json")
+    contract.allowFormatWrites = false;
   return contract;
 }
 

@@ -103,6 +103,46 @@ test("an invalid peer blocks every formatting write", async (t) => {
   assert.deepEqual(result.writes.changed, []);
 });
 
+test("producer presentation alone protects formatting and normalization writes", async (t) => {
+  const root = repository(t);
+  const policyPath = join(root, ".json-quality.json");
+  const policy = JSON.parse(readFileSync(policyPath, "utf8"));
+  policy.exceptions.push({
+    paths: ["producer.json"],
+    formatContract: "producer-json-compact-body",
+    owner: "Fixture producer",
+    reason: "Only the producer owns this compact document's presentation.",
+  });
+  writeFileSync(policyPath, JSON.stringify(policy, null, 2) + "\n");
+  const before = '{"x":1}';
+  writeFileSync(join(root, "producer.json"), before);
+  const result = await runJsonQuality("format", { root });
+  assert.equal(result.status, "passed");
+  assert.deepEqual(result.writes.changed, []);
+  assert.equal(readFileSync(join(root, "producer.json"), "utf8"), before);
+  const inventory = await runJsonQuality("inventory", { root });
+  assert.equal(
+    inventory.documents.find((document) => document.path === "producer.json")
+      .contract.allowFormatWrites,
+    false,
+  );
+  await assert.rejects(
+    runJsonQuality("normalize", { root, sourcePaths: ["producer.json"] }),
+    /protected/iu,
+  );
+  writeFileSync(join(root, "producer.json"), '{ "x": 1 }');
+  const invalid = await runJsonQuality("format", { root });
+  assert.equal(invalid.status, "failed");
+  assert.deepEqual(invalid.writes.changed, []);
+  assert.equal(readFileSync(join(root, "producer.json"), "utf8"), '{ "x": 1 }');
+  assert.ok(
+    invalid.findings.some(
+      (finding) =>
+        finding.path === "producer.json" && finding.phase === "presentation",
+    ),
+  );
+});
+
 test("logical inventory is cumulative and rejects lost, duplicate or changed members", async (t) => {
   const root = repository(t);
   const bytes = Buffer.from('{"x":1,"x":2}');

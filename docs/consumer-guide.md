@@ -28,6 +28,7 @@ Contradictory matching exceptions fail.
 External boundaries never conceal tracked files.
 
 Producer presentation contracts retain the qualified native indented/compact serializers, final-LF and retained-envelope variants.
+Producer presentation intrinsically prohibits generic formatting and normalization writes; a sparse presentation exception needs no repeated write-protection setting.
 `preserved-bytes` requires one exact protected path, owner/reason and an independently owned SHA-256/byte-length/diagnostic expectation.
 Expected diagnostics are an exact sequence of phase, native rule/message identity and source locations; any extra or missing finding fails.
 Matched findings appear under `expectedFindings`, and unperformable parse/presentation phases remain unperformed.
