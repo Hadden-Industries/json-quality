@@ -348,6 +348,35 @@ test("reported native authority metadata is the copy captured at admission", asy
   assert.deepEqual(result.nativeSources[0].authorities, [original]);
 });
 
+test(
+  "Windows casing aliases cannot make native JSON authorities writable",
+  { skip: process.platform !== "win32" },
+  async (t) => {
+    const f = fixture(t);
+    const bytes = Buffer.from('{"authority":"e\\u0301"}\n');
+    writeFileSync(join(f.root, "manifest.json"), bytes);
+    f.supplied.authorities.push({
+      path: "MANIFEST.json",
+      sha256: digest(bytes),
+      byteLength: bytes.length,
+    });
+    const result = await runJsonQuality("inventory", f.options);
+    assert.equal(
+      result.documents.find((document) => document.path === "manifest.json")
+        .contract.allowFormatWrites,
+      false,
+    );
+    await assert.rejects(
+      runJsonQuality("normalize", {
+        ...f.options,
+        sourcePaths: ["manifest.json"],
+      }),
+      /Protected/u,
+    );
+    assert.deepEqual(readFileSync(join(f.root, "manifest.json")), bytes);
+  },
+);
+
 test("serialized native results reject detached content and archive identities", async (t) => {
   for (const archive of [false, true]) {
     const f = fixture(t, archive);

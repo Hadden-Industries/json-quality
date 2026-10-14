@@ -77,7 +77,7 @@ export async function runJsonQuality(operation, options = {}) {
   );
   const protectNativeInputs = (files) =>
     files.map((contract) =>
-      native.protectedPaths.has(contract.path)
+      native.protectedPaths.has(contract.path.toLowerCase())
         ? {
             ...contract,
             allowFormatWrites: false,
