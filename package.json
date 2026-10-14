@@ -4,6 +4,14 @@
   "description": "Strict JSON quality controls with complete discovery and guarded source repair",
   "license": "AGPL-3.0-only",
   "type": "module",
+  "packageManager": "npm@12.2.0",
+  "devEngines": {
+    "packageManager": {
+      "name": "npm",
+      "version": ">=12.2.0 <13",
+      "onFail": "error"
+    }
+  },
   "engines": {
     "node": ">=24.21.0 <25 || >=26.11.1 <27"
   },

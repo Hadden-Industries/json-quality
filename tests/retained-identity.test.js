@@ -25,7 +25,13 @@ const config = {
     [ruleId]: "error",
   },
 };
-const lint = (code) => new Linter().verify(code, config);
+const lint = (code, options) =>
+  new Linter().verify(
+    code,
+    options === undefined
+      ? config
+      : { ...config, rules: { [ruleId]: ["error", options] } },
+  );
 const contract = (kind = "bytes") =>
   `// json-identity-contract: ${kind}; owner: Test oracle; reason: Exact representation is the asserted contract.\n`;
 for (const [index, vector] of [
@@ -260,6 +266,28 @@ test("scope pruning permits generated alias graphs without any JSON serializatio
   for (let index = 1; index < 100; index++)
     declarations.push(`const v${index} = v${index - 1} + v${index - 1};`);
   assert.deepEqual(lint(`${declarations.join("\n")}\nv99 === 'plain';`), []);
+});
+
+test("identity-analysis capacity can be raised or explicitly bypassed without disabling the guard", () => {
+  const declarations = ["const v0 = JSON.stringify(a);"];
+  for (let index = 1; index < 80; index++)
+    declarations.push(`const v${index} = v${index - 1};`);
+  const code = `${declarations.join("\n")}\nv79 === b;`;
+  assert.deepEqual(
+    lint(code, { maxFrames: 128, maxSteps: 1000000 }).map(
+      ({ messageId }) => messageId,
+    ),
+    ["identity"],
+  );
+  assert.deepEqual(
+    lint(code, false).map(({ messageId }) => messageId),
+    ["identity"],
+  );
+  assert.ok(
+    lint(code, { maxSteps: 1 }).some(
+      ({ messageId }) => messageId === "analysisLimit",
+    ),
+  );
 });
 test("repository config enables the guard for source, scripts and tests without autofixes", async () => {
   const eslint = new ESLint();

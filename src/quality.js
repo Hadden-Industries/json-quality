@@ -410,6 +410,19 @@ export function jsonContract(path, policy, { tracked = false } = {}) {
     contract.exclude = false;
     contract.allowFormatWrites = false;
   }
+  // JSON Lines has a framing-owned single-line presentation and is never
+  // rewritten by a document formatter. Only deviations need classification.
+  if (isJsonLinesPath(path)) {
+    if (!explicit.has("formatContract"))
+      contract.formatContract = "producer-json-compact-body";
+    if (
+      !["producer-json-compact-body", "preserved-bytes"].includes(
+        contract.formatContract,
+      )
+    )
+      throw new Error(`Unsupported JSONL presentation contract: ${path}`);
+    contract.allowFormatWrites = false;
+  }
   return contract;
 }
 

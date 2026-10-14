@@ -3,7 +3,7 @@ import schema from "../schemas/configuration.schema.json" with { type: "json" };
 import Ajv from "ajv";
 
 // Schema defaults are annotations; Ajv never inserts or coerces policy data.
-const defaults = Object.freeze(
+export const DEFAULT_LIMITS = Object.freeze(
   Object.fromEntries(
     Object.entries(schema.definitions.limits.properties).map(([key, value]) => [
       key,
@@ -12,7 +12,7 @@ const defaults = Object.freeze(
   ),
 );
 
-export const LIMIT_NAMES = Object.freeze(Object.keys(defaults));
+export const LIMIT_NAMES = Object.freeze(Object.keys(DEFAULT_LIMITS));
 const validate = new Ajv({ strict: true }).compile(schema.definitions.limits);
 const unlimited = Object.freeze(
   Object.fromEntries(LIMIT_NAMES.map((name) => [name, Infinity])),
@@ -24,7 +24,7 @@ export function operationLimits(policy, overrides) {
     throw new TypeError("Invalid JSON resource-limit overrides.");
   if (overrides === false) return { ...unlimited };
   return {
-    ...(policy.limits === false ? unlimited : defaults),
+    ...(policy.limits === false ? unlimited : DEFAULT_LIMITS),
     ...(policy.limits || {}),
     ...overrides,
   };

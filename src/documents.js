@@ -97,6 +97,10 @@ export async function checkJsonDocument(bytes, contract = {}) {
  */
 export function admitExpected(result, bytes, contract) {
   const expected = contract.expected;
+  if (expected?.linkedDocuments)
+    throw new Error(
+      "Expected container diagnostics require verified logical linkage.",
+    );
   if (!expected) {
     if (contract.formatContract === "preserved-bytes")
       throw new Error(

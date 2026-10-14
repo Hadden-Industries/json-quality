@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { decodeJsonBytes } from "./quality.js";
 import { checkJsonDocument, admitExpected } from "./documents.js";
+import { DEFAULT_LIMITS } from "./limits.js";
 
 /** Frame JSON Lines without changing envelopes; each record needs strict analysis. */
 export async function checkJsonLines(bytes, contract = {}) {
   const path = contract.path ?? "input.jsonl";
+  const formatContract =
+    contract.formatContract ?? "producer-json-compact-body";
+  if (
+    !["producer-json-compact-body", "preserved-bytes"].includes(formatContract)
+  )
+    throw new Error(`Unsupported JSONL presentation contract: ${path}`);
   let text;
   try {
     text = decodeJsonBytes(bytes);
@@ -15,7 +22,7 @@ export async function checkJsonLines(bytes, contract = {}) {
         complete: true,
         syntaxValid: false,
         presentationChecked: false,
-        recordCount: 0,
+        recordCount: null,
         findings: [
           {
             path,
@@ -33,7 +40,7 @@ export async function checkJsonLines(bytes, contract = {}) {
   }
   const lines = text.split("\n");
   if (lines.at(-1) === "") lines.pop();
-  if (lines.length > (contract.maxRecords ?? 100000))
+  if (lines.length > (contract.maxRecords ?? DEFAULT_LIMITS.maxRecords))
     throw new Error(`JSONL record limit exceeded: ${path}`);
   const findings = [];
   let syntaxValid = true;

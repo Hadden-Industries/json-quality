@@ -107,6 +107,47 @@
               "diagnostics"
             ],
             "properties": {
+              "linkedDocuments": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "path",
+                    "pointer",
+                    "encoding",
+                    "sha256",
+                    "byteLength"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "pointer": {
+                      "type": "string",
+                      "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                    },
+                    "encoding": {
+                      "enum": [
+                        "utf8",
+                        "base64"
+                      ]
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "byteLength": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  }
+                }
+              },
               "sha256": {
                 "type": "string",
                 "pattern": "^[a-f0-9]{64}$"
@@ -133,7 +174,8 @@
                     "phase": {
                       "enum": [
                         "bytes",
-                        "lint"
+                        "lint",
+                        "framing"
                       ]
                     },
                     "ruleId": {
@@ -159,6 +201,10 @@
                       "minimum": 1
                     },
                     "endColumn": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "record": {
                       "type": "integer",
                       "minimum": 1
                     }

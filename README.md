@@ -2,6 +2,7 @@
 
 One Node package provides strict JSON checking, complete owned-file discovery, guarded source formatting and NFC repair, and a bounded ESLint guard against serialization used as semantic identity.
 The CLI and library execute the same package-owned rules and presentation options.
+`check` validates JSON bytes, syntax, keys, values and presentation across the complete owned inventory. `inventory` lists scope and resolved contracts without analyzing document JSON; it does not establish a quality pass.
 Repository producers and domain validators retain authority over schemas, RDF meaning, canonical representations, hashes and historical evidence.
 
 ```sh
@@ -12,6 +13,7 @@ json-quality normalize --root /path/to/repository -- source.json
 ```
 
 The initial development contract uses configuration and result schema 1, Node 24.21.0 or newer within Node 24 or Node 26.11.1 or newer within Node 26, ESLint 10.12.0, `@eslint/json` 2.1.1, Prettier 3.9.10 and Ajv 8.20.0.
+Producer qualification uses npm 12.2.0 or newer within npm 12. Resource defaults can be raised through configuration, API options or CLI flags such as `--max-files 100000 --max-file-bytes 67108864`; `--no-limits` explicitly bypasses package capacity limits while retaining quality rules.
 It is an internal development candidate; registry publication is separately authorized and qualified.
 See the [consumer contract](docs/consumer-guide.md) and [third-party notices](THIRD-PARTY-NOTICES.md).
 

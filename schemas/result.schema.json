@@ -71,7 +71,14 @@
               ]
             },
             "checked": {
-              "$ref": "#/definitions/count"
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/count"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         }
@@ -309,7 +316,14 @@
           }
         },
         "recordCount": {
-          "$ref": "#/definitions/count"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/count"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "findings": {
           "type": "array",

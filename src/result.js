@@ -8,6 +8,36 @@ export const OPERATIONS = Object.freeze(
 );
 const validate = new Ajv({ strict: true, allErrors: true }).compile(schema);
 
+/** Internal count authority: undecodable JSONL has unknown record coverage. */
+export function analysisCounts(documents, operation) {
+  const physical = documents.filter(
+    (document) => document.representation === "physical",
+  ).length;
+  const inventory = operation === "inventory";
+  const unknownRecords = documents.some(
+    (document) => document.recordCount === null,
+  );
+  return {
+    physical,
+    logical: documents.length - physical,
+    records:
+      inventory || unknownRecords
+        ? null
+        : documents.reduce(
+            (sum, document) => sum + (document.recordCount ?? 0),
+            0,
+          ),
+    checked: inventory
+      ? 0
+      : unknownRecords
+        ? null
+        : documents.reduce(
+            (sum, document) => sum + (document.recordCount ?? 1),
+            0,
+          ),
+  };
+}
+
 /** Scope reporting explicitly leaves JSON analysis phases unperformed. */
 export function inventoryDocument(contract, representation) {
   const { path, formatContract, allowFormatWrites, normalization, exceptions } =
@@ -53,29 +83,12 @@ export function validateJsonQualityResult(result) {
       result.documents.length
   )
     throw new TypeError("Missing or duplicate JSON document accounting.");
-  const physical = result.documents.filter(
-    (document) => document.representation === "physical",
-  ).length;
   const inventory = result.operation === "inventory";
-  const records = inventory
-    ? null
-    : result.documents.reduce(
-        (sum, document) => sum + (document.recordCount ?? 0),
-        0,
-      );
-  const checked = inventory
-    ? 0
-    : result.documents.reduce(
-        (sum, document) => sum + (document.recordCount ?? 1),
-        0,
-      );
   if (
-    !isDeepStrictEqual(result.counts, {
-      physical,
-      logical: result.documents.length - physical,
-      records,
-      checked,
-    }) ||
+    !isDeepStrictEqual(
+      result.counts,
+      analysisCounts(result.documents, result.operation),
+    ) ||
     !isDeepStrictEqual(
       result.findings,
       result.documents.flatMap((document) => document.findings),
@@ -84,6 +97,16 @@ export function validateJsonQualityResult(result) {
     throw new TypeError(
       "Inconsistent JSON quality coverage or diagnostic accounting.",
     );
+  if (
+    writePaths.some(
+      (path) =>
+        !result.documents.some(
+          (document) =>
+            document.path === path && document.representation === "physical",
+        ),
+    )
+  )
+    throw new TypeError("JSON writes must name discovered physical documents.");
   for (const document of result.documents)
     if (
       inventory

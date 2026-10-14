@@ -33,6 +33,22 @@ const INSTANCE_ROLES = new Map([
 ]);
 const CONTRACT =
   /^json-identity-contract: (bytes|digest|ordered-tuple); owner: ([^;\r\n]+); reason: (\S[^\r\n]*)$/u;
+const DEFAULT_LIMITS = Object.freeze({ maxFrames: 64, maxSteps: 100_000 });
+const LIMIT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: Object.fromEntries(
+    Object.keys(DEFAULT_LIMITS).map((name) => [
+      name,
+      {
+        anyOf: [
+          { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+          { const: false },
+        ],
+      },
+    ]),
+  ),
+};
 
 function propertyName(node) {
   if (!node.computed && node.property?.type === "Identifier")
@@ -87,7 +103,7 @@ export default {
       description:
         "Reject raw JSON serialization used as equality or identity.",
     },
-    schema: [],
+    schema: [{ anyOf: [LIMIT_SCHEMA, { const: false }] }],
     messages: {
       identity:
         "JSON.stringify is order-sensitive. Compare structured data or use a reviewed canonical identity; declare an intentional byte/digest/ordered-tuple contract locally.",
@@ -96,10 +112,19 @@ export default {
       unused:
         "Unused JSON identity contract: attach it immediately before the serializer used by an identity operation.",
       analysisLimit:
-        "JSON identity analysis exceeded 64 lexical frames or 100000 steps; simplify the local alias graph so the guard can complete.",
+        "JSON identity analysis exceeded {{maxFrames}} lexical frames or {{maxSteps}} steps; simplify the alias graph or explicitly adjust its resource limits.",
     },
   },
   create(context) {
+    const limits = Object.fromEntries(
+      Object.entries(DEFAULT_LIMITS).map(([name, defaultValue]) => {
+        const value =
+          context.options[0] === false
+            ? false
+            : (context.options[0]?.[name] ?? defaultValue);
+        return [name, value === false ? Infinity : value];
+      }),
+    );
     const source = context.sourceCode;
     const contracts = source
       .getAllComments()
@@ -124,11 +149,11 @@ export default {
             bound.references.length,
         ),
     );
-    let remainingAnalysisSteps = 100_000;
+    let remainingAnalysisSteps = limits.maxSteps;
     let analysisLimited = false;
 
     function withinBudget(seen) {
-      if (seen.size >= 64 || --remainingAnalysisSteps < 0) {
+      if (seen.size >= limits.maxFrames || --remainingAnalysisSteps < 0) {
         analysisLimited = true;
         return false;
       }
@@ -519,7 +544,7 @@ export default {
       "Program:exit"(node) {
         if (maySerialize) sinks.forEach(inspect);
         if (analysisLimited)
-          context.report({ node, messageId: "analysisLimit" });
+          context.report({ node, messageId: "analysisLimit", data: limits });
         for (const comment of contracts) {
           if (!used.has(comment))
             context.report({

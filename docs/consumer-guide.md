@@ -5,7 +5,7 @@ For source adoption, retain the clean full source commit, archive SHA-256, npm i
 An archive basename includes its source commit and must never be overwritten with different bytes.
 The package version alone does not identify a development candidate.
 
-The root library exports `runJsonQuality`, `inspectJsonInventory`, `checkJsonInventory`, `checkJsonDocument`, `checkJsonLines`, `normalizeJsonSource`, `decodeJsonBytes`, `readJsonPolicy`, `jsonContract`, `jsonFormatOptions`, `checkJsonPresentation`, and `validateJsonQualityResult`.
+The root library exports `runJsonQuality`, `runJsonQualityCli`, `inspectJsonInventory`, `checkJsonInventory`, `checkJsonDocument`, `checkJsonLines`, `normalizeJsonSource`, `decodeJsonBytes`, `readJsonPolicy`, `jsonContract`, `jsonFormatOptions`, `checkJsonPresentation`, and `validateJsonQualityResult`.
 The `./eslint` export supplies `no-json-stringify-identity`; consumers select their JavaScript scope and enable error severity and unused-disable reporting.
 `./configuration-schema` and `./result-schema` export the closed JSON schemas.
 Deep source imports are unsupported.
@@ -34,6 +34,7 @@ Never create accepted expectations by learning a candidate's current failures.
 `runJsonQuality` accepts explicit repository root, required output patterns, explicit normalization source paths, and optional cumulative logical inventory/documents.
 Required outputs add obligations without replacing physical discovery.
 Each logical inventory entry contains exactly `path`, `sha256`, `byteLength`, `containerPath`, `pointer` and `encoding` (`utf8` or `base64`).
+An expected-diagnostic container can additionally require `expected.linkedDocuments`: exact `path`, `pointer`, `encoding`, `sha256` and `byteLength` pins. These members must appear in the independently supplied logical census and pass physical-pointer reconciliation before the container exception is admitted. Standalone document analysis rejects an undischarged linkage requirement.
 Each supplied logical document contains exactly its canonical `path` and an owned `Buffer` of `bytes`.
 Every member must match its independently owned inventory and the actual pointed-to string in a physically discovered container.
 Repository adapters must also invoke their existing storage and domain validators.
@@ -45,6 +46,7 @@ The ordinary `check` covers every phase.
 `inventory` reports discovered physical/logical identities, external boundaries and resolved owner/write/presentation/NFC contracts.
 It validates policy and scope/provenance accounting without performing JSON analysis or JSONL framing; `syntaxValid` and record counts are null and `checked` is zero.
 It establishes scope, never a quality pass; there is no redundant `inspect` alias.
+Ordinary inventory reads file identities and sizes without loading their contents; logical provenance still requires reading its declared physical containers. Undecodable JSONL bytes leave record and checked-document coverage null rather than reporting zero records.
 Lint omits presentation findings; presentation checking retains byte/expectation failures; producer checking reaches protected inputs.
 The CLI exits 0 for a complete pass, 1 for known findings or partial-write failure and 2 for invalid input or operational failure.
 Machine output is opt-in `--json` and validated against result schema 1 plus semantic count, identity, phase and write accounting.
@@ -59,4 +61,9 @@ Limits fail before writes and never disable semantic rules.
 Policy bootstrap bytes, Git/tool output and formatter time are capacity controls too, with corresponding override flags; enlarge policy bootstrap capacity using CLI/API overrides before loading a policy larger than the default.
 Operating-system/native-tool constraints still apply when package limits are bypassed; failures never become a pass.
 These are cooperative admission controls, not an OS sandbox or a promise that native parsers have constant memory cost.
+The separate JavaScript identity rule accepts resource options `maxFrames` (default 64) and `maxSteps` (default 100000). Each accepts a positive safe integer or `false` to bypass that limit; an options value of `false` bypasses both. These options never disable the semantic guard or replace consumer permutation tests.
+
+Repository command adapters can call `await runJsonQualityCli(process.argv.slice(2), { root, requiredOutputs, logicalInventory, logicalDocuments })` and assign its returned exit code. A supplied root is fixed: a conflicting `--root` fails. Argument parsing, capacity overrides and human/machine result reporting remain package-owned; importing this API performs no command.
+
+Producer archive qualification selects npm 12.2.0 or later within major 12 and admits its keyed native pack report. Older report shapes are rejected; the CI matrix explicitly selects the qualified package manager.
 Platform/runtime support requires the named source and transported tests on Windows and Linux; unobserved hosted results remain gaps.

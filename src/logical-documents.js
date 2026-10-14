@@ -4,6 +4,32 @@ import { decodeJsonBytes, jsonContract, isStrictJsonPath } from "./quality.js";
 import { checkJsonDocument } from "./documents.js";
 import { inventoryDocument } from "./result.js";
 import { assertRepositoryPath } from "./paths.js";
+import { isDeepStrictEqual } from "node:util";
+
+/** Discharge container expectations only after the complete logical census has
+ * passed byte and physical-pointer reconciliation. Standalone analysis cannot
+ * admit a container whose declared JSON member has not also been checked.
+ */
+export function verifiedContainerContract(contract, inventory) {
+  const linked = contract.expected?.linkedDocuments;
+  if (!linked) return contract;
+  const seen = new Set();
+  for (const pin of linked) {
+    assertRepositoryPath(pin.path);
+    const entry = inventory.find((candidate) => candidate.path === pin.path);
+    if (!entry)
+      throw new Error(`Missing required logical document: ${pin.path}`);
+    if (
+      seen.has(pin.path) ||
+      !isDeepStrictEqual(entry, { ...pin, containerPath: contract.path })
+    )
+      throw new Error(`Changed expected logical linkage: ${pin.path}`);
+    seen.add(pin.path);
+  }
+  const expected = { ...contract.expected };
+  delete expected.linkedDocuments;
+  return { ...contract, expected };
+}
 
 /** Reconcile a trusted independent inventory with supplied owned member bytes.
  * Pointer linkage verifies the actual physical string; repository adapters own

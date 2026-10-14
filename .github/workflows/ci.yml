@@ -25,6 +25,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
+      - name: Select the qualified native npm pack contract
+        run: npm install --global npm@12.2.0 --ignore-scripts --no-audit --no-fund
       - name: Acquire the frozen tool graph without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Qualify source, schemas, native rules and transported consumer

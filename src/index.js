@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 export { runJsonQuality } from "./execution.js";
+export { runJsonQualityCli } from "./cli.js";
 export { inspectJsonInventory, checkJsonInventory } from "./inventory.js";
 export { checkJsonDocument } from "./documents.js";
 export { checkJsonLines } from "./json-lines.js";

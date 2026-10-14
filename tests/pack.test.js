@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readPackReport } from "../scripts/pack.js";
 
-test("native npm pack reporting preserves one package across npm report shapes", () => {
+test("native npm 12 pack reporting admits exactly one package and rejects legacy shapes", () => {
   const npm = process.env.npm_execpath;
   assert.ok(npm, "Run the maintained test entry point through npm.");
   const output = execFileSync(
@@ -15,7 +15,7 @@ test("native npm pack reporting preserves one package across npm report shapes",
   const report = readPackReport(output);
   assert.equal(report.name, "@hadden-industries/json-quality");
   assert.ok(report.files.some((file) => file.path === "src/cli.js"));
-  assert.deepEqual(readPackReport(JSON.stringify([report])), report);
+  assert.throws(() => readPackReport(JSON.stringify([report])), /exactly one/u);
   assert.deepEqual(
     readPackReport(JSON.stringify({ [report.name]: report })),
     report,

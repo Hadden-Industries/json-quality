@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import { createHash } from "node:crypto";
 import { runJsonQuality } from "../src/execution.js";
+import { checkJsonDocument } from "../src/documents.js";
 
 function repository(t) {
   const root = mkdtempSync(join(tmpdir(), "json-quality-test-"));
@@ -310,4 +311,195 @@ test("a later replacement failure reports earlier writes and unprocessed files t
   assert.equal(readFileSync(join(root, "b.json"), "utf8"), before);
   assert.equal(readFileSync(join(root, "c.json"), "utf8"), before);
   assert.ok(fs.readdirSync(root).every((path) => !path.endsWith(".tmp")));
+});
+
+test("JSONL scope reports its single-line producer contract without per-file classification", async (t) => {
+  const root = repository(t);
+  writeFileSync(join(root, "records.jsonl"), "{}\n{}\n");
+  const result = await runJsonQuality("inventory", { root });
+  assert.equal(
+    result.documents.find((document) => document.path === "records.jsonl")
+      .contract.formatContract,
+    "producer-json-compact-body",
+  );
+});
+
+test("unknown JSONL record coverage is null rather than an invented zero", async (t) => {
+  const root = repository(t);
+  writeFileSync(join(root, "records.jsonl"), Buffer.from([0xff]));
+  const result = await runJsonQuality("check", { root });
+  assert.equal(result.status, "failed");
+  assert.equal(
+    result.documents.find((document) => document.path === "records.jsonl")
+      .recordCount,
+    null,
+  );
+  assert.equal(result.counts.records, null);
+  assert.equal(result.counts.checked, null);
+});
+
+test("inventory does not read ordinary document contents", async (t) => {
+  const root = repository(t);
+  const path = join(root, "data.json");
+  writeFileSync(path, "{}\n");
+  const read = fs.readFileSync;
+  t.mock.method(fs, "readFileSync", (...args) => {
+    if (args[0] === path)
+      throw new Error("Unexpected document read during scope inventory");
+    return read(...args);
+  });
+  syncBuiltinESMExports();
+  try {
+    assert.equal(
+      (await runJsonQuality("inventory", { root })).status,
+      "passed",
+    );
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+});
+
+test("expected container diagnostics require complete logical linkage", async (t) => {
+  const root = repository(t);
+  const bytes = Buffer.from('{\n  "x": "\uFDD0"\n}\n');
+  const containerBytes = Buffer.from(
+    JSON.stringify({ artifacts: [{ text: bytes.toString() }] }, null, 2) + "\n",
+  );
+  writeFileSync(join(root, "bundle.json"), containerBytes);
+  const hash = (value) => createHash("sha256").update(value).digest("hex");
+  const member = {
+    path: "logical/source.json",
+    sha256: hash(bytes),
+    byteLength: bytes.length,
+    containerPath: "bundle.json",
+    pointer: "/artifacts/0/text",
+    encoding: "utf8",
+  };
+  const policyPath = join(root, ".json-quality.json");
+  const policy = JSON.parse(readFileSync(policyPath, "utf8"));
+  const container = await checkJsonDocument(containerBytes, {
+    path: "bundle.json",
+  });
+  // The native indentation fixture places the 24-character encoded string at
+  // columns 15..38. Its decoded value contains the independently chosen U+FDD0.
+  const containerDiagnostics = [
+    {
+      phase: "lint",
+      ruleId: "json-quality/interoperability",
+      messageId: "noncharacter",
+      line: 4,
+      column: 15,
+      endLine: 4,
+      endColumn: 39,
+    },
+  ];
+  assert.deepEqual(
+    container.findings.map(({ path: _path, ...finding }) => finding),
+    containerDiagnostics,
+  );
+  policy.exceptions.push({
+    paths: ["bundle.json"],
+    allowFormatWrites: false,
+    owner: "Negative-vector oracle",
+    reason:
+      "Preserve the independently pinned negative source through its actual container string.",
+    expected: {
+      sha256: hash(containerBytes),
+      byteLength: containerBytes.length,
+      diagnostics: containerDiagnostics,
+      linkedDocuments: [
+        {
+          path: member.path,
+          pointer: member.pointer,
+          encoding: member.encoding,
+          sha256: member.sha256,
+          byteLength: member.byteLength,
+        },
+      ],
+    },
+  });
+  policy.exceptions.push({
+    paths: [member.path],
+    allowFormatWrites: false,
+    owner: "Negative-vector oracle",
+    reason: "The fixture intentionally contains U+FDD0.",
+    expected: {
+      sha256: hash(bytes),
+      byteLength: bytes.length,
+      diagnostics: [
+        {
+          phase: "lint",
+          ruleId: "json-quality/interoperability",
+          messageId: "noncharacter",
+          line: 2,
+          column: 8,
+          endLine: 2,
+          endColumn: 11,
+        },
+      ],
+    },
+  });
+  writeFileSync(policyPath, JSON.stringify(policy, null, 2) + "\n");
+  await assert.rejects(
+    runJsonQuality("check", { root }),
+    /required logical document/iu,
+  );
+  const logicalInventory = [member],
+    logicalDocuments = [{ path: member.path, bytes }];
+  const result = await runJsonQuality("check", {
+    root,
+    logicalInventory,
+    logicalDocuments,
+  });
+  assert.equal(result.status, "passed");
+  assert.equal(result.counts.logical, 1);
+  assert.equal(
+    result.documents.reduce(
+      (sum, document) => sum + document.expectedFindings.length,
+      0,
+    ),
+    2,
+  );
+  await assert.rejects(
+    checkJsonDocument(containerBytes, {
+      ...policy.exceptions.at(-2),
+      path: "bundle.json",
+    }),
+    /logical linkage/iu,
+  );
+  const changedPolicy = structuredClone(policy);
+  changedPolicy.exceptions.at(-2).expected.linkedDocuments[0].pointer =
+    "/artifacts/0/absent";
+  writeFileSync(policyPath, JSON.stringify(changedPolicy, null, 2) + "\n");
+  await assert.rejects(
+    runJsonQuality("check", { root, logicalInventory, logicalDocuments }),
+    /logical linkage/iu,
+  );
+});
+
+test("public CLI adapters retain required outputs, resource flags and a fixed repository root", (t) => {
+  const root = repository(t);
+  const api = new URL("../src/index.js", import.meta.url).href;
+  const invoke = (args) =>
+    spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import { runJsonQualityCli } from ${JSON.stringify(api)}; process.exitCode = await runJsonQualityCli(${JSON.stringify(args)}, {root:${JSON.stringify(root)}, requiredOutputs:["generated/*.json"]});`,
+      ],
+      { encoding: "utf8", windowsHide: true },
+    );
+  const absent = invoke(["check", "--json"]);
+  assert.equal(absent.status, 2);
+  assert.equal(JSON.parse(absent.stdout).complete, false);
+  mkdirSync(join(root, "generated"));
+  writeFileSync(join(root, "generated/output.json"), "{}\n");
+  const present = invoke(["check", "--json", "--max-files", "10"]);
+  assert.equal(present.status, 0, present.stderr);
+  assert.equal(JSON.parse(present.stdout).counts.physical, 2);
+  const escape = invoke(["check", "--json", "--root", tmpdir()]);
+  assert.equal(escape.status, 2);
+  assert.equal(JSON.parse(escape.stdout).counts, null);
 });

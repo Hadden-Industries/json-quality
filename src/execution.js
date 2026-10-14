@@ -12,11 +12,15 @@ import {
   decodeJsonBytes,
 } from "./quality.js";
 import { checkJsonLines } from "./json-lines.js";
-import { checkLogicalDocuments } from "./logical-documents.js";
+import {
+  checkLogicalDocuments,
+  verifiedContainerContract,
+} from "./logical-documents.js";
 import {
   OPERATIONS,
   validateJsonQualityResult,
   inventoryDocument,
+  analysisCounts,
 } from "./result.js";
 import {
   captureSource,
@@ -64,11 +68,16 @@ export async function runJsonQuality(operation, options = {}) {
       throw new Error("JSON total byte limit exceeded.");
   }
   const writing = operation === "format" || operation === "normalize";
+  const requiredContainers = new Set(
+    (options.logicalInventory ?? []).map((entry) => entry?.containerPath),
+  );
   const originals = new Map(
-    context.files.map((file) => [
-      file.path,
-      captureSource(context.root, file.path),
-    ]),
+    context.files
+      .filter(
+        (file) =>
+          operation !== "inventory" || requiredContainers.has(file.path),
+      )
+      .map((file) => [file.path, captureSource(context.root, file.path)]),
   );
   const replacements = new Map();
   if (operation === "normalize") {
@@ -97,8 +106,18 @@ export async function runJsonQuality(operation, options = {}) {
       );
     }
   }
+  const logical = await checkLogicalDocuments(
+    context,
+    originals,
+    options,
+    operation,
+  );
   const documents = [];
   for (const contract of context.files) {
+    const verifiedContract = verifiedContainerContract(
+      contract,
+      options.logicalInventory ?? [],
+    );
     if (operation === "inventory") {
       documents.push(inventoryDocument(contract, "physical"));
       continue;
@@ -108,16 +127,10 @@ export async function runJsonQuality(operation, options = {}) {
       : checkJsonDocument;
     const document = await analyze(
       replacements.get(contract.path) ?? originals.get(contract.path).bytes,
-      { ...contract, maxRecords: context.limits.maxRecords },
+      { ...verifiedContract, maxRecords: context.limits.maxRecords },
     );
     documents.push({ ...document, representation: "physical" });
   }
-  const logical = await checkLogicalDocuments(
-    context,
-    originals,
-    options,
-    operation,
-  );
   documents.push(...logical);
   const physicalContracts = new Map(
     context.files.map((contract) => [contract.path, contract]),
@@ -154,24 +167,7 @@ export async function runJsonQuality(operation, options = {}) {
     operation,
     status: findings.length ? "failed" : "passed",
     complete: true,
-    counts: {
-      physical: context.files.length,
-      logical: logical.length,
-      records:
-        operation === "inventory"
-          ? null
-          : documents.reduce(
-              (sum, document) => sum + (document.recordCount ?? 0),
-              0,
-            ),
-      checked:
-        operation === "inventory"
-          ? 0
-          : documents.reduce(
-              (sum, document) => sum + (document.recordCount ?? 1),
-              0,
-            ),
-    },
+    counts: analysisCounts(documents, operation),
     documents,
     findings,
     boundaries: context.boundaries,

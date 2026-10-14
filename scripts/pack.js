@@ -19,14 +19,17 @@ const git = (args) =>
     windowsHide: true,
   }).trim();
 
-/** npm 12 keys pack reports by package; supported older npm emits an array. */
+/** Admit the keyed report of the producer's qualified npm 12 toolchain. */
 export function readPackReport(text) {
   const report = JSON.parse(text);
-  const entries = Array.isArray(report) ? report : Object.values(report);
+  if (!report || typeof report !== "object" || Array.isArray(report))
+    throw new Error("Expected exactly one native npm pack result.");
+  const entries = Object.values(report);
   if (
     entries.length !== 1 ||
     !entries[0] ||
     typeof entries[0].name !== "string" ||
+    Object.keys(report)[0] !== entries[0].name ||
     !Array.isArray(entries[0].files)
   )
     throw new Error("Expected exactly one native npm pack result.");
