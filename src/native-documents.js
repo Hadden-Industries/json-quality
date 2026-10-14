@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createHash } from "node:crypto";
 import { lstatSync } from "node:fs";
-import Ajv from "ajv";
-import schema from "../schemas/result.schema.json" with { type: "json" };
 import { assertRepositoryPath, assertRegularSource } from "./paths.js";
 import { captureSource, assertSourceUnchanged } from "./replacement.js";
-import { jsonContract, isStrictJsonPath } from "./quality.js";
+import { jsonContract } from "./quality.js";
+import { assertNativeIdentity } from "./native-identities.js";
 import { checkJsonDocument } from "./documents.js";
 import { inventoryDocument } from "./result.js";
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
-const validateIdentity = new Ajv({ strict: true }).compile({
-  definitions: schema.definitions,
-  $ref: "#/definitions/nativeIdentity",
-});
 const closed = (value, names) =>
   value &&
   typeof value === "object" &&
@@ -124,13 +119,18 @@ export async function checkNativeDocuments(
     )
       throw new Error(`Incomplete native census: ${definition.id}`);
     totalNative += supplied.inventory.length;
+    if (context.files.length + totalNative > context.limits.maxFiles)
+      throw new Error(
+        "JSON file limit exceeded; native coverage is incomplete.",
+      );
     if (
       totalNative + logicalInventory.length >
       context.limits.maxLogicalDocuments
     )
       throw new Error("JSON native/logical document limit exceeded.");
+    const authorities = structuredClone(supplied.authorities);
     const authorityPaths = new Set();
-    for (const authority of supplied.authorities) {
+    for (const authority of authorities) {
       if (!closed(authority, ["path", "sha256", "byteLength"]))
         throw new Error("Invalid native authority snapshot.");
       if (authorityPaths.has(authority.path))
@@ -140,38 +140,13 @@ export async function checkNativeDocuments(
     }
     const expected = new Map();
     for (const entry of structuredClone(supplied.inventory)) {
-      if (!validateIdentity(entry))
-        throw new Error("Invalid native document identity.");
-      assertRepositoryPath(entry.path);
+      assertNativeIdentity(entry);
       if (paths.has(entry.path.toLowerCase()))
         throw new Error(
           `Duplicate or colliding native JSON path: ${entry.path}`,
         );
       paths.add(entry.path.toLowerCase());
-      if (paths.size > context.limits.maxFiles)
-        throw new Error(
-          "JSON file limit exceeded; native coverage is incomplete.",
-        );
       const source = entry.source;
-      if (source.kind === "content-addressed") {
-        if (
-          entry.path !== source.path ||
-          entry.sha256 !== source.sha256 ||
-          entry.byteLength !== source.byteLength
-        )
-          throw new Error(
-            "Content-addressed JSON identity is not bound to its source.",
-          );
-      } else {
-        assertRepositoryPath(source.memberPath);
-        if (
-          !isStrictJsonPath(source.memberPath) ||
-          entry.path !== `${source.path}!/${source.memberPath}`
-        )
-          throw new Error(
-            "Archive JSON identity is not bound to its native member.",
-          );
-      }
       capture(source);
       expected.set(entry.path, entry);
     }
@@ -240,7 +215,7 @@ export async function checkNativeDocuments(
       provider: definition.provider,
       owner: definition.owner,
       reason: definition.reason,
-      authorities: structuredClone(supplied.authorities),
+      authorities,
       inventoried: expected.size,
       included: documents.filter((d) => d.nativeSource.id === definition.id)
         .length,
@@ -252,5 +227,12 @@ export async function checkNativeDocuments(
       assertSourceUnchanged(context.root, snapshot.path, snapshot.original);
   };
   recheck();
-  return { documents, sources, recheck };
+  return {
+    documents,
+    sources,
+    recheck,
+    protectedPaths: new Set(
+      [...snapshots.values()].map((snapshot) => snapshot.path),
+    ),
+  };
 }

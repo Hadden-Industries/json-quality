@@ -75,6 +75,24 @@ export async function runJsonQuality(operation, options = {}) {
     totalBytes,
     options.logicalInventory,
   );
+  const protectNativeInputs = (files) =>
+    files.map((contract) =>
+      native.protectedPaths.has(contract.path)
+        ? {
+            ...contract,
+            allowFormatWrites: false,
+            exceptions: [
+              ...contract.exceptions,
+              {
+                owner: "Native document providers",
+                reason:
+                  "Admitted source or authority snapshot; modify through its native owner.",
+              },
+            ],
+          }
+        : contract,
+    );
+  context.files = protectNativeInputs(context.files);
   const requiredContainers = new Set(
     (options.logicalInventory ?? []).map((entry) => entry?.containerPath),
   );
@@ -199,7 +217,7 @@ export async function runJsonQuality(operation, options = {}) {
   const fresh = await inspectJsonInventory(options);
   if (
     !isDeepStrictEqual(fresh.policy, context.policy) ||
-    !isDeepStrictEqual(fresh.files, context.files)
+    !isDeepStrictEqual(protectNativeInputs(fresh.files), context.files)
   )
     throw new Error("JSON policy or inventory changed during preflight.");
   for (const [path, original] of originals)

@@ -46,6 +46,12 @@ test("public value printer rejects lossy values without invoking their accessors
   extended.extra = 2;
   const symbolic = { [Symbol("hidden")]: 1 };
   const hidden = Object.defineProperty({}, "x", { value: 1 });
+  class CustomArray extends Array {
+    toJSON() {
+      calls++;
+      return { replaced: true };
+    }
+  }
   for (const value of [
     undefined,
     NaN,
@@ -60,6 +66,9 @@ test("public value printer rejects lossy values without invoking their accessors
     symbolic,
     hidden,
     [undefined],
+    new CustomArray(1, 2),
+    -0,
+    { negativeZero: -0 },
   ])
     await assert.rejects(formatJsonValue(value), TypeError);
   assert.equal(calls, 0);
