@@ -71,6 +71,7 @@ export async function runJsonQualityCli(args, context = {}) {
             "requiredOutputs",
             "logicalInventory",
             "logicalDocuments",
+            "nativeProviders",
           ].includes(key),
       )
     )
@@ -110,14 +111,14 @@ export async function runJsonQualityCli(args, context = {}) {
       );
       process.stdout.write(
         operation === "inventory"
-          ? `Inventoried ${result.counts.physical} physical files and ${result.counts.logical} logical documents; JSON analysis and record framing not performed.\n`
-          : `${result.status}; ${result.counts.physical} physical files; ${result.counts.logical} logical documents; ${result.counts.records ?? "unknown"} records; ${expected} verified expected diagnostics; ${result.writes.changed.length} written.\n`,
+          ? `Inventoried ${result.counts.physical} physical files, ${result.counts.logical} logical documents and ${result.counts.native} native documents; JSON analysis and record framing not performed.\n`
+          : `${result.status}; ${result.counts.physical} physical files; ${result.counts.logical} logical documents; ${result.counts.native} native documents; ${result.counts.records ?? "unknown"} records; ${expected} verified expected diagnostics; ${result.writes.changed.length} written.\n`,
       );
     }
     return result.status === "passed" ? 0 : 1;
   } catch (error) {
     const result = validateJsonQualityResult({
-      schemaVersion: 1,
+      schemaVersion: 2,
       operation,
       status: "error",
       complete: false,
@@ -134,6 +135,7 @@ export async function runJsonQualityCli(args, context = {}) {
         },
       ],
       boundaries: [],
+      nativeSources: [],
       writes: { changed: [], unchanged: [], failed: [], unprocessed: [] },
     });
     if (machine) process.stdout.write(JSON.stringify(result) + "\n");

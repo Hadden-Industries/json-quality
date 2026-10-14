@@ -12,7 +12,7 @@ json-quality format --root /path/to/repository
 json-quality normalize --root /path/to/repository -- source.json
 ```
 
-The initial development contract uses configuration and result schema 1, Node 24.21.0 or newer within Node 24 or Node 26.11.1 or newer within Node 26, ESLint 10.12.0, `@eslint/json` 2.1.1, Prettier 3.9.10 and Ajv 8.20.0.
+The development contract uses configuration schema 1 and result schema 2, Node 24.21.0 or newer within Node 24 or Node 26.11.1 or newer within Node 26, ESLint 10.12.0, `@eslint/json` 2.1.1, Prettier 3.9.10 and Ajv 8.20.0.
 Producer qualification uses npm 12.2.0 or newer within npm 12. Resource defaults can be raised through configuration, API options or CLI flags such as `--max-files 100000 --max-file-bytes 67108864`; `--no-limits` explicitly bypasses package capacity limits while retaining quality rules.
 It is an internal development candidate; registry publication is separately authorized and qualified.
 See the [consumer contract](docs/consumer-guide.md) and [third-party notices](THIRD-PARTY-NOTICES.md).
@@ -40,5 +40,7 @@ Concurrent hostile filesystem mutation is outside the supported guarantee.
 Physical discovery reconciles Git with an owned-tree walk, including untracked and ignored-generated JSON.
 External boundaries require owner/reason exceptions; tracked files inside them remain checked.
 JSONL framing and cumulative logical-document inventory use the same strict JSON analysis.
+Configured native sources admit content-addressed documents and archive members through trusted, caller-supplied native owners. Their independent census, admitted bytes and source/authority snapshots participate in the same limits, phases and result accounting. Missing providers or changed native inputs fail; generic writers never modify native documents.
+Pure `formatJsonSource` and `formatJsonValue` functions give producers the package-owned printer without changing normalization or historical digest protocols. Presentation alone establishes no JSON quality pass.
 JSONC/JSON5 remain detected and refused.
 Exact expected findings retain intentionally invalid corpus evidence visibly; unexpected or missing diagnostics, changed pinned bytes and missing logical members fail.

@@ -208,6 +208,7 @@ test("inventory reports scope without claiming JSON validation", async (t) => {
   assert.deepEqual(result.counts, {
     physical: 2,
     logical: 0,
+    native: 0,
     records: null,
     checked: 0,
   });
