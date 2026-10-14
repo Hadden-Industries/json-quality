@@ -303,3 +303,141 @@ test("standalone CLI cannot silently omit a configured native source", (t) => {
   assert.equal(result.complete, false);
   assert.equal(result.counts, null);
 });
+
+test("native JSON authority manifests are protected before formatting and normalization", async (t) => {
+  const f = fixture(t);
+  f.policy.nativeSources[0].formatContract = "producer-json-compact";
+  f.savePolicy();
+  const bytes = Buffer.from('{"authority":"e\\u0301"}\n');
+  const identity = {
+    path: "authority.json",
+    sha256: digest(bytes),
+    byteLength: bytes.length,
+  };
+  writeFileSync(join(f.root, identity.path), bytes);
+  f.supplied.authorities.push(identity);
+  writeFileSync(join(f.root, "authored.json"), '{"x":1}');
+  const inventory = await runJsonQuality("inventory", f.options);
+  const authority = inventory.documents.find(
+    (document) => document.path === identity.path,
+  );
+  assert.equal(authority.contract.allowFormatWrites, false);
+  assert.match(authority.contract.exceptions.at(-1).reason, /snapshot/u);
+  const result = await runJsonQuality("format", f.options);
+  assert.equal(result.status, "failed");
+  assert.deepEqual(result.writes.changed, []);
+  assert.deepEqual(readFileSync(join(f.root, identity.path)), bytes);
+  await assert.rejects(
+    runJsonQuality("normalize", { ...f.options, sourcePaths: [identity.path] }),
+    /Protected/u,
+  );
+});
+
+test("reported native authority metadata is the copy captured at admission", async (t) => {
+  const f = fixture(t);
+  const original = structuredClone(f.supplied.authorities[0]);
+  const bytes = f.supplied.documents[0].bytes;
+  Object.defineProperty(f.supplied.documents[0], "bytes", {
+    enumerable: true,
+    get() {
+      f.supplied.authorities[0].sha256 = "0".repeat(64);
+      return bytes;
+    },
+  });
+  const result = await runJsonQuality("check", f.options);
+  assert.deepEqual(result.nativeSources[0].authorities, [original]);
+});
+
+test("serialized native results reject detached content and archive identities", async (t) => {
+  for (const archive of [false, true]) {
+    const f = fixture(t, archive);
+    const result = await runJsonQuality("inventory", f.options);
+    const forged = structuredClone(result);
+    forged.documents.find(
+      (document) => document.representation === "native",
+    ).nativeSource.identity.source.path = "detached.blob";
+    assert.throws(() => validateJsonQualityResult(forged), /bound/iu);
+  }
+});
+
+test("logical members share their own ceiling without consuming physical/native file capacity", async (t) => {
+  const f = fixture(t);
+  f.policy.nativeSources[0].parameters = { a: "{}", b: "{}" };
+  f.savePolicy();
+  const bytes = Buffer.from("{}");
+  const logicalInventory = ["a", "b"].map((name) => ({
+    path: `${name}.json`,
+    containerPath: ".json-quality.json",
+    pointer: `/nativeSources/0/parameters/${name}`,
+    encoding: "utf8",
+    sha256: digest(bytes),
+    byteLength: bytes.length,
+  }));
+  const options = {
+    ...f.options,
+    logicalInventory,
+    logicalDocuments: logicalInventory.map(({ path }) => ({ path, bytes })),
+    limits: { maxFiles: 2, maxLogicalDocuments: 3 },
+  };
+  const result = await runJsonQuality("inventory", options);
+  assert.equal(result.counts.physical, 1);
+  assert.equal(result.counts.logical, 2);
+  assert.equal(result.counts.native, 1);
+  await assert.rejects(
+    runJsonQuality("inventory", { ...options, limits: { maxFiles: 1 } }),
+    /file limit/u,
+  );
+  await assert.rejects(
+    runJsonQuality("inventory", {
+      ...options,
+      limits: { maxLogicalDocuments: 2 },
+    }),
+    /document limit/u,
+  );
+});
+
+test("archive members admit literal exact preserved-byte and NFC-value contracts", async (t) => {
+  const f = fixture(t, true);
+  const bytes = Buffer.from('{"x":"e\u0301"}\n');
+  f.supplied.documents[0].bytes = bytes;
+  Object.assign(f.supplied.inventory[0], {
+    sha256: digest(bytes),
+    byteLength: bytes.length,
+  });
+  const value = Buffer.from("e\u0301");
+  f.policy.exceptions.push({
+    paths: [f.path],
+    owner: "Archive fixture owner",
+    reason: "Original Unicode boundary.",
+    allowFormatWrites: false,
+    formatContract: "producer-json-compact",
+    preserveNfcValues: [
+      { pointer: "/x", sha256: digest(value), byteLength: value.length },
+    ],
+  });
+  f.savePolicy();
+  assert.equal((await runJsonQuality("check", f.options)).status, "passed");
+  f.policy.exceptions.pop();
+  f.savePolicy();
+  const unpreserved = await runJsonQuality("check", { ...f.options });
+  const diagnostics = unpreserved.documents
+    .find((document) => document.path === f.path)
+    .findings.filter((finding) => finding.phase !== "presentation")
+    .map(({ path: _path, ...finding }) => finding);
+  f.policy.exceptions.push({
+    paths: [f.path],
+    owner: "Archive fixture owner",
+    reason: "Retain exact original differences.",
+    allowFormatWrites: false,
+    formatContract: "preserved-bytes",
+    expected: { sha256: digest(bytes), byteLength: bytes.length, diagnostics },
+  });
+  f.savePolicy();
+  const preserved = await runJsonQuality("check", f.options);
+  assert.equal(preserved.status, "passed");
+  assert.equal(
+    preserved.documents.find((document) => document.path === f.path)
+      .expectedFindings.length,
+    1,
+  );
+});

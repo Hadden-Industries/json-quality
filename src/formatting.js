@@ -73,12 +73,21 @@ export async function formatJsonValue(value, options) {
   const inspect = (item) => {
     if (item === null || typeof item === "string" || typeof item === "boolean")
       return;
-    if (typeof item === "number" && Number.isFinite(item)) return;
+    if (
+      typeof item === "number" &&
+      Number.isFinite(item) &&
+      !Object.is(item, -0)
+    )
+      return;
     if (typeof item !== "object" || active.has(item))
       throw new TypeError(
         "Expected acyclic JSON data without unsupported values.",
       );
     const array = Array.isArray(item);
+    if (array && ![null, Array.prototype].includes(Object.getPrototypeOf(item)))
+      throw new TypeError(
+        "Expected plain JSON arrays without custom serialization.",
+      );
     if (
       !array &&
       ![null, Object.prototype].includes(Object.getPrototypeOf(item))

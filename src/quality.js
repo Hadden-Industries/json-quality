@@ -401,7 +401,7 @@ export async function readJsonPolicy(root, options = {}) {
       (!rule.expected ||
         rule.allowFormatWrites !== false ||
         rule.paths.length !== 1 ||
-        /[*?[\]{}!()]/u.test(rule.paths[0]))
+        /[*?[\]{}()]/u.test(rule.paths[0]))
     )
       throw new Error(
         "Preserved bytes and expected diagnostics require one exact protected path and independent byte identity.",
@@ -412,7 +412,7 @@ export async function readJsonPolicy(root, options = {}) {
       );
     if (rule.preserveNfcValues) {
       assertNfcPreservationContract(rule);
-      if (rule.paths.length !== 1 || /[*?[\]{}!()]/u.test(rule.paths[0]))
+      if (rule.paths.length !== 1 || /[*?[\]{}()]/u.test(rule.paths[0]))
         throw new Error(
           "NFC value preservation requires one exact protected file.",
         );

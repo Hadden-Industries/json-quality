@@ -2,6 +2,7 @@
 import Ajv from "ajv";
 import { isDeepStrictEqual } from "node:util";
 import schema from "../schemas/result.schema.json" with { type: "json" };
+import { assertNativeIdentity } from "./native-identities.js";
 
 export const OPERATIONS = Object.freeze(
   schema.properties.operation.enum.filter((value) => value !== "invalid"),
@@ -113,6 +114,7 @@ export function validateJsonQualityResult(result) {
   }
   for (const document of result.documents) {
     if (document.representation === "native") {
+      assertNativeIdentity(document.nativeSource?.identity);
       if (
         !document.nativeSource ||
         !sourceIds.has(document.nativeSource.id) ||
