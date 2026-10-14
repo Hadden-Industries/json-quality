@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
 import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative, isAbsolute, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { operationLimits } from "./limits.js";
 import { assertRegularSource, assertRepositoryPath } from "./paths.js";
+import { nativeQualityCachePath } from "./acquire.js";
 
 const packageName = "@hadden-industries/json-quality";
 const gitRepository =
@@ -102,14 +102,7 @@ export async function verifyJsonQualityInstallation({
       "JSON tooling resolved source disagrees with its selector.",
     );
   const npmRequire = createRequire(npmExecutable);
-  const cache =
-    cachePath ??
-    execFileSync(process.execPath, [npmExecutable, "config", "get", "cache"], {
-      cwd: root,
-      encoding: "utf8",
-      windowsHide: true,
-      timeout: 10000,
-    }).trim();
+  const cache = cachePath ?? nativeQualityCachePath(root, npmExecutable);
   const bounds = operationLimits({}, limits);
   const chunks = [];
   let archiveBytes = 0;

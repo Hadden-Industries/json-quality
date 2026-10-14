@@ -153,6 +153,25 @@ test("a full Git selection retains the same cached-payload proof", async (t) => 
   );
 });
 
+test("default verification follows the same native cache policy as acquisition", async (t) => {
+  const context = await installation(t);
+  const previous = process.env.npm_config_cache;
+  process.env.npm_config_cache = context.cachePath;
+  try {
+    assert.equal(
+      (
+        await verifyJsonQualityInstallation({
+          toolingRoot: context.toolingRoot,
+        })
+      ).files,
+      3,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.npm_config_cache;
+    else process.env.npm_config_cache = previous;
+  }
+});
+
 test("consumer bootstraps are generated from one shared source and drift fails", async (t) => {
   const context = await installation(t);
   const bootstrapPath = join(context.toolingRoot, "bootstrap.mjs");
