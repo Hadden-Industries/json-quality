@@ -232,7 +232,7 @@ export async function checkNativeDocuments(
     sources,
     recheck,
     protectedPaths: new Set(
-      [...snapshots.values()].map((snapshot) => snapshot.path),
+      [...snapshots.values()].map((snapshot) => snapshot.path.toLowerCase()),
     ),
   };
 }
