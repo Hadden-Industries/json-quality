@@ -106,9 +106,15 @@ export async function inspectJsonInventory({
     const file = jsonContract(path, policy, { tracked: tracked.has(path) });
     // A hidden basename may not match a glob that pruned its ancestor. Git
     // rescue still checks it, but must retain that boundary's write protection.
-    const boundary = boundaries.find(
-      (entry) => path === entry.path || path.startsWith(entry.path + "/"),
-    );
+    const identityPath =
+      process.platform === "win32" ? path.toLowerCase() : path;
+    const boundary = boundaries.find((entry) => {
+      const ancestor =
+        process.platform === "win32" ? entry.path.toLowerCase() : entry.path;
+      return (
+        identityPath === ancestor || identityPath.startsWith(ancestor + "/")
+      );
+    });
     if (boundary) {
       file.exclude = false;
       file.allowFormatWrites = false;

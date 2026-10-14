@@ -105,6 +105,56 @@ test("tracked hidden files rescued from an excluded boundary remain checked and 
   assert.equal(readFileSync(join(root, path), "utf8"), decomposed);
 });
 
+test(
+  "Windows Git casing cannot make a rescued hidden file writable",
+  { skip: process.platform !== "win32" },
+  async (t) => {
+    const root = repository(t);
+    mkdirSync(join(root, "node_modules"));
+    writeFileSync(join(root, ".gitignore"), "node_modules/\n");
+    const actualPath = "node_modules/.hidden.json";
+    const trackedPath = "NODE_MODULES/.hidden.json";
+    const original = '{"n":1}\n';
+    writeFileSync(join(root, actualPath), original);
+    const objectId = execFileSync(
+      "git",
+      ["-C", root, "hash-object", "-w", "--", actualPath],
+      { encoding: "utf8", windowsHide: true },
+    ).trim();
+    execFileSync(
+      "git",
+      [
+        "-C",
+        root,
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        "100644",
+        objectId,
+        trackedPath,
+      ],
+      { windowsHide: true },
+    );
+    assert.equal(
+      execFileSync("git", ["-C", root, "ls-files"], {
+        encoding: "utf8",
+        windowsHide: true,
+      }).trim(),
+      trackedPath,
+    );
+    const result = await runJsonQuality("format", { root });
+    assert.equal(result.status, "failed");
+    assert.ok(
+      result.findings.some(
+        (finding) =>
+          finding.path === trackedPath && finding.phase === "presentation",
+      ),
+    );
+    assert.deepEqual(result.writes.changed, []);
+    assert.equal(readFileSync(join(root, actualPath), "utf8"), original);
+  },
+);
+
 test("consumer ESLint and formatter configuration cannot weaken checks", async (t) => {
   const root = repository(t);
   writeFileSync(
