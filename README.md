@@ -13,8 +13,11 @@ json-quality format --root /path/to/repository
 json-quality normalize --root /path/to/repository -- source.json
 ```
 
-The development contract uses configuration schema 1 and result schema 3, Node 24.21.0 or newer within Node 24 or Node 26.11.1 or newer within Node 26, ESLint 10.12.0, `@eslint/json` 2.1.1, Prettier 3.9.10 and Ajv 8.20.0.
-Producer qualification uses npm 12.2.0 or newer within npm 12. Resource defaults can be raised through configuration, API options or CLI flags such as `--max-files 100000 --max-file-bytes 67108864`; `--no-limits` explicitly bypasses package capacity limits while retaining quality rules.
+The development contract uses configuration schema 1 and result schema 3, ESLint 10.12.0, `@eslint/json` 2.1.1, Prettier 3.9.10 and Ajv 8.20.0.
+The [runtime compatibility policy](docs/node-runtime-compatibility.md) defines consumer minima, current-family CI coverage and the independent development/producer reference.
+Edit Node and npm selections only in `assets/node-support.json`, then run `npm run sync:node`; `npm run check:node` rejects projection drift, including native lock metadata.
+Producer qualification retains npm 12's native pack contract; consumer acquisition uses its separately qualified native npm toolchain.
+Resource defaults can be raised through configuration, API options or CLI flags such as `--max-files 100000 --max-file-bytes 67108864`; `--no-limits` explicitly bypasses package capacity limits while retaining quality rules.
 It is an internal development candidate; registry publication is separately authorized and qualified.
 See the [consumer contract](docs/consumer-guide.md) and [third-party notices](THIRD-PARTY-NOTICES.md).
 Consumers select one exact npm version or full Git commit in their isolated tooling manifest and retain native npm lockfiles, with shared installed-payload verification against the native cache.

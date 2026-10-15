@@ -13,7 +13,7 @@
     }
   },
   "engines": {
-    "node": ">=24.21.0 <25 || >=26.11.1 <27"
+    "node": "^22.13.0 || ^24.0.0 || ^26.0.0"
   },
   "repository": {
     "type": "git",
@@ -40,7 +40,10 @@
     "check:focused": "node --test tests/contracts.test.js tests/identity.test.js",
     "test": "node --test tests/*.test.js",
     "check:affected": "node scripts/affected-tests.js",
-    "check:full": "npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
+    "check:full": "npm run check:node && npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
+    "sync:node": "node scripts/project-node-support.js --write",
+    "check:node": "node scripts/project-node-support.js --check",
+    "matrix:node": "node scripts/node-matrix.js",
     "lint": "eslint src scripts tests eslint.config.js",
     "format:check": "prettier --check src scripts tests eslint.config.js README.md docs THIRD-PARTY-NOTICES.md",
     "format": "prettier --write src scripts tests eslint.config.js README.md docs THIRD-PARTY-NOTICES.md",

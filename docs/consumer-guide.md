@@ -104,4 +104,6 @@ Repository command adapters can call `await runJsonQualityCli(process.argv.slice
 Adapters that must load or verify repository-owned inputs may instead supply a trusted asynchronous factory returning that same closed context. It runs after argument admission, inside the package's error envelope. Native storage-verification failures then return exit 2 and an incomplete machine result rather than escaping as an unstructured stack trace.
 
 Producer archive qualification selects npm 12.2.0 or later within major 12 and admits its keyed native pack report. Older report shapes are rejected; the CI matrix explicitly selects the qualified package manager.
+Consumer runtime and acquisition requirements are separate from this producer contract; see the [canonical runtime policy](node-runtime-compatibility.md).
+The consumer npm toolchain retains native Git restrictions, lockfile version 3, cached archive verification and offline replay at each admitted Node floor.
 Platform/runtime support requires the named source and transported tests on Windows and Linux; unobserved hosted results remain gaps.

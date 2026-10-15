@@ -10,13 +10,57 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
+import { createHash } from "node:crypto";
+import { parseArgs } from "node:util";
 import { packCandidate } from "./pack.js";
 
+const { values } = parseArgs({
+  options: {
+    archive: { type: "string" },
+    provenance: { type: "string" },
+    npm: { type: "string" },
+    "expected-node": { type: "string" },
+    output: { type: "string" },
+    git: { type: "string" },
+  },
+});
+if (
+  values["expected-node"] &&
+  values["expected-node"] !== process.versions.node
+)
+  throw new Error(
+    "Consumer Node differs from the resolved qualification lane.",
+  );
+if (Boolean(values.archive) !== Boolean(values.provenance))
+  throw new Error("Archive and provenance must be supplied together.");
 const directory = mkdtempSync(join(tmpdir(), "json-quality-transport-"));
-const npm = process.env.npm_execpath;
+const npm = values.npm ?? process.env.npm_execpath;
 if (!npm) throw new Error("Run qualification through npm.");
 try {
-  const { archive, provenance } = packCandidate(join(directory, "archives"));
+  const { archive, provenance } = values.archive
+    ? {
+        archive: values.archive,
+        provenance: JSON.parse(readFileSync(values.provenance, "utf8")),
+      }
+    : packCandidate(join(directory, "archives"));
+  if (
+    createHash("sha256").update(readFileSync(archive)).digest("hex") !==
+    provenance.sha256
+  )
+    throw new Error(
+      "Transported archive hash differs from producer provenance.",
+    );
+  const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], {
+    encoding: "utf8",
+    windowsHide: true,
+  }).trim();
+  if (provenance.sourceCommit !== sourceCommit)
+    throw new Error("Transported archive belongs to another source commit.");
+  const npmVersion = execFileSync(process.execPath, [npm, "--version"], {
+    cwd: directory,
+    encoding: "utf8",
+    windowsHide: true,
+  }).trim();
   const consumer = join(directory, "consumer");
   const fixture = join(directory, "fixture");
   mkdirSync(consumer);
@@ -35,7 +79,14 @@ try {
   );
   execFileSync(
     process.execPath,
-    [npm, "install", "--ignore-scripts", "--no-audit", "--no-fund"],
+    [
+      npm,
+      "install",
+      "--engine-strict",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+    ],
     { cwd: consumer, windowsHide: true, timeout: 180000 },
   );
   execFileSync("git", ["init", "-q", fixture], { windowsHide: true });
@@ -139,21 +190,69 @@ await assert.rejects(import("@hadden-industries/json-quality/src/quality.js"), {
     formatting.writes.changed.length !== 0
   )
     throw new Error("Transported format --check coverage failed.");
+  // Public behavior corpus runs from the isolated installation, never producer imports.
+  const corpus = readFileSync(new URL("./consumer-probe.mjs", import.meta.url));
+  writeFileSync(join(consumer, "consumer-probe.mjs"), corpus);
+  execFileSync(
+    process.execPath,
+    [join(consumer, "consumer-probe.mjs"), fixture],
+    { cwd: consumer, windowsHide: true, timeout: 120000 },
+  );
   const lock = JSON.parse(readFileSync(join(consumer, "package-lock.json")));
   if (
     lock.packages["node_modules/@hadden-industries/json-quality"].integrity !==
     provenance.integrity
   )
     throw new Error("Installed archive integrity differs.");
-  process.stdout.write(
-    JSON.stringify({
-      status: "passed",
-      sourceCommit: provenance.sourceCommit,
-      archiveSha256: provenance.sha256,
-      publicExports: 4,
-      cliPhysicalFiles: 2,
-    }) + "\n",
+  // Replay the native lock offline before a second real public-export probe.
+  execFileSync(
+    process.execPath,
+    [
+      npm,
+      "ci",
+      "--offline",
+      "--engine-strict",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+    ],
+    { cwd: consumer, windowsHide: true, timeout: 180000 },
   );
+  execFileSync(process.execPath, [join(consumer, "probe.mjs"), fixture], {
+    cwd: consumer,
+    windowsHide: true,
+    timeout: 120000,
+  });
+  if (values.git) {
+    if (values.git !== sourceCommit)
+      throw new Error(
+        "Git qualification must select this exact source commit.",
+      );
+    const { qualifyAcquisition } = await import("./qualify-acquisition.js");
+    await qualifyAcquisition({
+      directory: join(directory, "acquisition"),
+      npm,
+      commit: values.git,
+    });
+  }
+  const report = {
+    status: "passed",
+    sourceCommit: provenance.sourceCommit,
+    archiveSha256: provenance.sha256,
+    node: process.versions.node,
+    executable: process.execPath,
+    platform: process.platform,
+    architecture: process.arch,
+    npm: npmVersion,
+    gitAcquisition: values.git ?? null,
+    publicExports: 4,
+    cliPhysicalFiles: 2,
+  };
+  if (values.output)
+    writeFileSync(values.output, JSON.stringify(report, null, 2) + "\n", {
+      flag: "wx",
+    });
+  process.stdout.write(JSON.stringify(report) + "\n");
   const resolved = realpathSync(directory);
   if (
     !resolved.startsWith(
