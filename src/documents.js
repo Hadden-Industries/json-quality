@@ -6,13 +6,14 @@ import { jsonLintConfig, assertNfcPreservationContract } from "./quality.js";
 import { decodeJsonBytes } from "./json-bytes.js";
 import { checkJsonPresentation, jsonFormatOptions } from "./presentation.js";
 
-/** Undecodable bytes share one diagnostic; framing owns any record count. */
-export function invalidByteDocument(path) {
+/** Undecodable bytes share one diagnostic; an optional framing count is caller-owned. */
+export function invalidByteDocument(path, recordCount) {
   return {
     path,
     complete: true,
     syntaxValid: false,
     presentationChecked: false,
+    ...(recordCount === undefined ? {} : { recordCount }),
     findings: [
       {
         path,

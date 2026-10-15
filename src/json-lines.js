@@ -23,11 +23,7 @@ export async function checkJsonLines(bytes, contract = {}) {
   try {
     text = decodeJsonBytes(bytes);
   } catch {
-    return admitExpected(
-      { ...invalidByteDocument(path), recordCount: null },
-      bytes,
-      contract,
-    );
+    return admitExpected(invalidByteDocument(path, null), bytes, contract);
   }
   const lines = text.split("\n");
   if (lines.at(-1) === "") lines.pop();
