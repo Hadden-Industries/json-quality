@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { decodeJsonBytes, assertNfcPreservationContract } from "./quality.js";
-import { checkJsonDocument, admitExpected } from "./documents.js";
+import { assertNfcPreservationContract } from "./quality.js";
+import { decodeJsonBytes } from "./json-bytes.js";
+import {
+  checkJsonDocument,
+  admitExpected,
+  invalidByteDocument,
+} from "./documents.js";
 import { DEFAULT_LIMITS } from "./limits.js";
 import { jsonPointerValue } from "./json-pointers.js";
+import { jsonLinesPresentationContract } from "./presentation.js";
 
 /** Frame JSON Lines without changing envelopes; each record needs strict analysis. */
 export async function checkJsonLines(bytes, contract = {}) {
@@ -12,34 +18,13 @@ export async function checkJsonLines(bytes, contract = {}) {
       "JSONL NFC preservation requires a unique record selector.",
     );
   const path = contract.path ?? "input.jsonl";
-  const formatContract =
-    contract.formatContract ?? "producer-json-compact-body";
-  if (
-    !["producer-json-compact-body", "preserved-bytes"].includes(formatContract)
-  )
-    throw new Error(`Unsupported JSONL presentation contract: ${path}`);
+  jsonLinesPresentationContract(path, contract.formatContract ?? undefined);
   let text;
   try {
     text = decodeJsonBytes(bytes);
   } catch {
     return admitExpected(
-      {
-        path,
-        complete: true,
-        syntaxValid: false,
-        presentationChecked: false,
-        recordCount: null,
-        findings: [
-          {
-            path,
-            phase: "bytes",
-            ruleId: null,
-            messageId: "invalid-utf8-or-bom",
-            line: 1,
-            column: 1,
-          },
-        ],
-      },
+      { ...invalidByteDocument(path), recordCount: null },
       bytes,
       contract,
     );

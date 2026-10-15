@@ -3,11 +3,8 @@ import { isDeepStrictEqual } from "node:util";
 import { formatAdmittedJsonSource } from "./formatting.js";
 import { inspectJsonInventory } from "./inventory.js";
 import { checkJsonDocument } from "./documents.js";
-import {
-  normalizeJsonSource,
-  isJsonLinesPath,
-  decodeJsonBytes,
-} from "./quality.js";
+import { normalizeJsonSource, isJsonLinesPath } from "./quality.js";
+import { decodeJsonBytes } from "./json-bytes.js";
 import { checkJsonLines } from "./json-lines.js";
 import { checkNativeDocuments } from "./native-documents.js";
 import {
@@ -16,6 +13,8 @@ import {
 } from "./logical-documents.js";
 import {
   OPERATIONS,
+  RESULT_SCHEMA_VERSION,
+  emptyWrites,
   validateJsonQualityResult,
   inventoryDocument,
   analysisCounts,
@@ -197,7 +196,7 @@ export async function runJsonQuality(operation, options = {}) {
   )
     throw new Error("JSON diagnostic limit exceeded; coverage is incomplete.");
   const result = {
-    schemaVersion: 3,
+    schemaVersion: RESULT_SCHEMA_VERSION,
     operation,
     status: findings.length ? "failed" : "passed",
     complete: true,
@@ -206,7 +205,7 @@ export async function runJsonQuality(operation, options = {}) {
     findings,
     boundaries: context.boundaries,
     nativeSources: native.sources,
-    writes: { changed: [], unchanged: [], failed: [], unprocessed: [] },
+    writes: emptyWrites(),
   };
   native.recheck();
   assertSourceUnchanged(context.root, ".json-quality.json", policyOriginal);

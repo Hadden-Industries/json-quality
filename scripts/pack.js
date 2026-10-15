@@ -8,8 +8,9 @@ import {
   constants,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { resolve, relative, isAbsolute, sep } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { isPathContained } from "../src/paths.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -41,12 +42,7 @@ export function readPackReport(text) {
  */
 export function packCandidate(destination) {
   destination = resolve(destination);
-  const contained = relative(root, destination);
-  if (
-    !isAbsolute(contained) &&
-    contained !== ".." &&
-    !contained.startsWith(`..${sep}`)
-  )
+  if (isPathContained(root, destination))
     throw new Error("Pack destination must be outside the producer checkout.");
   if (git(["status", "--porcelain", "--untracked-files=normal"]))
     throw new Error("Adoption archives require clean committed source.");

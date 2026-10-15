@@ -11,9 +11,9 @@ import {
   isStrictJsonPath,
   isJsonLinesPath,
   readJsonPolicy,
-  jsonFormatOptions,
   jsonContract,
 } from "./quality.js";
+import { jsonFormatOptions } from "./presentation.js";
 import { operationLimits } from "./limits.js";
 import { assertRepositoryPath, assertRegularSource } from "./paths.js";
 

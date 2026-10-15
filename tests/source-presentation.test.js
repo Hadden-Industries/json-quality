@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { writeFileSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { temporaryRepository } from "./temporary-repository.js";
 import {
   runJsonQuality,
   formatJsonValue,
@@ -14,14 +13,7 @@ import {
 
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 async function fixture(t, bytes = Buffer.from(' { "n": 1 }\r\n')) {
-  const root = mkdtempSync(join(tmpdir(), "json-quality-source-presentation-"));
-  t.after(() => {
-    assert.ok(
-      root.startsWith(tmpdir() + sep + "json-quality-source-presentation-"),
-    );
-    rmSync(root, { recursive: true });
-  });
-  execFileSync("git", ["init", "-q", root], { windowsHide: true });
+  const root = temporaryRepository(t, "json-quality-source-presentation-");
   const policy = {
     schemaVersion: 1,
     defaults: {

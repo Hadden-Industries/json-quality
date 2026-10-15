@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createHash } from "node:crypto";
-import { decodeJsonBytes, jsonContract, isStrictJsonPath } from "./quality.js";
+import { jsonContract, isStrictJsonPath } from "./quality.js";
+import { decodeJsonBytes } from "./json-bytes.js";
 import { checkJsonDocument } from "./documents.js";
 import { inventoryDocument } from "./result.js";
 import { assertRepositoryPath } from "./paths.js";

@@ -4,6 +4,15 @@ import { isDeepStrictEqual } from "node:util";
 import schema from "../schemas/result.schema.json" with { type: "json" };
 import { assertNativeIdentity } from "./native-identities.js";
 
+/** The serialized result schema owns version and write-accounting fields. */
+export const RESULT_SCHEMA_VERSION = schema.properties.schemaVersion.const;
+/** Create independent write buckets; operations never share mutable arrays. */
+export function emptyWrites() {
+  return Object.fromEntries(
+    schema.properties.writes.required.map((name) => [name, []]),
+  );
+}
+
 export const OPERATIONS = Object.freeze(
   schema.properties.operation.enum.filter((value) => value !== "invalid"),
 );

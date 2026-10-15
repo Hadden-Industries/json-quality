@@ -1,5 +1,7 @@
 // Extracted from Universal Ontology 015a356e1fac8bcea3fcfb213954a191ab6f6851.
 // SPDX-License-Identifier: AGPL-3.0-only
+import { decodeJsonBytes } from "./json-bytes.js";
+import { jsonLinesPresentationContract } from "./presentation.js";
 import configurationSchema from "../schemas/configuration.schema.json" with { type: "json" };
 import { isDeepStrictEqual } from "node:util";
 /** Shared native JSON contracts. Selection belongs to .json-quality.json;
@@ -11,7 +13,6 @@ import { posix } from "node:path";
 import { ESLint } from "eslint";
 import json from "@eslint/json";
 import Ajv from "ajv";
-import * as prettier from "prettier";
 import { operationLimits } from "./limits.js";
 import { createHash } from "node:crypto";
 import { jsonPointerToken } from "./json-pointers.js";
@@ -44,12 +45,8 @@ const BASE_RULES = Object.freeze({
   "json/no-unnormalized-keys": "off",
 });
 
-const EMPTY_KEY_POINTERS = {
-  type: "array",
-  minItems: 1,
-  uniqueItems: true,
-  items: { type: "string", pattern: "^(?:/(?:[^~/]|~[01])*)*/$" },
-};
+const EMPTY_KEY_POINTERS =
+  configurationSchema.properties.exceptions.items.properties.allowEmptyKeys;
 
 /** Compare the exact decimal integer, without binary64 rounding or exponent expansion. */
 function isUnsafeInteger(raw) {
@@ -340,18 +337,6 @@ const validatePolicy = new Ajv({ strict: true, allErrors: true }).compile(
   configurationSchema,
 );
 
-export function decodeJsonBytes(bytes) {
-  const text = new TextDecoder("utf-8", {
-    fatal: true,
-    ignoreBOM: true,
-  }).decode(bytes);
-  if (text.startsWith("\uFEFF"))
-    throw new Error(
-      "Unexpected leading UTF-8 BOM; fix the owning source or producer.",
-    );
-  return text;
-}
-
 /** Bootstrap independently of repository configuration before parsing policy. */
 export async function readJsonPolicy(root, options = {}) {
   if (
@@ -493,14 +478,10 @@ export function jsonContract(path, policy, { tracked = false } = {}) {
   // JSON Lines has a framing-owned single-line presentation and is never
   // rewritten by a document formatter. Only deviations need classification.
   if (isJsonLinesPath(path)) {
-    if (!explicit.has("formatContract"))
-      contract.formatContract = "producer-json-compact-body";
-    if (
-      !["producer-json-compact-body", "preserved-bytes"].includes(
-        contract.formatContract,
-      )
-    )
-      throw new Error(`Unsupported JSONL presentation contract: ${path}`);
+    contract.formatContract = jsonLinesPresentationContract(
+      path,
+      explicit.has("formatContract") ? contract.formatContract : undefined,
+    );
     contract.allowFormatWrites = false;
   }
   // A producer's presentation contract assigns writes to that producer even
@@ -590,45 +571,4 @@ export function assertNfcPreservationContract(contract) {
     throw new TypeError(
       "Invalid protected owner/reason NFC value-preservation contract.",
     );
-}
-
-/** The package owns the standard JSON presentation options. */
-export async function jsonFormatOptions() {
-  return {
-    parser: "json-stringify",
-    tabWidth: 2,
-    useTabs: false,
-    endOfLine: "lf",
-    printWidth: 80,
-    trailingComma: "none",
-  };
-}
-
-/** Read-only native presentation, shared with producer/packed-target checks. */
-export async function checkJsonPresentation(bytes, formatContract, options) {
-  let text = decodeJsonBytes(bytes);
-  if (formatContract === "producer-json-body") {
-    text = text.replaceAll("\r\n", "\n");
-    if (!text.endsWith("\n")) text += "\n";
-  } else if (
-    [
-      "producer-json-indent",
-      "producer-json-indent-body",
-      "producer-json-compact",
-      "producer-json-compact-body",
-    ].includes(formatContract)
-  ) {
-    // Existing producers use the platform serializer; validate its exact bytes.
-    const pretty = !formatContract.startsWith("producer-json-compact");
-    if (formatContract.endsWith("-body")) {
-      text = text.replaceAll("\r\n", "\n");
-      if (!text.endsWith("\n")) text += "\n";
-    }
-    // json-identity-contract: bytes; owner: JSON producer presentation gate; reason: Validate the exact native serializer presentation including indentation and final LF.
-    const expected =
-      JSON.stringify(JSON.parse(text), null, pretty ? 2 : undefined) + "\n";
-    return text === expected;
-  } else if (formatContract !== "prettier-json")
-    throw new Error(`Unknown JSON formatting contract: ${formatContract}`);
-  return prettier.check(text, options);
 }

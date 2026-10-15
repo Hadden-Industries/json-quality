@@ -20,6 +20,7 @@ Producer qualification retains npm 12's native pack contract; consumer acquisiti
 Resource defaults can be raised through configuration, API options or CLI flags such as `--max-files 100000 --max-file-bytes 67108864`; `--no-limits` explicitly bypasses package capacity limits while retaining quality rules.
 It is an internal development candidate; registry publication is separately authorized and qualified.
 See the [consumer contract](docs/consumer-guide.md) and [third-party notices](THIRD-PARTY-NOTICES.md).
+The [shared rule ownership guide](docs/centralized-contracts.md) records current authorities and intentional separation for maintenance.
 Consumers select one exact npm version or full Git commit in their isolated tooling manifest and retain native npm lockfiles, with shared installed-payload verification against the native cache.
 The package also owns the generated acquisition bootstrap and isolation guard, so consumer adapters do not maintain parallel implementations.
 

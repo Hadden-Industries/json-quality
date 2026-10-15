@@ -4,11 +4,9 @@ import assert from "node:assert/strict";
 import { tokenize } from "@humanwhocodes/momoa";
 import * as prettier from "prettier";
 import { checkJsonDocument } from "../src/documents.js";
-import {
-  decodeJsonBytes,
-  normalizeJsonSource,
-  jsonFormatOptions,
-} from "../src/quality.js";
+import { normalizeJsonSource } from "../src/quality.js";
+import { decodeJsonBytes } from "../src/json-bytes.js";
+import { jsonFormatOptions } from "../src/presentation.js";
 
 // Independently retained UO acceptance vectors; ordinary whitespace is isolated
 // from semantic findings so formatter decisions cannot become the lint oracle.

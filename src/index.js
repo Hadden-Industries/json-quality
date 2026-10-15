@@ -13,10 +13,9 @@ export {
   verifyJsonQualityInstallation,
 } from "./installation.js";
 export {
-  decodeJsonBytes,
   normalizeJsonSource,
-  jsonFormatOptions,
-  checkJsonPresentation,
   jsonContract,
   readJsonPolicy,
 } from "./quality.js";
+export { decodeJsonBytes } from "./json-bytes.js";
+export { jsonFormatOptions, checkJsonPresentation } from "./presentation.js";

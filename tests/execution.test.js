@@ -5,27 +5,17 @@ import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { fileURLToPath } from "node:url";
-import {
-  mkdtempSync,
-  writeFileSync,
-  readFileSync,
-  mkdirSync,
-  rmSync,
-} from "node:fs";
+import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { join } from "node:path";
+import { temporaryRepository } from "./temporary-repository.js";
 import { createHash } from "node:crypto";
 import { runJsonQuality } from "../src/execution.js";
 import { inspectJsonInventory } from "../src/inventory.js";
 import { checkJsonDocument } from "../src/documents.js";
 
 function repository(t) {
-  const root = mkdtempSync(join(tmpdir(), "json-quality-test-"));
-  t.after(() => {
-    assert.ok(root.startsWith(tmpdir() + sep + "json-quality-test-"));
-    rmSync(root, { recursive: true });
-  });
-  execFileSync("git", ["init", "-q", root], { windowsHide: true });
+  const root = temporaryRepository(t, "json-quality-test-");
   const policy = {
     schemaVersion: 1,
     defaults: {
@@ -48,6 +38,22 @@ function repository(t) {
   );
   return root;
 }
+
+test("separate API operations retain independent schema-owned result accounting", async (t) => {
+  const root = repository(t);
+  writeFileSync(join(root, "source.json"), "{}\n");
+  const first = await runJsonQuality("check", { root });
+  assert.equal(first.schemaVersion, 3);
+  first.writes.changed.push("unrelated.json");
+  const second = await runJsonQuality("check", { root });
+  assert.equal(second.status, "passed");
+  assert.deepEqual(second.writes, {
+    changed: [],
+    unchanged: [],
+    failed: [],
+    unprocessed: [],
+  });
+});
 
 test("sibling external trees cannot multiply boundary matching work", async (t) => {
   const root = repository(t);

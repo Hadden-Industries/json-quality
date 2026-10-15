@@ -2,6 +2,16 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
 
+/** Lexical containment includes equality; callers own filesystem admission. */
+export function isPathContained(root, path) {
+  const contained = relative(root, path);
+  return (
+    !isAbsolute(contained) &&
+    contained !== ".." &&
+    !contained.startsWith(`..${sep}`)
+  );
+}
+
 /** File identities are canonical repository-relative paths, never tool globs. */
 export function assertRepositoryPath(path) {
   if (
@@ -29,12 +39,7 @@ export function assertRegularSource(root, path, mode) {
     )
       throw new Error(`Nonregular source path: ${path}`);
   }
-  const contained = relative(realpathSync(root), realpathSync(current));
-  if (
-    isAbsolute(contained) ||
-    contained === ".." ||
-    contained.startsWith(`..${sep}`)
-  )
+  if (!isPathContained(realpathSync(root), realpathSync(current)))
     throw new Error(`Source leaves repository: ${path}`);
   return current;
 }

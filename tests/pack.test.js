@@ -15,6 +15,15 @@ test("native npm 12 pack reporting admits exactly one package and rejects legacy
   const report = readPackReport(output);
   assert.equal(report.name, "@hadden-industries/json-quality");
   assert.ok(report.files.some((file) => file.path === "src/cli.js"));
+  for (const path of [
+    "src/json-bytes.js",
+    "src/presentation.js",
+    "src/json-format-options.json",
+  ])
+    assert.ok(
+      report.files.some((file) => file.path === path),
+      path,
+    );
   assert.throws(() => readPackReport(JSON.stringify([report])), /exactly one/u);
   assert.deepEqual(
     readPackReport(JSON.stringify({ [report.name]: report })),

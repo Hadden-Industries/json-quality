@@ -13,16 +13,18 @@ import { tokenize } from "@humanwhocodes/momoa";
 import * as prettier from "prettier";
 import { ESLint } from "eslint";
 import {
-  checkJsonPresentation,
-  jsonFormatOptions,
   jsonLintConfig,
   normalizeJsonSource,
   isStrictJsonPath,
   JSON_SUFFIX,
   STRICT_JSON_GLOBS,
-  decodeJsonBytes,
   jsonRules,
 } from "../src/quality.js";
+import { decodeJsonBytes } from "../src/json-bytes.js";
+import {
+  checkJsonPresentation,
+  jsonFormatOptions,
+} from "../src/presentation.js";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const eslint = fileURLToPath(
   new URL("../node_modules/eslint/bin/eslint.js", import.meta.url),

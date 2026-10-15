@@ -2,11 +2,42 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { tokenize } from "@humanwhocodes/momoa";
+import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { temporaryRepository } from "./temporary-repository.js";
 import {
   formatJsonSource,
   formatJsonValue,
   checkJsonDocument,
+  jsonFormatOptions,
 } from "../src/index.js";
+
+test("API formatting and native preservation checking ignore consumer formatter settings", async (t) => {
+  const root = temporaryRepository(t, "json-quality-formatter-config-");
+  writeFileSync(
+    join(root, ".prettierrc.json"),
+    '{"parser":"babel","useTabs":true,"tabWidth":8,"endOfLine":"crlf"}',
+  );
+  writeFileSync(
+    join(root, ".editorconfig"),
+    "root = true\n[*]\nindent_style = tab\n",
+  );
+  const output = execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "--eval",
+      `const {formatJsonSource} = await import(process.argv[1]); process.stdout.write(await formatJsonSource('{"outer":{"n":1.00e+2}}'));`,
+      new URL("../src/index.js", import.meta.url).href,
+    ],
+    { cwd: root, encoding: "utf8", windowsHide: true },
+  );
+  assert.equal(output, '{\n  "outer": {\n    "n": 1.00e+2\n  }\n}\n');
+  const options = await jsonFormatOptions();
+  options.tabWidth = 9;
+  assert.equal((await jsonFormatOptions()).tabWidth, 2);
+});
 
 test("public printer preserves token spelling, order and unnormalized source values", async () => {
   const source = '{"z":1.00e+2,"x":"e\\u0301","a":[2,1]}';

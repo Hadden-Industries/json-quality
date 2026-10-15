@@ -2,14 +2,29 @@
 import { ESLint } from "eslint";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import {
-  decodeJsonBytes,
-  jsonLintConfig,
-  checkJsonPresentation,
-  jsonFormatOptions,
-  assertNfcPreservationContract,
-} from "./quality.js";
+import { jsonLintConfig, assertNfcPreservationContract } from "./quality.js";
+import { decodeJsonBytes } from "./json-bytes.js";
+import { checkJsonPresentation, jsonFormatOptions } from "./presentation.js";
 
+/** Undecodable bytes share one diagnostic; framing owns any record count. */
+export function invalidByteDocument(path) {
+  return {
+    path,
+    complete: true,
+    syntaxValid: false,
+    presentationChecked: false,
+    findings: [
+      {
+        path,
+        phase: "bytes",
+        ruleId: null,
+        messageId: "invalid-utf8-or-bom",
+        line: 1,
+        column: 1,
+      },
+    ],
+  };
+}
 /** Analyze owned bytes without reading configuration, acquiring tools or writing.
  * The supplied contract must already be resolved by the repository policy.
  * Native diagnostics retain decoded-key semantics and exact source locations.
@@ -26,26 +41,7 @@ export async function checkJsonDocument(bytes, contract = {}) {
   try {
     text = decodeJsonBytes(bytes);
   } catch {
-    return admitExpected(
-      {
-        path,
-        complete: true,
-        syntaxValid: false,
-        presentationChecked: false,
-        findings: [
-          {
-            path,
-            phase: "bytes",
-            ruleId: null,
-            messageId: "invalid-utf8-or-bom",
-            line: 1,
-            column: 1,
-          },
-        ],
-      },
-      bytes,
-      contract,
-    );
+    return admitExpected(invalidByteDocument(path), bytes, contract);
   }
   const linter = new ESLint({
     overrideConfigFile: true,

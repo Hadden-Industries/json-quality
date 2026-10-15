@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import json from "@eslint/json";
 import * as prettier from "prettier";
-import { jsonFormatOptions } from "./quality.js";
+import { jsonFormatOptions, JSON_FORMAT_OPTIONS_PATH } from "./presentation.js";
 import { operationLimits } from "./limits.js";
 
 /** Pure presentation, without normalization, selection, writes or a quality-pass
@@ -38,18 +38,9 @@ export async function formatAdmittedJsonSource(text, limits) {
       [
         fileURLToPath(import.meta.resolve("prettier/bin/prettier.cjs")),
         "--debug-check",
-        "--no-config",
+        "--config",
+        JSON_FORMAT_OPTIONS_PATH,
         "--no-editorconfig",
-        "--parser",
-        "json-stringify",
-        "--tab-width",
-        "2",
-        "--end-of-line",
-        "lf",
-        "--print-width",
-        "80",
-        "--trailing-comma",
-        "none",
       ],
       {
         input: text,

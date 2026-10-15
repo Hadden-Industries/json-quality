@@ -4,7 +4,11 @@ import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { runJsonQuality } from "./execution.js";
-import { validateJsonQualityResult } from "./result.js";
+import {
+  RESULT_SCHEMA_VERSION,
+  emptyWrites,
+  validateJsonQualityResult,
+} from "./result.js";
 import {
   CLI_OPTIONS,
   commandHelp,
@@ -119,7 +123,7 @@ export async function runJsonQualityCli(args, context = {}) {
     return result.status === "passed" ? 0 : 1;
   } catch (error) {
     const result = validateJsonQualityResult({
-      schemaVersion: 3,
+      schemaVersion: RESULT_SCHEMA_VERSION,
       operation,
       status: "error",
       complete: false,
@@ -137,7 +141,7 @@ export async function runJsonQualityCli(args, context = {}) {
       ],
       boundaries: [],
       nativeSources: [],
-      writes: { changed: [], unchanged: [], failed: [], unprocessed: [] },
+      writes: emptyWrites(),
     });
     if (machine) process.stdout.write(JSON.stringify(result) + "\n");
     else process.stderr.write(`${error.message.split("\n")[0]}\n`);
