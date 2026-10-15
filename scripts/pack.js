@@ -53,7 +53,7 @@ export function packCandidate(destination) {
   const npm = process.env.npm_execpath;
   if (!npm)
     throw new Error(
-      "Use npm run qualify:package or invoke this script through npm exec.",
+      "Use npm run qualify:package or npm run pack:archive -- DESTINATION.",
     );
   mkdirSync(destination, { recursive: true });
   const sourceCommit = git(["rev-parse", "HEAD"]);

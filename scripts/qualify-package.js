@@ -35,10 +35,10 @@ if (
   );
 if (Boolean(values.archive) !== Boolean(values.provenance))
   throw new Error("Archive and provenance must be supplied together.");
-const directory = mkdtempSync(join(tmpdir(), "json-quality-transport-"));
 const npm = values.npm ?? process.env.npm_execpath;
 if (!npm) throw new Error("Run qualification through npm.");
 const toolchain = assertNativeNpmRuntime(npm);
+const directory = mkdtempSync(join(tmpdir(), "json-quality-transport-"));
 try {
   const { archive, provenance } = values.archive
     ? {
