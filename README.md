@@ -13,7 +13,7 @@ json-quality format --root /path/to/repository
 json-quality normalize --root /path/to/repository -- source.json
 ```
 
-The development contract uses configuration schema 1 and result schema 3. [The package manifest](package.json) owns direct dependency selections; [the native lockfile](package-lock.json) freezes the resolved graph and integrity.
+The development contract uses configuration schema 1 and result schema 3. [The package manifest](package.json) owns direct dependency selections; [the producer's native lockfile](https://github.com/Hadden-Industries/json-quality/blob/main/package-lock.json) freezes the resolved graph and integrity.
 The [runtime compatibility policy](docs/node-runtime-compatibility.md) defines consumer minima, current-family CI coverage and the independent development/producer reference.
 Edit Node and npm selections only in `assets/node-support.json`, then run `npm run sync:node`; `npm run check:node` rejects projection drift, including native lock metadata.
 Producer qualification retains npm 12's native pack contract; consumer acquisition uses its separately qualified native npm toolchain.
