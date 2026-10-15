@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  existsSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -90,11 +91,10 @@ function snapshot(root, base) {
 }
 
 function graphFromSnapshot(files, directory) {
-  for (const [path, bytes] of files)
-    if (isModule(path) || path === "package.json") {
-      mkdirSync(dirname(join(directory, path)), { recursive: true });
-      writeFileSync(join(directory, path), bytes);
-    }
+  for (const [path, bytes] of files) {
+    mkdirSync(dirname(join(directory, path)), { recursive: true });
+    writeFileSync(join(directory, path), bytes);
+  }
   const result = spawnSync(process.execPath, [self, "--graph-worker"], {
     cwd: directory,
     encoding: "utf8",
@@ -256,13 +256,14 @@ if (
   pathToFileURL(resolve(process.argv[1])).href === import.meta.url
 ) {
   if (process.argv[2] === "--graph-worker") {
-    for (const path of ["src", "tests"]
+    for (const path of ["src", "tests", "scripts"]
+      .filter((directory) => existsSync(directory))
       .flatMap((directory) =>
         readdirSync(directory, { recursive: true }).map(
           (path) => directory + "/" + path.split(sep).join("/"),
         ),
       )
-      .filter(isModule)) {
+      .filter((path) => /\.(?:js|mjs|cjs)$/u.test(path))) {
       const checked = spawnSync(process.execPath, ["--check", path], {
         windowsHide: true,
         encoding: "utf8",

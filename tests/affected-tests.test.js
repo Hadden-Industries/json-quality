@@ -11,7 +11,7 @@ import {
   runTests,
 } from "../scripts/affected-tests.js";
 
-function fixture(t) {
+function fixture(t, extraFiles = {}) {
   const root = mkdtempSync(join(tmpdir(), "json-impact-test-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const git = (...args) =>
@@ -35,6 +35,7 @@ function fixture(t) {
     "tests/b.test.js",
     'import b from "../src/b.js";\nimport assert from "node:assert/strict";\nassert.equal(b, 2);\n',
   );
+  for (const [path, bytes] of Object.entries(extraFiles)) write(path, bytes);
   git("add", ".");
   git(
     "-c",
@@ -58,6 +59,24 @@ test("affected selection uses native reach and retains old edges removed by the 
   assert.deepEqual(plan.tests, ["tests/a.test.js"]);
   f.write("tests/a.test.js", "// The old import was removed.\n");
   plan = await planAffected(f.root, f.base);
+  assert.equal(plan.mode, "affected", plan.reason);
+  assert.deepEqual(plan.tests, ["tests/a.test.js"]);
+});
+
+test("snapshot graphs retain schema resources and imported package scripts", async (t) => {
+  const f = fixture(t, {
+    "schemas/value.json": '{"value":1}\n',
+    "src/a.js":
+      'import schema from "../schemas/value.json" with {type:"json"}; export default schema.value;\n',
+    "scripts/helper.js": 'export {default} from "../src/b.js";\n',
+    "tests/b.test.js":
+      'import b from "../scripts/helper.js"; import assert from "node:assert/strict"; assert.equal(b,2);\n',
+  });
+  f.write(
+    "src/a.js",
+    'import schema from "../schemas/value.json" with {type:"json"}; export default schema.value + 1;\n',
+  );
+  const plan = await planAffected(f.root, f.base);
   assert.equal(plan.mode, "affected", plan.reason);
   assert.deepEqual(plan.tests, ["tests/a.test.js"]);
 });
