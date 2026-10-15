@@ -60,12 +60,23 @@ export function jsonQualitySourceCoordinate(
   if (
     parsed.type === "git" &&
     specifier.startsWith(gitRepository) &&
+    !parsed.gitRange &&
+    !parsed.gitSubdir &&
     /^[a-f0-9]{40}$/u.test(parsed.gitCommittish)
   )
     return { kind: "git", commit: parsed.gitCommittish };
   throw new Error(
     "JSON quality requires one exact npm version or full producer Git commit.",
   );
+}
+
+/** npm may serialize the same hosted Git origin using a different transport. */
+function sameProducerGitSource(resolved, commit) {
+  const source = gitRepository + commit;
+  return new Set([
+    source,
+    source.replace("git+https://github.com/", "git+ssh://git@github.com/"),
+  ]).has(resolved);
 }
 
 /** Verify installed bytes against npm's independently cached locked payload.
@@ -94,7 +105,7 @@ export async function verifyJsonQualityInstallation({
     throw new Error("JSON tooling manifest and lock identity disagree.");
   if (
     coordinate.kind === "git"
-      ? entry.resolved !== specifier
+      ? !sameProducerGitSource(entry.resolved, coordinate.commit)
       : entry.version !== coordinate.version ||
         !entry.resolved?.startsWith("https://registry.npmjs.org/")
   )

@@ -4,6 +4,7 @@ Install one exact npm version or a full producer Git commit; checks never acquir
 The only editable acquisition selector is `devDependencies["@hadden-industries/json-quality"]` in the isolated tooling manifest.
 Use an exact version such as `0.1.0`, an equivalent `npm:@hadden-industries/json-quality@0.1.0` alias, or `git+https://github.com/Hadden-Industries/json-quality.git#FULL_40_CHARACTER_COMMIT`.
 Native npm generates the lockfile; do not repeat the selected commit, version or integrity in a second maintained manifest or hand-edit the lock.
+Native npm may serialize the HTTPS Git selector as `git+ssh://git@github.com/`; verification accepts only those two spellings of the exact producer repository and full commit. Other hosts, repositories, revisions, ranges, subdirectories and insecure transports remain rejected.
 Development adoption uses a commit until registry publication is separately authorized.
 Retain clean producer source and transported-package qualification evidence, while consumer repositories retain the selector and native lock rather than checked-in archives.
 

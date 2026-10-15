@@ -48,6 +48,7 @@ test("source coordinates admit exact versions and full producer commits only", (
     "file:../json-quality",
     git + "main",
     git + "abc123",
+    git + "a".repeat(40) + "::path:subdirectory",
     "git+https://github.com/example/other.git#" + "a".repeat(40),
     "npm:other@1.2.3",
   ])
@@ -158,6 +159,45 @@ test("a full Git selection retains the same cached-payload proof", async (t) => 
     verifyJsonQualityInstallation(context),
     /resolved source/u,
   );
+});
+
+test("native Git lock transport canonicalization retains exact producer and commit admission", async (t) => {
+  const commit = "a".repeat(40);
+  const context = await installation(t, git + commit);
+  const entry = context.lock.packages[`node_modules/${name}`];
+  entry.resolved = `git+ssh://git@github.com/Hadden-Industries/json-quality.git#${commit}`;
+  const save = () =>
+    writeFileSync(
+      join(context.toolingRoot, "package-lock.json"),
+      JSON.stringify(context.lock),
+    );
+  save();
+  assert.equal(
+    (await verifyJsonQualityInstallation(context)).coordinate.commit,
+    commit,
+  );
+  for (const resolved of [
+    `git+http://github.com/Hadden-Industries/json-quality.git#${commit}`,
+    `git://github.com/Hadden-Industries/json-quality.git#${commit}`,
+    `https://github.com/Hadden-Industries/json-quality.git#${commit}`,
+    `github:Hadden-Industries/json-quality#${commit}`,
+    `git+ssh://other@github.com/Hadden-Industries/json-quality.git#${commit}`,
+    `git+ssh://git@github.com/other/json-quality.git#${commit}`,
+    `git+ssh://git@github.com/Hadden-Industries/other.git#${commit}`,
+    `git+ssh://git@github.example/Hadden-Industries/json-quality.git#${commit}`,
+    `git+ssh://git@github.com/Hadden-Industries/json-quality.git#${"b".repeat(40)}`,
+    `git+https://github.com/Hadden-Industries/json-quality.git#${commit}::path:subdirectory`,
+    "git+https://github.com/Hadden-Industries/json-quality.git#main",
+    "git+https://github.com/Hadden-Industries/json-quality.git#semver:^1.0.0",
+    "not a source coordinate",
+  ]) {
+    entry.resolved = resolved;
+    save();
+    await assert.rejects(
+      verifyJsonQualityInstallation(context),
+      /resolved source/u,
+    );
+  }
 });
 
 test("default verification follows the same native cache policy as acquisition", async (t) => {

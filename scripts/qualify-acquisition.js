@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { jsonQualityAcquisitionBootstrap } from "../src/installation.js";
@@ -49,10 +49,8 @@ export async function qualifyAcquisition({ directory, npm, commit }) {
     ],
     options,
   );
-  const lock = JSON.parse(
-    readFileSync(join(tooling, "package-lock.json"), "utf8"),
-  );
-  assert.equal(lock.packages[`node_modules/${name}`].resolved, selector);
+  // npm owns lock serialization; the public verifier admits the exact native
+  // producer identity after cold acquisition instead of comparing URL spelling.
   writeFileSync(join(tooling, "public-api.mjs"), `export * from "${name}";\n`);
   const bootstrap = join(directory, "scripts", "acquire.mjs");
   writeFileSync(bootstrap, jsonQualityAcquisitionBootstrap());
