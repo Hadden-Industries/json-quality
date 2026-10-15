@@ -20,6 +20,7 @@ const { values } = parseArgs({
     provenance: { type: "string" },
     npm: { type: "string" },
     "expected-node": { type: "string" },
+    "expected-npm": { type: "string" },
     output: { type: "string" },
     git: { type: "string" },
   },
@@ -61,6 +62,10 @@ try {
     encoding: "utf8",
     windowsHide: true,
   }).trim();
+  if (values["expected-npm"] && values["expected-npm"] !== npmVersion)
+    throw new Error(
+      "Consumer npm differs from the frozen qualification policy.",
+    );
   const consumer = join(directory, "consumer");
   const fixture = join(directory, "fixture");
   mkdirSync(consumer);

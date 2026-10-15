@@ -13,21 +13,43 @@ assert.equal(
   "Selected Node runtime differs from the frozen lane",
 );
 assert.ok(npm && archives);
+assert.ok(
+  process.env.JSON_QUALITY_PRODUCER_NODE &&
+    process.env.JSON_QUALITY_PRODUCER_NPM,
+  "Reference fixture producer is required",
+);
+const policy = JSON.parse(
+  readFileSync(new URL("../assets/node-support.json", import.meta.url), "utf8"),
+);
+assert.equal(
+  execFileSync(process.env.JSON_QUALITY_PRODUCER_NODE, ["--version"], {
+    encoding: "utf8",
+    windowsHide: true,
+  }).trim(),
+  `v${policy.reference}`,
+);
+assert.equal(
+  execFileSync(
+    process.env.JSON_QUALITY_PRODUCER_NODE,
+    [process.env.JSON_QUALITY_PRODUCER_NPM, "--version"],
+    { encoding: "utf8", windowsHide: true },
+  ).trim(),
+  policy.producerNpm.version,
+);
 const proofs = readdirSync(archives).filter((path) =>
   path.endsWith(".tgz.provenance.json"),
 );
 assert.equal(proofs.length, 1, "Expected one immutable producer archive");
 const provenance = join(archives, proofs[0]);
 const identity = JSON.parse(readFileSync(provenance, "utf8"));
-// npm 12 pack/cold-install fixture tests belong to the reference producer.
-// Every source-only product test runs directly on the actual selected Node.
+// Only fixture packing uses the reference producer. Archive/cache admission,
+// including every unsafe-member regression, executes on the consumer Node/npm.
 const tests = readdirSync(new URL("../tests/", import.meta.url))
   .filter(
     (path) =>
       path.endsWith(".test.js") &&
       ![
         "pack.test.js",
-        "installation.test.js",
         "affected-tests.test.js",
         "node-support.test.js",
       ].includes(path),
@@ -51,6 +73,8 @@ execFileSync(
     npm,
     "--expected-node",
     expected,
+    "--expected-npm",
+    policy.consumerNpm,
     "--git",
     identity.sourceCommit,
     "--output",

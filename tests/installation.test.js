@@ -78,8 +78,15 @@ async function installation(t, source = "1.2.3") {
   );
   const packed = readPackReport(
     execFileSync(
-      process.execPath,
-      [npm, "pack", "--ignore-scripts", "--json", "--pack-destination", root],
+      process.env.JSON_QUALITY_PRODUCER_NODE ?? process.execPath,
+      [
+        process.env.JSON_QUALITY_PRODUCER_NPM ?? npm,
+        "pack",
+        "--ignore-scripts",
+        "--json",
+        "--pack-destination",
+        root,
+      ],
       { cwd: producer, encoding: "utf8", windowsHide: true },
     ),
   );

@@ -63,6 +63,7 @@ jobs:
         run: |
           npm install --global "npm@$(node -p 'JSON.parse(require("fs").readFileSync("assets/node-support.json")).producerNpm.version')" --ignore-scripts --no-audit --no-fund
           npm ci --ignore-scripts --no-audit --no-fund
+          npm exec -- node scripts/ci-producer-toolchain.js
           npm install --prefix "${{ runner.temp }}/consumer-npm" "npm@$CONSUMER_NPM" --ignore-scripts --no-audit --no-fund
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:

@@ -20,7 +20,7 @@ The check rejects drift without writing; dependency resolutions and historical e
 The supported families exclude odd, future and prerelease Node releases.
 
 The producer remains on its reference Node and npm 12; its keyed native pack report is unchanged.
-Consumer qualification uses npm 11.21.1, whose native argument parser, cache reader, tar parser and Git acquisition controls support the older runtimes.
+Consumer qualification uses the npm selection in the generated policy block above; its native argument parser, cache reader, tar parser and Git acquisition controls support the older runtimes.
 Cold Git acquisition and installed-payload verification retain the public exact-selector, cache-integrity and archive-member contracts.
 An unverified `file:` installation is not a substitute for those public admission checks.
 
