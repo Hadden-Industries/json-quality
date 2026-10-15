@@ -69,7 +69,10 @@ Exclusions still require the complete native census and matching bytes; excluded
 Pure `formatJsonSource(text, { limits })` preserves strict JSON token spelling and decoded values through the native printer's debug check. `formatJsonValue(value, { limits })` first requires plain acyclic JSON data; accessors, custom serialization, sparse arrays, unsupported values, negative zero and nonfinite numbers are rejected rather than silently transformed. Both return text without acquiring tools or writing files; neither normalizes values or establishes a quality pass. Keep historical canonical/digest encoders separate.
 JSONL uses UTF-8 records, LF or CRLF framing, an optional final terminator, strict per-record analysis and native compact producer presentation; blank records fail.
 
-Operations are `check`, `inventory`, `lint`, `check-format`, `producers`, `format` and `normalize`.
+Library operations are `check`, `inventory`, `lint`, `check-format`, `producers`, `format` and `normalize`.
+The CLI uses `json-quality format --check` for read-only formatting verification and `json-quality format` to apply formatting.
+It accepts neither `check-format` nor `format-check` as a CLI command; there are no compatibility aliases.
+The `--check` option is valid only with `format`; the library/result operation identity for this check remains `check-format`.
 The ordinary `check` covers every phase.
 `inventory` reports discovered physical/logical identities, external boundaries and resolved owner/write/presentation/NFC contracts.
 It validates policy and scope/provenance accounting without performing JSON analysis or JSONL framing; `syntaxValid` and record counts are null and `checked` is zero.

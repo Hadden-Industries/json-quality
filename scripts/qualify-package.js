@@ -126,6 +126,19 @@ await assert.rejects(import("@hadden-industries/json-quality/src/quality.js"), {
   );
   if (result.status !== "passed" || result.counts.physical !== 2)
     throw new Error("Transported CLI coverage failed.");
+  const formatting = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [cli, "format", "--check", "--root", fixture, "--json"],
+      { cwd: consumer, windowsHide: true, encoding: "utf8", timeout: 120000 },
+    ),
+  );
+  if (
+    formatting.status !== "passed" ||
+    formatting.counts.physical !== 2 ||
+    formatting.writes.changed.length !== 0
+  )
+    throw new Error("Transported format --check coverage failed.");
   const lock = JSON.parse(readFileSync(join(consumer, "package-lock.json")));
   if (
     lock.packages["node_modules/@hadden-industries/json-quality"].integrity !==
