@@ -1,23 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  mkdtempSync,
-  writeFileSync,
-  readFileSync,
-  rmSync,
-  renameSync,
-} from "node:fs";
-import { join, sep } from "node:path";
-import { tmpdir } from "node:os";
+import { writeFileSync, readFileSync, renameSync } from "node:fs";
+import { join } from "node:path";
+import { temporaryDirectory } from "./temporary-directory.js";
 import { captureSource, replaceSource } from "../src/replacement.js";
 
 test("a changed byte preimage refuses replacement", (t) => {
-  const root = mkdtempSync(join(tmpdir(), "json-quality-preimage-"));
-  t.after(() => {
-    assert.ok(root.startsWith(tmpdir() + sep + "json-quality-preimage-"));
-    rmSync(root, { recursive: true });
-  });
+  const root = temporaryDirectory(t, "json-quality-preimage-");
   writeFileSync(join(root, "data.json"), "{}\n");
   const before = captureSource(root, "data.json");
   writeFileSync(join(root, "data.json"), '{"new":true}\n');
@@ -29,11 +19,7 @@ test("a changed byte preimage refuses replacement", (t) => {
 });
 
 test("a same-byte file identity replacement also refuses the write", (t) => {
-  const root = mkdtempSync(join(tmpdir(), "json-quality-preimage-"));
-  t.after(() => {
-    assert.ok(root.startsWith(tmpdir() + sep + "json-quality-preimage-"));
-    rmSync(root, { recursive: true });
-  });
+  const root = temporaryDirectory(t, "json-quality-preimage-");
   writeFileSync(join(root, "data.json"), "{}\n");
   const before = captureSource(root, "data.json");
   writeFileSync(join(root, "new.json"), "{}\n");

@@ -2,9 +2,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { temporaryRepository } from "./temporary-repository.js";
 import {
   planAffected,
   selectTests,
@@ -12,8 +12,7 @@ import {
 } from "../scripts/affected-tests.js";
 
 function fixture(t, extraFiles = {}) {
-  const root = mkdtempSync(join(tmpdir(), "json-impact-test-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const root = temporaryRepository(t, "json-impact-test-");
   const git = (...args) =>
     execFileSync("git", ["-C", root, ...args], {
       windowsHide: true,
@@ -23,7 +22,6 @@ function fixture(t, extraFiles = {}) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), text);
   };
-  git("init", "-q");
   write("package.json", '{"type":"module"}\n');
   write("src/a.js", "export default 1;\n");
   write("src/b.js", "export default 2;\n");

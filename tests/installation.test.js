@@ -3,15 +3,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import {
-  mkdtempSync,
-  mkdirSync,
-  writeFileSync,
-  readFileSync,
-  rmSync,
-} from "node:fs";
-import { join, sep } from "node:path";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { temporaryDirectory } from "./temporary-directory.js";
 import { createRequire } from "node:module";
 import { gzipSync } from "node:zlib";
 import {
@@ -56,11 +50,7 @@ test("source coordinates admit exact versions and full producer commits only", (
 });
 
 async function installation(t, source = "1.2.3") {
-  const root = mkdtempSync(join(tmpdir(), "json-quality-installation-"));
-  t.after(() => {
-    assert.ok(root.startsWith(tmpdir() + sep + "json-quality-installation-"));
-    rmSync(root, { recursive: true });
-  });
+  const root = temporaryDirectory(t, "json-quality-installation-");
   const producer = join(root, "producer");
   mkdirSync(producer);
   const manifest = {

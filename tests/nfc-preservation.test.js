@@ -7,9 +7,9 @@ import {
   normalizeJsonSource,
   readJsonPolicy,
 } from "../src/index.js";
-import { mkdtempSync, writeFileSync, rmSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, dirname, basename } from "node:path";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { temporaryDirectory } from "./temporary-directory.js";
 
 // Independent SHA-256 identity of the decoded UTF-8 Kelvin-sign language tag.
 const pin = {
@@ -117,13 +117,7 @@ test("JSONL pins use one unique record identity and survive record reordering", 
 });
 
 test("policy admission requires exact protected paths, attributable ownership and unique document/record locations", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), "json-nfc-policy-"));
-  t.after(() => {
-    const target = realpathSync(root);
-    assert.equal(dirname(target), realpathSync(tmpdir()));
-    assert(basename(target).startsWith("json-nfc-policy-"));
-    rmSync(target, { recursive: true });
-  });
+  const root = temporaryDirectory(t, "json-nfc-policy-");
   const rule = {
     paths: ["fixture.json"],
     allowFormatWrites: false,

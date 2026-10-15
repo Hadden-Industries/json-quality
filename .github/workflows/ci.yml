@@ -19,14 +19,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .node-version
-          package-manager-cache: false
-      - name: Select the policy-owned producer npm
-        shell: bash
-        run: npm install --global "npm@$(node -p 'JSON.parse(require("fs").readFileSync("assets/node-support.json")).producerNpm.version')" --ignore-scripts --no-audit --no-fund
-      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - uses: ./.github/actions/setup-producer
       - id: policy
         name: Freeze minimum, current and reference lanes
         run: npm run ci:node-policy
@@ -52,17 +45,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .node-version
-          package-manager-cache: false
-      - name: Provision producer dependencies and the native consumer npm
+      - uses: ./.github/actions/setup-producer
+      - name: Retain the producer toolchain and provision the native consumer npm
         shell: bash
         env:
           CONSUMER_NPM: ${{ needs.producer.outputs.consumer-npm }}
         run: |
-          npm install --global "npm@$(node -p 'JSON.parse(require("fs").readFileSync("assets/node-support.json")).producerNpm.version')" --ignore-scripts --no-audit --no-fund
-          npm ci --ignore-scripts --no-audit --no-fund
           npm run ci:producer-toolchain
           npm install --prefix "${{ runner.temp }}/consumer-npm" "npm@$CONSUMER_NPM" --ignore-scripts --no-audit --no-fund
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2

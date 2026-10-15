@@ -93,13 +93,13 @@ Optional configuration `limits` and per-invocation API `limits` override resourc
 Values are positive safe integers without arbitrary package ceilings; `limits: false` explicitly bypasses package resource limits.
 The CLI exposes each setting, for example `--max-files 100000 --max-file-bytes 67108864`, plus `--no-limits` for the explicit bypass.
 Individual overrides and `--no-limits` cannot be combined in one invocation.
-Defaults are 50,000 physical files, 32 MiB per document, 256 MiB total physical/logical input, 100,000 logical members, 100,000 records per JSONL file and 10,000 diagnostics.
+The [`limits` definition in the configuration schema](../schemas/configuration.schema.json#/definitions/limits) owns each capacity setting and its default. Runtime defaults derive from those annotations; consult that declaration for current values.
 Native member documents share the cumulative logical-member ceiling; physical/native document identities share the file ceiling. Native source and authority snapshot bytes, counted once per source path, and every admitted member buffer also consume total input capacity.
 Limits fail before writes and never disable semantic rules.
 Policy bootstrap bytes, Git/tool output and formatter time are capacity controls too, with corresponding override flags; enlarge policy bootstrap capacity using CLI/API overrides before loading a policy larger than the default.
 Operating-system/native-tool constraints still apply when package limits are bypassed; failures never become a pass.
 These are cooperative admission controls, not an OS sandbox or a promise that native parsers have constant memory cost.
-The separate JavaScript identity rule accepts resource options `maxFrames` (default 64) and `maxSteps` (default 100000). Each accepts a positive safe integer or `false` to bypass that limit; an options value of `false` bypasses both. These options never disable the semantic guard or replace consumer permutation tests.
+The separate JavaScript identity rule accepts resource options `maxFrames` and `maxSteps`; [the rule's `DEFAULT_LIMITS` declaration](../src/eslint/noJsonStringifyIdentity.js) owns their defaults. Each accepts a positive safe integer or `false` to bypass that limit; an options value of `false` bypasses both. These options never disable the semantic guard or replace consumer permutation tests.
 
 Repository command adapters can call `await runJsonQualityCli(process.argv.slice(2), { root, requiredOutputs, logicalInventory, logicalDocuments })` and assign its returned exit code. A supplied root is fixed: a conflicting `--root` fails. Argument parsing, capacity overrides and human/machine result reporting remain package-owned; importing this API performs no command.
 Adapters that must load or verify repository-owned inputs may instead supply a trusted asynchronous factory returning that same closed context. It runs after argument admission, inside the package's error envelope. Native storage-verification failures then return exit 2 and an incomplete machine result rather than escaping as an unstructured stack trace.

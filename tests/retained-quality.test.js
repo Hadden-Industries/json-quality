@@ -9,7 +9,7 @@ const nativeConfigPath = fileURLToPath(
 /** Exercise native JSON decisions and repository selection without mocking the tools. */
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { tokenize } from "@humanwhocodes/momoa";
+import { jsonTokenMeaning } from "./json-token-meaning.js";
 import * as prettier from "prettier";
 import { ESLint } from "eslint";
 import {
@@ -615,19 +615,12 @@ test("preserved producer identity cannot be normalized", async () => {
   );
 });
 
-/** Tokens preserve member/array order, decoded string values and exact numeric lexemes. */
-function meaning(text) {
-  return tokenize(text).map((token) => {
-    const raw = text.slice(token.loc.start.offset, token.loc.end.offset);
-    return [token.type, token.type === "String" ? JSON.parse(raw) : raw];
-  });
-}
 test("native stringify presentation preserves order, escapes, negative zero and decimal lexemes", async () => {
   const text =
     '{"2":2,"1":1,"b":[-0,1e+03,1.0,0.123456789012345678901],"a":"\\u0061","e\\u0301":"e\\u0301"}';
   const options = await jsonFormatOptions();
   const output = await prettier.format(text, options);
-  assert.deepEqual(meaning(output), meaning(text));
+  assert.deepEqual(jsonTokenMeaning(output), jsonTokenMeaning(text));
   assert.equal(
     output,
     '{\n  "2": 2,\n  "1": 1,\n  "b": [\n    -0,\n    1e+03,\n    1.0,\n    0.123456789012345678901\n  ],\n  "a": "\\u0061",\n  "e\\u0301": "e\\u0301"\n}\n',

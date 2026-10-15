@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import test from "node:test";
 import assert from "node:assert/strict";
-import { tokenize } from "@humanwhocodes/momoa";
+import { jsonTokenMeaning } from "./json-token-meaning.js";
 import * as prettier from "prettier";
 import { checkJsonDocument } from "../src/documents.js";
 import { normalizeJsonSource } from "../src/quality.js";
@@ -85,11 +85,6 @@ test("NFC repair changes string tokens while retaining number lexemes and order"
 test("native presentation preserves independent decoded and number tokens", async () => {
   const before = '{"z":1.00e+2,"x":"\\u0061","a":[2,1]}';
   const after = await prettier.format(before, await jsonFormatOptions());
-  const tokens = (text) =>
-    tokenize(text).map((t) => {
-      const raw = text.slice(t.loc.start.offset, t.loc.end.offset);
-      return [t.type, t.type === "String" ? JSON.parse(raw) : raw];
-    });
-  assert.deepEqual(tokens(after), tokens(before));
+  assert.deepEqual(jsonTokenMeaning(after), jsonTokenMeaning(before));
   assert.equal(await normalizeJsonSource(before), before);
 });
