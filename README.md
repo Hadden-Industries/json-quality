@@ -8,6 +8,7 @@ Repository producers and domain validators retain authority over schemas, RDF me
 ```sh
 json-quality check --root /path/to/repository
 json-quality inventory --root /path/to/repository --json
+json-quality format --check --root /path/to/repository
 json-quality format --root /path/to/repository
 json-quality normalize --root /path/to/repository -- source.json
 ```

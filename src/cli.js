@@ -27,6 +27,7 @@ export async function runJsonQualityCli(args, context = {}) {
       options: {
         root: { type: "string" },
         json: { type: "boolean", default: false },
+        check: { type: "boolean", default: false },
         "no-limits": { type: "boolean", default: false },
         ...Object.fromEntries(
           LIMIT_NAMES.map((name) => [limitFlag(name), { type: "string" }]),
@@ -37,12 +38,14 @@ export async function runJsonQualityCli(args, context = {}) {
     const [mode, ...sourcePaths] = positionals;
     if (
       !OPERATIONS.includes(mode) ||
+      mode === "check-format" ||
+      (values.check && mode !== "format") ||
       (mode !== "normalize" && sourcePaths.length)
     )
       throw new TypeError(
-        "Expected a JSON quality operation; only normalize accepts explicit source paths.",
+        "Expected a JSON quality command; formatting verification uses format --check; only normalize accepts explicit source paths.",
       );
-    operation = mode;
+    operation = mode === "format" && values.check ? "check-format" : mode;
     const limits = {};
     for (const name of LIMIT_NAMES) {
       const value = values[limitFlag(name)];

@@ -684,6 +684,46 @@ test("public CLI adapters retain required outputs, resource flags and a fixed re
   assert.equal(JSON.parse(escape.stdout).counts, null);
 });
 
+test("format --check is the sole read-only formatting CLI spelling", (t) => {
+  const root = repository(t);
+  const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
+  const invoke = (...args) =>
+    spawnSync(process.execPath, [cli, ...args, "--root", root, "--json"], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+  const path = join(root, "ordinary.json");
+  const original = '{"value":1}';
+  writeFileSync(path, original);
+  const unformatted = invoke("format", "--check");
+  assert.equal(unformatted.status, 1, unformatted.stderr);
+  const result = JSON.parse(unformatted.stdout);
+  assert.equal(result.status, "failed");
+  assert.deepEqual(result.writes.changed, []);
+  assert.equal(readFileSync(path, "utf8"), original);
+  for (const args of [
+    ["check-format"],
+    ["format-check"],
+    ["check", "--check"],
+    ["lint", "--check"],
+    ["normalize", "--check"],
+  ]) {
+    const rejected = invoke(...args);
+    assert.equal(rejected.status, 2, args.join(" "));
+    assert.equal(JSON.parse(rejected.stdout).complete, false);
+    assert.equal(readFileSync(path, "utf8"), original);
+  }
+  const formatted = invoke("format");
+  assert.equal(formatted.status, 0, formatted.stderr);
+  const formattedBytes = readFileSync(path, "utf8");
+  assert.notEqual(formattedBytes, original);
+  assert.deepEqual(JSON.parse(formattedBytes), { value: 1 });
+  const checked = invoke("format", "--check");
+  assert.equal(checked.status, 0, checked.stderr);
+  assert.deepEqual(JSON.parse(checked.stdout).writes.changed, []);
+  assert.equal(readFileSync(path, "utf8"), formattedBytes);
+});
+
 test("trusted asynchronous CLI context failures retain the public machine error envelope", () => {
   const api = new URL("../src/index.js", import.meta.url).href;
   const result = spawnSync(
