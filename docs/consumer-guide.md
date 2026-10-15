@@ -83,9 +83,9 @@ The ordinary `check` covers every phase.
 It validates policy and scope/provenance accounting without performing JSON analysis or JSONL framing; `syntaxValid` and record counts are null and `checked` is zero.
 It establishes scope, never a quality pass; there is no redundant `inspect` alias.
 Ordinary inventory reads file identities and sizes without loading their contents; logical provenance still requires reading its declared physical containers. Undecodable JSONL bytes leave record and checked-document coverage null rather than reporting zero records.
-Lint omits presentation findings; presentation checking retains byte/expectation failures; producer checking reaches protected inputs.
+Lint omits presentation findings; presentation checking retains byte/expectation failures; protected-scope checking reaches write-protected inputs.
 The CLI exits 0 for a complete pass, 1 for known findings or partial-write failure and 2 for invalid input or operational failure.
-Machine output is opt-in `--json` and validated against result schema 2 plus semantic count, identity, phase and write accounting. Schema 1 results require regeneration; they are not silently admitted as current native-coverage proof.
+Machine output is opt-in `--json` and validated against result schema 3 plus semantic count, identity, phase and write accounting. Earlier result schemas require regeneration; they are not silently admitted as current native-coverage proof.
 Unknown coverage is represented by null counts, never zero.
 
 Optional configuration `limits` and per-invocation API `limits` override resource defaults; invocation values take precedence.
