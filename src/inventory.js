@@ -99,6 +99,11 @@ export async function inspectJsonInventory({
     }
   }
   walk(root);
+  const boundaryIdentity = (path) =>
+    process.platform === "win32" ? path.toLowerCase() : path;
+  const boundaryIndex = new Map(
+    boundaries.map((entry) => [boundaryIdentity(entry.path), entry]),
+  );
   const files = [...paths].sort().map((path) => {
     if (!isStrictJsonPath(path) && !isJsonLinesPath(path))
       throw new Error(`Unqualified JSON dialect: ${path}`);
@@ -106,15 +111,16 @@ export async function inspectJsonInventory({
     const file = jsonContract(path, policy, { tracked: tracked.has(path) });
     // A hidden basename may not match a glob that pruned its ancestor. Git
     // rescue still checks it, but must retain that boundary's write protection.
-    const identityPath =
-      process.platform === "win32" ? path.toLowerCase() : path;
-    const boundary = boundaries.find((entry) => {
-      const ancestor =
-        process.platform === "win32" ? entry.path.toLowerCase() : entry.path;
-      return (
-        identityPath === ancestor || identityPath.startsWith(ancestor + "/")
-      );
-    });
+    // Match only this identity's ancestors, independent of boundary count.
+    let ancestor = boundaryIdentity(path);
+    let boundary;
+    while (ancestor) {
+      boundary = boundaryIndex.get(ancestor);
+      if (boundary) break;
+      const slash = ancestor.lastIndexOf("/");
+      if (slash < 0) break;
+      ancestor = ancestor.slice(0, slash);
+    }
     if (boundary) {
       file.exclude = false;
       file.allowFormatWrites = false;
