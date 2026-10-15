@@ -6,11 +6,11 @@ import { assertNativeIdentity } from "./native-identities.js";
 
 /** The serialized result schema owns version and write-accounting fields. */
 export const RESULT_SCHEMA_VERSION = schema.properties.schemaVersion.const;
+// Public schema data can be customized by consumers after API initialization.
+const writeKeys = Object.freeze([...schema.properties.writes.required]);
 /** Create independent write buckets; operations never share mutable arrays. */
 export function emptyWrites() {
-  return Object.fromEntries(
-    schema.properties.writes.required.map((name) => [name, []]),
-  );
+  return Object.fromEntries(writeKeys.map((name) => [name, []]));
 }
 
 export const OPERATIONS = Object.freeze(

@@ -45,8 +45,10 @@ const BASE_RULES = Object.freeze({
   "json/no-unnormalized-keys": "off",
 });
 
-const EMPTY_KEY_POINTERS =
-  configurationSchema.properties.exceptions.items.properties.allowEmptyKeys;
+// Isolate runtime admission from later customization of the public schema data.
+const EMPTY_KEY_POINTERS = structuredClone(
+  configurationSchema.properties.exceptions.items.properties.allowEmptyKeys,
+);
 
 /** Compare the exact decimal integer, without binary64 rounding or exponent expansion. */
 function isUnsafeInteger(raw) {

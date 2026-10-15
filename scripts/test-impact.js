@@ -30,4 +30,9 @@ export const relations = [
     consumer: "tests/retained-quality.test.js",
     kind: "eslint-process",
   },
+  {
+    dependency: "tests/schema-isolation-probe.mjs",
+    consumer: "tests/schema-isolation.test.js",
+    kind: "node-process",
+  },
 ];
