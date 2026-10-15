@@ -13,7 +13,7 @@ json-quality format --root /path/to/repository
 json-quality normalize --root /path/to/repository -- source.json
 ```
 
-The development contract uses configuration schema 1 and result schema 2, Node 24.21.0 or newer within Node 24 or Node 26.11.1 or newer within Node 26, ESLint 10.12.0, `@eslint/json` 2.1.1, Prettier 3.9.10 and Ajv 8.20.0.
+The development contract uses configuration schema 1 and result schema 3, Node 24.21.0 or newer within Node 24 or Node 26.11.1 or newer within Node 26, ESLint 10.12.0, `@eslint/json` 2.1.1, Prettier 3.9.10 and Ajv 8.20.0.
 Producer qualification uses npm 12.2.0 or newer within npm 12. Resource defaults can be raised through configuration, API options or CLI flags such as `--max-files 100000 --max-file-bytes 67108864`; `--no-limits` explicitly bypasses package capacity limits while retaining quality rules.
 It is an internal development candidate; registry publication is separately authorized and qualified.
 See the [consumer contract](docs/consumer-guide.md) and [third-party notices](THIRD-PARTY-NOTICES.md).
@@ -23,11 +23,18 @@ The package also owns the generated acquisition bootstrap and isolation guard, s
 ```sh
 npm ci --ignore-scripts
 npm run check:focused
-npm run check:affected
+npm test
+npm run check:affected -- --base FULL_COMMIT_SHA
 npm run check:full
 ```
 
 `check:full` requires clean committed source so transported-package proof binds an actual source commit.
+`npm test` always runs every test.
+`check:affected` combines dependency-cruiser before/after import graphs and the package's declared process relations.
+Its base must be a full immutable commit; `--dry-run` explains the plan without running tests.
+Configuration, resources, tooling, computed loads, missing graph coverage or analysis failure select the complete suite.
+An empty or unknown affected scope also runs the complete suite; failed selected tests retain their failure.
+This development selector does not replace full qualification and introduces no shared tooling repository.
 It runs source contracts, lint, read-only style checks, clean installed CLI/library/plugin/schema probes, and source JSON dogfood checks.
 Source tests do not establish hosted platform or consumer adoption acceptance.
 

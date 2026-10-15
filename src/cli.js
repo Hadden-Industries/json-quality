@@ -4,11 +4,14 @@ import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { runJsonQuality } from "./execution.js";
-import { validateJsonQualityResult, OPERATIONS } from "./result.js";
+import { validateJsonQualityResult } from "./result.js";
+import {
+  CLI_OPTIONS,
+  commandHelp,
+  commandOperation,
+  limitFlag,
+} from "./commands.js";
 import { LIMIT_NAMES } from "./limits.js";
-
-const limitFlag = (name) =>
-  name.replace(/[A-Z]/gu, (letter) => "-" + letter.toLowerCase());
 
 /** Reuse native argument parsing and result reporting in thin repository adapters.
  * Context adds trusted output/logical obligations and may fix the repository root.
@@ -24,28 +27,23 @@ export async function runJsonQualityCli(args, context = {}) {
       args,
       allowPositionals: true,
       strict: true,
-      options: {
-        root: { type: "string" },
-        json: { type: "boolean", default: false },
-        check: { type: "boolean", default: false },
-        "no-limits": { type: "boolean", default: false },
-        ...Object.fromEntries(
-          LIMIT_NAMES.map((name) => [limitFlag(name), { type: "string" }]),
-        ),
-      },
+      options: CLI_OPTIONS,
     });
     machine = values.json;
     const [mode, ...sourcePaths] = positionals;
-    if (
-      !OPERATIONS.includes(mode) ||
-      mode === "check-format" ||
-      (values.check && mode !== "format") ||
-      (mode !== "normalize" && sourcePaths.length)
-    )
-      throw new TypeError(
-        "Expected a JSON quality command; formatting verification uses format --check; only normalize accepts explicit source paths.",
-      );
-    operation = mode === "format" && values.check ? "check-format" : mode;
+    if (!args.length || (values.help && mode === undefined)) {
+      if (values.json)
+        throw new TypeError("Help is human-readable; omit --json.");
+      process.stdout.write(commandHelp());
+      return 0;
+    }
+    operation = commandOperation(mode, values, sourcePaths);
+    if (values.help) {
+      if (values.json)
+        throw new TypeError("Help is human-readable; omit --json.");
+      process.stdout.write(commandHelp(mode));
+      return 0;
+    }
     const limits = {};
     for (const name of LIMIT_NAMES) {
       const value = values[limitFlag(name)];
@@ -121,7 +119,7 @@ export async function runJsonQualityCli(args, context = {}) {
     return result.status === "passed" ? 0 : 1;
   } catch (error) {
     const result = validateJsonQualityResult({
-      schemaVersion: 2,
+      schemaVersion: 3,
       operation,
       status: "error",
       complete: false,

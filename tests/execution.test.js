@@ -724,6 +724,58 @@ test("format --check is the sole read-only formatting CLI spelling", (t) => {
   assert.equal(readFileSync(path, "utf8"), formattedBytes);
 });
 
+test("protected scope describes write permission and rejects the retired producer interface", async (t) => {
+  const root = repository(t);
+  const policyPath = join(root, ".json-quality.json");
+  const policy = JSON.parse(readFileSync(policyPath, "utf8"));
+  policy.exceptions.push({
+    paths: ["authored.json"],
+    allowFormatWrites: false,
+    owner: "Authored fixture",
+    reason: "Review-only text.",
+  });
+  writeFileSync(policyPath, JSON.stringify(policy, null, 2) + "\n");
+  writeFileSync(join(root, "authored.json"), '{"x":1}');
+  const result = await runJsonQuality("check-protected", { root });
+  assert.equal(result.schemaVersion, 3);
+  assert(result.findings.some((finding) => finding.path === "authored.json"));
+  const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
+  const invoke = (...args) =>
+    spawnSync(process.execPath, [cli, ...args, "--root", root, "--json"], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+  assert.equal(
+    JSON.parse(invoke("check", "--scope", "protected").stdout).operation,
+    "check-protected",
+  );
+  for (const args of [
+    ["producers"],
+    ["check", "--scope", "producer"],
+    ["format", "--scope", "protected"],
+  ])
+    assert.equal(invoke(...args).status, 2);
+  await assert.rejects(runJsonQuality("producers", { root }), /Unknown/u);
+});
+
+test("help comes from the command grammar without loading a repository adapter", () => {
+  const api = new URL("../src/index.js", import.meta.url).href;
+  for (const args of [[], ["--help"], ["format", "--help"]]) {
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import {runJsonQualityCli} from ${JSON.stringify(api)}; process.exitCode = await runJsonQualityCli(${JSON.stringify(args)}, () => {throw new Error("ADAPTER_LOADED");});`,
+      ],
+      { encoding: "utf8", windowsHide: true },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /format --check/u);
+    assert(!result.stderr.includes("ADAPTER_LOADED"));
+  }
+});
+
 test("trusted asynchronous CLI context failures retain the public machine error envelope", () => {
   const api = new URL("../src/index.js", import.meta.url).href;
   const result = spawnSync(
