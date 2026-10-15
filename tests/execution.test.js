@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import { createHash } from "node:crypto";
 import { runJsonQuality } from "../src/execution.js";
+import { inspectJsonInventory } from "../src/inventory.js";
 import { checkJsonDocument } from "../src/documents.js";
 
 function repository(t) {
@@ -47,6 +48,56 @@ function repository(t) {
   );
   return root;
 }
+
+test("sibling external trees cannot multiply boundary matching work", async (t) => {
+  const root = repository(t);
+  const peers = 200;
+  for (let n = 0; n < peers; n++) {
+    const directory = join(root, `peer-${String(n).padStart(5, "0")}`);
+    mkdirSync(join(directory, "node_modules"), { recursive: true });
+    writeFileSync(join(directory, "data.json"), "{}\n");
+    writeFileSync(join(directory, "node_modules", "marker.txt"), "marker\n");
+  }
+  execFileSync("git", ["-C", root, "add", "--force", "."], {
+    windowsHide: true,
+  });
+  const originalFind = Array.prototype.find;
+  let comparisons = 0;
+  Array.prototype.find = function (predicate, thisArg) {
+    const boundaries =
+      this.length === peers + 1 &&
+      this.every(
+        (entry) =>
+          entry &&
+          typeof entry.path === "string" &&
+          Array.isArray(entry.exceptions),
+      );
+    return originalFind.call(
+      this,
+      boundaries
+        ? function (...args) {
+            comparisons++;
+            return predicate.apply(this, args);
+          }
+        : predicate,
+      thisArg,
+    );
+  };
+  let inventory;
+  try {
+    inventory = await inspectJsonInventory({ root });
+  } finally {
+    Array.prototype.find = originalFind;
+  }
+  assert.equal(inventory.files.length, peers + 1);
+  assert.equal(inventory.boundaries.length, peers + 1);
+  assert.equal(inventory.counts.writable, peers + 1);
+  // Count matching work rather than relying on machine-dependent wall time.
+  assert.ok(
+    comparisons <= 4 * inventory.files.length,
+    `${comparisons} comparisons`,
+  );
+});
 
 test("discovery includes hidden, untracked and ignored generated JSON", async (t) => {
   const root = repository(t);
