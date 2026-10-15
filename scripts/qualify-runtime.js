@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { assertNativeNpmRuntime } from "./consumer-toolchain.js";
 
 const expected = process.env.JSON_QUALITY_EXPECTED_NODE;
 const npm = process.env.JSON_QUALITY_CONSUMER_NPM;
@@ -13,6 +14,7 @@ assert.equal(
   "Selected Node runtime differs from the frozen lane",
 );
 assert.ok(npm && archives);
+assertNativeNpmRuntime(npm);
 assert.ok(
   process.env.JSON_QUALITY_PRODUCER_NODE &&
     process.env.JSON_QUALITY_PRODUCER_NPM,

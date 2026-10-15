@@ -13,6 +13,7 @@ import { join, sep } from "node:path";
 import { createHash } from "node:crypto";
 import { parseArgs } from "node:util";
 import { packCandidate } from "./pack.js";
+import { assertNativeNpmRuntime } from "./consumer-toolchain.js";
 
 const { values } = parseArgs({
   options: {
@@ -37,6 +38,7 @@ if (Boolean(values.archive) !== Boolean(values.provenance))
 const directory = mkdtempSync(join(tmpdir(), "json-quality-transport-"));
 const npm = values.npm ?? process.env.npm_execpath;
 if (!npm) throw new Error("Run qualification through npm.");
+const toolchain = assertNativeNpmRuntime(npm);
 try {
   const { archive, provenance } = values.archive
     ? {
@@ -249,6 +251,7 @@ await assert.rejects(import("@hadden-industries/json-quality/src/quality.js"), {
     platform: process.platform,
     architecture: process.arch,
     npm: npmVersion,
+    nativeToolchain: toolchain,
     gitAcquisition: values.git ?? null,
     publicExports: 4,
     cliPhysicalFiles: 2,

@@ -7,6 +7,19 @@ import {
   nodeSupport,
 } from "../scripts/node-matrix.js";
 import { projectNodeSupport } from "../scripts/project-node-support.js";
+import { assertNativeNpmRuntime } from "../scripts/consumer-toolchain.js";
+
+test("consumer qualification refuses an unsupported native npm runtime before execution", () => {
+  const npm = process.env.npm_execpath;
+  assert.ok(npm);
+  assert.throws(
+    () => assertNativeNpmRuntime(npm, "0.1.0"),
+    /does not support Node/u,
+  );
+  const admitted = assertNativeNpmRuntime(npm);
+  assert.equal(admitted.modules.length, 4);
+  assert.ok(admitted.modules.every((entry) => typeof entry.node === "string"));
+});
 
 const policy = {
   schemaVersion: 1,
