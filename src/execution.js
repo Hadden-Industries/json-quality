@@ -180,7 +180,7 @@ export async function runJsonQuality(operation, options = {}) {
             finding.phase === "expectation" ||
             finding.phase === "bytes" ||
             !document.syntaxValid
-          : operation === "producers"
+          : operation === "check-protected"
             ? !writable
             : writing
               ? finding.phase !== "presentation" || !writable
@@ -197,7 +197,7 @@ export async function runJsonQuality(operation, options = {}) {
   )
     throw new Error("JSON diagnostic limit exceeded; coverage is incomplete.");
   const result = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     operation,
     status: findings.length ? "failed" : "passed",
     complete: true,

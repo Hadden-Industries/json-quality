@@ -16,7 +16,7 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": 2
+      "const": 3
     },
     "operation": {
       "enum": [
@@ -24,7 +24,7 @@
         "lint",
         "check-format",
         "check",
-        "producers",
+        "check-protected",
         "format",
         "normalize",
         "invalid"

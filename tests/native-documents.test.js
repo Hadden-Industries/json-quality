@@ -86,7 +86,7 @@ for (const archive of [false, true]) {
   test(`public operation checks ${archive ? "archive members" : "content-addressed JSON"} with distinct coverage`, async (t) => {
     const { options, path } = fixture(t, archive);
     const result = await runJsonQuality("check", options);
-    assert.equal(result.schemaVersion, 2);
+    assert.equal(result.schemaVersion, 3);
     assert.equal(result.status, "failed"); // unformatted native bytes remain protected
     assert.equal(result.counts.native, 1);
     assert.equal(result.counts.physical, 1);
