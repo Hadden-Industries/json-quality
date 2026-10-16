@@ -39,7 +39,8 @@ Its base must be a full immutable commit; `--dry-run` explains the plan without 
 Configuration, resources, tooling, computed loads, missing graph coverage or analysis failure select the complete suite.
 An empty or unknown affected scope also runs the complete suite; failed selected tests retain their failure.
 This development selector does not replace full qualification and introduces no shared tooling repository.
-It runs source contracts, lint, read-only style checks, clean installed CLI/library/plugin/schema probes, and source JSON dogfood checks.
+`npm run check:architecture` enforces the producer's native [dependency policy](https://github.com/Hadden-Industries/json-quality/blob/main/.dependency-cruiser.json) and checks local imports and public/bin entrypoints against native npm package membership. It is required by `check:full` on the reference producer. See the [architecture boundaries](docs/architecture.md) for scope and limits.
+Full qualification runs source contracts, lint, read-only style checks, clean installed CLI/library/plugin/schema probes, and source JSON dogfood checks.
 Source tests do not establish hosted platform or consumer adoption acceptance.
 
 Read-only operations install nothing and write no checkout files.

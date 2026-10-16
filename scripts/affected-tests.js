@@ -15,6 +15,7 @@ import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { fullFiles, relations } from "./test-impact.js";
+import { assertJavaScriptSyntax } from "./check-javascript-syntax.js";
 
 const self = fileURLToPath(import.meta.url);
 const isModule = (path) => /^(?:src|tests)\/.*\.(?:js|mjs|cjs)$/u.test(path);
@@ -256,22 +257,16 @@ if (
   pathToFileURL(resolve(process.argv[1])).href === import.meta.url
 ) {
   if (process.argv[2] === "--graph-worker") {
-    for (const path of ["src", "tests", "scripts"]
-      .filter((directory) => existsSync(directory))
-      .flatMap((directory) =>
-        readdirSync(directory, { recursive: true }).map(
-          (path) => directory + "/" + path.split(sep).join("/"),
-        ),
-      )
-      .filter((path) => /\.(?:js|mjs|cjs)$/u.test(path))) {
-      const checked = spawnSync(process.execPath, ["--check", path], {
-        windowsHide: true,
-        encoding: "utf8",
-        timeout: 10000,
-      });
-      if (checked.error || checked.status !== 0)
-        throw new Error("Module syntax check failed");
-    }
+    assertJavaScriptSyntax(
+      ["src", "tests", "scripts"]
+        .filter((directory) => existsSync(directory))
+        .flatMap((directory) =>
+          readdirSync(directory, { recursive: true }).map(
+            (path) => directory + "/" + path.split(sep).join("/"),
+          ),
+        )
+        .filter((path) => /\.(?:js|mjs|cjs)$/u.test(path)),
+    );
     const { cruise } = await import("dependency-cruiser");
     const result = await cruise(["src", "tests"], {
       baseDir: process.cwd(),

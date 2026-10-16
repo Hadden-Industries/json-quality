@@ -1,0 +1,89 @@
+{
+  "forbidden": [
+    {
+      "name": "unresolved",
+      "severity": "error",
+      "from": {},
+      "to": {
+        "couldNotResolve": true
+      }
+    },
+    {
+      "name": "undeclared-package",
+      "severity": "error",
+      "from": {
+        "pathNot": "^node_modules/"
+      },
+      "to": {
+        "dependencyTypes": [
+          "npm-no-pkg",
+          "npm-unknown"
+        ]
+      }
+    },
+    {
+      "name": "runtime-to-development",
+      "severity": "error",
+      "from": {
+        "path": "^src/"
+      },
+      "to": {
+        "path": "^(?:scripts|tests|tooling)/|^eslint\\.config\\."
+      }
+    },
+    {
+      "name": "runtime-to-dev-dependency",
+      "severity": "error",
+      "from": {
+        "path": "^src/"
+      },
+      "to": {
+        "dependencyTypes": [
+          "npm-dev"
+        ]
+      }
+    },
+    {
+      "name": "authored-cycles",
+      "severity": "error",
+      "from": {
+        "pathNot": "^node_modules/"
+      },
+      "to": {
+        "circular": true
+      }
+    },
+    {
+      "name": "foundations-stay-independent",
+      "comment": "Byte, pointer, path, source-contract and identity-rule foundations cannot reach document or command orchestration.",
+      "severity": "error",
+      "from": {
+        "path": "^src/(?:json-bytes|json-pointers|paths|source-presentation|eslint/noJsonStringifyIdentity)\\.js$"
+      },
+      "to": {
+        "path": "^src/(?:cli|commands|execution|inventory|documents|quality|native-documents|logical-documents|installation|formatting|json-lines)\\.js$",
+        "reachable": true
+      }
+    },
+    {
+      "name": "shared-tooling-stays-independent",
+      "comment": "Runtime policy, toolchain and impact declarations cannot depend on their command drivers.",
+      "severity": "error",
+      "from": {
+        "path": "^scripts/(?:consumer-toolchain|node-matrix|project-node-support|test-impact|check-javascript-syntax)\\.js$"
+      },
+      "to": {
+        "path": "^scripts/(?:qualify-[^/]+|ci-[^/]+|pack|affected-tests|check-architecture)\\.js$",
+        "reachable": true
+      }
+    }
+  ],
+  "options": {
+    "doNotFollow": "node_modules",
+    "moduleSystems": [
+      "es6",
+      "cjs"
+    ],
+    "preserveSymlinks": false
+  }
+}

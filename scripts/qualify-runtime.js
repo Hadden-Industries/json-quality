@@ -54,6 +54,7 @@ const tests = readdirSync(new URL("../tests/", import.meta.url))
         "pack.test.js",
         "affected-tests.test.js",
         "node-support.test.js",
+        "architecture.test.js",
       ].includes(path),
   )
   .map((path) => join("tests", path));

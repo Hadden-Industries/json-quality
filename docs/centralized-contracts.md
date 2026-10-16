@@ -21,6 +21,7 @@ Independent test expectations and distinct trust checks retain their own respons
 | Limits, operations, CLI interaction and native identities | Existing `src/limits.js`, `src/result.js`, `src/commands.js`, `src/native-identities.js` | Keep these existing owners; schemas and consumer-boundary tests check their current contracts                                                                                    |
 
 The public root exports remain wired in `src/index.js`; internal consumers import each rule's current module.
+Architecture rules belong to `.dependency-cruiser.json`; `scripts/check-architecture.js` composes native analysis and native npm membership through the existing `readPackReport` owner. The [architecture guide](architecture.md) distinguishes this admission gate from conservative affected-test selection and runtime behavior proof.
 Runtime consumers capture private schema-derived views during module initialization, so later customization of publicly exported schema objects cannot change write accounting or lint admission.
 The extracted presentation data and modules are ordinary package source and are included through the existing `src/` package membership.
 Static imports expose those dependencies to the existing affected-test graph, while native pack and transported consumers verify actual installed inclusion.
