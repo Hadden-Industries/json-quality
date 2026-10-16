@@ -43,6 +43,15 @@ This development selector does not replace full qualification and introduces no 
 Full qualification runs source contracts, lint, read-only style checks, clean installed CLI/library/plugin/schema probes, and source JSON dogfood checks.
 Source tests do not establish hosted platform or consumer adoption acceptance.
 
+Hosted JSON quality and CodeQL checks run only when manually requested through GitHub Actions' **Run workflow** button or the GitHub CLI:
+
+```sh
+gh workflow run ci.yml --ref main
+gh workflow run codeql.yml --ref main
+```
+
+The qualification workflow retains the full producer and Windows/Linux consumer matrix. The CodeQL workflow scans Actions and JavaScript/TypeScript; GitHub's automatic CodeQL default setup is disabled for this repository.
+
 Read-only operations install nothing and write no checkout files.
 Explicit formatting validates all relevant peers before the first write, preserves numeric lexemes and decoded string meaning, and never normalizes data.
 Explicit normalization collision-checks keys and changes only admitted string tokens in the selected writable source paths.
