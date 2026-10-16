@@ -50,8 +50,9 @@
     "pack:archive": "node scripts/pack.js",
     "test:node-policy": "node --test tests/node-support.test.js",
     "lint": "eslint src scripts tests eslint.config.js",
-    "format:check": "prettier --check src scripts tests eslint.config.js README.md docs THIRD-PARTY-NOTICES.md \".github/**/*.{yml,yaml}\"",
-    "format": "prettier --write src scripts tests eslint.config.js README.md docs THIRD-PARTY-NOTICES.md \".github/**/*.{yml,yaml}\"",
+    "prettier": "prettier src scripts tests eslint.config.js README.md docs THIRD-PARTY-NOTICES.md \".github/**/*.{yml,yaml}\"",
+    "format:check": "npm run prettier -- --check",
+    "format": "npm run prettier -- --write",
     "check:json": "node src/cli.js check --root .",
     "qualify:package": "node scripts/qualify-package.js"
   },

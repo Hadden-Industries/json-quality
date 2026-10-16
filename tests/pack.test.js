@@ -2,7 +2,51 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readPackReport } from "../scripts/pack.js";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { readPackReport, runNpmPack } from "../scripts/pack.js";
+import { temporaryDirectory } from "./temporary-directory.js";
+
+test("shared native packing distinguishes inspection from archive writing without running lifecycle scripts", (t) => {
+  const root = temporaryDirectory(t, "json-native-pack-");
+  const destination = temporaryDirectory(t, "json-native-pack-output-");
+  const npm = process.env.npm_execpath;
+  assert.ok(npm, "Run the maintained test entry point through npm.");
+  mkdirSync(join(root, "src"));
+  writeFileSync(join(root, "src", "index.js"), "export const value = 1;\n");
+  writeFileSync(
+    join(root, "package.json"),
+    JSON.stringify({
+      name: "pack-fixture",
+      version: "1.0.0",
+      type: "module",
+      files: ["src/"],
+      scripts: {
+        prepack:
+          "node -e \"require('node:fs').writeFileSync('prepack-ran', 'unexpected')\"",
+      },
+    }),
+  );
+  const inspected = runNpmPack(root, { npm });
+  assert.equal(inspected.name, "pack-fixture");
+  assert.deepEqual(inspected.files.map(({ path }) => path).sort(), [
+    "package.json",
+    "src/index.js",
+  ]);
+  assert.deepEqual(readdirSync(root).sort(), ["package.json", "src"]);
+  assert.deepEqual(readdirSync(destination), []);
+
+  const packed = runNpmPack(root, { npm, destination });
+  assert.equal(packed.filename, "pack-fixture-1.0.0.tgz");
+  assert.deepEqual(readdirSync(destination), ["pack-fixture-1.0.0.tgz"]);
+  const archive = readFileSync(join(destination, "pack-fixture-1.0.0.tgz"));
+  assert.equal(
+    packed.integrity,
+    "sha512-" + createHash("sha512").update(archive).digest("base64"),
+  );
+  assert.deepEqual(readdirSync(root).sort(), ["package.json", "src"]);
+});
 
 test("native npm 12 pack reporting admits exactly one package and rejects legacy shapes", () => {
   const npm = process.env.npm_execpath;

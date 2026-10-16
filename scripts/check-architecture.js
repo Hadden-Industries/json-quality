@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readPackReport } from "./pack.js";
+import { runNpmPack } from "./pack.js";
 import { assertJavaScriptSyntax } from "./check-javascript-syntax.js";
 
 const self = fileURLToPath(import.meta.url);
@@ -33,19 +33,7 @@ export async function checkArchitecture(root = repository) {
     );
   const npm = process.env.npm_execpath;
   if (!npm) throw new Error("Run architecture checks through npm.");
-  const packed = readPackReport(
-    execFileSync(
-      process.execPath,
-      [npm, "pack", "--dry-run", "--json", "--ignore-scripts"],
-      {
-        cwd: root,
-        encoding: "utf8",
-        windowsHide: true,
-        timeout: 120000,
-        maxBuffer: 8 * 1024 * 1024,
-      },
-    ),
-  );
+  const packed = runNpmPack(root, { npm });
   const metadata = JSON.parse(
     readFileSync(resolve(root, "package.json"), "utf8"),
   );

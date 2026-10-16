@@ -37,6 +37,31 @@ export function readPackReport(text) {
   return entries[0];
 }
 
+/** Native producer packing: omitted destination inspects membership without writing. */
+export function runNpmPack(root, { npm, destination }) {
+  return readPackReport(
+    execFileSync(
+      process.execPath,
+      [
+        npm,
+        "pack",
+        "--ignore-scripts",
+        "--json",
+        ...(destination === undefined
+          ? ["--dry-run"]
+          : ["--pack-destination", destination]),
+      ],
+      {
+        cwd: root,
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: 120000,
+        maxBuffer: 8 * 1024 * 1024,
+      },
+    ),
+  );
+}
+
 /** Pack clean source into an explicit external destination with immutable identity.
  * Registry publication and source delivery are separate authorized operations.
  */
@@ -54,26 +79,7 @@ export function packCandidate(destination) {
   mkdirSync(destination, { recursive: true });
   const sourceCommit = git(["rev-parse", "HEAD"]);
   const sourceTree = git(["rev-parse", "HEAD^{tree}"]);
-  const packed = readPackReport(
-    execFileSync(
-      process.execPath,
-      [
-        npm,
-        "pack",
-        "--ignore-scripts",
-        "--json",
-        "--pack-destination",
-        destination,
-      ],
-      {
-        cwd: root,
-        encoding: "utf8",
-        windowsHide: true,
-        timeout: 120000,
-        maxBuffer: 8 * 1024 * 1024,
-      },
-    ),
-  );
+  const packed = runNpmPack(root, { npm, destination });
   const original = resolve(destination, packed.filename);
   const archive = resolve(
     destination,
