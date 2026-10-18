@@ -12,6 +12,7 @@ import {
   sha256,
   verifyManifest,
   effectJournal,
+  retainedRecoveries,
 } from "./release-contract.js";
 import { api, gh, provider, optionalApi } from "./release-provider.js";
 import { npmCommand } from "./qualification-process.js";
@@ -75,26 +76,63 @@ export function verifyRecoveryRecord(record, release, manifestSha, journal) {
   }
   return records;
 }
-export function reconcileObserved(directory, scratch, env = process.env) {
+export function retainRecovery(directory, record) {
+  const records = retainedRecoveries(directory),
+    key = (value) => `${value.phase}:${value.run}:${value.attempt}`;
+  const existing = records.filter((value) => key(value) === key(record));
+  for (const value of existing)
+    assert.equal(
+      sha256(jsonBytes(value)),
+      sha256(jsonBytes(record)),
+      "An original recovery record cannot be replaced",
+    );
+  if (!existing.length) records.push(record);
+  assert.ok(records.length <= 100);
+  writeFileSync(join(directory, "recovery-records.json"), jsonBytes(records), {
+    flush: true,
+  });
+}
+export function reconcileObserved(
+  directory,
+  scratch,
+  env = process.env,
+  readers = {},
+) {
   const explicit = env.RECOVERY_JSON ? JSON.parse(env.RECOVERY_JSON) : null;
   if (explicit)
     assert.ok(["stage", "archive", "promote"].includes(explicit.phase));
   const result = { entries: [] };
-  for (const phase of ["stage", "archive", "promote"]) {
-    const path = join(directory, `recovery-${phase}.json`);
-    const record =
+  const records = retainedRecoveries(directory);
+  if (
+    explicit &&
+    !records.some(
+      (record) => sha256(jsonBytes(record)) === sha256(jsonBytes(explicit)),
+    )
+  )
+    records.push(explicit);
+  for (const record of records) {
+    const phase = record.phase;
+    const selected =
       explicit?.phase === phase
         ? explicit
-        : existsSync(path)
-          ? readJson(path)
-          : null;
-    if (!record) continue;
-    const root = join(scratch, phase);
+        : records.findLast((value) => value.phase === phase);
+    const observeCurrent =
+      record.run === selected.run && record.attempt === selected.attempt;
+    const root = join(scratch, `${phase}-${record.run}-${record.attempt}`);
     mkdirSync(root, { recursive: true });
-    const entry = reconcileOne(directory, root, env, record, path);
+    const entry = reconcileOne(
+      directory,
+      root,
+      env,
+      record,
+      result[phase],
+      observeCurrent,
+      readers,
+    );
     result.entries.push(entry);
     result[phase] = entry;
   }
+  if (explicit) retainRecovery(directory, explicit);
   return result.entries.length ? result : null;
 }
 export function reconcilePromotionLabels(record, records, tags, latest) {
@@ -122,7 +160,18 @@ export function reconcilePromotionLabels(record, records, tags, latest) {
   }
   return { npmLatest: tags.latest, githubLatest };
 }
-function reconcileOne(directory, scratch, env, record, path) {
+function reconcileOne(
+  directory,
+  scratch,
+  env,
+  record,
+  prior,
+  observeCurrent,
+  readers,
+) {
+  const observe = readers.provider ?? provider,
+    readNpm = readers.npmCommand ?? npmCommand,
+    readLatest = readers.optionalApi ?? optionalApi;
   const release = verifyManifest(
     readJson(join(directory, "release-manifest.json")),
   );
@@ -135,7 +184,7 @@ function reconcileOne(directory, scratch, env, record, path) {
     env.MANIFEST_SHA,
     journal,
   );
-  const original = provider(record.run, record.attempt);
+  const original = observe(record.run, record.attempt);
   assert.equal(original.run.status, "completed");
   const first = records[0];
   assert.equal(original.run.head_sha, first.controller);
@@ -146,7 +195,7 @@ function reconcileOne(directory, scratch, env, record, path) {
         /^[^\x00-\x1f]{1,256}$/u.test(record.stageId),
     );
     const metadata = JSON.parse(
-      npmCommand([
+      readNpm([
         "view",
         `${release.package}@${release.version}`,
         "--json",
@@ -254,9 +303,9 @@ function reconcileOne(directory, scratch, env, record, path) {
       flush: true,
     });
     observed = { immutableRelease: live.id, assets: intent.assets };
-  } else {
+  } else if (observeCurrent) {
     const tags = JSON.parse(
-      npmCommand([
+      readNpm([
         "view",
         release.package,
         "dist-tags",
@@ -264,20 +313,27 @@ function reconcileOne(directory, scratch, env, record, path) {
         "--registry=https://registry.npmjs.org/",
       ]),
     );
-    const latest = optionalApi("releases/latest");
+    const latest = readLatest("releases/latest");
     observed = reconcilePromotionLabels(record, records, tags, latest);
+  } else observed = { state: "retained-original" };
+  const priorLabels = {};
+  if (record.phase === "promote") {
+    if (prior) {
+      assert.equal(prior.record.targetVersion, record.targetVersion);
+      Object.assign(priorLabels, prior.priorLabels);
+    }
+    for (const intent of records.filter((value) => value.state === "intent")) {
+      if (
+        intent.operation === "npm-latest" &&
+        !Object.hasOwn(priorLabels, "latest")
+      )
+        priorLabels.latest = intent.before;
+      if (
+        intent.operation === "github-latest" &&
+        !Object.hasOwn(priorLabels, "githubLatest")
+      )
+        priorLabels.githubLatest = intent.before;
+    }
   }
-  if (
-    env.RECOVERY_JSON &&
-    JSON.parse(env.RECOVERY_JSON).phase === record.phase
-  ) {
-    if (existsSync(path))
-      assert.equal(
-        sha256(regularBytes(path)),
-        sha256(jsonBytes(record)),
-        "A retained recovery cannot be replaced",
-      );
-    else save(path, record);
-  }
-  return { record, observed };
+  return { record, observed, priorLabels };
 }

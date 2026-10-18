@@ -125,23 +125,39 @@ export function promotionPlan(
   tags,
   expected,
   target = release.version,
+  recovery = null,
 ) {
   assert.ok(
     Object.hasOwn(expected, "latest"),
     "Prior latest must explicitly include absence",
   );
-  assert.equal(
-    tags.latest ?? null,
-    expected.latest,
-    "Prior latest changed; never overwrite a concurrent promotion",
-  );
+  if (recovery) {
+    assert.equal(tags.latest, target);
+    assert.equal(recovery.observed.npmLatest, target);
+    assert.ok(
+      Object.hasOwn(recovery.priorLabels, "latest"),
+      "Original npm prior label is required",
+    );
+    assert.equal(
+      recovery.priorLabels.latest,
+      expected.latest,
+      "Recovery must preserve the original prior npm label",
+    );
+    if (Object.hasOwn(recovery.priorLabels, "githubLatest"))
+      assert.equal(recovery.priorLabels.githubLatest, expected.githubLatest);
+  } else
+    assert.equal(
+      tags.latest ?? null,
+      expected.latest,
+      "Prior latest changed; never overwrite a concurrent promotion",
+    );
   assert.equal(
     tags.pilot,
     release.version,
     "Pilot no longer identifies this release",
   );
   assert.equal(isPrerelease(target), false, "Prerelease cannot become latest");
-  return { before: tags.latest ?? null, after: target };
+  return { before: expected.latest, after: target };
 }
 export function verifyDraftAssets(expected, observed) {
   assert.equal(
@@ -295,6 +311,25 @@ export function verifyCompletedLabels(target, npm, github) {
   );
   assert.equal(github.immutable, true);
   return { npm, github };
+}
+export function verifyGithubPromotionState(actual, expected, target, recovery) {
+  const authorized =
+    recovery?.observed.githubLatest === `v${target}`
+      ? `v${target}`
+      : recovery?.record.githubAction === "repair-current-label"
+        ? recovery.record.expectedGithubLatest
+        : expected.githubLatest;
+  assert.notEqual(
+    authorized,
+    undefined,
+    "Explicit current GitHub label is required",
+  );
+  assert.equal(
+    actual,
+    authorized,
+    "GitHub latest changed before the admitted effect",
+  );
+  return authorized;
 }
 function archiveAssets(directory, release, scratch) {
   const bundle = join(scratch, "assets");
@@ -570,12 +605,13 @@ export function promote(directory, scratch, env = process.env) {
     "Prior GitHub latest must include explicit absence",
   );
   const githubBefore = optionalApi("releases/latest")?.tag_name ?? null;
-  assert.equal(
-    githubBefore,
-    expected.githubLatest,
-    "GitHub latest changed before promotion",
-  );
   const target = env.RESTORE_VERSION || release.version;
+  const githubPriorForThisEffect = verifyGithubPromotionState(
+    githubBefore,
+    expected,
+    target,
+    recovery?.promote,
+  );
   assert.equal(
     isPrerelease(target),
     false,
@@ -709,7 +745,13 @@ export function promote(directory, scratch, env = process.env) {
     auditRelease = targetRelease;
     auditDirectory = targetRoot;
   }
-  const plan = promotionPlan(release, before, expected, target);
+  const plan = promotionPlan(
+    release,
+    before,
+    expected,
+    target,
+    recovery?.promote,
+  );
   const refreshedAudits = [];
   for (const lane of lanes(auditRelease.matrix))
     for (const layout of ["root", "isolated"]) {
@@ -794,10 +836,11 @@ export function promote(directory, scratch, env = process.env) {
       () => {
         currentMain(env);
         assert.equal(tags().latest, target, "Another promotion intervened");
-        assert.equal(
+        verifyGithubPromotionState(
           optionalApi("releases/latest")?.tag_name ?? null,
-          expected.githubLatest,
-          "Another GitHub promotion intervened",
+          expected,
+          target,
+          recovery?.promote,
         );
         gh([
           "release",
@@ -812,7 +855,7 @@ export function promote(directory, scratch, env = process.env) {
         assert.equal(latest.immutable, true);
         return { id: latest.id, tag: latest.tag_name };
       },
-      { env, before: expected.githubLatest ?? null },
+      { env, before: githubPriorForThisEffect },
     );
   if (!readFileSync(journal, "utf8").trim())
     journalEffect(

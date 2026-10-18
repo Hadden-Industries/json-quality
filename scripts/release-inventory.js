@@ -153,11 +153,18 @@ export async function installedInventory(directory, npm) {
 export function normalizeFileReferences(bom, lock, directory, expectedArchive) {
   const result = structuredClone(bom),
     changes = [];
+  const filePath = (value) =>
+    value.startsWith("file://")
+      ? fileURLToPath(value)
+      : resolve(directory, value.slice(5));
   for (const component of [...result.components, result.metadata.component]) {
     for (const reference of component.externalReferences ?? []) {
       if (!reference.url.startsWith("file:")) continue;
       const matches = Object.entries(lock.packages).filter(
-        ([location, entry]) => location && entry.resolved === reference.url,
+        ([location, entry]) =>
+          location &&
+          entry.resolved?.startsWith("file:") &&
+          filePath(entry.resolved) === filePath(reference.url),
       );
       assert.equal(matches.length, 1, "Ambiguous native file reference");
       const [location, entry] = matches[0],
@@ -172,7 +179,7 @@ export function normalizeFileReferences(bom, lock, directory, expectedArchive) {
           metadata.version === expectedArchive.version,
         "Only the verified package tarball may receive a file URI repair",
       );
-      const archivePath = resolve(directory, original.slice(5));
+      const archivePath = filePath(original);
       assert.equal(archivePath, resolve(expectedArchive.path));
       assert.equal(entry.integrity, expectedArchive.integrity);
       assert.equal(
@@ -180,7 +187,7 @@ export function normalizeFileReferences(bom, lock, directory, expectedArchive) {
         expectedArchive.integrity,
       );
       // npm lock file references are paths after file:, relative to the install root.
-      reference.url = pathToFileURL(resolve(directory, original.slice(5))).href;
+      reference.url = pathToFileURL(archivePath).href;
       changes.push({
         location,
         package: metadata.name,

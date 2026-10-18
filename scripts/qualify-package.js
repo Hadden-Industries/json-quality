@@ -92,6 +92,8 @@ try {
     join(consumer, "package.json"),
     JSON.stringify(
       {
+        name: "json-quality-release-consumer",
+        version: "0.0.0",
         private: true,
         type: "module",
         dependencies: {

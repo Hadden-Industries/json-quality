@@ -26,6 +26,7 @@ import {
   validVersion,
   effectJournal,
   jsonBytes,
+  retainedRecoveries,
   verifyArchive,
   verifyDecision,
   verifyManifest,
@@ -41,6 +42,7 @@ import {
   findDraft,
   verifyArchiveSettings,
   verifyCompletedLabels,
+  verifyGithubPromotionState,
 } from "../scripts/release-effects.js";
 import {
   verifyEffectHistory,
@@ -49,6 +51,7 @@ import {
   readEffectHistory,
   readHistoryCheckpoint,
   sealBundle,
+  download,
 } from "../scripts/release-provider.js";
 import { verifyCodeql, verifySarif } from "../scripts/release-security.js";
 import {
@@ -60,6 +63,8 @@ import {
 import {
   verifyRecoveryRecord,
   reconcilePromotionLabels,
+  retainRecovery,
+  reconcileObserved,
 } from "../scripts/release-recovery.js";
 import {
   verifyPublicMetadata,
@@ -800,6 +805,242 @@ test("promotion requires explicit prior-label absence and rejects prerelease or 
     promotionPlan(release, { pilot: "0.1.1" }, { latest: null }),
   );
 });
+test("restoration recovery preserves original prior labels after npm has already applied the target", () => {
+  const release = fixture();
+  release.version = "1.2.0";
+  const expected = { latest: "1.1.0", githubLatest: "v1.1.0" };
+  const recovery = {
+    observed: { npmLatest: "1.0.0", githubLatest: "v1.1.0" },
+    priorLabels: expected,
+  };
+  assert.deepEqual(
+    promotionPlan(
+      release,
+      { pilot: "1.2.0", latest: "1.0.0" },
+      expected,
+      "1.0.0",
+      recovery,
+    ),
+    { before: "1.1.0", after: "1.0.0" },
+  );
+  assert.throws(() =>
+    promotionPlan(
+      release,
+      { pilot: "1.2.0", latest: "1.0.0" },
+      { ...expected, latest: "1.0.0" },
+      "1.0.0",
+      recovery,
+    ),
+  );
+  assert.throws(() =>
+    promotionPlan(
+      release,
+      { pilot: "1.2.0", latest: "1.0.1" },
+      expected,
+      "1.0.0",
+      recovery,
+    ),
+  );
+});
+test("GitHub repair preserves original X while guarding owner-authorized current Y against concurrent Z", () => {
+  const expected = { latest: "1.1.0", githubLatest: "v1.1.0" },
+    recovery = {
+      record: {
+        githubAction: "repair-current-label",
+        expectedGithubLatest: "v1.2.0",
+      },
+      observed: { npmLatest: "1.0.0", githubLatest: "v1.2.0" },
+      priorLabels: expected,
+    };
+  verifyGithubPromotionState("v1.2.0", expected, "1.0.0", recovery);
+  assert.throws(() =>
+    verifyGithubPromotionState("v1.3.0", expected, "1.0.0", recovery),
+  );
+  assert.equal(recovery.priorLabels.githubLatest, "v1.1.0");
+});
+test("successive recovery decisions retain each original record instead of replacing prior reconciliation", (t) => {
+  const root = temp(t),
+    first = { phase: "promote", run: "17", attempt: "1", journalSha256: sha },
+    second = { ...first, run: "18" };
+  retainRecovery(root, first);
+  retainRecovery(root, second);
+  retainRecovery(root, first);
+  assert.deepEqual(retainedRecoveries(root), [first, second]);
+  assert.throws(() =>
+    retainRecovery(root, { ...first, journalSha256: "c".repeat(64) }),
+  );
+  assert.deepEqual(retainedRecoveries(root), [first, second]);
+});
+test("second partial GitHub repair uses the latest owner guard while retaining the first original labels", (t) => {
+  const root = temp(t),
+    directory = join(root, "admitted"),
+    { release } = bundleFixture(directory);
+  release.version = "1.2.0";
+  writeFileSync(join(directory, "release-manifest.json"), jsonBytes(release));
+  const manifestSha = sha256(jsonBytes(release));
+  const origin = (run) => ({
+    ...environment("promote"),
+    GITHUB_RUN_ID: run,
+    GITHUB_RUN_ATTEMPT: "1",
+    MANIFEST_SHA: manifestSha,
+  });
+  const journalA = join(directory, "promote-17-1.jsonl"),
+    journalB = join(directory, "promote-18-1.jsonl");
+  journalEffect(journalA, release, "npm-latest", () => ({ latest: "1.0.0" }), {
+    env: origin("17"),
+    before: "1.1.0",
+  });
+  assert.throws(() =>
+    journalEffect(
+      journalA,
+      release,
+      "github-latest",
+      () => {
+        throw new Error("lost A");
+      },
+      { env: origin("17"), before: "v1.1.0" },
+    ),
+  );
+  assert.throws(() =>
+    journalEffect(
+      journalB,
+      release,
+      "github-latest",
+      () => {
+        throw new Error("lost B");
+      },
+      { env: origin("18"), before: "v1.1.0" },
+    ),
+  );
+  const common = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    phase: "promote",
+    attempt: "1",
+    version: release.version,
+    manifestSha256: manifestSha,
+    acceptedAt: "2026-10-18T00:00:00Z",
+    rationale:
+      "Owner reconciled exact original requests before guarded repair.",
+    targetVersion: "1.0.0",
+    githubAction: "repair-current-label",
+  };
+  const first = {
+      ...common,
+      run: "17",
+      journalSha256: sha256(readFileSync(journalA)),
+      expectedGithubLatest: "v1.1.0",
+    },
+    second = {
+      ...common,
+      run: "18",
+      journalSha256: sha256(readFileSync(journalB)),
+      expectedGithubLatest: "v1.2.0",
+    };
+  retainRecovery(directory, first);
+  let reads = 0;
+  const readers = {
+    provider: () => ({ run: { status: "completed", head_sha: source } }),
+    npmCommand: () => {
+      reads++;
+      return '{"latest":"1.0.0"}';
+    },
+    optionalApi: () => ({ tag_name: "v1.2.0" }),
+  };
+  const result = reconcileObserved(
+    directory,
+    join(root, "scratch"),
+    { MANIFEST_SHA: manifestSha, RECOVERY_JSON: JSON.stringify(second) },
+    readers,
+  );
+  assert.equal(reads, 1, "Historical guard must not be reasserted");
+  assert.deepEqual(result.promote.priorLabels, {
+    latest: "1.1.0",
+    githubLatest: "v1.1.0",
+  });
+  assert.equal(result.promote.observed.githubLatest, "v1.2.0");
+  assert.deepEqual(retainedRecoveries(directory), [first, second]);
+  assert.throws(() =>
+    reconcileObserved(
+      directory,
+      join(root, "changed"),
+      { MANIFEST_SHA: manifestSha },
+      { ...readers, optionalApi: () => ({ tag_name: "v1.3.0" }) },
+    ),
+  );
+});
+test("native predecessor download and writer-history acquisition have disjoint filesystem roots", (t) => {
+  const root = temp(t),
+    release = fixture(),
+    journalPath = join(root, "original.jsonl");
+  journalEffect(
+    journalPath,
+    release,
+    "stage",
+    () => ({ stageId: "stage-17" }),
+    { env: { ...environment(), GITHUB_RUN_ATTEMPT: "1" } },
+  );
+  const journal = readFileSync(journalPath),
+    zip = Buffer.from("opaque native ZIP transport"),
+    name = "effect-stage-1";
+  const artifact = {
+    id: 501,
+    name,
+    expired: false,
+    digest: `sha256:${sha256(zip)}`,
+    workflow_run: { id: 17, head_sha: source },
+  };
+  const transport = {
+    pages: () => [artifact],
+    api: (path) =>
+      path.startsWith("actions/artifacts/") ? artifact : { head_sha: source },
+    gh: (args) => {
+      if (args[0] === "api") return zip;
+      const destination = args[args.indexOf("--dir") + 1];
+      writeFileSync(join(destination, "stage-17-1.jsonl"), journal);
+      return "";
+    },
+  };
+  const original = download(17, 1, name, root, transport);
+  const observed = providerFixture();
+  observed.run.id = 17;
+  observed.run.run_attempt = 1;
+  observed.jobs.jobs.forEach((job) => {
+    job.run_id = 17;
+    job.run_attempt = 1;
+  });
+  observed.jobs.jobs[1].steps = [
+    {
+      name: "Apply admitted release effect",
+      started_at: "2026-10-18T00:00:00Z",
+      conclusion: "success",
+    },
+  ];
+  const history = readEffectHistory({}, root, undefined, {
+    pages: (path) =>
+      path.includes("/artifacts?")
+        ? [artifact]
+        : path.includes("stage-release.yml")
+          ? [{ id: 17, run_attempt: 1 }]
+          : [],
+    provider: () => structuredClone(observed),
+    download: (run, attempt, artifactName, directory) =>
+      download(run, attempt, artifactName, directory, transport),
+  });
+  assert.deepEqual(
+    readFileSync(join(original.directory, "stage-17-1.jsonl")),
+    journal,
+  );
+  assert.deepEqual(history[0].journal, journal);
+  assert.equal(
+    verifyEffectHistory(
+      history,
+      { run: "20", attempt: "1" },
+      { package: packageName, version: release.version },
+    ).length,
+    1,
+  );
+});
 test("immutable draft asset admission rejects missing, extra, duplicate and substituted content", () => {
   const expected = [{ name: "candidate.tgz", size: 7, sha256: sha }],
     observed = [{ name: "candidate.tgz", size: 7, digest: `sha256:${sha}` }];
@@ -1152,7 +1393,7 @@ test("native SBOM location, edge, integrity and license conservation survives on
       [location]: {
         version,
         integrity: sha512(bytes),
-        resolved: `file:${archive}`,
+        resolved: `file:${archive.replaceAll("\\", "/")}`,
       },
     },
   };

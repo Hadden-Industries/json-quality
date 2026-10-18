@@ -17,11 +17,11 @@ import {
   verifyDecision,
   repository,
   effectJournal,
+  retainedRecoveries,
 } from "./release-contract.js";
 import {
   checkEnvironment,
   currentMain,
-  decisionAsset,
   download,
   evidenceIndex,
   provider,
@@ -30,7 +30,11 @@ import {
   verifyEffectHistory,
   sealBundle,
 } from "./release-provider.js";
-import { reconcileObserved, verifyRecoveryRecord } from "./release-recovery.js";
+import {
+  reconcileObserved,
+  verifyRecoveryRecord,
+  retainRecovery,
+} from "./release-recovery.js";
 import { verifyAudit } from "./release-inventory.js";
 import { native } from "./qualification-process.js";
 
@@ -316,7 +320,23 @@ export function acquireRecoveryJournal(
   assert.deepEqual(release, current);
   const journal = regularBytes(join(original.directory, name));
   verifyRecoveryRecord(record, release, env.MANIFEST_SHA, journal);
-  save(join(directory, name), journal);
+  for (const entry of readdirSync(original.directory, {
+    withFileTypes: true,
+  })) {
+    if (
+      !entry.isFile() ||
+      !/^promote-[1-9]\d*-[1-9]\d*\.jsonl$/u.test(entry.name)
+    )
+      continue;
+    const bytes = regularBytes(join(original.directory, entry.name)),
+      path = join(directory, entry.name);
+    if (existsSync(path))
+      assert.equal(sha256(regularBytes(path)), sha256(bytes));
+    else save(path, bytes);
+  }
+  if (!existsSync(join(directory, name))) save(join(directory, name), journal);
+  for (const retained of retainedRecoveries(original.directory))
+    retainRecovery(directory, retained);
   sealBundle(directory, env.MANIFEST_SHA);
 }
 export function assembleQualification(
@@ -371,7 +391,8 @@ export function assembleQualification(
   );
   artifacts.push(security.identity);
   copyEvidence(security.directory, join(output, "candidate-security"));
-  const reviewBytes = decisionAsset(release, "release-review.json", scratch);
+  assert.ok(env.REVIEW_JSON, "Exact owner review decision is required");
+  const reviewBytes = Buffer.from(env.REVIEW_JSON);
   const decision = verifyDecision(
     reviewBytes,
     env.REVIEW_SHA,

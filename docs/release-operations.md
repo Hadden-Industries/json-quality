@@ -69,8 +69,8 @@ See [npm staged publishing](https://docs.npmjs.com/staged-publishing/).
    SemVer, shipment rights and retention. Create an owner-signed annotated tag
    `vVERSION` at the candidate source. Verify it and create the intended draft
    GitHub release; no personal signing key belongs in Actions.
-5. Attach `release-review.json` to that draft. It is an external decision about
-   the frozen manifest, never a commit that changes its own subject.
+5. Retain the exact `release-review.json` for dispatch. It is an external decision
+   about the frozen manifest, never a commit that changes its own subject.
 
 Decision records use schema version 1, `owner: "maksymshostak"`, exact `version`,
 `source`, `manifestSha256`, an ISO `acceptedAt`, and `phase`. Review decisions are
@@ -88,7 +88,9 @@ and publisher provenance retain their original identities.
 ## Stage and approve
 
 Dispatch `stage-release.yml` with `qualification_run`, `qualification_attempt`,
-`manifest_sha`, and `review_sha`. Admission independently reads the completed
+`manifest_sha`, `review_sha`, and the exact decision text in `review_json`.
+The read-only admission job does not need access to a private draft decision.
+Admission independently reads the completed
 native run, every job, artifact digest, expected recipient lane and previous
 writer attempt. Missing, duplicate, skipped, expired or substituted inputs stop
 the workflow. The final staging job repeats admission under `npm-publication`
@@ -202,11 +204,17 @@ GitHub label repair; it neither certifies the old request absent nor replays npm
 Only the owner may dispatch or re-run these workflows. Native readback must
 actually observe the matching public package, complete immutable assets, or
 already-applied label. Public registry qualification still verifies original
-publisher provenance. The separate `recovery-PHASE.json` records preserve the
+publisher provenance. The single `recovery-records.json` index retains each
+original phase/run/attempt decision, refuses replacement, and carries prior
+journals forward for successive partial continuations. Legacy per-phase recovery
+records remain readable. The recovery records preserve the
 original request journals. Already-observed label effects are skipped, rather
 than repeated. An unapproved unknown stage, incomplete draft, absent durable
 request or unobserved label effect stays blocked for an explicit owner-operated
 native reconciliation; this interface cannot certify absence of a remote effect.
+`expected_labels` always describes the original pre-effect labels, including
+restoration. Reconciliation reads the original intent's `before` value instead
+of relabelling the already-applied npm target as its prior state.
 
 Promotion recovery acquires the selected original promotion journal from its
 verified `effect-promote-ATTEMPT` artifact before reconciliation, preserving the

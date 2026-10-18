@@ -6,8 +6,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { lstatSync, readFileSync, writeFileSync } from "node:fs";
-import { posix } from "node:path";
+import { existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
+import { join, posix } from "node:path";
 import Ajv from "ajv/dist/2020.js";
 import { npmCli } from "./qualification-process.js";
 
@@ -40,6 +40,27 @@ export function regularBytes(path, limit = 20000000) {
   return readFileSync(path);
 }
 export const readJson = (path) => JSON.parse(regularBytes(path));
+export function retainedRecoveries(directory) {
+  const path = join(directory, "recovery-records.json");
+  const records = existsSync(path) ? readJson(path) : [];
+  assert.ok(Array.isArray(records) && records.length <= 100);
+  for (const phase of ["stage", "archive", "promote"]) {
+    const legacy = join(directory, `recovery-${phase}.json`);
+    if (existsSync(legacy)) records.push(readJson(legacy));
+  }
+  const unique = new Map();
+  for (const record of records) {
+    const key = effectJournal(record.phase, record);
+    if (unique.has(key))
+      assert.equal(
+        sha256(jsonBytes(unique.get(key))),
+        sha256(jsonBytes(record)),
+        "Conflicting retained recovery",
+      );
+    unique.set(key, record);
+  }
+  return [...unique.values()];
+}
 export function validVersion(version) {
   assert.ok(typeof version === "string" && version.length <= 256);
   const parsed = createRequire(npmCli())("semver").parse(version);

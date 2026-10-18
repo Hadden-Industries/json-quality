@@ -15,6 +15,7 @@ import {
   effectJournal,
   readJson,
   verifyRun,
+  retainedRecoveries,
 } from "./release-contract.js";
 
 export const gh = (args, options) => native("gh", args, options);
@@ -71,9 +72,12 @@ export function provider(runId, attempt) {
   );
   return { run, jobs: { total_count: jobs.length, jobs } };
 }
-export function download(runId, attempt, name, root) {
+export function download(runId, attempt, name, root, readers = {}) {
+  const list = readers.pages ?? pages,
+    read = readers.api ?? api,
+    invoke = readers.gh ?? gh;
   assert.match(name, /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,200}$/u);
-  const artifacts = pages(
+  const artifacts = list(
     `actions/runs/${id(runId)}/artifacts?per_page=100`,
     "artifacts",
   );
@@ -83,9 +87,9 @@ export function download(runId, attempt, name, root) {
   assert.equal(artifact.expired, false);
   assert.match(artifact.digest, /^sha256:[a-f0-9]{64}$/u);
   assert.equal(artifact.workflow_run.id, Number(runId));
-  const run = api(`actions/runs/${id(runId)}`);
+  const run = read(`actions/runs/${id(runId)}`);
   assert.equal(artifact.workflow_run.head_sha, run.head_sha);
-  const zip = gh(
+  const zip = invoke(
     ["api", `repos/${repository}/actions/artifacts/${id(artifact.id)}/zip`],
     { encoding: null, maxBuffer: 32 * 1024 * 1024 },
   );
@@ -98,7 +102,7 @@ export function download(runId, attempt, name, root) {
   assert.ok(name.endsWith(`-${id(attempt)}`), "Unbound artifact attempt");
   const directory = join(root, `${runId}-${name}`);
   mkdirSync(directory);
-  gh([
+  invoke([
     "run",
     "download",
     id(runId),
@@ -109,7 +113,7 @@ export function download(runId, attempt, name, root) {
     "--dir",
     directory,
   ]);
-  const retained = api(`actions/artifacts/${id(artifact.id)}`);
+  const retained = read(`actions/artifacts/${id(artifact.id)}`);
   assert.equal(retained.name, artifact.name);
   assert.equal(retained.digest, artifact.digest);
   assert.equal(retained.expired, false);
@@ -375,6 +379,8 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
   const observe = readers.provider ?? provider;
   const acquire = readers.download ?? download;
   let retained;
+  const acquisition = join(root, "writer-history");
+  mkdirSync(acquisition, { recursive: true });
   const history = [];
   for (const phase of ["stage", "archive", "promote"]) {
     const runs = list(
@@ -437,7 +443,7 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
             history.push(entry);
             continue;
           }
-          const { directory } = acquire(run.id, attempt, name, root);
+          const { directory } = acquire(run.id, attempt, name, acquisition);
           const journal = join(
             directory,
             effectJournal(phase, { run: run.id, attempt }),
@@ -448,12 +454,7 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
             `no-effect-${phase}-${run.id}-${attempt}.json`,
           );
           if (existsSync(marker)) entry.noEffect = readJson(marker);
-          entry.settlements = ["stage", "archive", "promote"].flatMap(
-            (kind) => {
-              const path = join(directory, `recovery-${kind}.json`);
-              return existsSync(path) ? [readJson(path)] : [];
-            },
-          );
+          entry.settlements = retainedRecoveries(directory);
         }
         history.push(entry);
       }
