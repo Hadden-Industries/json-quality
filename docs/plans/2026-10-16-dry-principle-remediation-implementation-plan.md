@@ -72,15 +72,25 @@ No controls, versions, limits or semantic oracles are changed to manufacture a p
 
 ## Deliberate distinctions
 
-- Configuration and result schemas are separate public contracts; JSON syntax and Ajv remain their native authorities. Do not create a universal schema or merge validators that admit different records.
-- CLI commands and semantic result operations have different meanings and mappings. Existing commands own user interaction; result schema owns serialized operations. Existing conformance checks preserve their relationship.
-- Physical, logical, native and expected-negative input identities have distinct provenance and enforcement. Share pure rules only where their complete contracts align; do not merge source authority, snapshots, budgets or per-operation mutable state.
-- SHA-256 calls across different evidence protocols reuse native crypto already. Identical one-line syntax alone does not justify a generic identity framework or algorithm migration.
-- Copied `src/acquire.js` must remain standalone in a cold consumer. Its temporary workspace cleanup includes a specific prefix and realpath gate; it cannot import producer-private helpers. Preserve it and its byte-conformance/bootstrap tests.
-- Affected-test snapshot path admission, policy globs, literal repository paths and native archive members have distinct caller contracts. Do not broaden one to accept the others or silently tighten the snapshot protocol under this refactor.
+- Configuration and result schemas are separate public contracts; JSON syntax and Ajv remain their native authorities.
+  Do not create a universal schema or merge validators that admit different records.
+- CLI commands and semantic result operations have different meanings and mappings.
+  Existing commands own user interaction; result schema owns serialized operations.
+  Existing conformance checks preserve their relationship.
+- Physical, logical, native and expected-negative input identities have distinct provenance and enforcement.
+  Share pure rules only where their complete contracts align; do not merge source authority, snapshots, budgets or per-operation mutable state.
+- SHA-256 calls across different evidence protocols reuse native crypto already.
+  Identical one-line syntax alone does not justify a generic identity framework or algorithm migration.
+- Copied `src/acquire.js` must remain standalone in a cold consumer.
+  Its temporary workspace cleanup includes a specific prefix and realpath gate; it cannot import producer-private helpers.
+  Preserve it and its byte-conformance/bootstrap tests.
+- Affected-test snapshot path admission, policy globs, literal repository paths and native archive members have distinct caller contracts.
+  Do not broaden one to accept the others or silently tighten the snapshot protocol under this refactor.
 - Exact source/lock admission remains independent from the qualification probe's expected producer identity. Preserve exact HTTPS/SSH allowlisting and independently expected full commits.
-- Existing runtime policy projections are already checked from one authority. Preserve the producer/consumer split, reference/latest/minimum lanes and final completeness gate.
-- Expected diagnostics, retained vectors, fixture bytes and historical plans/evidence remain independent. Test setup may be shared; expected decisions are not generated from the implementation under test.
+- Existing runtime policy projections are already checked from one authority.
+  Preserve the producer/consumer split, reference/latest/minimum lanes and final completeness gate.
+- Expected diagnostics, retained vectors, fixture bytes and historical plans/evidence remain independent.
+  Test setup may be shared; expected decisions are not generated from the implementation under test.
 
 Repository maintainers own these decisions.
 Reassess when meanings or release/failure boundaries converge, a new consumer requires different semantics, an authority is duplicated again, or existing conformance checks expose drift.

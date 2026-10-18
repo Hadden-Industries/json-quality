@@ -1,5 +1,9 @@
 # Third-party notices
 
+Repository Markdown development tooling uses `@hadden-industries/markdown-quality` (AGPL-3.0-only) from the exact source recorded in `tooling/markdown/source.json`.
+Its retained core and platform archives include their upstream notices, native component inventories and source-offer material.
+This isolated development graph is not included in the JSON Quality npm package.
+
 Runtime dependencies are ESLint (MIT), the official ESLint JSON plugin (Apache-2.0), Ajv (MIT), and Prettier (MIT).
 The independent test oracle Momoa is Apache-2.0 and is a direct development dependency.
 Dependency-cruiser (MIT) is a development dependency used for affected-test selection and architecture enforcement; it is not a runtime dependency.

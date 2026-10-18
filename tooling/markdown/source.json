@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/Hadden-Industries/markdown-quality.git",
+  "source": "2e1440c7b33771553a82ca42ba3f8205e5a9f6b3",
+  "tree": "d3c421610d758334fc65e30c3d718acf726fb4ea",
+  "sourceLockSha256": "257e83f9c70ea7979b05bf235aa18f86e90dc90473ccb94f936980985b285200",
+  "version": "1.0.3",
+  "acquisition": "Maintained producer packer; clean source; lifecycle scripts disabled; retained exact core and native archives",
+  "archives": [
+    {
+      "name": "win32-x64",
+      "file": "hadden-industries-markdown-quality-win32-x64-1.0.3-2e1440c7b33771553a82ca42ba3f8205e5a9f6b3.tgz",
+      "sha256": "5660e39295c840ddcd4cdab7770bf0c618ed2b770c039bdaf187ea10799b6062",
+      "integrity": "sha512-CuISXTugIcUi3A6d/I+WxJjHExgTxVkzPYHCtiE+RVZT481kd1g61RQnWcWYdx6dFM7tmW9Ww2XCG12H3gFnTQ=="
+    },
+    {
+      "name": "linux-x64",
+      "file": "hadden-industries-markdown-quality-linux-x64-1.0.3-2e1440c7b33771553a82ca42ba3f8205e5a9f6b3.tgz",
+      "sha256": "1b9e5fc1d08b330189b394b58af1c1feb066f7ef710a52204fd1a0d9092dd2fa",
+      "integrity": "sha512-XhAPRnYEzgOXsYWVrChF5HlpQHAU22rwws4JTAy2MOjmEMCX/ihDic4zLZ2yfTpoy1peHhEiYL6CN7ffvY27zg=="
+    },
+    {
+      "name": "core",
+      "file": "hadden-industries-markdown-quality-1.0.3-2e1440c7b33771553a82ca42ba3f8205e5a9f6b3.tgz",
+      "sha256": "6b59c147d4df9047b9b8be18ee973a3485ca0a598b3e06b7baff674543944b1c",
+      "integrity": "sha512-c/VgmXxM1J4dWPmLxPm8S2c3KWouXNdhJ/Z+09KdWV8O3gr/6mEzpqBRvS77YYAFwscydYWY4605t8D8OA+dyw=="
+    }
+  ]
+}

@@ -2,7 +2,8 @@
 
 One Node package provides strict JSON checking, complete owned-file discovery, guarded source formatting and NFC repair, and a bounded ESLint guard against serialization used as semantic identity.
 The CLI and library execute the same package-owned rules and presentation options.
-`check` validates JSON bytes, syntax, keys, values and presentation across the complete owned inventory. `inventory` lists scope and resolved contracts without analyzing document JSON; it does not establish a quality pass.
+`check` validates JSON bytes, syntax, keys, values and presentation across the complete owned inventory.
+`inventory` lists scope and resolved contracts without analyzing document JSON; it does not establish a quality pass.
 Repository producers and domain validators retain authority over schemas, RDF meaning, canonical representations, hashes and historical evidence.
 
 ```sh
@@ -13,7 +14,8 @@ json-quality format --root /path/to/repository
 json-quality normalize --root /path/to/repository -- source.json
 ```
 
-The development contract uses configuration schema 1 and result schema 3. [The package manifest](package.json) owns direct dependency selections; [the producer's native lockfile](https://github.com/Hadden-Industries/json-quality/blob/main/package-lock.json) freezes the resolved graph and integrity.
+The development contract uses configuration schema 1 and result schema 3.
+[The package manifest](package.json) owns direct dependency selections; [the producer's native lockfile](https://github.com/Hadden-Industries/json-quality/blob/main/package-lock.json) freezes the resolved graph and integrity.
 The [runtime compatibility policy](docs/node-runtime-compatibility.md) defines consumer minima, current-family CI coverage and the independent development/producer reference.
 Edit Node and npm selections only in `assets/node-support.json`, then run `npm run sync:node`; `npm run check:node` rejects projection drift, including native lock metadata.
 Producer qualification retains npm 12's native pack contract; consumer acquisition uses its separately qualified native npm toolchain.
@@ -27,6 +29,7 @@ The package also owns the generated acquisition bootstrap and isolation guard, s
 
 ```sh
 npm ci --ignore-scripts
+npm run install:markdown
 npm run check:focused
 npm test
 npm run check:affected -- --base FULL_COMMIT_SHA
@@ -34,6 +37,7 @@ npm run check:full
 ```
 
 `check:full` requires clean committed source so transported-package proof binds an actual source commit.
+The [Markdown tooling guide](docs/markdown-quality.md) describes the isolated source-pinned development dependency, root policy and public check/format commands.
 `npm test` always runs every test.
 `check:affected` combines dependency-cruiser before/after import graphs and the package's declared process relations.
 Its base must be a full immutable commit; `--dry-run` explains the plan without running tests.
@@ -50,7 +54,8 @@ Hosted JSON quality CI runs only when manually requested through GitHub Actions'
 gh workflow run ci.yml --ref main
 ```
 
-The qualification workflow retains the full producer and Windows/Linux consumer matrix. CodeQL and dependency submissions retain their automatic GitHub configuration.
+The qualification workflow retains the full producer and Windows/Linux consumer matrix.
+CodeQL and dependency submissions retain their automatic GitHub configuration.
 
 Read-only operations install nothing and write no checkout files.
 Explicit formatting validates all relevant peers before the first write, preserves numeric lexemes and decoded string meaning, and never normalizes data.
@@ -62,8 +67,13 @@ Concurrent hostile filesystem mutation is outside the supported guarantee.
 Physical discovery reconciles Git with an owned-tree walk, including untracked and ignored-generated JSON.
 External boundaries require owner/reason exceptions; tracked files inside them remain checked.
 JSONL framing and cumulative logical-document inventory use the same strict JSON analysis.
-Configured native sources admit content-addressed documents and archive members through trusted, caller-supplied native owners. Their independent census, admitted bytes and source/authority snapshots participate in the same limits, phases and result accounting. Missing providers or changed native inputs fail; generic writers never modify native documents.
-Configuration can retain original presentation for independently admitted native or pointer-linked logical members. Their hashes, sizes and every semantic rule remain checked; each selected scope must exist. This never changes ordinary physical-file presentation or write policy.
-Pure `formatJsonSource` and `formatJsonValue` functions give producers the package-owned printer without changing normalization or historical digest protocols. Presentation alone establishes no JSON quality pass.
+Configured native sources admit content-addressed documents and archive members through trusted, caller-supplied native owners.
+Their independent census, admitted bytes and source/authority snapshots participate in the same limits, phases and result accounting.
+Missing providers or changed native inputs fail; generic writers never modify native documents.
+Configuration can retain original presentation for independently admitted native or pointer-linked logical members.
+Their hashes, sizes and every semantic rule remain checked; each selected scope must exist.
+This never changes ordinary physical-file presentation or write policy.
+Pure `formatJsonSource` and `formatJsonValue` functions give producers the package-owned printer without changing normalization or historical digest protocols.
+Presentation alone establishes no JSON quality pass.
 JSONC/JSON5 remain detected and refused.
 Exact expected findings retain intentionally invalid corpus evidence visibly; unexpected or missing diagnostics, changed pinned bytes and missing logical members fail.

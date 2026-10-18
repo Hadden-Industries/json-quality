@@ -57,6 +57,7 @@ const tests = readdirSync(new URL("../tests/", import.meta.url))
         "affected-tests.test.js",
         "node-support.test.js",
         "architecture.test.js",
+        "markdown-quality.test.js", // Isolated producer tooling, not JSON runtime behavior.
       ].includes(path),
   )
   .map((path) => join("tests", path));

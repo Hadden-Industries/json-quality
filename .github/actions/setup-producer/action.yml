@@ -13,3 +13,6 @@ runs:
     - name: Install frozen producer dependencies
       shell: bash
       run: npm run ci:install
+    - name: Install the pinned Markdown development toolchain
+      shell: bash
+      run: npm run install:markdown

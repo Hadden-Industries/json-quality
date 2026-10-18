@@ -1,6 +1,7 @@
 # Supported Node runtime compatibility implementation plan
 
-Date: 2026-10-16. Status: accepted for implementation by the owner in chat `01a1417f-7a6b-7c81-8a53-9d14900f1c79`, including required configuration, signed commits and direct pushes to main.
+Date: 2026-10-16.
+Status: accepted for implementation by the owner in chat `01a1417f-7a6b-7c81-8a53-9d14900f1c79`, including required configuration, signed commits and direct pushes to main.
 
 ## Purpose, authority and baseline
 
@@ -66,29 +67,38 @@ Dependency upgrades/downgrades, changes to JSON semantics, broader filesystem gu
 
 ## Risk route
 
-Risk class: **R2 proposed**. The change expands a public runtime contract and can affect file selection, guarded writes and installed-payload validation.
+Risk class: **R2 proposed**.
+The change expands a public runtime contract and can affect file selection, guarded writes and installed-payload validation.
 
 Decision owner: repository owner; implementing agent integrates the accepted scope.
 
-Reasoning: incompatible glob selection could omit evidence or admit writes to protected data; an npm mismatch could prevent cold acquisition or weaken verification. These are inferences from the inspected call sites, not reproduced defects.
+Reasoning: incompatible glob selection could omit evidence or admit writes to protected data; an npm mismatch could prevent cold acquisition or weaken verification.
+These are inferences from the inspected call sites, not reproduced defects.
 
-Potential blast radius: CLI/API/plugin/schema consumers and isolated tooling installations on Windows/Linux. No live consumer changes are authorized by this draft.
+Potential blast radius: CLI/API/plugin/schema consumers and isolated tooling installations on Windows/Linux.
+No live consumer changes are authorized by this draft.
 
-Reversibility: source and CI changes can be restored through a follow-up commit, retaining immutable evidence. A published package's metadata and consumer adoption cannot be silently undone.
+Reversibility: source and CI changes can be restored through a follow-up commit, retaining immutable evidence.
+A published package's metadata and consumer adoption cannot be silently undone.
 
 Principal unknowns: older-runtime glob semantics, exact compatible npm integration, and installed/writer behavior across the target platforms.
 
 Required artifacts: this protected accepted baseline before implementation, a canonical runtime policy, checked projections, dependency/API qualification record, immutable archive/run identities and the existing HISEW evidence/handoff records.
 
-Required specialist lenses: ordinary code/design review and independent verification for R2. A frozen security diff assessment is required if implementation changes path selection, replacement/identity safeguards, acquisition or archive/cache admission. A policy-only change needs an explicit scoped security disposition rather than an unrelated repository scan.
+Required specialist lenses: ordinary code/design review and independent verification for R2. A frozen security diff assessment is required if implementation changes path selection, replacement/identity safeguards, acquisition or archive/cache admission.
+A policy-only change needs an explicit scoped security disposition rather than an unrelated repository scan.
 
-Required verification: focused feedback while editing, affected regression checks at integration, the registered `full` profile on the reference runtime, and exact minimum/latest/reference transported-consumer qualification on both platforms. Passing reference checks alone cannot establish older-runtime compatibility.
+Required verification: focused feedback while editing, affected regression checks at integration, the registered `full` profile on the reference runtime, and exact minimum/latest/reference transported-consumer qualification on both platforms.
+Passing reference checks alone cannot establish older-runtime compatibility.
 
-Required human approvals: acceptance of the draft runtime/npm design before implementation; additional authority for publication or consumer changes. Reuse any subsequently granted exact-scope authority without requesting it again.
+Required human approvals: acceptance of the draft runtime/npm design before implementation; additional authority for publication or consumer changes.
+Reuse any subsequently granted exact-scope authority without requesting it again.
 
-Maximum sensible autonomy: complete this draft and read-only research now. After acceptance, implement and repair within the granted scope; do not downgrade dependencies, relax safety controls, add compatibility shims or change shared HISEW configuration to manufacture a pass.
+Maximum sensible autonomy: complete this draft and read-only research now.
+After acceptance, implement and repair within the granted scope; do not downgrade dependencies, relax safety controls, add compatibility shims or change shared HISEW configuration to manufacture a pass.
 
-Next lifecycle step: accept the requirement/decision baseline, recheck applicability and execution ownership, then select the installed implementation procedure and start the exact R2 execution. Record the accepted plan at its first authorized commit checkpoint.
+Next lifecycle step: accept the requirement/decision baseline, recheck applicability and execution ownership, then select the installed implementation procedure and start the exact R2 execution.
+Record the accepted plan at its first authorized commit checkpoint.
 
 ## Requirements, acceptance criteria and quality scenarios
 
@@ -108,7 +118,8 @@ Quality behavior is unchanged: configuration schema 1, result schema 3, four pac
 
 The following are proposed decisions for the draft baseline.
 
-**DEC-001 — Package-owned policy and checked projections.** Follow Markdown Quality's `assets/node-support.json`, matrix resolver and narrow projection pattern, with OwlAPI as the preceding design example.
+**DEC-001 — Package-owned policy and checked projections.**
+Follow Markdown Quality's `assets/node-support.json`, matrix resolver and narrow projection pattern, with OwlAPI as the preceding design example.
 Create `assets/node-support.json` as the sole editable authority for consumer minima, pinned reference, supported platforms and producer npm selection/range.
 Keep consumer npm qualification selections in the same policy if the supported integration needs them; avoid a second hand-maintained version registry.
 Predict `scripts/node-matrix.js`, `scripts/project-node-support.js`, `sync:node` and `check:node` entry points, plus a generated section in `docs/node-runtime-compatibility.md`.
@@ -120,12 +131,14 @@ Preserve exact dependency versions, unrelated workflow bytes, matrix expressions
 The policy is development-owned unless a runtime consumer actually needs it; avoid adding an unused packed runtime dependency.
 The compatibility document is already within `files: docs/` and therefore affects archive identity and installation census expectations.
 
-**DEC-002 — Lowest justified floors.** Start qualification at `22.13.0`, `24.0.0`, `26.0.0`.
+**DEC-002 — Lowest justified floors.**
+Start qualification at `22.13.0`, `24.0.0`, `26.0.0`.
 Keep `24.21.0` as the producer reference; neither current-family releases nor npm's host requirements implicitly raise consumer minima.
 Use equivalent explicit bounded ranges consistently and reject odd/future majors and prereleases.
 Runtime compatibility is separate from advice to install current security patches.
 
-**DEC-003 — npm integration is an early decision gate.** Keep the producer on npm 12 and preserve `readPackReport()`'s keyed native-report admission; do not make it accept older report shapes to run the producer suite on an old runtime.
+**DEC-003 — npm integration is an early decision gate.**
+Keep the producer on npm 12 and preserve `readPackReport()`'s keyed native-report admission; do not make it accept older report shapes to run the producer suite on an old runtime.
 Build the candidate archive once on the reference, then install and execute that archive in isolated floor environments using an explicitly selected compatible native npm toolchain.
 Determine the newest suitable npm line/version from current official metadata and native behavior; do not select an old npm merely because it is conveniently bundled with a downloaded Node binary.
 Metadata samples `npm@11.0.0` and `npm@10.9.2` admit the target Node versions, but neither is selected or qualified by this plan.
@@ -140,11 +153,13 @@ If compatible npm lacks a required security control, retain its actual error and
 If full installation integration cannot reasonably support the target floors, return a concrete owner decision: separately documented reference-host acquisition/verification followed by lower-runtime execution, or higher end-to-end minima justified by the npm requirement.
 Do not silently relabel a narrower execution-only result as full support.
 
-**DEC-004 — Qualify native APIs before repairs.** Retain native glob, filesystem and formatter implementations while testing their actual behavior.
+**DEC-004 — Qualify native APIs before repairs.**
+Retain native glob, filesystem and formatter implementations while testing their actual behavior.
 Do not introduce a version-switching glob polyfill, copy Markdown Quality's `regular-file.js`, omit device identity checks or weaken preservation assertions without a demonstrated defect and accepted design.
 A required repair stays with the owning module and gains a focused regression at its consumer boundary.
 
-**DEC-005 — Distinct CI responsibilities.** Reference lanes own npm 12 packing, all producer tests, lint, format, JSON dogfood and policy drift checks.
+**DEC-005 — Distinct CI responsibilities.**
+Reference lanes own npm 12 packing, all producer tests, lint, format, JSON dogfood and policy drift checks.
 Consumer lanes own actual selected-runtime execution and installation proof, using the identical qualified archive.
 Resolve minimum/latest/reference lanes from policy and bounded official release metadata; freeze the resolved values and archive identity before fan-out.
 Use a small bootstrap reading of the repository reference selection before package installation, then run the package-owned resolver after the reference toolchain is ready.

@@ -29,20 +29,28 @@ The native provider reader owns complete run/attempt/artifact history; `release-
 `release-inventory.js` keeps actual recipient locations, dependency graphs, rights, native SBOMs and narrow file-URI repairs together; it does not replace npm's resolver or native cryptographic verification.
 `qualification-process.js` owns execution budgets and phase diagnostics, independently of product performance assertions and local HISEW supervision.
 The [operations guide](release-operations.md) records the separate live configuration and release boundaries.
-Architecture rules belong to `.dependency-cruiser.json`; `scripts/check-architecture.js` composes native analysis and native npm membership through the existing `readPackReport` owner. The [architecture guide](architecture.md) distinguishes this admission gate from conservative affected-test selection and runtime behavior proof.
+Architecture rules belong to `.dependency-cruiser.json`; `scripts/check-architecture.js` composes native analysis and native npm membership through the existing `readPackReport` owner.
+The [architecture guide](architecture.md) distinguishes this admission gate from conservative affected-test selection and runtime behavior proof.
 Runtime consumers capture private schema-derived views during module initialization, so later customization of publicly exported schema objects cannot change write accounting or lint admission.
 The extracted presentation data and modules are ordinary package source and are included through the existing `src/` package membership.
 Static imports expose those dependencies to the existing affected-test graph, while native pack and transported consumers verify actual installed inclusion.
 
 Maintain the following distinctions:
 
-- Configuration and result schemas describe different contracts; source, logical, native and expected-negative records carry different provenance. Shared facts do not replace admission at any reachable interface.
-- CLI commands map to semantic operations. They are not interchangeable lists even when spellings coincide.
-- The cold acquisition bootstrap is copied into consumers and must remain standalone. Its cleanup includes a workspace prefix and realpath guard; bootstrap-byte conformance tests control drift without a producer-private import.
-- Git snapshot paths, policy globs and literal source paths have different admission contracts. Do not merge them merely because their checks look similar.
-- Native hashes, schema patterns and serializer calls may belong to separate protocols. Reuse their native implementation without inventing a generic identity or validation framework.
-- Qualification's expected producer identity, retained diagnostic vectors and expected result values remain independently owned. Do not derive them from the implementation they test.
-- Historical plans, locks and evidence retain their original identities. They are not editable current policy or verification of a later candidate.
+- Configuration and result schemas describe different contracts; source, logical, native and expected-negative records carry different provenance.
+  Shared facts do not replace admission at any reachable interface.
+- CLI commands map to semantic operations.
+  They are not interchangeable lists even when spellings coincide.
+- The cold acquisition bootstrap is copied into consumers and must remain standalone.
+  Its cleanup includes a workspace prefix and realpath guard; bootstrap-byte conformance tests control drift without a producer-private import.
+- Git snapshot paths, policy globs and literal source paths have different admission contracts.
+  Do not merge them merely because their checks look similar.
+- Native hashes, schema patterns and serializer calls may belong to separate protocols.
+  Reuse their native implementation without inventing a generic identity or validation framework.
+- Qualification's expected producer identity, retained diagnostic vectors and expected result values remain independently owned.
+  Do not derive them from the implementation they test.
+- Historical plans, locks and evidence retain their original identities.
+  They are not editable current policy or verification of a later candidate.
 
 Repository maintainers own these choices.
 Reassess when meanings or release/failure boundaries converge, a real new consumer requires different semantics, or conformance exposes drift.

@@ -37,7 +37,7 @@
     "docs/"
   ],
   "scripts": {
-    "check:focused": "node --test tests/contracts.test.js tests/identity.test.js",
+    "check:focused": "node --test tests/contracts.test.js tests/identity.test.js tests/markdown-quality.test.js",
     "test": "node --test tests/*.test.js",
     "check:affected": "node scripts/affected-tests.js",
     "check:full": "npm run check:node && npm run check:architecture && npm run check:release && npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
@@ -61,20 +61,25 @@
     "pack:archive": "node scripts/pack.js",
     "test:node-policy": "node --test tests/node-support.test.js",
     "lint": "eslint src scripts tests eslint.config.js",
-    "prettier": "prettier src scripts tests eslint.config.js README.md docs THIRD-PARTY-NOTICES.md \".github/**/*.{yml,yaml}\"",
-    "format:check": "npm run prettier -- --check",
-    "format": "npm run prettier -- --write",
+    "prettier": "prettier src scripts tests eslint.config.js \".github/**/*.{yml,yaml}\"",
+    "format:check": "npm run prettier -- --check && npm run check:markdown",
+    "format": "npm run prettier -- --write && npm run format:markdown",
+    "install:markdown": "npm --prefix tooling/markdown ci --ignore-scripts --engine-strict --no-audit --no-fund",
+    "check:markdown": "npm --prefix tooling/markdown run --silent check --",
+    "format:markdown": "npm --prefix tooling/markdown run --silent format --",
+    "inspect:markdown": "npm --prefix tooling/markdown run --silent inspect --",
+    "test:markdown": "node --test tests/markdown-quality.test.js",
     "check:json": "node src/cli.js check --root .",
     "qualify:package": "node scripts/qualify-package.js"
   },
   "dependencies": {
     "@eslint/json": "2.1.1",
     "ajv": "8.20.0",
-    "eslint": "10.12.0",
+    "eslint": "10.13.0",
     "prettier": "3.9.10"
   },
   "devDependencies": {
     "@humanwhocodes/momoa": ">=3.3.13",
-    "dependency-cruiser": "18.6.0"
+    "dependency-cruiser": ">=18.6.0"
   }
 }

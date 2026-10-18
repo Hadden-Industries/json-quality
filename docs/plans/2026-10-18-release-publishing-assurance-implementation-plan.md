@@ -25,13 +25,19 @@ The mechanism must explain and safely resume partial outcomes.
 
 Use these design choices from the final reference:
 
-- Preserve sole-maintainer direct-to-main development and local verification before authorized signed delivery. Do not introduce mandatory PRs, second-person approvals, or branch checks that obstruct that operating model.
-- Keep ordinary JSON Quality CI manual, as already implemented. Preserve independently configured automatic CodeQL. A source push, tag push, dependency update, or successful background run must not publish anything.
-- Run all release-required qualification in GitHub Actions. Local checks support development and HISEW delivery; they do not replace hosted release proof.
+- Preserve sole-maintainer direct-to-main development and local verification before authorized signed delivery.
+  Do not introduce mandatory PRs, second-person approvals, or branch checks that obstruct that operating model.
+- Keep ordinary JSON Quality CI manual, as already implemented.
+  Preserve independently configured automatic CodeQL.
+  A source push, tag push, dependency update, or successful background run must not publish anything.
+- Run all release-required qualification in GitHub Actions.
+  Local checks support development and HISEW delivery; they do not replace hosted release proof.
 - Separate qualification, npm staging, human approval, public registry qualification, GitHub archival, and stable promotion.
 - Use npm OIDC with stage-only preparation, human 2FA approval, a `pilot` initial tag, and a distinct promotion boundary.
-- Use maintained native npm, GitHub, Node, and SBOM interfaces. Custom code owns only repository-specific identity, admission, evidence composition, and recovery.
-- Keep full-SHA Action pinning. Carry forward the reference's explicit exclusion of Actions workflow dependency lockfiles/public-preview lockfile policies.
+- Use maintained native npm, GitHub, Node, and SBOM interfaces.
+  Custom code owns only repository-specific identity, admission, evidence composition, and recovery.
+- Keep full-SHA Action pinning.
+  Carry forward the reference's explicit exclusion of Actions workflow dependency lockfiles/public-preview lockfile policies.
 - Preserve configuration schema 1, result schema 3, public exports, exact-Git acquisition, JSON preservation, write safety, and runtime support.
 - Treat correctness, consumer performance, process deadlines, hosted job limits, and HISEW supervision as different contracts.
 
@@ -249,16 +255,28 @@ Research/inspection can be independent, but this plan authorizes no parallel wri
 
 ## 8. Operator journey and identity model
 
-1. Select the exact version and compatibility intent. Accept valid npm SemVer, including intentional 0.x or prerelease releases; do not copy Markdown Quality's regex requiring a positive major stable version. Stable promotion excludes prereleases unless a separately accepted policy changes that rule.
-2. Commit the version and settled implementation with local evidence. Freeze source, tree, lock, runtime policy, resolved matrix and tool identities.
-3. Manually run nonpublishing release qualification. The reference producer qualifies the source and produces the designated tarball once; consumer lanes receive that tarball. Fixture packs made inside tests are not release artifacts.
-4. Collect the complete terminal hosted graph, exact-source security and inventory evidence. Review the candidate manifest digest, SemVer, rights, retention, recovery and security decisions.
-5. Create/verify the owner-authorized signed annotated source tag and draft release, without uploading a personal signing key to Actions. Bind review records to the candidate digest rather than committing an approval that changes its own source.
-6. Manually stage the exact tarball under `pilot` with admitted OIDC authority. Record intent before request and the native outcome; finish the job in `staged-awaiting-owner` instead of polling for human action.
-7. The owner inspects native stage details and downloaded bytes and approves the exact item with 2FA. Staging success alone is not approval evidence.
-8. Manually run public registry qualification. Fresh anonymous installations verify exact public bytes, original publication provenance and recipient behavior across the frozen matrix; dependency audit/registry security evidence is refreshed here.
-9. A separate archival workflow consumes that **completed** registry run, verifies every draft asset, publishes the immutable GitHub release, and verifies its attestation and assets. It cannot claim its own still-running predecessor is complete.
-10. After exact pilot/consumer/restoration acceptance, manually promote npm `latest` and the intended GitHub release marker. Read both services back and retain a final outcome record.
+1. Select the exact version and compatibility intent.
+   Accept valid npm SemVer, including intentional 0.x or prerelease releases; do not copy Markdown Quality's regex requiring a positive major stable version.
+   Stable promotion excludes prereleases unless a separately accepted policy changes that rule.
+2. Commit the version and settled implementation with local evidence.
+   Freeze source, tree, lock, runtime policy, resolved matrix and tool identities.
+3. Manually run nonpublishing release qualification.
+   The reference producer qualifies the source and produces the designated tarball once; consumer lanes receive that tarball.
+   Fixture packs made inside tests are not release artifacts.
+4. Collect the complete terminal hosted graph, exact-source security and inventory evidence.
+   Review the candidate manifest digest, SemVer, rights, retention, recovery and security decisions.
+5. Create/verify the owner-authorized signed annotated source tag and draft release, without uploading a personal signing key to Actions.
+   Bind review records to the candidate digest rather than committing an approval that changes its own source.
+6. Manually stage the exact tarball under `pilot` with admitted OIDC authority.
+   Record intent before request and the native outcome; finish the job in `staged-awaiting-owner` instead of polling for human action.
+7. The owner inspects native stage details and downloaded bytes and approves the exact item with 2FA.
+   Staging success alone is not approval evidence.
+8. Manually run public registry qualification.
+   Fresh anonymous installations verify exact public bytes, original publication provenance and recipient behavior across the frozen matrix; dependency audit/registry security evidence is refreshed here.
+9. A separate archival workflow consumes that **completed** registry run, verifies every draft asset, publishes the immutable GitHub release, and verifies its attestation and assets.
+   It cannot claim its own still-running predecessor is complete.
+10. After exact pilot/consumer/restoration acceptance, manually promote npm `latest` and the intended GitHub release marker.
+    Read both services back and retain a final outcome record.
 
 For prereleases, finish with the explicit prerelease channel and correct GitHub prerelease/latest flags.
 Do not infer stable authority from the absence of an error or from the current `0.1.0-dev.0` manifest.
@@ -359,14 +377,16 @@ Inspect those through supported authenticated controls during authorized impleme
 
 npm documents that staging a previously nonexistent package creates a **public `0.0.0-stage` placeholder**, while staged release contents remain private until approval.
 This must be disclosed and authorized before bootstrap.
-It is not an effect-free rehearsal. [Staged publishing][npm-staged]
+It is not an effect-free rehearsal.
+[Staged publishing][npm-staged]
 
 Preferred sequence to qualify, without assuming unsupported account behavior:
 
 1. Establish owner/org publish access, 2FA availability, existing stages and allowed native setup interfaces.
 2. Determine whether the package identity and desired trust connections can be prepared before staging the actual release.
 3. If owner-session staging is required to create the identity, propose the exact tarball/version, placeholder effect, stage record, and disposition before executing it.
-4. Inspect whether native rejection and OIDC re-staging of the same intended version is supported while preserving the package identity and settings. Rejection requires its own owner 2FA; record both stage identities.
+4. Inspect whether native rejection and OIDC re-staging of the same intended version is supported while preserving the package identity and settings.
+   Rejection requires its own owner 2FA; record both stage identities.
 5. Configure exact repository/workflow/environment connections and package token restrictions, then complete the first real OIDC stage/approval within the documented connection-validation window.
 6. Verify public provenance and bytes before accepting that bootstrap as the start of a release.
 
@@ -377,7 +397,8 @@ If no supported route preserves the selected guarantees, stop the bootstrap slic
 Trusted-publisher mappings must be re-read after creation; documentation says their fields cannot be edited in place and unused new connections expire after two days.
 Create them near a prepared first-use window, not at the beginning of a lengthy coding task.
 The promotion connection also needs an explicit first-use validation plan; do not assume a dist-tag call satisfies a requirement phrased as first successful publication.
-Current npm docs differ in older generic trust wording versus newer dist-tag guidance: validate the actual supported CLI/UI operation, rather than inventing flags. [Trusted publishing][npm-trust-publishing] [Native trust management][npm-trust]
+Current npm docs differ in older generic trust wording versus newer dist-tag guidance: validate the actual supported CLI/UI operation, rather than inventing flags.
+[Trusted publishing][npm-trust-publishing] [Native trust management][npm-trust]
 
 ## 11. Lessons converted into preventive controls
 
@@ -590,12 +611,16 @@ Do not add mirror tests for trivial documentation or reversible wiring.
 Development cadence:
 
 - Run focused changed-boundary tests while editing; use `check:affected` at meaningful integration points.
-- Ensure new release tests are classified correctly by `qualify-runtime.js`. Producer-only registry/GitHub/security-tool tests must not require unavailable modern tooling in every minimum-runtime consumer lane.
+- Ensure new release tests are classified correctly by `qualify-runtime.js`.
+  Producer-only registry/GitHub/security-tool tests must not require unavailable modern tooling in every minimum-runtime consumer lane.
 - Run exact-scope formatting/lint/schema/workflow checks before every authorized commit; do not use a later broad suite to excuse omission.
 - Complete one consolidated ordinary/security/independent assessment of the frozen scope; review fixes narrowly.
-- Run required HISEW full relevant verification once on the settled candidate. The existing `check:full` packs only clean committed source; preserve that guard and agree the checkpoint/clean-source sequence with native evidence admission rather than disabling it.
-- Compare content/tree, measured inputs, tools, profile and environment before reusing evidence. A changed commit label alone does not justify rerunning identical work; changed tested inputs or time-sensitive registry questions do.
-- Run the complete explicit hosted preparation for a real release; later stages reuse its exact archived proof unless invalidated. Public registry tests remain a separate actual public-boundary obligation.
+- Run required HISEW full relevant verification once on the settled candidate.
+  The existing `check:full` packs only clean committed source; preserve that guard and agree the checkpoint/clean-source sequence with native evidence admission rather than disabling it.
+- Compare content/tree, measured inputs, tools, profile and environment before reusing evidence.
+  A changed commit label alone does not justify rerunning identical work; changed tested inputs or time-sensitive registry questions do.
+- Run the complete explicit hosted preparation for a real release; later stages reuse its exact archived proof unless invalidated.
+  Public registry tests remain a separate actual public-boundary obligation.
 
 Changing producer npm to 12.2.1 needs the existing native pack-report, lock, archive and runtime tests.
 Do not couple that change to unrelated dependency upgrades.
@@ -709,12 +734,16 @@ The operations guide is the single maintained operator contract; no separate dos
 Source review/verification and task resource dispositions remain implementation obligations until their actual evidence is admitted.
 Consolidated source review identified and repaired the release artifact root, originating promotion-journal acquisition, post-publication restoration decision channel, native npm build-metadata normalization, and expired Actions history admission.
 The retention repair reuses the digest-bound owner review: an explicitly reviewed signed annotated checkpoint tag retains exact original journals before expiry, while every fresh native writer/attempt is still enumerated and unknown outcomes remain blockers.
-The read-only exporter accepts a prior checkpoint for renewal; it creates no remote state. The operations guide owns the exact checkpoint and restoration inputs.
+The read-only exporter accepts a prior checkpoint for renewal; it creates no remote state.
+The operations guide owns the exact checkpoint and restoration inputs.
 Focused regressions cover admission-driven promotion journal acquisition, digest-bound restoration without mutable release assets, and expired-history readback above 1 MB with unresolved outcomes still refused.
 Independent CLI review additionally repaired draft-capable lookup, workflow-token settings permission assumptions, complete-only prior-run status admission, bounded completion jobs, historical successful-continuation settlements, explicit idempotent GitHub-only repair, and fresh target-label verification before completion.
 The one-hour owner native immutability read is digest-bound in the existing pilot decision because the workflow token has no Administration permission; actual immutable release and asset verification remain mandatory after publication.
-Actual Windows root and isolated transported consumers on Node 24.21.0/npm 11.21.1 exposed and repaired fixture PURL identity and native slash-spelling differences; both layouts then passed native dependency/audit/SBOM/location/rights validation, CycloneDX 0.33.1 validation, public contracts and offline reinstall. These local diagnostic observations do not substitute for the hosted frozen matrix or public-registry provenance gate.
-Independent repair review also closed predecessor/history acquisition collisions and restored original prior-label identity during partial restoration. Stage review bytes now use the same explicit digest-bound dispatch pattern as restoration; successive recovery records retain their own original journals in one append-preserving index. Focused native-filesystem and restoration-recovery regressions exercise these composition seams.
+Actual Windows root and isolated transported consumers on Node 24.21.0/npm 11.21.1 exposed and repaired fixture PURL identity and native slash-spelling differences; both layouts then passed native dependency/audit/SBOM/location/rights validation, CycloneDX 0.33.1 validation, public contracts and offline reinstall.
+These local diagnostic observations do not substitute for the hosted frozen matrix or public-registry provenance gate.
+Independent repair review also closed predecessor/history acquisition collisions and restored original prior-label identity during partial restoration.
+Stage review bytes now use the same explicit digest-bound dispatch pattern as restoration; successive recovery records retain their own original journals in one append-preserving index.
+Focused native-filesystem and restoration-recovery regressions exercise these composition seams.
 No push, hosted dispatch, remote setting change, first-package bootstrap, real version selection, npm stage/approval, GitHub publication or availability-label change is claimed at this source checkpoint.
 
 ## 18. Authoritative references and source links

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "preset": "authored-gfm@1",
+  "include": [
+    "**/*.md"
+  ],
+  "lint": {},
+  "links": {
+    "localFiles": true,
+    "rootRelative": "reject"
+  }
+}

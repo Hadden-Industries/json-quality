@@ -1,0 +1,23 @@
+{
+  "name": "json-quality-markdown-tooling",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "cd ../.. && markdown-quality check --diagnostic-level warning",
+    "format": "cd ../.. && markdown-quality format --diagnostic-level warning",
+    "inspect": "cd ../.. && markdown-quality inspect --json"
+  },
+  "devDependencies": {
+    "@hadden-industries/markdown-quality": "file:archives/hadden-industries-markdown-quality-1.0.3-2e1440c7b33771553a82ca42ba3f8205e5a9f6b3.tgz"
+  },
+  "optionalDependencies": {
+    "@hadden-industries/markdown-quality-win32-x64": "file:archives/hadden-industries-markdown-quality-win32-x64-1.0.3-2e1440c7b33771553a82ca42ba3f8205e5a9f6b3.tgz",
+    "@hadden-industries/markdown-quality-linux-x64": "file:archives/hadden-industries-markdown-quality-linux-x64-1.0.3-2e1440c7b33771553a82ca42ba3f8205e5a9f6b3.tgz"
+  },
+  "overrides": {
+    "micromark-extension-math": {
+      "katex": "0.19.0"
+    }
+  }
+}
