@@ -1535,7 +1535,7 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
       nativeToolchain: { npm: policy.consumerNpm },
       qualification: "public registry",
       layout: "isolated",
-      publicExports: 4,
+      publicExports: 6,
       cliPhysicalFiles: 2,
     };
   verifyReport(report, release, lane, "public registry", "isolated");
@@ -1544,7 +1544,7 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
     node: "22.13.0",
     platform: "linux",
     qualification: "transported archive",
-    publicExports: 3,
+    publicExports: 4,
   }))
     assert.throws(() =>
       verifyReport(

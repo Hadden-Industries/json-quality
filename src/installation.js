@@ -86,9 +86,12 @@ export async function verifyJsonQualityInstallation({
   toolingRoot,
   npmExecutable = process.env.npm_execpath,
   cachePath,
-  limits,
+  capacityLimits,
   bootstrapPath,
+  ...otherOptions
 } = {}) {
+  if (Object.hasOwn(otherOptions, "limits"))
+    throw new TypeError("Use capacityLimits; limits is not supported.");
   const root = realpathSync(toolingRoot);
   const manifest = readJson(assertRegularSource(root, "package.json"));
   const lock = readJson(assertRegularSource(root, "package-lock.json"));
@@ -113,8 +116,10 @@ export async function verifyJsonQualityInstallation({
       "JSON tooling resolved source disagrees with its selector.",
     );
   const npmRequire = createRequire(npmExecutable);
-  const cache = cachePath ?? nativeQualityCachePath(root, npmExecutable);
-  const bounds = operationLimits({}, limits);
+  const bounds = operationLimits({}, capacityLimits);
+  const cache =
+    cachePath ??
+    nativeQualityCachePath(root, npmExecutable, capacityLimits ?? {});
   const chunks = [];
   let archiveBytes = 0;
   for await (const chunk of npmRequire("cacache").get.stream.byDigest(

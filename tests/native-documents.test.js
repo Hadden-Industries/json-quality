@@ -81,7 +81,7 @@ for (const archive of [false, true]) {
   test(`public operation checks ${archive ? "archive members" : "content-addressed JSON"} with distinct coverage`, async (t) => {
     const { options, path } = fixture(t, archive);
     const result = await runJsonQuality("check", options);
-    assert.equal(result.schemaVersion, 3);
+    assert.equal(result.schemaVersion, 4);
     assert.equal(result.status, "failed"); // unformatted native bytes remain protected
     assert.equal(result.counts.native, 1);
     assert.equal(result.counts.physical, 1);
@@ -253,11 +253,14 @@ test("native byte, document and diagnostic budgets fail closed", async (t) => {
   await assert.rejects(
     runJsonQuality("check", {
       ...f.options,
-      limits: { maxLogicalDocuments: 1, maxTotalBytes: 1 },
+      capacityLimits: { maxLogicalDocuments: 1, maxTotalBytes: 1 },
     }),
   );
   await assert.rejects(
-    runJsonQuality("check", { ...f.options, limits: { maxFileBytes: 1 } }),
+    runJsonQuality("check", {
+      ...f.options,
+      capacityLimits: { maxFileBytes: 1 },
+    }),
   );
   const second = structuredClone(f.supplied.inventory[0]);
   second.path = "other.blob";
@@ -271,11 +274,14 @@ test("native byte, document and diagnostic budgets fail closed", async (t) => {
   await assert.rejects(
     runJsonQuality("check", {
       ...f.options,
-      limits: { maxLogicalDocuments: 1 },
+      capacityLimits: { maxLogicalDocuments: 1 },
     }),
   );
   await assert.rejects(
-    runJsonQuality("check", { ...f.options, limits: { maxDiagnostics: 1 } }),
+    runJsonQuality("check", {
+      ...f.options,
+      capacityLimits: { maxDiagnostics: 1 },
+    }),
     /diagnostic/iu,
   );
 });
@@ -323,7 +329,7 @@ test("native JSON authority manifests are protected before formatting and normal
   assert.deepEqual(result.writes.changed, []);
   assert.deepEqual(readFileSync(join(f.root, identity.path)), bytes);
   await assert.rejects(
-    runJsonQuality("normalize", { ...f.options, sourcePaths: [identity.path] }),
+    runJsonQuality("normalize", { ...f.options, files: [identity.path] }),
     /Protected/u,
   );
 });
@@ -364,7 +370,7 @@ test(
     await assert.rejects(
       runJsonQuality("normalize", {
         ...f.options,
-        sourcePaths: ["manifest.json"],
+        files: ["manifest.json"],
       }),
       /Protected/u,
     );
@@ -401,20 +407,23 @@ test("logical members share their own ceiling without consuming physical/native 
     ...f.options,
     logicalInventory,
     logicalDocuments: logicalInventory.map(({ path }) => ({ path, bytes })),
-    limits: { maxFiles: 2, maxLogicalDocuments: 3 },
+    capacityLimits: { maxFiles: 2, maxLogicalDocuments: 3 },
   };
   const result = await runJsonQuality("inventory", options);
   assert.equal(result.counts.physical, 1);
   assert.equal(result.counts.logical, 2);
   assert.equal(result.counts.native, 1);
   await assert.rejects(
-    runJsonQuality("inventory", { ...options, limits: { maxFiles: 1 } }),
+    runJsonQuality("inventory", {
+      ...options,
+      capacityLimits: { maxFiles: 1 },
+    }),
     /file limit/u,
   );
   await assert.rejects(
     runJsonQuality("inventory", {
       ...options,
-      limits: { maxLogicalDocuments: 2 },
+      capacityLimits: { maxLogicalDocuments: 2 },
     }),
     /document limit/u,
   );

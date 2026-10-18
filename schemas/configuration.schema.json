@@ -40,13 +40,14 @@
         }
       }
     },
-    "limits": {
+    "capacityLimits": {
+      "description": "Shared operation capacity ceilings. True enables configured/default capacities, false disables them, and an override object enables finite capacities with explicit values. Policy settings apply after admission; invocation capacityLimits controls bootstrap. Separate ESLint, cleanup, workflow and platform controls are outside this setting.",
       "anyOf": [
         {
-          "const": false
+          "type": "boolean"
         },
         {
-          "$ref": "#/definitions/limits"
+          "$ref": "#/definitions/capacityLimits"
         }
       ]
     },
@@ -349,7 +350,7 @@
         }
       }
     },
-    "limits": {
+    "capacityLimits": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -399,7 +400,7 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "default": 16777216
+          "default": 67108864
         },
         "maxToolOutputBytes": {
           "type": "integer",
@@ -411,7 +412,49 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
+          "default": 120000
+        },
+        "maxGitTimeMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 120000
+        },
+        "maxAcquisitionTimeMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 1200000
+        },
+        "maxCacheLookupTimeMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
           "default": 60000
+        },
+        "maxCacheOutputBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 1048576
+        },
+        "maxRequestIdCharacters": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 1024
+        },
+        "maxRequestBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 50331648
+        },
+        "maxRequestPathCharacters": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 32768
         }
       }
     }

@@ -1,7 +1,7 @@
 # Deliberate GitHub and npm releases: HISEW implementation plan
 
 Date: 2026-10-18, Europe/Bucharest.
-Revision: 1.
+Revision: 2.
 Status: accepted R2 implementation baseline; implementation in progress.
 Decision owner: Maksym Shostak / Hadden Industries.
 Repository: `Hadden-Industries/json-quality`.
@@ -12,9 +12,16 @@ This document combines the draft change dossier, proposed R2 route, design decis
 Identifiers are local to this plan.
 The requested outcome is a release process based on the **final implemented Markdown Quality approach and its subsequent repairs**, adapted to this repository's single JavaScript package.
 
+Contract amendment, 2026-10-18: subsequent owner instructions select the existing `@hadden-industries/json-quality` package's next intended version as `1.0.0` and standardize the consumer interfaces.
+The current contract uses configuration schema 1, result schema 4, six package export paths and two CLI entrypoints, as documented in the [consumer guide](../consumer-guide.md).
+CLI/API/results share five verbs with applicable `check` / `scope` modifiers; repository selection is `files`, and supplied formatting is `formatJsonDocument` / `format --request -`.
+The dated baseline inventory below remains historical, including its old version, schema and export counts.
+The current follow-up prohibits tests, product probes and publication; static implementation/review evidence does not satisfy this plan's hosted release gates or authorize a release.
+
 On 2026-10-18 the owner requested implementation using HISEW, minimized artifact creation, continued work through completion, pre-authorized detailed per-file commit messages and configuration-file changes called for here, and required committing this plan at the first commit checkpoint.
 This accepts the R2 implementation route and authorizes source/configuration-file implementation, necessary local verification and local signed commits.
-It does not select a release version or authorize public package creation, npm staging/approval/promotion, GitHub publication, remote settings changes, or an unbounded hosted experiment campaign.
+That original implementation request did not select a release version or authorize public package creation, npm staging/approval/promotion, GitHub publication, remote settings changes, or an unbounded hosted experiment campaign.
+Later version/interface selections are recorded in the contract amendment above; they do not establish publication or hosted acceptance.
 Reuse this authority without repeated implementation or commit-message prompts; keep remaining release decisions explicit.
 
 ## 1. Outcome and operating constraints
@@ -38,7 +45,7 @@ Use these design choices from the final reference:
   Custom code owns only repository-specific identity, admission, evidence composition, and recovery.
 - Keep full-SHA Action pinning.
   Carry forward the reference's explicit exclusion of Actions workflow dependency lockfiles/public-preview lockfile policies.
-- Preserve configuration schema 1, result schema 3, public exports, exact-Git acquisition, JSON preservation, write safety, and runtime support.
+- Preserve configuration schema 1, current result schema 4, the current six public export paths and two CLIs, exact-Git acquisition, JSON preservation, write safety, and runtime support.
 - Treat correctness, consumer performance, process deadlines, hosted job limits, and HISEW supervision as different contracts.
 
 Non-goals: migrating downstream repositories, replacing GitHub/npm, adding a release service or scheduler, bundling native executables, importing Markdown Quality's three-package coordination, changing JSON semantics, or broad dependency/refactoring work unrelated to a demonstrated release blocker.
@@ -279,7 +286,7 @@ Research/inspection can be independent, but this plan authorizes no parallel wri
     Read both services back and retain a final outcome record.
 
 For prereleases, finish with the explicit prerelease channel and correct GitHub prerelease/latest flags.
-Do not infer stable authority from the absence of an error or from the current `0.1.0-dev.0` manifest.
+Do not infer stable publication authority from the absence of an error or from the current manifest alone; the owner-selected version still needs exact-candidate qualification and separately authorized release effects.
 
 Bind at least:
 
@@ -678,20 +685,20 @@ Existing unrelated HISEW resource holds retain their original coordinators and a
 
 ## 16. Open decisions and cheapest next evidence
 
-| Item                                                   | Owner / smallest useful evidence                                                                                                                            | Gate and consequence                                                                                           |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| OPEN-001 Implementation authority and route            | Maintainer accepts/revises this draft, R2 scope, delivery/configuration authority and bounded hosted experiment scope.                                      | Before executable work; planning is complete without inventing acceptance.                                     |
-| OPEN-002 First version and compatibility               | Maintainer selects exact npm SemVer and prerelease/stable intent from the actual unpublished API/schema/behavior delta.                                     | Before version commit/staging; `0.1.0-dev.0` is not an automatic release choice.                               |
-| OPEN-003 npm ownership/bootstrap                       | Authenticated package/org/stage/settings inspection, documented placeholder-aware native setup path and exact proposed effects.                             | Before first package/trust effect; unresolved bootstrap blocks live release, not nonpublishing implementation. |
-| OPEN-004 Current CodeQL finding                        | Security owner triages alert 1 at the exact source, repairs real cause or proposes an evidence-backed gate disposition, then obtains exact-source analysis. | Zero-finding release gate currently cannot pass.                                                               |
-| OPEN-005 Actual recipient graph                        | One clean root and isolated native install/audit/ls/SBOM per OS, with original logs and locks.                                                              | Before full fan-out/staging; don't discover a systematic advisory only at final release.                       |
-| OPEN-006 npm/tool adoption                             | Native npm 12.2.1 engines/report/pack checks; selected validator/action/CLI release and exact-license/digest records.                                       | Before executing newly selected tooling; no floating latest execution.                                         |
-| OPEN-007 First hosted graph                            | One authorized nonpublishing representative path and actual provider job/artifact responses.                                                                | Before freezing graph admission; explicit inactive branches only.                                              |
-| OPEN-008 Staged provenance/approval retention          | Exact native stage/download/approval and public provenance from the first authorized release.                                                               | Dry-run evidence does not close this; stable promotion waits.                                                  |
-| OPEN-009 Publisher first use and expiry                | Native settings readback plus explicit stage and promotion connection validation semantics/window.                                                          | Configure just in time; do not assume a tag-only operation activates a connection.                             |
-| OPEN-010 Representative acceptance/restoration         | Maintainer chooses actual JSON Quality consumer scenarios and prior-qualified-version/first-release recovery expectations.                                  | Before stable promotion; no inherited Markdown-specific consumer keys.                                         |
-| OPEN-011 Hosted timing and supervision                 | Measured JSON Quality phase durations, actual nested limits and registered HISEW profile budget.                                                            | Before claiming operational headroom; 5/30/45 values are selected policy, not a platform standard.             |
-| OPEN-012 Native remote controls and evidence retention | Exact environments, defaults, immutability, publisher/token restrictions and artifact-retention readback.                                                   | Before live effects and final closure; API permission errors remain explicit gaps.                             |
+| Item                                                   | Owner / smallest useful evidence                                                                                                                            | Gate and consequence                                                                                                   |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| OPEN-001 Implementation authority and route            | Maintainer accepts/revises this draft, R2 scope, delivery/configuration authority and bounded hosted experiment scope.                                      | Before executable work; planning is complete without inventing acceptance.                                             |
+| OPEN-002 Version selection — resolved                  | The owner's later contract amendment selects `1.0.0` and the current schema/API contract; no further version-selection decision is pending.                 | Version selection is resolved; compatibility qualification, hosted acceptance and publication remain separately gated. |
+| OPEN-003 npm ownership/bootstrap                       | Authenticated package/org/stage/settings inspection, documented placeholder-aware native setup path and exact proposed effects.                             | Before first package/trust effect; unresolved bootstrap blocks live release, not nonpublishing implementation.         |
+| OPEN-004 Current CodeQL finding                        | Security owner triages alert 1 at the exact source, repairs real cause or proposes an evidence-backed gate disposition, then obtains exact-source analysis. | Zero-finding release gate currently cannot pass.                                                                       |
+| OPEN-005 Actual recipient graph                        | One clean root and isolated native install/audit/ls/SBOM per OS, with original logs and locks.                                                              | Before full fan-out/staging; don't discover a systematic advisory only at final release.                               |
+| OPEN-006 npm/tool adoption                             | Native npm 12.2.1 engines/report/pack checks; selected validator/action/CLI release and exact-license/digest records.                                       | Before executing newly selected tooling; no floating latest execution.                                                 |
+| OPEN-007 First hosted graph                            | One authorized nonpublishing representative path and actual provider job/artifact responses.                                                                | Before freezing graph admission; explicit inactive branches only.                                                      |
+| OPEN-008 Staged provenance/approval retention          | Exact native stage/download/approval and public provenance from the first authorized release.                                                               | Dry-run evidence does not close this; stable promotion waits.                                                          |
+| OPEN-009 Publisher first use and expiry                | Native settings readback plus explicit stage and promotion connection validation semantics/window.                                                          | Configure just in time; do not assume a tag-only operation activates a connection.                                     |
+| OPEN-010 Representative acceptance/restoration         | Maintainer chooses actual JSON Quality consumer scenarios and prior-qualified-version/first-release recovery expectations.                                  | Before stable promotion; no inherited Markdown-specific consumer keys.                                                 |
+| OPEN-011 Hosted timing and supervision                 | Measured JSON Quality phase durations, actual nested limits and registered HISEW profile budget.                                                            | Before claiming operational headroom; 5/30/45 values are selected policy, not a platform standard.                     |
+| OPEN-012 Native remote controls and evidence retention | Exact environments, defaults, immutability, publisher/token restrictions and artifact-retention readback.                                                   | Before live effects and final closure; API permission errors remain explicit gaps.                                     |
 
 Replan when a native API cannot enforce the selected boundary, source/control compatibility changes, additional contributors gain release authority, recipient repair requires bundling/new runtime behavior, platform coverage changes, version/bootstrap policy changes, deadlines invalidate actual product requirements, licensing is unresolved, or evidence cannot be retained/reconciled.
 Reassess whether each added mechanism improves the maintainer's trustworthy release outcome or merely adds another report/workflow.

@@ -4,6 +4,10 @@ import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { runJsonQuality } from "./execution.js";
+import { formatJsonDocument } from "./document-operation.js";
+import { operationLimits } from "./limits.js";
+import { admitFiles } from "./selection.js";
+import { readJsonPolicy, parseJsonEnvelope } from "./quality.js";
 import {
   RESULT_SCHEMA_VERSION,
   emptyWrites,
@@ -12,10 +16,9 @@ import {
 import {
   CLI_OPTIONS,
   commandHelp,
-  commandOperation,
-  limitFlag,
+  commandRequest,
+  resourceCliLimits,
 } from "./commands.js";
-import { LIMIT_NAMES } from "./limits.js";
 
 /** Reuse native argument parsing and result reporting in thin repository adapters.
  * Context adds trusted output/logical obligations and may fix the repository root.
@@ -26,44 +29,58 @@ export async function runJsonQualityCli(args, context = {}) {
   // Preserve the requested error envelope even when strict argument parsing fails.
   let machine = args.includes("--json");
   let operation = "invalid";
+  let request = { operation };
   try {
     const { values, positionals } = parseArgs({
       args,
       allowPositionals: true,
+      allowNegative: true,
       strict: true,
       options: CLI_OPTIONS,
     });
     machine = values.json;
-    const [mode, ...sourcePaths] = positionals;
+    const [mode, ...files] = positionals;
     if (!args.length || (values.help && mode === undefined)) {
       if (values.json)
         throw new TypeError("Help is human-readable; omit --json.");
       process.stdout.write(commandHelp());
       return 0;
     }
-    operation = commandOperation(mode, values, sourcePaths);
+    request = commandRequest(mode, values, files);
+    operation = request.operation;
+    if (!["info", "warning", "error"].includes(values["diagnostic-level"]))
+      throw new TypeError("Diagnostic level must be info, warning or error.");
+    const concurrency =
+      values.concurrency === undefined ? 1 : Number(values.concurrency);
+    if (
+      !/^[1-9]\d*$/u.test(values.concurrency ?? "1") ||
+      !Number.isSafeInteger(concurrency)
+    )
+      throw new TypeError("Concurrency must be a positive safe integer.");
+    if (values.files !== undefined && files.length)
+      throw new TypeError(
+        "Choose literal file arguments or --files, not both.",
+      );
+    const selectedFiles =
+      values.files !== undefined
+        ? JSON.parse(values.files)
+        : files.length
+          ? files
+          : undefined;
+    if (
+      selectedFiles !== undefined &&
+      (!Array.isArray(selectedFiles) ||
+        selectedFiles.some((path) => typeof path !== "string"))
+    )
+      throw new TypeError("--files must contain an array of literal paths.");
     if (values.help) {
       if (values.json)
         throw new TypeError("Help is human-readable; omit --json.");
       process.stdout.write(commandHelp(mode));
       return 0;
     }
-    const limits = {};
-    for (const name of LIMIT_NAMES) {
-      const value = values[limitFlag(name)];
-      if (value === undefined) continue;
-      if (
-        !/^\d+$/u.test(value) ||
-        !Number.isSafeInteger(Number(value)) ||
-        Number(value) < 1
-      )
-        throw new TypeError(`Invalid resource limit: ${limitFlag(name)}`);
-      limits[name] = Number(value);
-    }
-    if (values["no-limits"] && Object.keys(limits).length)
-      throw new TypeError(
-        "Choose --no-limits or individual capacity overrides.",
-      );
+    admitFiles(operation, selectedFiles);
+    const selectedLimits = resourceCliLimits(values);
     if (typeof context === "function") context = await context();
     if (
       !context ||
@@ -90,12 +107,47 @@ export async function runJsonQualityCli(args, context = {}) {
       throw new TypeError(
         "The repository adapter fixes the JSON quality root.",
       );
+    if (values.request !== undefined) {
+      if (!machine) throw new TypeError("--request requires --json.");
+      if (
+        context.requiredOutputs?.length ||
+        context.logicalInventory?.length ||
+        context.logicalDocuments?.length ||
+        context.nativeProviders
+      )
+        throw new TypeError(
+          "Supplied formatting cannot replace repository adapter obligations.",
+        );
+      const bootstrap = operationLimits({}, selectedLimits);
+      const policy = await readJsonPolicy(root, {
+        maxPolicyBytes: bootstrap.maxPolicyBytes,
+      });
+      const budget = operationLimits(policy, selectedLimits);
+      const chunks = [];
+      let size = 0;
+      const requestLimit = budget.maxRequestBytes;
+      for await (const chunk of process.stdin) {
+        size += chunk.length;
+        if (size > requestLimit)
+          throw new Error("Supplied request exceeds its byte budget.");
+        chunks.push(chunk);
+      }
+      const supplied = await formatJsonDocument(
+        await parseJsonEnvelope(Buffer.concat(chunks)),
+        { root, check: request.check, capacityLimits: selectedLimits },
+      );
+      process.stdout.write(JSON.stringify(supplied) + "\n");
+      return supplied.result.status === "passed" ? 0 : 1;
+    }
     const result = validateJsonQualityResult(
       await runJsonQuality(operation, {
         ...context,
         root,
-        sourcePaths,
-        limits: values["no-limits"] ? false : limits,
+        ...(request.check !== undefined ? { check: request.check } : {}),
+        ...(request.scope !== undefined ? { scope: request.scope } : {}),
+        files: selectedFiles,
+        concurrency,
+        capacityLimits: selectedLimits,
       }),
     );
     if (machine) process.stdout.write(JSON.stringify(result) + "\n");
@@ -124,7 +176,7 @@ export async function runJsonQualityCli(args, context = {}) {
   } catch (error) {
     const result = validateJsonQualityResult({
       schemaVersion: RESULT_SCHEMA_VERSION,
-      operation,
+      ...request,
       status: "error",
       complete: false,
       counts: null,

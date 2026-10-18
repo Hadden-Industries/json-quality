@@ -47,7 +47,6 @@ The isolated [manifest](https://github.com/Hadden-Industries/json-quality/blob/m
 The isolated native npm lock freezes the complete installed graph.
 Retain the source record, three archives and lock together.
 
-This is the latest-source archive pattern used by OwlAPI and Google, rather than an acquisition from the unchanged published version label `1.0.3`.
 A raw Git dependency omits generated native assets; the maintained producer packer supplies them and embeds the core's exact source identity.
 Consumer tests verify the archive hashes, full-SHA filenames, resolved lock entries and product package membership.
 The native package validates its executable digest before use.
@@ -65,6 +64,6 @@ They do not establish the producer's separate six-sample trusted Windows/Linux q
 The existing CI remains manually dispatched and this change does not run it remotely.
 
 Ordinary checks retain finite producer defaults.
-Measure this consumer before changing capacity limits; OwlAPI's larger staging and heap settings are evidence for its own corpus, not inherited targets here.
+Measure this consumer before changing capacity limits.
 Final transported JSON package qualification still requires clean committed source.
 Rollback must restore document preimages together with policy, manifests, locks, archives and command changes; replacing only the package cannot reverse formatting writes.

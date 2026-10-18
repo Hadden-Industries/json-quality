@@ -1,5 +1,8 @@
 # Third-party notices
 
+`CODE_OF_CONDUCT.md` adapts Contributor Covenant 3.0 under CC BY-SA 4.0.
+Its separate policy-text license does not change the JSON Quality code's AGPL-3.0-only license.
+
 Repository Markdown development tooling uses `@hadden-industries/markdown-quality` (AGPL-3.0-only) from the exact source recorded in `tooling/markdown/source.json`.
 Its retained core and platform archives include their upstream notices, native component inventories and source-offer material.
 This isolated development graph is not included in the JSON Quality npm package.

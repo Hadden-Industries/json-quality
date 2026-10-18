@@ -118,7 +118,9 @@ test("pure formatting retains strict syntax and resource admission", async () =>
     "{x:1}",
   ])
     await assert.rejects(formatJsonSource(source));
-  await assert.rejects(formatJsonSource("{}", { limits: { maxFileBytes: 1 } }));
+  await assert.rejects(
+    formatJsonSource("{}", { capacityLimits: { maxFileBytes: 1 } }),
+  );
   await assert.rejects(formatJsonSource("{}", { parser: "json5" }));
-  assert.equal(await formatJsonSource("{}", { limits: false }), "{}\n");
+  assert.equal(await formatJsonSource("{}", { capacityLimits: false }), "{}\n");
 });

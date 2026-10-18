@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { acquisitionResourceLimits } from "../src/acquire.js";
 
 export const budgets = Object.freeze({
   install: 300000,
@@ -18,14 +19,14 @@ export function native(
   args,
   { phase = "native", timeout = budgets.read, ...options } = {},
 ) {
-  if (!Number.isSafeInteger(timeout) || timeout <= 0 || timeout > budgets.job)
+  if (timeout !== Infinity && (!Number.isSafeInteger(timeout) || timeout <= 0))
     throw new Error("Invalid command deadline");
   const start = performance.now();
   process.stderr.write(
     JSON.stringify({
       phase,
       state: "started",
-      timeoutMs: timeout,
+      timeoutMs: Number.isFinite(timeout) ? timeout : 0,
       executable,
       node: process.versions.node,
       run: process.env.GITHUB_RUN_ID ?? null,
@@ -38,9 +39,9 @@ export function native(
   const result = spawnSync(executable, args, {
     encoding: "utf8",
     windowsHide: true,
-    maxBuffer: 16 * 1024 * 1024,
+    maxBuffer: acquisitionResourceLimits().maxToolOutputBytes,
     ...options,
-    timeout,
+    timeout: Number.isFinite(timeout) ? timeout : 0,
     shell: false,
   });
   const facts = {
@@ -94,7 +95,7 @@ export function npmCli() {
 
 export const npmCommand = (args, options = {}) =>
   native(process.execPath, [npmCli(), ...args], {
-    timeout: budgets.install,
+    timeout: acquisitionResourceLimits().maxAcquisitionTimeMs,
     ...options,
   });
 

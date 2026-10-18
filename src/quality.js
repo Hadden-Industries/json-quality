@@ -339,6 +339,26 @@ const validatePolicy = new Ajv({ strict: true, allErrors: true }).compile(
   configurationSchema,
 );
 
+/** Decode transport JSON without silently collapsing duplicate member identities.
+ * Envelope structure belongs to its schema; document semantics belong to payload bytes.
+ */
+export async function parseJsonEnvelope(bytes) {
+  const text = decodeJsonBytes(bytes);
+  const linter = new ESLint({
+    overrideConfigFile: true,
+    overrideConfig: jsonLintConfig([{ path: "input.json" }]),
+  });
+  const [result] = await linter.lintText(text, { filePath: "input.json" });
+  if (
+    result.fatalErrorCount ||
+    result.messages.some(({ ruleId }) => ruleId === "json/no-duplicate-keys")
+  )
+    throw new TypeError(
+      "Invalid JSON request envelope: syntax or duplicate members.",
+    );
+  return JSON.parse(text);
+}
+
 /** Bootstrap independently of repository configuration before parsing policy. */
 export async function readJsonPolicy(root, options = {}) {
   if (

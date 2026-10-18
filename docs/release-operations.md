@@ -7,7 +7,20 @@ A source push, dependency update, or tag cannot stage or publish a package.
 
 The package has one designated tarball.
 Its local `.provenance.json` records byte identity; authenticated registry provenance comes from native npm verification.
-Configuration schema 1, result schema 3, the four public exports, and the consumer Node floors remain separate compatibility contracts.
+Configuration schema 1, result schema 4, public API/schema exports and CLI entrypoints, and the consumer Node floors remain separate compatibility contracts.
+
+The owner selected `@hadden-industries/json-quality@1.0.0` as the next intended release on 2026-10-18.
+CLI flexibility, supplied-document formatting, trusted consumer qualification, development analysis and the consumer-document shipment allowlist belong to that candidate.
+Its new regression tests are authored but have not been executed under the owner's explicit no-tests instruction.
+Source versioning and static reviews do not establish release qualification or acceptance.
+
+No artificial prerelease is required to warm npm or GitHub.
+Use the same exact `1.0.0` package initially under the existing `pilot` availability tag, qualify real registry recipients, and promote only after acceptance.
+Create the GitHub release as a draft, attach and verify every asset, then publish immutably through the existing archival workflow.
+Its pilot/prerelease marker can later change during promotion without replacing locked assets or tags.
+For a new npm package identity, native staging may create the public `0.0.0-stage` placeholder; owner bootstrap and 2FA still precede trusted-publisher setup.
+That bootstrap is a separate explicit effect, not a dummy package or test release silently performed by this change.
+See [npm staged publishing](https://docs.npmjs.com/staged-publishing/) and [GitHub immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases).
 
 ## Before first use
 
@@ -31,6 +44,8 @@ The first live journey needs these remaining decisions and observations:
 | Promotion trust         | Unconfirmed                                                      | Exact repository, `promote-release.yml`, `npm-promotion`; direct publishing denied, dist-tags allowed             |
 
 Retain the original settings and read back every applied change.
+Readback on 2026-10-18 confirms Actions defaults are read-only with PR approvals disabled, immutable releases are enabled, and all three named release environments exist with exactly one `main` branch policy.
+The table retains the historical pre-implementation observations; npm account, package and publisher cutover remain unverified.
 Preserve the sole-maintainer direct-main model.
 No mandatory PR, second maintainer, Actions dependency lockfile, or preview lockfile policy is introduced.
 

@@ -4,8 +4,8 @@
  * This gate never writes JSON. ESLint owns syntax/rules; consumers own semantics.
  */
 import { execFileSync } from "node:child_process";
-import { lstatSync, readdirSync } from "node:fs";
-import { join, resolve, posix } from "node:path";
+import { lstatSync, readdirSync, realpathSync } from "node:fs";
+import { join, resolve, posix, isAbsolute } from "node:path";
 import {
   JSON_SUFFIX,
   isStrictJsonPath,
@@ -15,7 +15,11 @@ import {
 } from "./quality.js";
 import { jsonFormatOptions } from "./presentation.js";
 import { operationLimits } from "./limits.js";
-import { assertRepositoryPath, assertRegularSource } from "./paths.js";
+import {
+  assertRepositoryPath,
+  assertRegularSource,
+  isPathContained,
+} from "./paths.js";
 
 /** Reject unsafe path identities before asking native tools to resolve them. */
 function assertLiteralPath(path) {
@@ -28,19 +32,37 @@ function assertLiteralPath(path) {
 export async function inspectJsonInventory({
   root,
   requiredOutputs = [],
-  limits: overrides,
+  capacityLimits: overrides,
+  gitExecutable,
+  ...otherOptions
 } = {}) {
+  if (Object.hasOwn(otherOptions, "limits"))
+    throw new TypeError("Use capacityLimits; limits is not supported.");
   root = resolve(root);
+  if (
+    gitExecutable !== undefined &&
+    (typeof gitExecutable !== "string" ||
+      !isAbsolute(gitExecutable) ||
+      !lstatSync(gitExecutable).isFile() ||
+      isPathContained(realpathSync(root), realpathSync(gitExecutable)))
+  )
+    throw new TypeError(
+      "Explicit Git must be an absolute external regular executable.",
+    );
   const bootstrap = operationLimits({}, overrides);
   const policy = await readJsonPolicy(root, {
     maxPolicyBytes: bootstrap.maxPolicyBytes,
   });
-  const limits = operationLimits(policy, overrides);
+  const capacityLimits = operationLimits(policy, overrides);
   const formatOptions = await jsonFormatOptions(root);
   const git = (args) =>
-    execFileSync("git", ["-C", root, ...args], {
+    execFileSync(gitExecutable ?? "git", ["-C", root, ...args], {
+      cwd: root,
       encoding: "utf8",
-      maxBuffer: Math.min(limits.maxGitOutputBytes, Number.MAX_SAFE_INTEGER),
+      maxBuffer: capacityLimits.maxGitOutputBytes,
+      timeout: Number.isFinite(capacityLimits.maxGitTimeMs)
+        ? capacityLimits.maxGitTimeMs
+        : 0,
       windowsHide: true,
     });
   const tracked = new Map();
@@ -53,7 +75,7 @@ export async function inspectJsonInventory({
       throw new Error(`Case-colliding JSON path: ${path}`);
     folded.set(path.toLowerCase(), path);
     paths.add(path);
-    if (paths.size > limits.maxFiles)
+    if (paths.size > capacityLimits.maxFiles)
       throw new Error("JSON file limit exceeded.");
   }
   for (const entry of git(["ls-files", "--stage", "-z"])
@@ -144,7 +166,10 @@ export async function inspectJsonInventory({
   for (const file of files) {
     const size = lstatSync(join(root, file.path)).size;
     totalBytes += size;
-    if (size > limits.maxFileBytes || totalBytes > limits.maxTotalBytes)
+    if (
+      size > capacityLimits.maxFileBytes ||
+      totalBytes > capacityLimits.maxTotalBytes
+    )
       throw new Error(`JSON byte limit exceeded: ${file.path}`);
   }
   for (const pattern of requiredOutputs) {
@@ -160,7 +185,7 @@ export async function inspectJsonInventory({
     policy,
     files,
     boundaries,
-    limits,
+    capacityLimits,
     totalBytes,
     formatOptions,
     counts: {

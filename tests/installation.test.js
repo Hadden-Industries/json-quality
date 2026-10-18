@@ -272,25 +272,29 @@ for (const headerOptions of [
 test("payload bounds can be raised or bypassed without waiving file identity", async (t) => {
   const context = await installation(t);
   await assert.rejects(
-    verifyJsonQualityInstallation({ ...context, limits: { maxFiles: 1 } }),
+    verifyJsonQualityInstallation({
+      ...context,
+      capacityLimits: { maxFiles: 1 },
+    }),
     /resource limit/u,
   );
   assert.equal(
     (
       await verifyJsonQualityInstallation({
         ...context,
-        limits: { maxFiles: 10 },
+        capacityLimits: { maxFiles: 10 },
       })
     ).files,
     3,
   );
   assert.equal(
-    (await verifyJsonQualityInstallation({ ...context, limits: false })).files,
+    (await verifyJsonQualityInstallation({ ...context, capacityLimits: false }))
+      .files,
     3,
   );
   writeFileSync(join(context.installedRoot, "unexpected.js"), "unexpected\n");
   await assert.rejects(
-    verifyJsonQualityInstallation({ ...context, limits: false }),
+    verifyJsonQualityInstallation({ ...context, capacityLimits: false }),
     /payload differs/u,
   );
 });
@@ -336,7 +340,7 @@ for (const type of ["SolarisACL", "SparseFile", "ExtendedHeader"]) {
     await assert.rejects(
       verifyJsonQualityInstallation({
         ...context,
-        limits: { maxFileBytes: 8192, maxTotalBytes: 8192 },
+        capacityLimits: { maxFileBytes: 8192, maxTotalBytes: 8192 },
       }),
       /Unsupported or oversized package archive member/u,
     );

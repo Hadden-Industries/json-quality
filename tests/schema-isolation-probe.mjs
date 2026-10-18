@@ -10,7 +10,7 @@ if (process.argv[2] === "writes") {
   resultSchema.properties.writes.required.pop();
   const result = await runJsonQuality("check", { root: process.argv[3] });
   assert.equal(result.status, "passed");
-  assert.equal(result.schemaVersion, 3);
+  assert.equal(result.schemaVersion, 4);
   assert.deepEqual(result.writes, {
     changed: [],
     unchanged: [],

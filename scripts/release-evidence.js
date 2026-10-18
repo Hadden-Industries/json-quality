@@ -52,7 +52,7 @@ export function verifyReport(report, release, lane, qualification, layout) {
   assert.equal(report.nativeToolchain.npm, release.policy.consumerNpm);
   assert.equal(report.qualification, qualification);
   assert.equal(report.layout, layout);
-  assert.equal(report.publicExports, 4);
+  assert.equal(report.publicExports, 6);
   assert.equal(report.cliPhysicalFiles, 2);
   if (qualification === "transported archive")
     assert.equal(report.gitAcquisition, release.source.commit);

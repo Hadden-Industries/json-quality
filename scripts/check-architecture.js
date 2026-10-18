@@ -15,15 +15,7 @@ const policy = JSON.parse(
 /** Producer-only admission; native analysis and native npm own their formats. */
 export async function checkArchitecture(root = repository) {
   root = resolve(root);
-  const graph = JSON.parse(
-    execFileSync(process.execPath, [self, "--graph-worker"], {
-      cwd: root,
-      encoding: "utf8",
-      windowsHide: true,
-      timeout: 30000,
-      maxBuffer: 8 * 1024 * 1024,
-    }),
-  );
+  const graph = analyzeDependencyGraph(root);
   const violations = graph.summary.violations.filter(
     ({ rule }) => rule.severity === "error",
   );
@@ -72,6 +64,19 @@ export async function checkArchitecture(root = repository) {
     runtimeModules: runtime.length,
     files: files.size,
   };
+}
+
+/** One bounded native graph authority shared by enforcement and external reports. */
+export function analyzeDependencyGraph(root = repository) {
+  return JSON.parse(
+    execFileSync(process.execPath, [self, "--graph-worker"], {
+      cwd: root,
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 30000,
+      maxBuffer: 8 * 1024 * 1024,
+    }),
+  );
 }
 
 /** Public/bin declarations retain native conditional/array targets; null denies exports. */

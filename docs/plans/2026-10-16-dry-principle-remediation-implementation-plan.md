@@ -7,10 +7,14 @@ Authority: the owner requested implementation of a DRY plan for this repository,
 The existing chat authorization covers required configuration, signed commits and direct source delivery to main.
 No package release, deployment or downstream adoption is included.
 
+Historical scope note, 2026-10-18: this plan records the named baseline and its original preservation requirements.
+The owner's later interface standardization supersedes its schema-3/public-interface baseline with result schema 4, five shared CLI/API verbs, named `check` / `scope` modifiers, `files` selection and `formatJsonDocument`.
+Use the [current consumer contract](../consumer-guide.md) and [rule ownership guide](../centralized-contracts.md) for current interfaces; the audit observations and verification requirements below remain evidence of the original refactor, not qualification of the later changes.
+
 ## Outcome and audit evidence
 
 Give shared rules one current owner so a maintenance change reaches every applicable consumer without synchronizing parallel definitions.
-Preserve the public exports, configuration schema 1, result schema 3, diagnostic identities, JSON semantics, runtime support, native acquisition and guarded write guarantees.
+That refactor's preservation requirement was the baseline's public exports, configuration schema 1, result schema 3, diagnostic identities, JSON semantics, runtime support, native acquisition and guarded write guarantees.
 Success is ownership and consumer conformance, not a clone percentage or a promise that all similar text should disappear.
 
 Read-only inspection covered the tracked file inventory, runtime/tooling declarations, schema constraints, tests, documentation and CI.
@@ -74,7 +78,7 @@ No controls, versions, limits or semantic oracles are changed to manufacture a p
 
 - Configuration and result schemas are separate public contracts; JSON syntax and Ajv remain their native authorities.
   Do not create a universal schema or merge validators that admit different records.
-- CLI commands and semantic result operations have different meanings and mappings.
+- At this baseline, CLI commands and semantic result operations had different mappings; the later interface amendment now shares verbs and named modifiers while retaining separate terminal rendering and transport responsibilities.
   Existing commands own user interaction; result schema owns serialized operations.
   Existing conformance checks preserve their relationship.
 - Physical, logical, native and expected-negative input identities have distinct provenance and enforcement.

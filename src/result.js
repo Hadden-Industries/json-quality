@@ -18,6 +18,49 @@ export const OPERATIONS = Object.freeze(
 );
 const validate = new Ajv({ strict: true, allErrors: true }).compile(schema);
 
+/** One verb and its applicable modifiers across terminal, library and results. */
+export function operationRequest(operation, { check, scope } = {}) {
+  if (!OPERATIONS.includes(operation))
+    throw new TypeError("Unknown JSON quality operation; use --help.");
+  if (
+    check !== undefined &&
+    (operation !== "format" || typeof check !== "boolean")
+  )
+    throw new TypeError(
+      "check must be a boolean and is valid only with format.",
+    );
+  if (
+    scope !== undefined &&
+    (operation !== "check" || !["all", "protected"].includes(scope))
+  )
+    throw new TypeError(
+      "scope must be all or protected and is valid only with check.",
+    );
+  return {
+    operation,
+    ...(operation === "format" ? { check: check ?? false } : {}),
+    ...(operation === "check" ? { scope: scope ?? "all" } : {}),
+  };
+}
+
+/** Project findings without changing semantic admission or document coverage. */
+export function operationFindings(document, request, writable) {
+  return document.findings.filter((finding) =>
+    request.operation === "lint"
+      ? finding.phase !== "presentation"
+      : request.operation === "format" && request.check
+        ? finding.phase === "presentation" ||
+          finding.phase === "expectation" ||
+          finding.phase === "bytes" ||
+          !document.syntaxValid
+        : request.operation === "check" && request.scope === "protected"
+          ? !writable
+          : ["format", "normalize"].includes(request.operation)
+            ? finding.phase !== "presentation" || !writable
+            : true,
+  );
+}
+
 /** Internal count authority: undecodable JSONL has unknown record coverage. */
 export function analysisCounts(documents, operation) {
   const physical = documents.filter(
@@ -75,7 +118,8 @@ export function validateJsonQualityResult(result) {
   const writePaths = Object.values(result.writes).flat();
   if (
     new Set(writePaths).size !== writePaths.length ||
-    (!["format", "normalize"].includes(result.operation) && writePaths.length)
+    ((!["format", "normalize"].includes(result.operation) || result.check) &&
+      writePaths.length)
   )
     throw new TypeError("Inconsistent JSON quality write accounting.");
   if (result.status === "error") {
@@ -138,6 +182,24 @@ export function validateJsonQualityResult(result) {
       );
   }
   const inventory = result.operation === "inventory";
+  if (result.selection) {
+    const physical = result.documents.filter(
+      ({ representation }) => representation === "physical",
+    );
+    const paths = new Set(physical.map(({ path }) => path));
+    const writing =
+      ["format", "normalize"].includes(result.operation) && !result.check;
+    if (
+      physical.length > result.selection.physicalInventory ||
+      result.selection.files.some((path) => !paths.has(path)) ||
+      result.selection.analysis !==
+        (writing ? "repository" : "selected-physical-and-required-documents") ||
+      (!writing && physical.length !== result.selection.files.length) ||
+      (writing && physical.length !== result.selection.physicalInventory) ||
+      writePaths.some((path) => !result.selection.files.includes(path))
+    )
+      throw new TypeError("Inconsistent explicit JSON selection accounting.");
+  }
   if (
     !isDeepStrictEqual(
       result.counts,

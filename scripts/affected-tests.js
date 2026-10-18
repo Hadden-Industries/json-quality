@@ -14,6 +14,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import { isDeepStrictEqual } from "node:util";
+import { graphSourceIdentity } from "./dependency-graph.js";
 import { fullFiles, relations } from "./test-impact.js";
 import { assertJavaScriptSyntax } from "./check-javascript-syntax.js";
 
@@ -252,6 +254,116 @@ export function runTests(root, plan) {
   return result.error || result.status === null ? 2 : result.status;
 }
 
+/** Compare selected per-test outcomes with an independent full filesystem inventory.
+ * A selected failure remains a failure. Incomplete output, timeout or source drift
+ * produces an operational failure rather than a claim of equivalent coverage.
+ */
+export function runShadow(root, plan) {
+  const before = graphSourceIdentity(root);
+  const full = readdirSync(join(root, "tests"), { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".test.js"))
+    .map(({ name }) => `tests/${name}`)
+    .sort();
+  const selected = plan.mode === "affected" ? plan.tests : full;
+  if (
+    !full.length ||
+    !selected?.length ||
+    new Set(selected).size !== selected.length ||
+    selected.some((path) => !full.includes(path))
+  )
+    throw new Error("Invalid shadow test inventory.");
+  const execute = (files) => {
+    const env = { ...process.env };
+    delete env.NODE_TEST_CONTEXT;
+    const child = spawnSync(
+      process.execPath,
+      [
+        "--test",
+        `--test-reporter=${pathToFileURL(fileURLToPath(new URL("./test-outcomes.js", import.meta.url))).href}`,
+        ...files,
+      ],
+      {
+        cwd: root,
+        env,
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: 1800000,
+        maxBuffer: 16 * 1024 * 1024,
+      },
+    );
+    let events = [];
+    let invalid = false;
+    try {
+      events = (child.stdout ?? "")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+    } catch {
+      invalid = true;
+    }
+    const outcomes = events.filter(({ type }) =>
+      ["test:pass", "test:fail"].includes(type),
+    );
+    const covered = new Set(
+      outcomes.filter(({ file }) => file).map(({ file }) => resolve(file)),
+    );
+    return {
+      files,
+      code:
+        child.error ||
+        child.signal ||
+        invalid ||
+        files.some((file) => !covered.has(resolve(root, file)))
+          ? 2
+          : (child.status ?? 2),
+      outcomes,
+      stdout: child.stdout ?? "",
+      stderr: child.stderr ?? "",
+      error: child.error?.code ?? null,
+      signal: child.signal ?? null,
+    };
+  };
+  const subset = execute(selected);
+  if (before !== graphSourceIdentity(root))
+    throw new Error("Source drift after selected tests.");
+  if (subset.error || subset.signal || subset.code === 2)
+    return {
+      selected: subset,
+      full: null,
+      agreement: false,
+      code: subset.code,
+    };
+  const complete = execute(full);
+  if (before !== graphSourceIdentity(root))
+    throw new Error("Source drift after shadow tests.");
+  const comparable = (outcomes) =>
+    outcomes
+      .filter(
+        ({ file }) =>
+          file &&
+          selected.some((path) => resolve(root, path) === resolve(file)),
+      )
+      .map((event) => ({ ...event, file: resolve(event.file) }))
+      .sort(
+        (a, b) =>
+          a.file.localeCompare(b.file) ||
+          a.name.localeCompare(b.name) ||
+          (a.line ?? 0) - (b.line ?? 0) ||
+          (a.column ?? 0) - (b.column ?? 0) ||
+          a.type.localeCompare(b.type),
+      );
+  const agreement = isDeepStrictEqual(
+    comparable(subset.outcomes),
+    comparable(complete.outcomes),
+  );
+  return {
+    selected: subset,
+    full: complete,
+    agreement,
+    code: subset.code || complete.code || (agreement ? 0 : 2),
+  };
+}
+
 if (
   process.argv[1] &&
   pathToFileURL(resolve(process.argv[1])).href === import.meta.url
@@ -276,11 +388,25 @@ if (
     process.stdout.write(result.output);
   } else {
     const { values } = parseArgs({
-      options: { base: { type: "string" }, "dry-run": { type: "boolean" } },
+      options: {
+        base: { type: "string" },
+        "dry-run": { type: "boolean" },
+        list: { type: "boolean" },
+        shadow: { type: "boolean" },
+      },
     });
     const root = resolve(fileURLToPath(new URL("../", import.meta.url)));
+    if (values.shadow && (values["dry-run"] || values.list))
+      throw new Error(
+        "Shadow execution cannot be combined with read-only listing.",
+      );
     const plan = await planAffected(root, values.base);
     process.stdout.write(JSON.stringify(plan) + "\n");
-    if (!values["dry-run"]) process.exitCode = runTests(root, plan);
+    if (values.shadow) {
+      const result = runShadow(root, plan);
+      process.stdout.write(JSON.stringify(result) + "\n");
+      process.exitCode = result.code;
+    } else if (!values["dry-run"] && !values.list)
+      process.exitCode = runTests(root, plan);
   }
 }

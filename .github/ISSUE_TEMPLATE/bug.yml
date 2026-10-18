@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a reproducible JSON Quality defect.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Report vulnerabilities privately through the repository's Security tab.
+        Do not include credentials, private JSON or personal information here.
+  - type: input
+    id: version
+    attributes:
+      label: Package version or source commit
+      description: Include the exact version or full commit, not only a moving tag.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, architecture and Node/npm versions
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal input, configuration and command
+      description: Provide non-sensitive JSON and exact commands, including relevant discovery or native-provider details.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual behavior
+      description: Include exit codes and diagnostics; identify check, inventory, format or normalize.
+    validations:
+      required: true

@@ -2,6 +2,7 @@
 
 One Node package provides strict JSON checking, complete owned-file discovery, guarded source formatting and NFC repair, and a bounded ESLint guard against serialization used as semantic identity.
 The CLI and library execute the same package-owned rules and presentation options.
+See [contributing](CONTRIBUTING.md) for development and reports, the [Code of Conduct](CODE_OF_CONDUCT.md) for community expectations, and [security guidance](SECURITY.md) for private vulnerability reporting.
 `check` validates JSON bytes, syntax, keys, values and presentation across the complete owned inventory.
 `inventory` lists scope and resolved contracts without analyzing document JSON; it does not establish a quality pass.
 Repository producers and domain validators retain authority over schemas, RDF meaning, canonical representations, hashes and historical evidence.
@@ -14,16 +15,21 @@ json-quality format --root /path/to/repository
 json-quality normalize --root /path/to/repository -- source.json
 ```
 
-The development contract uses configuration schema 1 and result schema 3.
+The development contract uses configuration schema 1 and result schema 4.
+CLI and library use the same five verbs and named modifiers: `format --check` corresponds to `runJsonQuality("format", { root, check: true })`, and `check --scope protected` corresponds to `runJsonQuality("check", { root, scope: "protected" })`.
+All repository operations select paths with `files` / `--files`; see the [complete CLI/API mapping and migration notes](docs/consumer-guide.md#cli-and-object-mappings).
 [The package manifest](package.json) owns direct dependency selections; [the producer's native lockfile](https://github.com/Hadden-Industries/json-quality/blob/main/package-lock.json) freezes the resolved graph and integrity.
 The [runtime compatibility policy](docs/node-runtime-compatibility.md) defines consumer minima, current-family CI coverage and the independent development/producer reference.
 Edit Node and npm selections only in `assets/node-support.json`, then run `npm run sync:node`; `npm run check:node` rejects projection drift, including native lock metadata.
 Producer qualification retains npm 12's native pack contract; consumer acquisition uses its separately qualified native npm toolchain.
-Resource defaults can be raised through configuration, API options or CLI flags such as `--max-files 100000 --max-file-bytes 67108864`; `--no-limits` explicitly bypasses package capacity limits while retaining quality rules.
+`capacityLimits` is the shared operation capacity setting: `--capacity-limits` maps to `capacityLimits: true`, and `--no-capacity-limits` maps to `capacityLimits: false`.
+Numeric configuration/API override objects and CLI flags such as `--max-files 100000 --max-file-bytes 67108864` customize enabled capacities; disabling them never disables quality rules.
+The [consumer resource guide](docs/resource-limits.md) documents defaults, qualification/acquisition overrides and the external platform limits that remain.
 It is an internal development candidate; registry publication is separately authorized and qualified.
+The next intended public version is `1.0.0`; the source version is not a claim that it is available from npm.
 See the [consumer contract](docs/consumer-guide.md) and [third-party notices](THIRD-PARTY-NOTICES.md).
 The [shared rule ownership guide](docs/centralized-contracts.md) records current authorities and intentional separation for maintenance.
-The [release operations guide](docs/release-operations.md) describes deliberate qualification, owner-approved npm staging, immutable archival, promotion and recovery.
+The [release operations guide](https://github.com/Hadden-Industries/json-quality/blob/main/docs/release-operations.md) describes deliberate qualification, owner-approved npm staging, immutable archival, promotion and recovery.
 Consumers select one exact npm version or full Git commit in their isolated tooling manifest and retain native npm lockfiles, with shared installed-payload verification against the native cache.
 The package also owns the generated acquisition bootstrap and isolation guard, so consumer adapters do not maintain parallel implementations.
 
@@ -37,7 +43,7 @@ npm run check:full
 ```
 
 `check:full` requires clean committed source so transported-package proof binds an actual source commit.
-The [Markdown tooling guide](docs/markdown-quality.md) describes the isolated source-pinned development dependency, root policy and public check/format commands.
+The [Markdown tooling guide](https://github.com/Hadden-Industries/json-quality/blob/main/docs/markdown-quality.md) describes the isolated source-pinned development dependency, root policy and public check/format commands.
 `npm test` always runs every test.
 `check:affected` combines dependency-cruiser before/after import graphs and the package's declared process relations.
 Its base must be a full immutable commit; `--dry-run` explains the plan without running tests.
@@ -46,6 +52,7 @@ An empty or unknown affected scope also runs the complete suite; failed selected
 This development selector does not replace full qualification and introduces no shared tooling repository.
 `npm run check:architecture` enforces the producer's native [dependency policy](https://github.com/Hadden-Industries/json-quality/blob/main/.dependency-cruiser.json) and checks local imports and public/bin entrypoints against native npm package membership. It is required by `check:full` on the reference producer. See the [architecture boundaries](docs/architecture.md) for scope and limits.
 Full qualification runs source contracts, lint, read-only style checks, clean installed CLI/library/plugin/schema probes, and source JSON dogfood checks.
+The [development analysis guide](https://github.com/Hadden-Industries/json-quality/blob/main/docs/dependency-graph-and-tests.md) describes graph bundles and affected-test shadow comparisons.
 Source tests do not establish hosted platform or consumer adoption acceptance.
 
 Hosted JSON quality CI runs only when manually requested through GitHub Actions' **Run workflow** button or the GitHub CLI:
@@ -63,6 +70,12 @@ Explicit normalization collision-checks keys and changes only admitted string to
 Protected, ignored-generated, logical and JSONL inputs must be repaired through their owning source or producer.
 Replacement rechecks source identity and bytes; a later failure reports completed and unprocessed paths without claiming whole-batch atomicity.
 Concurrent hostile filesystem mutation is outside the supported guarantee.
+
+Literal file selection uses `-- source.json` or `--files '["source.json"]'`; full repository checking remains the default.
+Explicit formatting still validates all peers before writing only the requested files.
+`--concurrency N` controls asynchronous preparation with deterministic results.
+`format --request - --json` formats a bounded supplied JSON document without checkout writes.
+See the [consumer guide](docs/consumer-guide.md) for request and scoped-result contracts, and [trusted consumer CI](docs/ci-trust.md) for the reusable workflow and qualification CLI.
 
 Physical discovery reconciles Git with an owned-tree walk, including untracked and ignored-generated JSON.
 External boundaries require owner/reason exceptions; tracked files inside them remain checked.

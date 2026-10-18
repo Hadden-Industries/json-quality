@@ -200,8 +200,13 @@ import * as api from "@hadden-industries/json-quality";
 import plugin from "@hadden-industries/json-quality/eslint";
 import configuration from "@hadden-industries/json-quality/configuration-schema" with { type: "json" };
 import resultSchema from "@hadden-industries/json-quality/result-schema" with { type: "json" };
+import requestSchema from "@hadden-industries/json-quality/document-request-schema" with { type: "json" };
+import responseSchema from "@hadden-industries/json-quality/document-response-schema" with { type: "json" };
 assert.equal(configuration.properties.schemaVersion.const, 1);
-assert.equal(resultSchema.properties.schemaVersion.const, 3);
+assert.equal(resultSchema.properties.schemaVersion.const, 4);
+assert.equal(requestSchema.properties.schemaVersion.const, 1);
+assert.equal(responseSchema.properties.schemaVersion.const, 1);
+assert.equal(responseSchema.properties.result.$ref, "result.schema.json");
 assert.equal(typeof plugin.rules["no-json-stringify-identity"].create, "function");
 assert.equal(api.validateJsonQualityResult(await api.runJsonQuality("check", {root: process.argv[2]})).status, "passed");
 assert.equal(await api.formatJsonValue({x: 1}), '{\\n  "x": 1\\n}\\n');
@@ -332,7 +337,7 @@ await assert.rejects(import("@hadden-industries/json-quality/src/quality.js"), {
     gitAcquisition: values.git ?? null,
     qualification: values.registry ? "public registry" : "transported archive",
     layout: values.layout,
-    publicExports: 4,
+    publicExports: 6,
     cliPhysicalFiles: 2,
   };
   if (values.output)

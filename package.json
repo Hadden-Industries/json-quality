@@ -1,6 +1,6 @@
 {
   "name": "@hadden-industries/json-quality",
-  "version": "0.1.0-dev.0",
+  "version": "1.0.0",
   "description": "Strict JSON quality controls with complete discovery and guarded source repair",
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -19,14 +19,29 @@
     "type": "git",
     "url": "https://github.com/Hadden-Industries/json-quality.git"
   },
+  "homepage": "https://github.com/Hadden-Industries/json-quality#readme",
+  "bugs": {
+    "url": "https://github.com/Hadden-Industries/json-quality/issues"
+  },
+  "keywords": [
+    "json",
+    "formatter",
+    "linter",
+    "unicode",
+    "nodejs",
+    "cli"
+  ],
   "bin": {
-    "json-quality": "src/cli.js"
+    "json-quality": "src/cli.js",
+    "json-quality-qualify": "src/qualification-cli.js"
   },
   "exports": {
     ".": "./src/index.js",
     "./eslint": "./src/eslint/index.js",
     "./configuration-schema": "./schemas/configuration.schema.json",
-    "./result-schema": "./schemas/result.schema.json"
+    "./result-schema": "./schemas/result.schema.json",
+    "./document-request-schema": "./schemas/document-request.schema.json",
+    "./document-response-schema": "./schemas/document-response.schema.json"
   },
   "files": [
     "src/",
@@ -34,13 +49,24 @@
     "LICENSE",
     "THIRD-PARTY-NOTICES.md",
     "README.md",
-    "docs/"
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md",
+    "docs/consumer-guide.md",
+    "docs/centralized-contracts.md",
+    "docs/node-runtime-compatibility.md",
+    "docs/architecture.md",
+    "docs/ci-trust.md",
+    "docs/resource-limits.md"
   ],
   "scripts": {
+    "graph:dependencies": "node scripts/dependency-graph.js",
     "check:focused": "node --test tests/contracts.test.js tests/identity.test.js tests/markdown-quality.test.js",
     "test": "node --test tests/*.test.js",
     "check:affected": "node scripts/affected-tests.js",
-    "check:full": "npm run check:node && npm run check:architecture && npm run check:release && npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
+    "check:full": "npm run check:node && npm run check:resources && npm run check:architecture && npm run check:release && npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
+    "check:resources": "node scripts/project-resource-limits.js",
+    "sync:resources": "node scripts/project-resource-limits.js --write",
     "check:release": "node scripts/release-check.js",
     "check:architecture": "node scripts/check-architecture.js",
     "sync:node": "node scripts/project-node-support.js --write",
@@ -70,7 +96,15 @@
     "inspect:markdown": "npm --prefix tooling/markdown run --silent inspect --",
     "test:markdown": "node --test tests/markdown-quality.test.js",
     "check:json": "node src/cli.js check --root .",
+    "inventory:json": "node src/cli.js inventory --root .",
+    "lint:json": "node src/cli.js lint --root .",
+    "format:json": "node src/cli.js format --root .",
+    "format:json:check": "node src/cli.js format --check --root .",
+    "normalize:json": "node src/cli.js normalize --root .",
     "qualify:package": "node scripts/qualify-package.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@eslint/json": "2.1.1",

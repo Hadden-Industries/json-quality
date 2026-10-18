@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { isDeepStrictEqual } from "node:util";
+import { admitFiles, selectPhysicalFiles, mapConcurrent } from "./selection.js";
 import { formatAdmittedJsonSource } from "./formatting.js";
 import { inspectJsonInventory } from "./inventory.js";
 import { checkJsonDocument } from "./documents.js";
@@ -12,7 +13,8 @@ import {
   verifiedContainerContract,
 } from "./logical-documents.js";
 import {
-  OPERATIONS,
+  operationRequest,
+  operationFindings,
   RESULT_SCHEMA_VERSION,
   emptyWrites,
   validateJsonQualityResult,
@@ -38,35 +40,56 @@ export async function runJsonQuality(operation, options = {}) {
         ![
           "root",
           "requiredOutputs",
-          "sourcePaths",
+          "check",
+          "scope",
           "logicalInventory",
           "logicalDocuments",
           "nativeProviders",
-          "limits",
+          "capacityLimits",
+          "files",
+          "concurrency",
+          "gitExecutable",
         ].includes(key),
     )
   )
     throw new TypeError("Invalid JSON quality operation options.");
-  if (!OPERATIONS.includes(operation))
-    throw new TypeError("Unknown JSON quality operation.");
+  const request = operationRequest(operation, options);
+  admitFiles(operation, options.files);
+  if (
+    options.files !== undefined &&
+    operation !== "normalize" &&
+    options.requiredOutputs?.length
+  )
+    throw new TypeError(
+      "Explicit files cannot replace required output obligations.",
+    );
+  const concurrency = options.concurrency ?? 1;
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1)
+    throw new TypeError("Concurrency must be a positive safe integer.");
   const context = await inspectJsonInventory(options);
+  const selected = selectPhysicalFiles(options.files, context.files);
   context.sourcePresentationMatches = new Set();
   if (
     (options.logicalInventory?.length ?? 0) >
-      context.limits.maxLogicalDocuments ||
-    (options.logicalDocuments?.length ?? 0) > context.limits.maxLogicalDocuments
+      context.capacityLimits.maxLogicalDocuments ||
+    (options.logicalDocuments?.length ?? 0) >
+      context.capacityLimits.maxLogicalDocuments
   )
     throw new Error("JSON logical document limit exceeded.");
   let totalBytes = context.totalBytes;
   for (const entry of options.logicalDocuments ?? []) {
     const size = entry?.bytes?.byteLength;
-    if (!Number.isSafeInteger(size) || size > context.limits.maxFileBytes)
+    if (
+      !Number.isSafeInteger(size) ||
+      size > context.capacityLimits.maxFileBytes
+    )
       throw new Error("JSON logical byte limit exceeded.");
     totalBytes += size;
-    if (totalBytes > context.limits.maxTotalBytes)
+    if (totalBytes > context.capacityLimits.maxTotalBytes)
       throw new Error("JSON total byte limit exceeded.");
   }
-  const writing = operation === "format" || operation === "normalize";
+  const writing =
+    (operation === "format" && !request.check) || operation === "normalize";
   const policyOriginal = captureSource(context.root, ".json-quality.json");
   const native = await checkNativeDocuments(
     context,
@@ -93,6 +116,15 @@ export async function runJsonQuality(operation, options = {}) {
         : contract,
     );
   context.files = protectNativeInputs(context.files);
+  if (
+    operation === "format" &&
+    writing &&
+    selected &&
+    context.files.some(
+      (file) => selected.has(file.path) && !file.allowFormatWrites,
+    )
+  )
+    throw new Error("Explicit formatting selected a protected JSON source.");
   const requiredContainers = new Set(
     (options.logicalInventory ?? []).map((entry) => entry?.containerPath),
   );
@@ -106,15 +138,7 @@ export async function runJsonQuality(operation, options = {}) {
   );
   const replacements = new Map();
   if (operation === "normalize") {
-    if (
-      !Array.isArray(options.sourcePaths) ||
-      !options.sourcePaths.length ||
-      new Set(options.sourcePaths).size !== options.sourcePaths.length
-    )
-      throw new TypeError(
-        "Normalization requires unique explicit repository-relative source paths.",
-      );
-    for (const path of options.sourcePaths) {
+    for (const path of selected) {
       const contract = context.files.find((file) => file.path === path);
       if (!contract?.allowFormatWrites || contract.normalization !== "NFC")
         throw new Error(
@@ -144,25 +168,31 @@ export async function runJsonQuality(operation, options = {}) {
     throw new Error(
       "Missing independently admitted source presentation scope.",
     );
-  const documents = [];
-  for (const contract of context.files) {
-    const verifiedContract = verifiedContainerContract(
-      contract,
-      options.logicalInventory ?? [],
-    );
-    if (operation === "inventory") {
-      documents.push(inventoryDocument(contract, "physical"));
-      continue;
-    }
-    const analyze = isJsonLinesPath(contract.path)
-      ? checkJsonLines
-      : checkJsonDocument;
-    const document = await analyze(
-      replacements.get(contract.path) ?? originals.get(contract.path).bytes,
-      { ...verifiedContract, maxRecords: context.limits.maxRecords },
-    );
-    documents.push({ ...document, representation: "physical" });
-  }
+  const analyzedFiles =
+    selected && !writing
+      ? context.files.filter(({ path }) => selected.has(path))
+      : context.files;
+  const documents = await mapConcurrent(
+    analyzedFiles,
+    concurrency,
+    async (contract) => {
+      const verifiedContract = verifiedContainerContract(
+        contract,
+        options.logicalInventory ?? [],
+      );
+      if (operation === "inventory") {
+        return inventoryDocument(contract, "physical");
+      }
+      const analyze = isJsonLinesPath(contract.path)
+        ? checkJsonLines
+        : checkJsonDocument;
+      const document = await analyze(
+        replacements.get(contract.path) ?? originals.get(contract.path).bytes,
+        { ...verifiedContract, maxRecords: context.capacityLimits.maxRecords },
+      );
+      return { ...document, representation: "physical" };
+    },
+  );
   documents.push(...logical);
   documents.push(...native.documents);
   const physicalContracts = new Map(
@@ -171,20 +201,7 @@ export async function runJsonQuality(operation, options = {}) {
   for (const document of documents) {
     const writable =
       physicalContracts.get(document.path)?.allowFormatWrites ?? false;
-    document.findings = document.findings.filter((finding) =>
-      operation === "lint"
-        ? finding.phase !== "presentation"
-        : operation === "check-format"
-          ? finding.phase === "presentation" ||
-            finding.phase === "expectation" ||
-            finding.phase === "bytes" ||
-            !document.syntaxValid
-          : operation === "check-protected"
-            ? !writable
-            : writing
-              ? finding.phase !== "presentation" || !writable
-              : true,
-    );
+    document.findings = operationFindings(document, request, writable);
   }
   const findings = documents.flatMap((document) => document.findings);
   if (
@@ -192,12 +209,12 @@ export async function runJsonQuality(operation, options = {}) {
       (sum, document) =>
         sum + document.findings.length + document.expectedFindings.length,
       0,
-    ) > context.limits.maxDiagnostics
+    ) > context.capacityLimits.maxDiagnostics
   )
     throw new Error("JSON diagnostic limit exceeded; coverage is incomplete.");
   const result = {
     schemaVersion: RESULT_SCHEMA_VERSION,
-    operation,
+    ...request,
     status: findings.length ? "failed" : "passed",
     complete: true,
     counts: analysisCounts(documents, operation),
@@ -206,18 +223,33 @@ export async function runJsonQuality(operation, options = {}) {
     boundaries: context.boundaries,
     nativeSources: native.sources,
     writes: emptyWrites(),
+    ...(selected
+      ? {
+          selection: {
+            mode: "explicit",
+            files: [...selected],
+            physicalInventory: context.files.length,
+            analysis: writing
+              ? "repository"
+              : "selected-physical-and-required-documents",
+          },
+        }
+      : {}),
   };
   native.recheck();
   assertSourceUnchanged(context.root, ".json-quality.json", policyOriginal);
   if (!writing || findings.length) return validateJsonQualityResult(result);
   if (operation === "format") {
     for (const contract of context.files.filter(
-      (file) => file.allowFormatWrites,
+      (file) =>
+        file.allowFormatWrites && (!selected || selected.has(file.path)),
     )) {
       const text = originals.get(contract.path).bytes.toString("utf8");
       replacements.set(
         contract.path,
-        Buffer.from(await formatAdmittedJsonSource(text, context.limits)),
+        Buffer.from(
+          await formatAdmittedJsonSource(text, context.capacityLimits),
+        ),
       );
     }
   }

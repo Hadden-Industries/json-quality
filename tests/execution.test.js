@@ -43,7 +43,7 @@ test("separate API operations retain independent schema-owned result accounting"
   const root = repository(t);
   writeFileSync(join(root, "source.json"), "{}\n");
   const first = await runJsonQuality("check", { root });
-  assert.equal(first.schemaVersion, 3);
+  assert.equal(first.schemaVersion, 4);
   first.writes.changed.push("unrelated.json");
   const second = await runJsonQuality("check", { root });
   assert.equal(second.status, "passed");
@@ -156,7 +156,7 @@ test("tracked hidden files rescued from an excluded boundary remain checked and 
   );
   assert.deepEqual(normalized.writes.changed, []);
   await assert.rejects(
-    runJsonQuality("normalize", { root, sourcePaths: [path] }),
+    runJsonQuality("normalize", { root, files: [path] }),
     /Protected or undiscovered JSON source/u,
   );
   assert.equal(readFileSync(join(root, path), "utf8"), decomposed);
@@ -272,7 +272,7 @@ test("producer presentation alone protects formatting and normalization writes",
     false,
   );
   await assert.rejects(
-    runJsonQuality("normalize", { root, sourcePaths: ["producer.json"] }),
+    runJsonQuality("normalize", { root, files: ["producer.json"] }),
     /protected/iu,
   );
   writeFileSync(join(root, "producer.json"), '{ "x": 1 }');
@@ -372,41 +372,59 @@ test("inventory reports scope without claiming JSON validation", async (t) => {
   );
 });
 
-test("policy and per-invocation limits can be raised or explicitly bypassed", async (t) => {
+test("policy and per-invocation capacityLimits can be raised or explicitly bypassed", async (t) => {
   const root = repository(t);
   const path = join(root, ".json-quality.json");
   const policy = JSON.parse(readFileSync(path, "utf8"));
-  policy.limits = { maxFiles: 1 };
+  policy.capacityLimits = { maxFiles: 1 };
   writeFileSync(path, JSON.stringify(policy, null, 2) + "\n");
   writeFileSync(join(root, "data.json"), "{}\n");
   await assert.rejects(runJsonQuality("check", { root }), /file limit/iu);
   assert.equal(
-    (await runJsonQuality("check", { root, limits: { maxFiles: 2000000 } }))
-      .status,
+    (
+      await runJsonQuality("check", {
+        root,
+        capacityLimits: { maxFiles: 2000000 },
+      })
+    ).status,
     "passed",
   );
   await assert.rejects(
     runJsonQuality("inventory", {
       root,
-      limits: { maxFiles: 2, maxFileBytes: 1 },
+      capacityLimits: { maxFiles: 2, maxFileBytes: 1 },
     }),
     /byte limit/iu,
   );
   assert.equal(
-    (await runJsonQuality("check", { root, limits: false })).status,
+    (await runJsonQuality("check", { root, capacityLimits: false })).status,
     "passed",
   );
-  policy.limits = false;
+  policy.capacityLimits = false;
   writeFileSync(path, JSON.stringify(policy, null, 2) + "\n");
   writeFileSync(join(root, "data.json"), '{"x":1,"x":2}');
   assert.equal((await runJsonQuality("check", { root })).status, "failed");
   assert.equal(
-    (await runJsonQuality("check", { root, limits: false })).status,
+    Number.isFinite(
+      (await inspectJsonInventory({ root, capacityLimits: true }))
+        .capacityLimits.maxFiles,
+    ),
+    true,
+  );
+  assert.equal(
+    (await runJsonQuality("check", { root, capacityLimits: false })).status,
     "failed",
+  );
+  delete policy.capacityLimits;
+  policy.limits = false;
+  writeFileSync(path, JSON.stringify(policy, null, 2) + "\n");
+  await assert.rejects(
+    runJsonQuality("inventory", { root }),
+    /Invalid JSON policy structure/u,
   );
 });
 
-test("CLI resource overrides enforce the same limits and reject contradictions", (t) => {
+test("CLI resource overrides enforce the same capacityLimits and reject contradictions", (t) => {
   const root = repository(t);
   writeFileSync(join(root, "data.json"), "{}\n");
   const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
@@ -422,8 +440,18 @@ test("CLI resource overrides enforce the same limits and reject contradictions",
   const raised = run("--max-files", "2000000");
   assert.equal(raised.status, 0, raised.stderr);
   assert.equal(JSON.parse(raised.stdout).counts.physical, 2);
-  assert.equal(run("--no-limits").status, 0);
-  assert.equal(run("--no-limits", "--max-files", "2").status, 2);
+  assert.equal(run("--no-capacity-limits").status, 0);
+  assert.equal(run("--capacity-limits").status, 0);
+  assert.equal(run("--capacity-limits", "--max-files", "1").status, 2);
+  assert.equal(run("--no-limits").status, 2);
+  const removedFlag = spawnSync(
+    process.execPath,
+    [cli, "inventory", "--root", root, "--no-limits"],
+    { encoding: "utf8", windowsHide: true },
+  );
+  assert.equal(removedFlag.status, 2);
+  assert.match(removedFlag.stderr, /Unknown option.*no-limits/u);
+  assert.equal(run("--no-capacity-limits", "--max-files", "2").status, 2);
   assert.equal(run("--max-files", "0").status, 2);
   assert.equal(JSON.parse(run("--unknown-option").stdout).status, "error");
 });
@@ -437,7 +465,7 @@ test("a real document over 32 MiB is admitted only after raising capacity", asyn
   await assert.rejects(runJsonQuality("inventory", { root }), /byte limit/iu);
   const result = await runJsonQuality("inventory", {
     root,
-    limits: { maxFileBytes: 64 * 1024 * 1024 },
+    capacityLimits: { maxFileBytes: 64 * 1024 * 1024 },
   });
   assert.equal(result.status, "passed");
   assert.equal(result.counts.physical, 2);
@@ -463,7 +491,7 @@ test("normalization rejects malformed UTF-8 without replacing source bytes", asy
   ]);
   writeFileSync(join(root, "data.json"), bytes);
   await assert.rejects(
-    runJsonQuality("normalize", { root, sourcePaths: ["data.json"] }),
+    runJsonQuality("normalize", { root, files: ["data.json"] }),
     /UTF-8/iu,
   );
   assert.deepEqual(readFileSync(join(root, "data.json")), bytes);
@@ -705,6 +733,8 @@ test("format --check is the sole read-only formatting CLI spelling", (t) => {
   assert.equal(unformatted.status, 1, unformatted.stderr);
   const result = JSON.parse(unformatted.stdout);
   assert.equal(result.status, "failed");
+  assert.equal(result.operation, "format");
+  assert.equal(result.check, true);
   assert.deepEqual(result.writes.changed, []);
   assert.equal(readFileSync(path, "utf8"), original);
   for (const args of [
@@ -742,8 +772,8 @@ test("protected scope describes write permission and rejects the retired produce
   });
   writeFileSync(policyPath, JSON.stringify(policy, null, 2) + "\n");
   writeFileSync(join(root, "authored.json"), '{"x":1}');
-  const result = await runJsonQuality("check-protected", { root });
-  assert.equal(result.schemaVersion, 3);
+  const result = await runJsonQuality("check", { root, scope: "protected" });
+  assert.equal(result.schemaVersion, 4);
   assert(result.findings.some((finding) => finding.path === "authored.json"));
   const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
   const invoke = (...args) =>
@@ -753,7 +783,12 @@ test("protected scope describes write permission and rejects the retired produce
     });
   assert.equal(
     JSON.parse(invoke("check", "--scope", "protected").stdout).operation,
-    "check-protected",
+    "check",
+  );
+  assert.equal(result.scope, "protected");
+  assert.equal(
+    JSON.parse(invoke("check", "--scope", "protected").stdout).scope,
+    "protected",
   );
   for (const args of [
     ["producers"],

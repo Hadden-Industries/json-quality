@@ -20,7 +20,9 @@ Independent test expectations and distinct trust checks retain their own respons
 | Neutral temporary fixture lifecycle                       | `tests/temporary-directory.js`, Git composition in `tests/temporary-repository.js`       | Filesystem, installation, affected-selection, execution, native and presentation tests share allocation/contained cleanup; callers retain policy, payload and expected decisions |
 | Independent decoded-token test oracle                     | `tests/json-token-meaning.js`                                                            | Contract and retained-quality tests share Momoa token meaning; exact raw-spelling checks remain distinct and production code is never the oracle                                 |
 | Current dependency and capacity documentation             | `package.json`, `package-lock.json`, configuration schema, identity rule defaults        | README and consumer guide link to maintained declarations instead of copying current selections/defaults                                                                         |
-| Limits, operations, CLI interaction and native identities | Existing `src/limits.js`, `src/result.js`, `src/commands.js`, `src/native-identities.js` | Keep these existing owners; schemas and consumer-boundary tests check their current contracts                                                                                    |
+| Limits, operations, CLI interaction and native identities | Existing `src/limits.js`, `src/result.js`, `src/commands.js`, `src/native-identities.js` | Shared operation admission and result schema use the same five verbs with applicable check/scope modifiers; CLI parsing owns terminal encoding and rendering                     |
+| Explicit physical-file selection                          | `src/selection.js`, orchestration in `src/execution.js`                                  | Every repository operation uses files; normalization requires a nonempty selection and writing operations retain complete peer preflight                                         |
+| Supplied-document formatting                              | `src/document-operation.js`, CLI transport in `src/cli.js`                               | formatJsonDocument and format --request - share the check modifier; object requests and bounded stdin transport retain separate admission responsibilities                       |
 
 The public root exports remain wired in `src/index.js`; internal consumers import each rule's current module.
 Release identity and admission belong to `scripts/release-contract.js` and `schemas/release-manifest.schema.json`.
@@ -28,7 +30,7 @@ The native provider reader owns complete run/attempt/artifact history; `release-
 `release-recovery.js` admits owner-selected native readback without rewriting the original journals or granting request replay.
 `release-inventory.js` keeps actual recipient locations, dependency graphs, rights, native SBOMs and narrow file-URI repairs together; it does not replace npm's resolver or native cryptographic verification.
 `qualification-process.js` owns execution budgets and phase diagnostics, independently of product performance assertions and local HISEW supervision.
-The [operations guide](release-operations.md) records the separate live configuration and release boundaries.
+The [operations guide](https://github.com/Hadden-Industries/json-quality/blob/main/docs/release-operations.md) records the separate live configuration and release boundaries.
 Architecture rules belong to `.dependency-cruiser.json`; `scripts/check-architecture.js` composes native analysis and native npm membership through the existing `readPackReport` owner.
 The [architecture guide](architecture.md) distinguishes this admission gate from conservative affected-test selection and runtime behavior proof.
 Runtime consumers capture private schema-derived views during module initialization, so later customization of publicly exported schema objects cannot change write accounting or lint admission.
@@ -39,8 +41,8 @@ Maintain the following distinctions:
 
 - Configuration and result schemas describe different contracts; source, logical, native and expected-negative records carry different provenance.
   Shared facts do not replace admission at any reachable interface.
-- CLI commands map to semantic operations.
-  They are not interchangeable lists even when spellings coincide.
+- CLI verbs, library operations and result operation names share one vocabulary: `inventory`, `lint`, `check`, `format` and `normalize`.
+  The same named `check` / `scope` modifiers select behavior; CLI rendering and request transport retain their own responsibilities.
 - The cold acquisition bootstrap is copied into consumers and must remain standalone.
   Its cleanup includes a workspace prefix and realpath guard; bootstrap-byte conformance tests control drift without a producer-private import.
 - Git snapshot paths, policy globs and literal source paths have different admission contracts.
@@ -54,4 +56,4 @@ Maintain the following distinctions:
 
 Repository maintainers own these choices.
 Reassess when meanings or release/failure boundaries converge, a real new consumer requires different semantics, or conformance exposes drift.
-Use the [original implementation plan](plans/2026-10-16-dry-principle-remediation-implementation-plan.md) and [remaining-DRY plan](plans/2026-10-16-remaining-dry-remediation-plan.md) for the rationale, preservation scenarios, audit dispositions and delivery obligations.
+Use the [original implementation plan](https://github.com/Hadden-Industries/json-quality/blob/main/docs/plans/2026-10-16-dry-principle-remediation-implementation-plan.md) and [remaining-DRY plan](https://github.com/Hadden-Industries/json-quality/blob/main/docs/plans/2026-10-16-remaining-dry-remediation-plan.md) for the rationale, preservation scenarios, audit dispositions and delivery obligations.

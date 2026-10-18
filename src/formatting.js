@@ -14,23 +14,26 @@ export async function formatJsonSource(text, options = {}) {
     !options ||
     typeof options !== "object" ||
     Array.isArray(options) ||
-    Object.keys(options).some((key) => key !== "limits")
+    Object.keys(options).some((key) => key !== "capacityLimits")
   )
     throw new TypeError("Invalid JSON formatting options.");
-  const limits = operationLimits({}, options.limits);
-  return formatAdmittedJsonSource(text, limits);
+  const capacityLimits = operationLimits({}, options.capacityLimits);
+  return formatAdmittedJsonSource(text, capacityLimits);
 }
 
 /** Internal entry after operation resource limits have already been admitted. */
-export async function formatAdmittedJsonSource(text, limits) {
-  if (typeof text !== "string" || Buffer.byteLength(text) > limits.maxFileBytes)
+export async function formatAdmittedJsonSource(text, capacityLimits) {
+  if (
+    typeof text !== "string" ||
+    Buffer.byteLength(text) > capacityLimits.maxFileBytes
+  )
     throw new TypeError(
       "JSON formatting requires source within the file-byte limit.",
     );
   if (!json.languages.json.parse({ body: text }).ok)
     throw new TypeError("Cannot format invalid strict JSON source.");
   const printed = await prettier.format(text, await jsonFormatOptions());
-  if (Buffer.byteLength(printed) > limits.maxFileBytes)
+  if (Buffer.byteLength(printed) > capacityLimits.maxFileBytes)
     throw new Error("Formatted JSON exceeds the file-byte limit.");
   if (printed !== text)
     execFileSync(
@@ -46,10 +49,10 @@ export async function formatAdmittedJsonSource(text, limits) {
         input: text,
         encoding: "utf8",
         windowsHide: true,
-        timeout: Number.isFinite(limits.maxToolTimeMs)
-          ? limits.maxToolTimeMs
+        timeout: Number.isFinite(capacityLimits.maxToolTimeMs)
+          ? capacityLimits.maxToolTimeMs
           : 0,
-        maxBuffer: Math.min(limits.maxToolOutputBytes, Number.MAX_SAFE_INTEGER),
+        maxBuffer: capacityLimits.maxToolOutputBytes,
       },
     );
   return printed;

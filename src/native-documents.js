@@ -55,11 +55,11 @@ export async function checkNativeDocuments(
     if (
       !Number.isSafeInteger(size) ||
       size < 0 ||
-      (document && size > context.limits.maxFileBytes)
+      (document && size > context.capacityLimits.maxFileBytes)
     )
       throw new Error("Invalid or excessive native JSON byte length.");
     totalBytes += size;
-    if (totalBytes > context.limits.maxTotalBytes)
+    if (totalBytes > context.capacityLimits.maxTotalBytes)
       throw new Error(
         "JSON total byte limit exceeded; native coverage is incomplete.",
       );
@@ -120,13 +120,13 @@ export async function checkNativeDocuments(
     )
       throw new Error(`Incomplete native census: ${definition.id}`);
     totalNative += supplied.inventory.length;
-    if (context.files.length + totalNative > context.limits.maxFiles)
+    if (context.files.length + totalNative > context.capacityLimits.maxFiles)
       throw new Error(
         "JSON file limit exceeded; native coverage is incomplete.",
       );
     if (
       totalNative + logicalInventory.length >
-      context.limits.maxLogicalDocuments
+      context.capacityLimits.maxLogicalDocuments
     )
       throw new Error("JSON native/logical document limit exceeded.");
     const authorities = structuredClone(supplied.authorities);
@@ -203,7 +203,7 @@ export async function checkNativeDocuments(
             };
       diagnostics +=
         analysis.findings.length + analysis.expectedFindings.length;
-      if (diagnostics > context.limits.maxDiagnostics)
+      if (diagnostics > context.capacityLimits.maxDiagnostics)
         throw new Error(
           "JSON native diagnostic limit exceeded; coverage is incomplete.",
         );

@@ -35,19 +35,19 @@ try {
   const numeric = '{"x":1.00e+2,"label":"café"}';
   writeFileSync(join(root, "source.json"), numeric);
   const before = readFileSync(join(root, "source.json"));
-  assert.equal((await run("check-format")).status, "failed");
+  assert.equal((await run("format", { check: true })).status, "failed");
   assert.deepEqual(readFileSync(join(root, "source.json")), before);
   assert.equal((await run("format")).status, "passed");
   assert.match(readFileSync(join(root, "source.json"), "utf8"), /1\.00e\+2/u);
   assert.match(readFileSync(join(root, "source.json"), "utf8"), /café/u);
   writeFileSync(join(root, "source.json"), '{"x":1.00e+2,"label":"e\\u0301"}');
   assert.equal(
-    (await run("normalize", { sourcePaths: ["source.json"] })).status,
+    (await run("normalize", { files: ["source.json"] })).status,
     "passed",
   );
   assert.match(readFileSync(join(root, "source.json"), "utf8"), /é/u);
   // Normalization intentionally does not repair presentation.
-  assert.equal((await run("check-format")).status, "failed");
+  assert.equal((await run("format", { check: true })).status, "failed");
   assert.equal((await run("format")).status, "passed");
   const normalized = readFileSync(join(root, "source.json"));
   assert.equal((await run("check")).status, "passed");
@@ -82,7 +82,7 @@ try {
   const collision = Buffer.from('{"é":1,"e\\u0301":2}');
   writeFileSync(join(root, "source.json"), collision);
   await assert.rejects(
-    run("normalize", { sourcePaths: ["source.json"] }),
+    run("normalize", { files: ["source.json"] }),
     /NFC would create duplicate keys/u,
   );
   assert.deepEqual(readFileSync(join(root, "source.json")), collision);

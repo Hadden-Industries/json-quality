@@ -1,0 +1,18 @@
+name: Feature proposal
+description: Explain a JSON Quality use case and its constraints.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and use case
+      description: Explain the intended outcome with a small non-sensitive example.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior and alternatives
+      description: Include existing approaches and compatibility, preservation or performance concerns.
+    validations:
+      required: true

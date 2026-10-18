@@ -1,0 +1,105 @@
+name: Shared trusted JSON qualification
+on:
+  workflow_call:
+    inputs:
+      trusted-repository:
+        type: string
+        required: true
+      trusted-sha:
+        type: string
+        required: true
+      candidate-repository:
+        type: string
+        required: true
+      candidate-sha:
+        type: string
+        required: true
+      capacity-limits:
+        description: JSON true, false or capacity overrides; trusted caller capacity policy
+        type: string
+        default: "true"
+      timeout-minutes:
+        description: Job deadline within GitHub runner limits
+        type: number
+        default: 45
+      artifact-retention-days:
+        description: Evidence retention within repository limits; 0 uses repository default
+        type: number
+        default: 14
+permissions:
+  contents: read
+jobs:
+  qualify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      JSON_QUALITY_CAPACITY_LIMITS: ${{ inputs.capacity-limits }}
+    steps:
+      - name: Validate immutable producer and consumer identities
+        env:
+          PRODUCER_REPOSITORY: ${{ job.workflow_repository }}
+          PRODUCER_SHA: ${{ job.workflow_sha }}
+          TRUSTED_SHA: ${{ inputs.trusted-sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate-sha }}
+        run: |
+          node --input-type=module -e 'if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(process.env.PRODUCER_REPOSITORY ?? "")) throw new Error("Producer repository is required"); for (const key of ["PRODUCER_SHA", "TRUSTED_SHA", "CANDIDATE_SHA"]) if (!/^[a-f0-9]{40}$/u.test(process.env[key] ?? "")) throw new Error("Full immutable commits are required")'
+          git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: producer
+          persist-credentials: false
+      - name: Verify checked-out producer before executing its code
+        env:
+          PRODUCER_SHA: ${{ job.workflow_sha }}
+        run: |
+          node --input-type=module -e 'import { execFileSync } from "node:child_process"; import { readFileSync } from "node:fs"; if (execFileSync("git", ["-C", "producer", "rev-parse", "HEAD"], { encoding: "utf8" }).trim() !== process.env.PRODUCER_SHA || JSON.parse(readFileSync("producer/package.json", "utf8")).name !== "@hadden-industries/json-quality") throw new Error("Producer identity mismatch")'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: producer/.node-version
+          package-manager-cache: false
+      - name: Select the producer npm
+        working-directory: producer
+        run: npm run ci:setup-npm
+      - name: Acquire the immutable producer graph
+        working-directory: producer
+        run: npm run ci:install
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.trusted-repository }}
+          ref: ${{ inputs.trusted-sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.candidate-repository }}
+          ref: ${{ inputs.candidate-sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Qualify candidate JSON as data under trusted policy
+        env:
+          JSON_QUALITY_TRUSTED_ROOT: ${{ github.workspace }}/trusted
+          JSON_QUALITY_CANDIDATE_ROOT: ${{ github.workspace }}/candidate
+          JSON_QUALITY_TRUSTED_SHA: ${{ inputs.trusted-sha }}
+          JSON_QUALITY_CANDIDATE_SHA: ${{ inputs.candidate-sha }}
+          JSON_QUALITY_REPORT: ${{ runner.temp }}/json-quality-consumer.json
+          NODE_OPTIONS: ""
+          NODE_PATH: ""
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+        run: node producer/src/qualification-cli.js > "$JSON_QUALITY_REPORT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: shared-json-${{ matrix.os }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/json-quality-consumer.json
+          if-no-files-found: error
+          retention-days: ${{ inputs.artifact-retention-days }}

@@ -31,6 +31,7 @@ The producer-only fixtures join the ordinary source suite; consumer Node lanes r
 Architecture admission and affected-test selection have different failure contracts.
 The selector conservatively runs more tests when analysis is uncertain; architecture admission rejects uncertainty.
 Both reuse the installed native analyzer.
+The [development analysis guide](https://github.com/Hadden-Industries/json-quality/blob/main/docs/dependency-graph-and-tests.md) describes external graph views and independent affected/full outcome comparison.
 This check does not prove computed module names, copied acquisition bootstrap execution, native cache provenance or runtime semantics.
 Existing source tests, native installation checks and transported consumers retain those responsibilities.
 Keep these checks complementary when changing boundaries.

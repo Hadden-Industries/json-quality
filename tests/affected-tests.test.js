@@ -9,6 +9,7 @@ import {
   planAffected,
   selectTests,
   runTests,
+  runShadow,
 } from "../scripts/affected-tests.js";
 
 function fixture(t, extraFiles = {}) {
@@ -135,4 +136,44 @@ test("failed selected tests keep their exit status", (t) => {
     runTests(f.root, { mode: "affected", tests: ["tests/a.test.js"] }),
     1,
   );
+});
+
+test("shadow comparison retains an unselected full-suite failure", (t) => {
+  const f = fixture(t);
+  f.write(
+    "tests/a.test.js",
+    'import test from "node:test"; test("selected pass", () => {});\n',
+  );
+  f.write(
+    "tests/b.test.js",
+    'import test from "node:test"; test("independent full failure", () => { throw new Error("Expected full failure"); });\n',
+  );
+  const result = runShadow(f.root, {
+    mode: "affected",
+    tests: ["tests/a.test.js"],
+  });
+  assert.equal(result.selected.code, 0);
+  assert.equal(result.full.code, 1);
+  assert.equal(result.agreement, true);
+  assert.equal(result.code, 1);
+});
+
+test("shadow comparison rejects changed common test identities even when both runs pass", (t) => {
+  const f = fixture(t);
+  f.write(
+    "tests/a.test.js",
+    'import test from "node:test"; import { existsSync, writeFileSync } from "node:fs"; const marker = ".git/shadow-fixture-marker"; const replay = existsSync(marker); writeFileSync(marker, "fixture"); test(replay ? "replayed identity" : "initial identity", () => {});\n',
+  );
+  f.write(
+    "tests/b.test.js",
+    'import test from "node:test"; test("independent peer", () => {});\n',
+  );
+  const result = runShadow(f.root, {
+    mode: "affected",
+    tests: ["tests/a.test.js"],
+  });
+  assert.equal(result.selected.code, 0);
+  assert.equal(result.full.code, 0);
+  assert.equal(result.agreement, false);
+  assert.equal(result.code, 2);
 });
