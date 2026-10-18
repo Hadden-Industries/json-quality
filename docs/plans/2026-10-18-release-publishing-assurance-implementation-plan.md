@@ -707,6 +707,10 @@ CodeQL alert 1's generated-JavaScript test fixture is replaced by a static fixtu
 Five explicit release workflows and callable manual CI implement the source seams; the existing manual CI also supports one supported diagnostic lane that cannot satisfy release admission.
 The operations guide is the single maintained operator contract; no separate dossier, release framework or preview lockfile is added.
 Source review/verification and task resource dispositions remain implementation obligations until their actual evidence is admitted.
+Consolidated source review identified and repaired the release artifact root, originating promotion-journal acquisition, post-publication restoration decision channel, native npm build-metadata normalization, and expired Actions history admission.
+The retention repair reuses the digest-bound owner review: an explicitly reviewed signed annotated checkpoint tag retains exact original journals before expiry, while every fresh native writer/attempt is still enumerated and unknown outcomes remain blockers.
+The read-only exporter accepts a prior checkpoint for renewal; it creates no remote state. The operations guide owns the exact checkpoint and restoration inputs.
+Focused regressions cover admission-driven promotion journal acquisition, digest-bound restoration without mutable release assets, and expired-history readback above 1 MB with unresolved outcomes still refused.
 No push, hosted dispatch, remote setting change, first-package bootstrap, real version selection, npm stage/approval, GitHub publication or availability-label change is claimed at this source checkpoint.
 
 ## 18. Authoritative references and source links

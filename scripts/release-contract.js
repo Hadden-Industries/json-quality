@@ -44,6 +44,11 @@ export function validVersion(version) {
   assert.ok(typeof version === "string" && version.length <= 256);
   const parsed = createRequire(npmCli())("semver").parse(version);
   assert.ok(parsed, "Exact native npm SemVer required");
+  assert.equal(
+    parsed.build.length,
+    0,
+    "npm publishing normalizes build metadata",
+  );
   const canonical = `${parsed.major}.${parsed.minor}.${parsed.patch}${parsed.prerelease.length ? "-" + parsed.prerelease.join(".") : ""}${parsed.build.length ? "+" + parsed.build.join(".") : ""}`;
   assert.equal(canonical, version, "Exact native npm SemVer required");
   return version;

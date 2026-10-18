@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { native } from "./qualification-process.js";
 import {
   repository,
@@ -283,6 +284,7 @@ export function verifyEffectHistory(
       );
       assert.equal(intent.run, String(entry.run.id));
       assert.equal(intent.attempt, String(entry.run.run_attempt));
+      assert.equal(intent.controller, entry.run.head_sha);
       assert.equal(
         outcome?.intentSha256 ??
           sha256(Buffer.from(JSON.stringify(intent) + "\n")),
@@ -298,10 +300,57 @@ export function verifyEffectHistory(
   return evidence;
 }
 /** Inspect every prior attempt of all writers, not merely the latest successful run. */
-export function readEffectHistory(env, root) {
+export function readHistoryCheckpoint(
+  checkpoint,
+  read = api,
+  readBytes = (path) =>
+    gh(
+      [
+        "api",
+        `repos/${repository}/${path}`,
+        "-H",
+        "Accept: application/vnd.github.raw+json",
+      ],
+      { encoding: null, maxBuffer: 20000000 },
+    ),
+) {
+  assert.match(checkpoint.tag, /^release-history-[a-zA-Z0-9._-]{1,100}$/u);
+  assert.match(checkpoint.tagSha, /^[a-f0-9]{40}$/u);
+  assert.match(checkpoint.sha256, /^[a-f0-9]{64}$/u);
+  const ref = read(`git/ref/tags/${checkpoint.tag}`);
+  assert.equal(ref.ref, `refs/tags/${checkpoint.tag}`);
+  assert.equal(ref.object.type, "tag");
+  assert.equal(ref.object.sha, checkpoint.tagSha);
+  const tag = read(`git/tags/${checkpoint.tagSha}`);
+  assert.equal(tag.sha, checkpoint.tagSha);
+  assert.equal(tag.tag, checkpoint.tag);
+  assert.equal(tag.verification?.verified, true);
+  assert.equal(tag.verification.reason, "valid");
+  assert.equal(tag.object.type, "commit");
+  assert.match(tag.object.sha, /^[a-f0-9]{40}$/u);
+  const bytes = readBytes(
+    `contents/release-history.json?ref=${tag.object.sha}`,
+  );
+  assert.ok(Buffer.isBuffer(bytes) && bytes.length <= 20000000);
+  assert.equal(sha256(bytes), checkpoint.sha256);
+  const record = JSON.parse(bytes);
+  assert.equal(record.schemaVersion, 1);
+  assert.equal(record.repository, repository);
+  assert.ok(Array.isArray(record.entries) && record.entries.length <= 10000);
+  const keys = record.entries.map(
+    (entry) => `${entry.phase}:${id(entry.run)}:${id(entry.attempt)}`,
+  );
+  assert.equal(new Set(keys).size, keys.length, "Ambiguous retained history");
+  return record.entries;
+}
+export function readEffectHistory(env, root, checkpoint, readers = {}) {
+  const list = readers.pages ?? pages;
+  const observe = readers.provider ?? provider;
+  const acquire = readers.download ?? download;
+  let retained;
   const history = [];
   for (const phase of ["stage", "archive", "promote"]) {
-    const runs = pages(
+    const runs = list(
       `actions/workflows/${workflows[phase]}/runs?per_page=100`,
       "workflow_runs",
     );
@@ -313,7 +362,8 @@ export function readEffectHistory(env, root) {
           String(attempt) === env.GITHUB_RUN_ATTEMPT
         )
           continue;
-        const entry = provider(run.id, attempt);
+        const entry = observe(run.id, attempt);
+        entry.phase = phase;
         const attempted = entry.jobs.jobs.some((job) =>
           job.steps?.some(
             (step) =>
@@ -323,12 +373,43 @@ export function readEffectHistory(env, root) {
           ),
         );
         if (attempted) {
-          const { directory } = download(
-            run.id,
-            attempt,
-            `effect-${phase}-${attempt}`,
-            root,
+          const name = `effect-${phase}-${attempt}`;
+          const artifacts = list(
+            `actions/runs/${id(run.id)}/artifacts?per_page=100`,
+            "artifacts",
           );
+          const matches = artifacts.filter((item) => item.name === name);
+          assert.ok(matches.length <= 1, "Ambiguous historical artifact");
+          if (!matches.length || matches[0].expired) {
+            assert.ok(
+              checkpoint,
+              "Historical effect artifact unavailable; admit a signed history checkpoint",
+            );
+            retained ??= (readers.checkpoint ?? readHistoryCheckpoint)(
+              checkpoint,
+            );
+            const records = retained.filter(
+              (item) =>
+                item.phase === phase &&
+                String(item.run) === String(run.id) &&
+                String(item.attempt) === String(attempt),
+            );
+            assert.equal(
+              records.length,
+              1,
+              "Missing exact historical attempt in checkpoint",
+            );
+            const record = records[0];
+            assert.equal(record.controller, entry.run.head_sha);
+            if (record.journal) {
+              entry.journal = Buffer.from(record.journal, "base64");
+              assert.equal(entry.journal.toString("base64"), record.journal);
+            }
+            if (record.noEffect) entry.noEffect = record.noEffect;
+            history.push(entry);
+            continue;
+          }
+          const { directory } = acquire(run.id, attempt, name, root);
           const journal = join(
             directory,
             effectJournal(phase, { run: run.id, attempt }),
@@ -345,6 +426,36 @@ export function readEffectHistory(env, root) {
     }
   }
   return history;
+}
+/** Read-only export before expiration; only an owner-admitted signed tag is reusable. */
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  assert.equal(process.argv[2], "history");
+  assert.ok(
+    [5, 6].includes(process.argv.length),
+    "Use release-provider.js history OUTPUT SCRATCH [PRIOR_CHECKPOINT_JSON]",
+  );
+  const [output, scratch, priorCheckpoint] = process.argv.slice(3);
+  mkdirSync(scratch, { recursive: true });
+  const history = readEffectHistory(
+    {},
+    scratch,
+    priorCheckpoint ? readJson(priorCheckpoint) : undefined,
+  );
+  // Keep unknown and incomplete records verbatim. Export never declares them resolved.
+  save(output, {
+    schemaVersion: 1,
+    repository,
+    entries: history
+      .filter((entry) => entry.journal || entry.noEffect)
+      .map((entry) => ({
+        phase: entry.phase,
+        run: String(entry.run.id),
+        attempt: String(entry.run.run_attempt),
+        controller: entry.run.head_sha,
+        ...(entry.journal ? { journal: entry.journal.toString("base64") } : {}),
+        ...(entry.noEffect ? { noEffect: entry.noEffect } : {}),
+      })),
+  });
 }
 /** Index only bounded ordinary files; artifact consumers name each retained member. */
 export function evidenceIndex(directory) {

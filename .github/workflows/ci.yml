@@ -113,9 +113,7 @@ jobs:
         if: always()
         with:
           name: consumer-${{ matrix.os }}-${{ matrix.node }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/consumer-result.json
-            ${{ runner.temp }}/release-lane/*.json
+          path: ${{ inputs.release-mode && format('{0}/release-lane/*.json', runner.temp) || format('{0}/consumer-result.json', runner.temp) }}
           if-no-files-found: error
           retention-days: 90
 

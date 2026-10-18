@@ -550,7 +550,7 @@ export function promote(directory, scratch, env = process.env) {
     auditDirectory = directory;
   if (env.RESTORE_VERSION) {
     const restoration = verifyDecision(
-      decisionAsset(release, "release-restoration.json", scratch),
+      regularBytes(join(directory, "release-restoration.json")),
       env.RESTORATION_SHA,
       release,
       env.MANIFEST_SHA,

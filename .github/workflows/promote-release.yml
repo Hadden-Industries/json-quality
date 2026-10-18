@@ -38,6 +38,10 @@ on:
         description: restoration sha
         required: false
         type: string
+      restoration_json:
+        description: Exact owner-reviewed restoration decision JSON (separately digest-bound)
+        required: false
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -56,6 +60,7 @@ env:
   EXPECTED_LABELS: ${{ inputs.expected_labels }}
   RESTORE_VERSION: ${{ inputs.restore_version }}
   RESTORATION_SHA: ${{ inputs.restoration_sha }}
+  RESTORATION_JSON: ${{ inputs.restoration_json }}
 jobs:
   admit:
     if: github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main'

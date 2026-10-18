@@ -14,7 +14,9 @@ Node floors remain separate compatibility contracts.
 
 Select the exact version and compatibility intent with the owner. The checked-in
 development version is not implicit permission to release it. Native npm SemVer
-admits intentional zero-major and prerelease releases. A prerelease cannot become
+admits intentional zero-major and prerelease releases. Build metadata is rejected
+because native npm publishing normalizes it, changing the frozen version identity.
+A prerelease cannot become
 `latest` through the promotion workflow.
 
 The source implementation does not establish owner authentication, configured
@@ -152,7 +154,10 @@ promotion. Independent promotion OIDC permits dist-tags with direct publish
 denied. A later GitHub error after npm success remains a partial outcome.
 
 Restoration additionally requires an owner-reviewed `release-restoration.json`,
-its `restoration_sha`, and exact `restore_version`. Its phase is `restoration`;
+its exact text in `restoration_json`, its `restoration_sha`, and exact
+`restore_version`. The dispatch decision is admitted into the evidence bundle;
+it is not fetched from or added to the already immutable affected release.
+Its phase is `restoration`;
 it binds the affected manifest, target version/integrity, previous labels and
 qualification evidence. Only an already qualified immutable target is eligible.
 Removing a first release's `latest` is a distinct owner decision; the normal
@@ -189,6 +194,31 @@ original request journals. Already-observed label effects are skipped, rather
 than repeated. An unapproved unknown stage, incomplete draft, absent durable
 request or unobserved label effect stays blocked for an explicit owner-operated
 native reconciliation; this interface cannot certify absence of a remote effect.
+
+Promotion recovery acquires the selected original promotion journal from its
+verified `effect-promote-ATTEMPT` artifact before reconciliation, preserving the
+archival predecessor and original journal bytes.
+
+Before the 90-day Actions retention window expires, export complete writer history
+with `node scripts/release-provider.js history OUTPUT SCRATCH [PRIOR_CHECKPOINT_JSON]`.
+Keep `OUTPUT` as `release-history.json` in an owner-controlled commit, and create
+an owner-signed annotated tag named `release-history-IDENTIFIER` for that commit.
+This is a separate owner-operated retention action; the exporter performs reads
+only and preserves unresolved outcomes without certifying them. A renewed export
+uses the previous checkpoint reference to read expired original artifacts.
+The current digest-bound `release-review.json` must explicitly admit the reference:
+
+```json
+{"historyCheckpoint":{"tag":"release-history-20261018","tagSha":"<exact annotated-tag SHA>","sha256":"<release-history.json SHA256>"}}
+```
+
+Admission verifies the signed tag and exact file bytes, still enumerates every
+native writer/run/attempt/job, and uses only a matching original journal or
+no-request marker when its Actions artifact is missing or expired. Missing
+attempts, changed controllers and unknown effects remain blockers. Readback uses
+bounded native raw contents transport, including checkpoints larger than 1 MB.
+Retain or renew checkpoints while their original artifacts remain available;
+missing original bytes cannot be reconstructed from a green run or public state.
 
 Execution budgets are distinct: each install/ci has five minutes, a Node suite
 has thirty minutes, hosted qualification jobs have forty-five minutes, and fast

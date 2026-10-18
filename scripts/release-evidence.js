@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Complete provider/report closure before a privileged job may consume a bundle. */
 import assert from "node:assert/strict";
-import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -30,7 +30,7 @@ import {
   verifyEffectHistory,
   sealBundle,
 } from "./release-provider.js";
-import { reconcileObserved } from "./release-recovery.js";
+import { reconcileObserved, verifyRecoveryRecord } from "./release-recovery.js";
 import { verifyAudit } from "./release-inventory.js";
 import { native } from "./qualification-process.js";
 
@@ -202,6 +202,8 @@ export function refreshAdmission(
     "review",
   );
   verifyController(release, decision, env);
+  if (phase === "promote" && env.RESTORE_VERSION)
+    admitRestoration(directory, release, env);
   signedTag(release);
   if (phase !== "stage") {
     const staged = provider(context.stage.run, context.stage.attempt);
@@ -255,7 +257,7 @@ export function refreshAdmission(
   if (checkHistory) {
     assert.ok(historyRoot);
     history = verifyEffectHistory(
-      readEffectHistory(env, historyRoot),
+      readEffectHistory(env, historyRoot, decision.historyCheckpoint),
       { run: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT },
       { package: release.package, version: release.version },
       recovery,
@@ -268,6 +270,54 @@ export function refreshAdmission(
   }
   currentMain(env);
   return { release, context, history, recovery };
+}
+/** A post-publication owner decision cannot be attached to an immutable release. */
+export function admitRestoration(directory, release, env) {
+  assert.ok(
+    env.RESTORATION_JSON,
+    "Exact owner restoration decision is required",
+  );
+  const bytes = Buffer.from(env.RESTORATION_JSON);
+  const decision = verifyDecision(
+    bytes,
+    env.RESTORATION_SHA,
+    release,
+    env.MANIFEST_SHA,
+    "restoration",
+  );
+  assert.equal(decision.targetVersion, env.RESTORE_VERSION);
+  const path = join(directory, "release-restoration.json");
+  if (existsSync(path)) assert.equal(sha256(regularBytes(path)), sha256(bytes));
+  else save(path, bytes);
+  sealBundle(directory, env.MANIFEST_SHA);
+  return decision;
+}
+/** Import only the selected original journal, preserving the archival predecessor. */
+export function acquireRecoveryJournal(
+  directory,
+  scratch,
+  env,
+  acquire = download,
+) {
+  if (!env.RECOVERY_JSON) return;
+  const record = JSON.parse(env.RECOVERY_JSON);
+  const name = effectJournal(record.phase, record);
+  if (existsSync(join(directory, name))) return;
+  const acquisition = join(scratch, "recovery-acquisition");
+  mkdirSync(acquisition, { recursive: true });
+  const original = acquire(
+    record.run,
+    record.attempt,
+    `effect-${record.phase}-${record.attempt}`,
+    acquisition,
+  );
+  const release = verifyBundle(original.directory, env.MANIFEST_SHA);
+  const current = verifyBundle(directory, env.MANIFEST_SHA);
+  assert.deepEqual(release, current);
+  const journal = regularBytes(join(original.directory, name));
+  verifyRecoveryRecord(record, release, env.MANIFEST_SHA, journal);
+  save(join(directory, name), journal);
+  sealBundle(directory, env.MANIFEST_SHA);
 }
 export function assembleQualification(
   run,
@@ -380,6 +430,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     verifyBundle(artifact.directory, process.env.MANIFEST_SHA);
     copyTree(artifact.directory, output);
   }
+  acquireRecoveryJournal(output, scratch, process.env);
   const admitted = refreshAdmission(output, phase, process.env, {
     historyRoot: scratch,
   });

@@ -24,6 +24,8 @@ import {
   sha256,
   sha512,
   validVersion,
+  effectJournal,
+  jsonBytes,
   verifyArchive,
   verifyDecision,
   verifyManifest,
@@ -41,6 +43,9 @@ import {
   verifyEffectHistory,
   verifyEnvironment,
   verifyTag,
+  readEffectHistory,
+  readHistoryCheckpoint,
+  sealBundle,
 } from "../scripts/release-provider.js";
 import { verifyCodeql, verifySarif } from "../scripts/release-security.js";
 import {
@@ -54,7 +59,12 @@ import {
   verifyPublicMetadata,
   registryBytes,
 } from "../scripts/qualify-registry.js";
-import { verifyReport } from "../scripts/release-evidence.js";
+import {
+  verifyReport,
+  acquireRecoveryJournal,
+  admitRestoration,
+  verifyBundle,
+} from "../scripts/release-evidence.js";
 
 const source = "a".repeat(40),
   sha = "b".repeat(64);
@@ -115,10 +125,11 @@ function temp(t) {
 }
 
 test("native SemVer permits intentional zero-major and prerelease identities without accepting ranges", () => {
-  for (const version of ["0.1.0", "0.0.1", "1.2.3-alpha.1", "1.2.3+build.2"])
+  for (const version of ["0.1.0", "0.0.1", "1.2.3-alpha.1"])
     assert.equal(validVersion(version), version);
   for (const version of [
     "v1.2.3",
+    "1.2.3+build.2",
     "01.2.3",
     "1.2",
     "latest",
@@ -501,6 +512,265 @@ test("native stage responses bind exact package, version, bytes and inspectable 
     change(copy);
     assert.throws(() => verifyStageResponse(copy, release));
   }
+});
+
+function bundleFixture(directory) {
+  mkdirSync(directory);
+  const release = fixture(),
+    manifest = jsonBytes(release);
+  writeFileSync(join(directory, "release-manifest.json"), manifest);
+  writeFileSync(join(directory, release.archive.filename), bytes);
+  const digest = sha256(manifest);
+  sealBundle(directory, digest);
+  return { release, digest };
+}
+test("promotion admission acquires original unknown journal independently of its archival predecessor", (t) => {
+  const root = temp(t),
+    directory = join(root, "admitted"),
+    original = join(root, "original");
+  const { release, digest } = bundleFixture(directory);
+  bundleFixture(original);
+  const name = effectJournal("promote", { run: "17", attempt: "2" });
+  assert.throws(() =>
+    journalEffect(
+      join(original, name),
+      release,
+      "npm-latest",
+      () => {
+        throw new Error("lost response");
+      },
+      { env: { ...environment("promote"), MANIFEST_SHA: digest } },
+    ),
+  );
+  sealBundle(original, digest);
+  const journal = readFileSync(join(original, name));
+  const record = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    version: release.version,
+    manifestSha256: digest,
+    phase: "promote",
+    run: "17",
+    attempt: "2",
+    journalSha256: sha256(journal),
+    acceptedAt: "2026-10-18T00:00:00Z",
+    rationale:
+      "Owner observed the exact successful npm label after response loss.",
+    targetVersion: release.version,
+  };
+  const env = { MANIFEST_SHA: digest, RECOVERY_JSON: JSON.stringify(record) };
+  let downloads = 0;
+  acquireRecoveryJournal(
+    directory,
+    root,
+    env,
+    (run, attempt, artifact, scratch) => {
+      downloads++;
+      assert.deepEqual(
+        [run, attempt, artifact],
+        ["17", "2", "effect-promote-2"],
+      );
+      assert.equal(scratch, join(root, "recovery-acquisition"));
+      return { directory: original };
+    },
+  );
+  assert.deepEqual(readFileSync(join(directory, name)), journal);
+  assert.deepEqual(verifyBundle(directory, digest), release);
+  acquireRecoveryJournal(directory, root, env, () => {
+    throw new Error("must reuse admitted bytes");
+  });
+  assert.equal(downloads, 1);
+  const bad = join(root, "bad");
+  bundleFixture(bad);
+  assert.throws(() =>
+    acquireRecoveryJournal(
+      bad,
+      root,
+      {
+        ...env,
+        RECOVERY_JSON: JSON.stringify({ ...record, journalSha256: sha }),
+      },
+      () => ({ directory: original }),
+    ),
+  );
+});
+test("post-publication restoration decisions are admitted from exact owner input without changing immutable assets", (t) => {
+  const directory = join(temp(t), "admitted"),
+    { release, digest } = bundleFixture(directory);
+  const decision = {
+    schemaVersion: 1,
+    phase: "restoration",
+    owner: "maksymshostak",
+    source,
+    version: release.version,
+    manifestSha256: digest,
+    acceptedAt: "2026-10-18T00:00:00Z",
+    targetVersion: "0.0.1",
+    reviewSha256: sha,
+    registryRun: "15",
+    registryAttempt: "1",
+    decisions: Object.fromEntries(
+      ["consumer", "pilot", "restoration"].map((name) => [
+        name,
+        {
+          outcome: "accepted",
+          rationale: "Owner assessed the exact qualified restoration target.",
+          reviewer: "owner",
+          evidence: [
+            {
+              url: "https://github.com/Hadden-Industries/json-quality/releases/tag/v0.0.1",
+              sha256: sha,
+            },
+          ],
+        },
+      ]),
+    ),
+  };
+  const text = jsonBytes(decision).toString("utf8"),
+    env = {
+      RESTORATION_JSON: text,
+      RESTORATION_SHA: sha256(Buffer.from(text)),
+      RESTORE_VERSION: "0.0.1",
+      MANIFEST_SHA: digest,
+    };
+  admitRestoration(directory, release, env);
+  assert.equal(
+    readFileSync(join(directory, "release-restoration.json"), "utf8"),
+    text,
+  );
+  verifyBundle(directory, digest);
+  assert.throws(() =>
+    admitRestoration(directory, release, {
+      ...env,
+      RESTORATION_JSON: text + " ",
+    }),
+  );
+  assert.throws(() =>
+    admitRestoration(directory, release, { ...env, RESTORE_VERSION: "0.0.2" }),
+  );
+});
+test("expired effect artifacts use signed digest-bound checkpoints without forgetting unknown outcomes", (t) => {
+  const root = temp(t),
+    release = fixture(),
+    path = join(root, "stage.jsonl");
+  journalEffect(path, release, "stage", () => ({ stageId: "stage-17" }), {
+    env: { ...environment(), GITHUB_RUN_ATTEMPT: "1" },
+  });
+  const journal = readFileSync(path),
+    record = {
+      schemaVersion: 1,
+      repository,
+      entries: [
+        {
+          phase: "stage",
+          run: "17",
+          attempt: "1",
+          controller: source,
+          journal: journal.toString("base64"),
+        },
+      ],
+      retainedComment: "x".repeat(1100000),
+    };
+  const checkpointBytes = jsonBytes(record),
+    checkpoint = {
+      tag: "release-history-20261018",
+      tagSha: "c".repeat(40),
+      sha256: sha256(checkpointBytes),
+    };
+  const responses = {
+    [`git/ref/tags/${checkpoint.tag}`]: {
+      ref: `refs/tags/${checkpoint.tag}`,
+      object: { type: "tag", sha: checkpoint.tagSha },
+    },
+    [`git/tags/${checkpoint.tagSha}`]: {
+      sha: checkpoint.tagSha,
+      tag: checkpoint.tag,
+      object: { type: "commit", sha: source },
+      verification: { verified: true, reason: "valid" },
+    },
+  };
+  const readRaw = (path) => {
+    assert.equal(path, `contents/release-history.json?ref=${source}`);
+    return checkpointBytes;
+  };
+  const nativeCheckpoint = () =>
+    readHistoryCheckpoint(checkpoint, (path) => responses[path], readRaw);
+  const observed = providerFixture();
+  observed.run.id = 17;
+  observed.run.run_attempt = 1;
+  for (const job of observed.jobs.jobs) {
+    job.run_id = 17;
+    job.run_attempt = 1;
+  }
+  observed.jobs.jobs[1].steps = [
+    {
+      name: "Apply admitted release effect",
+      started_at: "2026-10-18T00:00:00Z",
+      conclusion: "success",
+    },
+  ];
+  const readers = {
+    pages: (path) =>
+      path.includes("/artifacts?")
+        ? [{ name: "effect-stage-1", expired: true }]
+        : path.includes("stage-release.yml")
+          ? [{ id: 17, run_attempt: 1 }]
+          : [],
+    provider: () => structuredClone(observed),
+    checkpoint: nativeCheckpoint,
+    download: () => {
+      throw new Error("expired archive must not be downloaded");
+    },
+  };
+  const history = readEffectHistory(
+    { GITHUB_RUN_ID: "20", GITHUB_RUN_ATTEMPT: "1" },
+    root,
+    checkpoint,
+    readers,
+  );
+  assert.deepEqual(history[0].journal, journal);
+  assert.equal(
+    verifyEffectHistory(
+      history,
+      { run: "20", attempt: "1" },
+      { package: release.package, version: release.version },
+    ).length,
+    1,
+  );
+  assert.throws(() => readEffectHistory({}, root, undefined, readers));
+  assert.throws(() =>
+    readHistoryCheckpoint(
+      { ...checkpoint, sha256: sha },
+      (path) => responses[path],
+      readRaw,
+    ),
+  );
+  responses[`git/tags/${checkpoint.tagSha}`].verification.verified = false;
+  assert.throws(nativeCheckpoint);
+  responses[`git/tags/${checkpoint.tagSha}`].verification.verified = true;
+  const unknown = journal.toString().split("\n")[0] + "\n";
+  const unresolved = readEffectHistory({}, root, checkpoint, {
+    ...readers,
+    checkpoint: () => [
+      {
+        ...record.entries[0],
+        journal: Buffer.from(unknown).toString("base64"),
+      },
+    ],
+  });
+  assert.throws(() =>
+    verifyEffectHistory(
+      unresolved,
+      { run: "20", attempt: "1" },
+      { package: release.package, version: release.version },
+    ),
+  );
+  assert.throws(() =>
+    readEffectHistory({}, root, checkpoint, {
+      ...readers,
+      checkpoint: () => [],
+    }),
+  );
 });
 test("promotion requires explicit prior-label absence and rejects prerelease or concurrent latest", () => {
   const release = fixture();
