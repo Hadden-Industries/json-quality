@@ -10,7 +10,7 @@ Use current security patches for ordinary operation; a compatibility floor is no
 - Node 26: 26.0.0
 
 Development/producer reference: 24.21.0.
-Producer npm: 12.2.0; consumer qualification npm: 11.21.1.
+Producer npm: 12.2.1; consumer qualification npm: 11.21.1.
 
 <!-- node-support:end -->
 

@@ -6,6 +6,26 @@ export const fullFiles = new Set([
 ]);
 export const relations = [
   {
+    dependency: "schemas/release-manifest.schema.json",
+    consumer: "tests/release-contract.test.js",
+    kind: "release-schema",
+  },
+  {
+    dependency: ".github/",
+    consumer: "tests/release-contract.test.js",
+    kind: "release-workflow-input",
+  },
+  {
+    dependency: "assets/release-tools.json",
+    consumer: "tests/release-contract.test.js",
+    kind: "native-tool-identity",
+  },
+  {
+    dependency: "tests/cli-context-probe.mjs",
+    consumer: "tests/execution.test.js",
+    kind: "node-process",
+  },
+  {
     dependency: "src/",
     consumer: "tests/installation.test.js",
     kind: "installed-source-census",

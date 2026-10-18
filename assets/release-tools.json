@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "use": "Unmodified standalone validation tool, not shipped; Apache-2.0",
+  "repository": "CycloneDX/cyclonedx-cli",
+  "tag": "v0.33.1",
+  "source": "b3cfa4b0edc356dad07e0b6e7ab6da0a94af0246",
+  "linux-x64": {
+    "asset": "cyclonedx-linux-x64",
+    "sha256": "bfc8b2538da86fe239bc53658bbb63c1c8c510a293c1e6891aa5bea5d3c58746"
+  },
+  "win32-x64": {
+    "asset": "cyclonedx-win-x64.exe",
+    "sha256": "9b360974c41a5d612eb026fb5e3bb1fa28e08865f7a4f915665b8bc94bd3bc31"
+  }
+}

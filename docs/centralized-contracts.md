@@ -23,6 +23,12 @@ Independent test expectations and distinct trust checks retain their own respons
 | Limits, operations, CLI interaction and native identities | Existing `src/limits.js`, `src/result.js`, `src/commands.js`, `src/native-identities.js` | Keep these existing owners; schemas and consumer-boundary tests check their current contracts                                                                                    |
 
 The public root exports remain wired in `src/index.js`; internal consumers import each rule's current module.
+Release identity and admission belong to `scripts/release-contract.js` and `schemas/release-manifest.schema.json`.
+The native provider reader owns complete run/attempt/artifact history; `release-evidence.js` closes producer, consumer, security and decision evidence, while `release-effects.js` owns explicit journalled service effects.
+`release-recovery.js` admits owner-selected native readback without rewriting the original journals or granting request replay.
+`release-inventory.js` keeps actual recipient locations, dependency graphs, rights, native SBOMs and narrow file-URI repairs together; it does not replace npm's resolver or native cryptographic verification.
+`qualification-process.js` owns execution budgets and phase diagnostics, independently of product performance assertions and local HISEW supervision.
+The [operations guide](release-operations.md) records the separate live configuration and release boundaries.
 Architecture rules belong to `.dependency-cruiser.json`; `scripts/check-architecture.js` composes native analysis and native npm membership through the existing `readPackReport` owner. The [architecture guide](architecture.md) distinguishes this admission gate from conservative affected-test selection and runtime behavior proof.
 Runtime consumers capture private schema-derived views during module initialization, so later customization of publicly exported schema objects cannot change write accounting or lint admission.
 The extracted presentation data and modules are ordinary package source and are included through the existing `src/` package membership.

@@ -14,6 +14,12 @@ import { createHash } from "node:crypto";
 import { parseArgs } from "node:util";
 import { packCandidate } from "./pack.js";
 import { assertNativeNpmRuntime } from "./consumer-toolchain.js";
+import { native } from "./qualification-process.js";
+import { verifyArchive, archiveInventory, sha256 } from "./release-contract.js";
+import {
+  recipientEvidence,
+  isolatedNpmEnvironment,
+} from "./release-inventory.js";
 
 const { values } = parseArgs({
   options: {
@@ -24,6 +30,11 @@ const { values } = parseArgs({
     "expected-npm": { type: "string" },
     output: { type: "string" },
     git: { type: "string" },
+    registry: { type: "boolean", default: false },
+    layout: { type: "string", default: "root" },
+    evidence: { type: "string" },
+    signatures: { type: "boolean", default: false },
+    publication: { type: "string" },
   },
 });
 if (
@@ -57,7 +68,7 @@ try {
     encoding: "utf8",
     windowsHide: true,
   }).trim();
-  if (provenance.sourceCommit !== sourceCommit)
+  if (provenance.sourceCommit !== sourceCommit && !values.registry)
     throw new Error("Transported archive belongs to another source commit.");
   const npmVersion = execFileSync(process.execPath, [npm, "--version"], {
     cwd: directory,
@@ -68,9 +79,14 @@ try {
     throw new Error(
       "Consumer npm differs from the frozen qualification policy.",
     );
-  const consumer = join(directory, "consumer");
+  if (!["root", "isolated"].includes(values.layout))
+    throw new Error("Unknown recipient layout");
+  const consumer =
+    values.layout === "isolated"
+      ? join(directory, "consumer", "tooling", "json")
+      : join(directory, "consumer");
   const fixture = join(directory, "fixture");
-  mkdirSync(consumer);
+  mkdirSync(consumer, { recursive: true });
   mkdirSync(fixture);
   writeFileSync(
     join(consumer, "package.json"),
@@ -78,24 +94,75 @@ try {
       {
         private: true,
         type: "module",
-        dependencies: { [provenance.name]: `file:${archive}` },
+        dependencies: {
+          [provenance.name]: values.registry
+            ? provenance.version
+            : `file:${archive}`,
+        },
       },
       null,
       2,
     ) + "\n",
   );
-  execFileSync(
+  native(
     process.execPath,
     [
       npm,
       "install",
+      "--timing",
       "--engine-strict",
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
+      "--registry=https://registry.npmjs.org/",
     ],
-    { cwd: consumer, windowsHide: true, timeout: 180000 },
+    {
+      cwd: consumer,
+      windowsHide: true,
+      timeout: 300000,
+      env: isolatedNpmEnvironment(directory),
+      phase: `${values.layout}-recipient-install`,
+    },
   );
+  if (values.registry) {
+    const inventory = await archiveInventory(archive, npm);
+    for (const member of inventory.files) {
+      const installed = readFileSync(
+        join(
+          consumer,
+          "node_modules",
+          ...provenance.name.split("/"),
+          member.path,
+        ),
+      );
+      if (sha256(installed) !== member.sha256)
+        throw new Error(`Installed payload differs: ${member.path}`);
+    }
+    verifyArchive(readFileSync(archive), {
+      size: readFileSync(archive).length,
+      sha256: provenance.sha256,
+      integrity: provenance.integrity,
+    });
+  }
+  if (values.evidence) {
+    await recipientEvidence({
+      directory: consumer,
+      npm,
+      output: values.evidence,
+      layout: values.layout,
+      signatures: values.signatures,
+      isolationRoot: directory,
+      publication: values.publication
+        ? JSON.parse(readFileSync(values.publication))
+        : undefined,
+      expectedArchive: {
+        path: archive,
+        name: provenance.name,
+        version: provenance.version,
+        integrity: provenance.integrity,
+      },
+    });
+  }
   execFileSync("git", ["init", "-q", fixture], { windowsHide: true });
   writeFileSync(
     join(fixture, ".json-quality.json"),
@@ -212,18 +279,25 @@ await assert.rejects(import("@hadden-industries/json-quality/src/quality.js"), {
   )
     throw new Error("Installed archive integrity differs.");
   // Replay the native lock offline before a second real public-export probe.
-  execFileSync(
+  native(
     process.execPath,
     [
       npm,
       "ci",
+      "--timing",
       "--offline",
       "--engine-strict",
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
     ],
-    { cwd: consumer, windowsHide: true, timeout: 180000 },
+    {
+      cwd: consumer,
+      windowsHide: true,
+      timeout: 300000,
+      env: isolatedNpmEnvironment(directory),
+      phase: `${values.layout}-offline-reinstall`,
+    },
   );
   execFileSync(process.execPath, [join(consumer, "probe.mjs"), fixture], {
     cwd: consumer,
@@ -245,6 +319,7 @@ await assert.rejects(import("@hadden-industries/json-quality/src/quality.js"), {
   const report = {
     status: "passed",
     sourceCommit: provenance.sourceCommit,
+    controllerCommit: sourceCommit,
     archiveSha256: provenance.sha256,
     node: process.versions.node,
     executable: process.execPath,
@@ -253,6 +328,8 @@ await assert.rejects(import("@hadden-industries/json-quality/src/quality.js"), {
     npm: npmVersion,
     nativeToolchain: toolchain,
     gitAcquisition: values.git ?? null,
+    qualification: values.registry ? "public registry" : "transported archive",
+    layout: values.layout,
     publicExports: 4,
     cliPhysicalFiles: 2,
   };

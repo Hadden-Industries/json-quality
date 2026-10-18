@@ -21,6 +21,7 @@ Resource defaults can be raised through configuration, API options or CLI flags 
 It is an internal development candidate; registry publication is separately authorized and qualified.
 See the [consumer contract](docs/consumer-guide.md) and [third-party notices](THIRD-PARTY-NOTICES.md).
 The [shared rule ownership guide](docs/centralized-contracts.md) records current authorities and intentional separation for maintenance.
+The [release operations guide](docs/release-operations.md) describes deliberate qualification, owner-approved npm staging, immutable archival, promotion and recovery.
 Consumers select one exact npm version or full Git commit in their isolated tooling manifest and retain native npm lockfiles, with shared installed-payload verification against the native cache.
 The package also owns the generated acquisition bootstrap and isolation guard, so consumer adapters do not maintain parallel implementations.
 

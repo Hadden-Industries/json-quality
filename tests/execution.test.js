@@ -801,29 +801,22 @@ test("trusted asynchronous CLI context failures retain the public machine error 
 
 test("CLI argument admission precedes trusted context loading and validates its returned shape", (t) => {
   const root = repository(t);
-  const api = new URL("../src/index.js", import.meta.url).href;
-  const invoke = (args, body) =>
+  const invoke = (args, context) =>
     spawnSync(
       process.execPath,
       [
-        "--input-type=module",
-        "-e",
-        `import {runJsonQualityCli} from ${JSON.stringify(api)}; process.exitCode = await runJsonQualityCli(${JSON.stringify(args)}, async () => {${body}});`,
+        fileURLToPath(new URL("./cli-context-probe.mjs", import.meta.url)),
+        JSON.stringify(args),
+        JSON.stringify(context),
       ],
       { encoding: "utf8", windowsHide: true },
     );
-  const invalid = invoke(
-    ["invalid", "--json"],
-    'console.error("CONTEXT_LOADED"); return {};',
-  );
+  const invalid = invoke(["invalid", "--json"], {});
   assert.equal(invalid.status, 2);
   assert(!invalid.stderr.includes("CONTEXT_LOADED"));
-  const good = invoke(
-    ["check", "--json"],
-    `return {root:${JSON.stringify(root)}};`,
-  );
+  const good = invoke(["check", "--json"], { root });
   assert.equal(good.status, 0, good.stderr);
   assert.equal(JSON.parse(good.stdout).complete, true);
-  const unknown = invoke(["check", "--json"], "return {unexpected:true};");
+  const unknown = invoke(["check", "--json"], { unexpected: true });
   assert.equal(unknown.status, 2);
 });

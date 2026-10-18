@@ -4,8 +4,9 @@ import {
   readFileSync,
   writeFileSync,
   copyFileSync,
-  mkdirSync,
+  unlinkSync,
   constants,
+  mkdirSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
@@ -85,7 +86,11 @@ export function packCandidate(destination) {
     destination,
     `${packed.name.replaceAll("@", "").replaceAll("/", "-")}-${packed.version}-${sourceCommit}.tgz`,
   );
+  if (original === archive)
+    throw new Error("Archive identity must include the source commit");
+  // One designated tarball; do not upload a second spelling of the same bytes.
   copyFileSync(original, archive, constants.COPYFILE_EXCL);
+  unlinkSync(original);
   const bytes = readFileSync(archive);
   const manifest = JSON.parse(readFileSync(resolve(root, "package.json")));
   const provenance = {

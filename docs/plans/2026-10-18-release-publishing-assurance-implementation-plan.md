@@ -686,8 +686,28 @@ The implementing handoff must state:
 - Any uncertain or partial effects, next actor/action, and bounded recovery procedure.
 - Retained evidence, expiration/cleanup obligations, and original resource coordinators.
 
-For this planning checkpoint, only this document is added.
-No executable implementation, commit, push, workflow run, remote setting, npm stage, approval, GitHub release or dist-tag change is claimed.
+For the original planning checkpoint, only this document was added.
+The original planning record claimed no executable implementation, commit, push, workflow run, remote setting, npm stage, approval, GitHub release or dist-tag change.
+
+### Implementation checkpoint, 2026-10-18
+
+The accepted plan was committed first as signed commit `4b93d0038b406843255bd963af94a3728c596da5`.
+HISEW execution `54f7876e-8a1c-4b9c-8f3b-ba2bea3769ba` owns the accepted R2 source implementation.
+The source checkpoint follows focused admission/native-tool/workflow proof; the required clean-source full profile and consolidated ordinary, independent and native security assessments follow on the frozen committed candidate.
+Forward fixes receive their own exact-scope format/lint and signed commits; verification is reused only where native content/environment admission permits it.
+This order preserves `packCandidate`'s clean committed-source requirement and avoids running the same full suite before and after an equal-content checkpoint merely for commit timing.
+
+Producer npm 12.2.1 was acquired in a task-owned disposable prefix, with its actual license and engine/pack-report/runtime-policy contracts inspected and exercised on Node 24.21.0.
+The policy pin is adopted without changing the personal/global npm installation, consumer npm, public Node floors, runtime dependencies or lock graph.
+Native CycloneDX 0.33.1 validated actual Windows npm output.
+The tool's roughly 80 MB executable has a separate finite acquisition bound; package archives retain the 20 MB boundary.
+An observed native npm SBOM omission in a mixed production/development installation is addressed by a clean production-only manifest installed against the unchanged source lock, with complete location/edge/rights admission rather than editing native SBOM components.
+CodeQL alert 1's generated-JavaScript test fixture is replaced by a static fixture receiving JSON data; final hosted CodeQL disposition remains unverified.
+
+Five explicit release workflows and callable manual CI implement the source seams; the existing manual CI also supports one supported diagnostic lane that cannot satisfy release admission.
+The operations guide is the single maintained operator contract; no separate dossier, release framework or preview lockfile is added.
+Source review/verification and task resource dispositions remain implementation obligations until their actual evidence is admitted.
+No push, hosted dispatch, remote setting change, first-package bootstrap, real version selection, npm stage/approval, GitHub publication or availability-label change is claimed at this source checkpoint.
 
 ## 18. Authoritative references and source links
 

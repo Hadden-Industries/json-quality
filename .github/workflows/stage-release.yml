@@ -1,0 +1,93 @@
+name: Stage an approved release
+on:
+  workflow_dispatch:
+    inputs:
+      recovery_json:
+        description: Optional owner-selected native readback reconciliation of exact original journal bytes
+        required: false
+        type: string
+      qualification_run:
+        description: qualification run
+        required: true
+        type: string
+      qualification_attempt:
+        description: qualification attempt
+        required: true
+        type: string
+      manifest_sha:
+        description: manifest sha
+        required: true
+        type: string
+      review_sha:
+        description: review sha
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: json-quality-release-mutation
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+env:
+  RECOVERY_JSON: ${{ inputs.recovery_json }}
+  QUALIFICATION_RUN: ${{ inputs.qualification_run }}
+  QUALIFICATION_ATTEMPT: ${{ inputs.qualification_attempt }}
+  MANIFEST_SHA: ${{ inputs.manifest_sha }}
+  REVIEW_SHA: ${{ inputs.review_sha }}
+jobs:
+  admit:
+    if: github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-producer
+      - name: Read complete predecessor and writer history
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run release:admit -- stage "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: admitted-stage-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/admitted/
+          if-no-files-found: error
+          retention-days: 90
+  stage:
+    needs: admit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: npm-publication
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-producer
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: admitted-stage-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/admitted/
+          digest-mismatch: error
+      - name: Apply admitted release effect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run release:effect -- stage "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: effect-stage-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/admitted/
+          if-no-files-found: error
+          retention-days: 90

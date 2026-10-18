@@ -1,0 +1,114 @@
+name: Promote or restore exact availability labels
+on:
+  workflow_dispatch:
+    inputs:
+      recovery_json:
+        description: Optional owner-selected native readback reconciliation of exact original journal bytes
+        required: false
+        type: string
+      previous_run:
+        description: previous run
+        required: true
+        type: string
+      previous_attempt:
+        description: previous attempt
+        required: true
+        type: string
+      manifest_sha:
+        description: manifest sha
+        required: true
+        type: string
+      review_sha:
+        description: review sha
+        required: true
+        type: string
+      acceptance_sha:
+        description: acceptance sha
+        required: true
+        type: string
+      expected_labels:
+        description: expected labels (JSON with explicit prior latest and githubLatest, including null)
+        required: true
+        type: string
+      restore_version:
+        description: restore version
+        required: false
+        type: string
+      restoration_sha:
+        description: restoration sha
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: json-quality-release-mutation
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+env:
+  RECOVERY_JSON: ${{ inputs.recovery_json }}
+  PREVIOUS_RUN: ${{ inputs.previous_run }}
+  PREVIOUS_ATTEMPT: ${{ inputs.previous_attempt }}
+  MANIFEST_SHA: ${{ inputs.manifest_sha }}
+  REVIEW_SHA: ${{ inputs.review_sha }}
+  ACCEPTANCE_SHA: ${{ inputs.acceptance_sha }}
+  EXPECTED_LABELS: ${{ inputs.expected_labels }}
+  RESTORE_VERSION: ${{ inputs.restore_version }}
+  RESTORATION_SHA: ${{ inputs.restoration_sha }}
+jobs:
+  admit:
+    if: github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-producer
+      - name: Read complete predecessor and writer history
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run release:admit -- promote "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: admitted-promote-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/admitted/
+          if-no-files-found: error
+          retention-days: 90
+  promote:
+    needs: admit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: npm-promotion
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      security-events: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-producer
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: admitted-promote-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/admitted/
+          digest-mismatch: error
+      - name: Apply admitted release effect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run release:effect -- promote "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: effect-promote-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/admitted/
+          if-no-files-found: error
+          retention-days: 90

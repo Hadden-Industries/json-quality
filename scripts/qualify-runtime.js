@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { assertNativeNpmRuntime } from "./consumer-toolchain.js";
+import { budgets, native } from "./qualification-process.js";
 
 const expected = process.env.JSON_QUALITY_EXPECTED_NODE;
 const npm = process.env.JSON_QUALITY_CONSUMER_NPM;
@@ -50,6 +51,7 @@ const tests = readdirSync(new URL("../tests/", import.meta.url))
   .filter(
     (path) =>
       path.endsWith(".test.js") &&
+      !path.startsWith("release-") &&
       ![
         "pack.test.js",
         "affected-tests.test.js",
@@ -58,30 +60,44 @@ const tests = readdirSync(new URL("../tests/", import.meta.url))
       ].includes(path),
   )
   .map((path) => join("tests", path));
-execFileSync(process.execPath, ["--test", ...tests], {
+native(process.execPath, ["--test", ...tests], {
   stdio: "inherit",
   windowsHide: true,
-  timeout: 600000,
+  timeout: budgets.suite,
+  phase: "consumer-source-suite",
   env: { ...process.env, npm_execpath: npm },
 });
-execFileSync(
-  process.execPath,
-  [
-    "scripts/qualify-package.js",
-    "--archive",
-    join(archives, identity.archive),
-    "--provenance",
-    provenance,
-    "--npm",
-    npm,
-    "--expected-node",
-    expected,
-    "--expected-npm",
-    policy.consumerNpm,
-    "--git",
-    identity.sourceCommit,
-    "--output",
-    process.env.JSON_QUALITY_REPORT,
-  ],
-  { stdio: "inherit", windowsHide: true, timeout: 600000 },
-);
+const releaseOutput = process.env.JSON_QUALITY_RELEASE_OUTPUT;
+if (releaseOutput) mkdirSync(releaseOutput, { recursive: true });
+for (const layout of releaseOutput ? ["root", "isolated"] : ["root"])
+  native(
+    process.execPath,
+    [
+      "scripts/qualify-package.js",
+      "--archive",
+      join(archives, identity.archive),
+      "--provenance",
+      provenance,
+      "--npm",
+      npm,
+      "--expected-node",
+      expected,
+      "--expected-npm",
+      policy.consumerNpm,
+      "--git",
+      identity.sourceCommit,
+      "--output",
+      releaseOutput
+        ? join(releaseOutput, `${layout}-result.json`)
+        : process.env.JSON_QUALITY_REPORT,
+      "--layout",
+      layout,
+      ...(releaseOutput ? ["--evidence", releaseOutput] : []),
+    ],
+    {
+      stdio: "inherit",
+      windowsHide: true,
+      timeout: budgets.suite,
+      phase: `transported-${layout}-consumer`,
+    },
+  );
