@@ -14,6 +14,7 @@ import {
   jsonBytes,
   effectJournal,
   readJson,
+  verifyRun,
 } from "./release-contract.js";
 
 export const gh = (args, options) => native("gh", args, options);
@@ -200,6 +201,17 @@ export function verifyEffectHistory(
   recovery = null,
 ) {
   const evidence = [];
+  const settled = history.filter(
+    (entry) => entry.settlements?.length && entry.run.conclusion === "success",
+  );
+  for (const entry of settled)
+    verifyRun(entry, entry.phase, entry.run.head_sha, {});
+  const reconciliations = [
+    ...(recovery?.entries ?? []),
+    ...settled.flatMap((entry) =>
+      entry.settlements.map((record) => ({ record })),
+    ),
+  ];
   for (const entry of history) {
     assert.ok(entry.run.repository.full_name === repository);
     for (const value of [entry.run.id, entry.run.run_attempt]) id(value);
@@ -219,8 +231,9 @@ export function verifyEffectHistory(
       assert.equal(job.run_id, entry.run.id);
       assert.equal(job.run_attempt, entry.run.run_attempt);
     }
-    assert.ok(
-      !["in_progress", "waiting", "pending"].includes(entry.run.status),
+    assert.equal(
+      entry.run.status,
+      "completed",
       "Another live release producer exists",
     );
     const attempted = entry.jobs.jobs.some((job) =>
@@ -257,7 +270,7 @@ export function verifyEffectHistory(
       .trim()
       .split("\n")
       .map((line) => JSON.parse(line));
-    const recoveredJournal = recovery?.entries.some(
+    const recoveredJournal = reconciliations.some(
       ({ record }) =>
         String(record.run) === String(entry.run.id) &&
         String(record.attempt) === String(entry.run.run_attempt) &&
@@ -270,7 +283,7 @@ export function verifyEffectHistory(
     for (let index = 0; index < records.length; index += 2) {
       const [intent, outcome] = records.slice(index, index + 2);
       assert.equal(intent.state, "intent");
-      const observedRecovery = recovery?.entries.some(
+      const observedRecovery = reconciliations.some(
         ({ record }) =>
           String(record.run) === String(entry.run.id) &&
           String(record.attempt) === String(entry.run.run_attempt) &&
@@ -285,6 +298,20 @@ export function verifyEffectHistory(
       assert.equal(intent.run, String(entry.run.id));
       assert.equal(intent.attempt, String(entry.run.run_attempt));
       assert.equal(intent.controller, entry.run.head_sha);
+      for (const { record } of reconciliations.filter(
+        ({ record }) =>
+          String(record.run) === intent.run &&
+          String(record.attempt) === intent.attempt &&
+          record.journalSha256 === sha256(entry.journal),
+      )) {
+        assert.equal(record.owner, "maksymshostak");
+        assert.equal(record.manifestSha256, intent.manifestSha256);
+        assert.equal(record.version, intent.version);
+        assert.equal(
+          entry.run.path,
+          `.github/workflows/${workflows[record.phase]}`,
+        );
+      }
       assert.equal(
         outcome?.intentSha256 ??
           sha256(Buffer.from(JSON.stringify(intent) + "\n")),
@@ -406,6 +433,7 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
               assert.equal(entry.journal.toString("base64"), record.journal);
             }
             if (record.noEffect) entry.noEffect = record.noEffect;
+            if (record.settlements) entry.settlements = record.settlements;
             history.push(entry);
             continue;
           }
@@ -420,6 +448,12 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
             `no-effect-${phase}-${run.id}-${attempt}.json`,
           );
           if (existsSync(marker)) entry.noEffect = readJson(marker);
+          entry.settlements = ["stage", "archive", "promote"].flatMap(
+            (kind) => {
+              const path = join(directory, `recovery-${kind}.json`);
+              return existsSync(path) ? [readJson(path)] : [];
+            },
+          );
         }
         history.push(entry);
       }
@@ -454,6 +488,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         controller: entry.run.head_sha,
         ...(entry.journal ? { journal: entry.journal.toString("base64") } : {}),
         ...(entry.noEffect ? { noEffect: entry.noEffect } : {}),
+        ...(entry.settlements?.length
+          ? { settlements: entry.settlements }
+          : {}),
       })),
   });
 }

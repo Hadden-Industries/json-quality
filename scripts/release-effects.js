@@ -37,6 +37,7 @@ import {
   signedTag,
   sealBundle,
   provider,
+  pages,
 } from "./release-provider.js";
 import { isolatedNpmEnvironment, verifyAudit } from "./release-inventory.js";
 import { qualifySecurity } from "./release-security.js";
@@ -258,6 +259,43 @@ export function stage(directory, scratch, env = process.env) {
 function githubRelease(release) {
   return api(`releases/tags/v${release.version}`);
 }
+export function findDraft(release, list = pages) {
+  const matches = list("releases?per_page=100").filter(
+    (item) => item.tag_name === `v${release.version}`,
+  );
+  assert.equal(matches.length, 1, "Missing or ambiguous release draft");
+  assert.equal(matches[0].draft, true);
+  assert.ok(Number.isSafeInteger(matches[0].id) && matches[0].id > 0);
+  return matches[0];
+}
+/** The workflow token cannot read Administration settings. Bind the owner's native read. */
+export function verifyArchiveSettings(decision, now = Date.now()) {
+  const settings = decision.immutableReleases;
+  assert.equal(
+    settings.evidence.url,
+    `https://api.github.com/repos/${repository}/immutable-releases`,
+  );
+  assert.equal(
+    sha256(Buffer.from(settings.responseJson)),
+    settings.evidence.sha256,
+  );
+  assert.equal(JSON.parse(settings.responseJson).enabled, true);
+  const checked = Date.parse(settings.checkedAt);
+  assert.ok(
+    Number.isFinite(checked) && checked <= now && now - checked <= 3600000,
+    "Owner native settings read must be at most one hour old",
+  );
+}
+export function verifyCompletedLabels(target, npm, github) {
+  assert.equal(npm.latest, target, "npm latest changed before completion");
+  assert.equal(
+    github.tag_name,
+    `v${target}`,
+    "GitHub latest changed before completion",
+  );
+  assert.equal(github.immutable, true);
+  return { npm, github };
+}
 function archiveAssets(directory, release, scratch) {
   const bundle = join(scratch, "assets");
   mkdirSync(bundle);
@@ -306,11 +344,6 @@ export function archive(directory, scratch, env = process.env) {
     historyRoot: scratch,
   });
   signedTag(release);
-  assert.equal(
-    api("immutable-releases").enabled,
-    true,
-    "Enable repository immutability before publication",
-  );
   const acceptance = decisionAsset(release, "release-acceptance.json", scratch);
   const decision = verifyDecision(
     acceptance,
@@ -322,8 +355,9 @@ export function archive(directory, scratch, env = process.env) {
   assert.equal(decision.registryRun, context.registry.run);
   assert.equal(decision.registryAttempt, context.registry.attempt);
   assert.equal(decision.reviewSha256, env.REVIEW_SHA);
+  verifyArchiveSettings(decision);
   save(join(directory, "release-acceptance.json"), acceptance);
-  const draft = githubRelease(release);
+  const draft = findDraft(release);
   assert.equal(draft.draft, true);
   assert.equal(draft.tag_name, `v${release.version}`);
   const { bundle, assets } = archiveAssets(directory, release, scratch);
@@ -368,7 +402,7 @@ export function archive(directory, scratch, env = process.env) {
       { env },
     );
   }
-  const observed = githubRelease(release);
+  const observed = api(`releases/${draft.id}`);
   verifyDraftAssets(assets, observed.assets);
   const readback = join(scratch, "readback");
   mkdirSync(readback);
@@ -393,7 +427,7 @@ export function archive(directory, scratch, env = process.env) {
     "archive",
     () => {
       currentMain(env);
-      assert.equal(api("immutable-releases").enabled, true);
+      verifyArchiveSettings(decision);
       signedTag(release);
       gh([
         "release",
@@ -406,6 +440,7 @@ export function archive(directory, scratch, env = process.env) {
         "--latest=false",
       ]);
       const result = githubRelease(release);
+      assert.equal(result.id, draft.id);
       assert.equal(result.immutable, true);
       assert.equal(result.draft, false);
       verifyDraftAssets(assets, result.assets);
@@ -784,17 +819,21 @@ export function promote(directory, scratch, env = process.env) {
       journal,
       release,
       "completion-readback",
-      () => ({ npm: tags(), github: api("releases/latest") }),
+      () => verifyCompletedLabels(target, tags(), api("releases/latest")),
       { env },
     );
+  const completed = verifyCompletedLabels(
+    target,
+    tags(),
+    api("releases/latest"),
+  );
   save(join(directory, "completion.json"), {
     schemaVersion: 1,
     manifestSha256: env.MANIFEST_SHA,
     source: release.source.commit,
     version: target,
     priorLabels: expected,
-    npm: tags(),
-    github: api("releases/latest"),
+    ...completed,
     state: "completed",
     observedAt: new Date().toISOString(),
   });

@@ -97,6 +97,31 @@ export function reconcileObserved(directory, scratch, env = process.env) {
   }
   return result.entries.length ? result : null;
 }
+export function reconcilePromotionLabels(record, records, tags, latest) {
+  assert.equal(
+    tags.latest,
+    record.targetVersion,
+    "Unknown npm label effect has not been observed applied",
+  );
+  const githubLatest = latest?.tag_name ?? null;
+  if (
+    records.some((r) => r.operation === "github-latest") &&
+    githubLatest !== `v${record.targetVersion}`
+  ) {
+    assert.equal(
+      record.githubAction,
+      "repair-current-label",
+      "An unknown GitHub request requires explicit owner repair authority",
+    );
+    assert.ok(Object.hasOwn(record, "expectedGithubLatest"));
+    assert.equal(
+      githubLatest,
+      record.expectedGithubLatest,
+      "GitHub label changed since owner repair decision",
+    );
+  }
+  return { npmLatest: tags.latest, githubLatest };
+}
 function reconcileOne(directory, scratch, env, record, path) {
   const release = verifyManifest(
     readJson(join(directory, "release-manifest.json")),
@@ -239,18 +264,8 @@ function reconcileOne(directory, scratch, env, record, path) {
         "--registry=https://registry.npmjs.org/",
       ]),
     );
-    assert.equal(
-      tags.latest,
-      record.targetVersion,
-      "Unknown npm label effect has not been observed applied",
-    );
     const latest = optionalApi("releases/latest");
-    if (records.some((r) => r.operation === "github-latest"))
-      assert.equal(latest?.tag_name, `v${record.targetVersion}`);
-    observed = {
-      npmLatest: tags.latest,
-      githubLatest: latest?.tag_name ?? null,
-    };
+    observed = reconcilePromotionLabels(record, records, tags, latest);
   }
   if (
     env.RECOVERY_JSON &&

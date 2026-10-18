@@ -38,6 +38,9 @@ import {
   promotionPlan,
   verifyDraftAssets,
   verifyStageResponse,
+  findDraft,
+  verifyArchiveSettings,
+  verifyCompletedLabels,
 } from "../scripts/release-effects.js";
 import {
   verifyEffectHistory,
@@ -54,7 +57,10 @@ import {
   normalizeFileReferences,
   verifySbom,
 } from "../scripts/release-inventory.js";
-import { verifyRecoveryRecord } from "../scripts/release-recovery.js";
+import {
+  verifyRecoveryRecord,
+  reconcilePromotionLabels,
+} from "../scripts/release-recovery.js";
 import {
   verifyPublicMetadata,
   registryBytes,
@@ -805,6 +811,220 @@ test("immutable draft asset admission rejects missing, extra, duplicate and subs
     [...observed, { name: "extra", size: 0, digest: `sha256:${sha}` }],
   ])
     assert.throws(() => verifyDraftAssets(expected, entries));
+});
+test("archival finds the unique draft through the draft-capable release list and binds owner settings readback", () => {
+  const release = fixture(),
+    draft = { id: 91, tag_name: `v${release.version}`, draft: true };
+  assert.equal(
+    findDraft(release, (path) => {
+      assert.equal(path, "releases?per_page=100");
+      return [{ id: 90, tag_name: "v0.0.0", draft: false }, draft];
+    }).id,
+    91,
+  );
+  for (const entries of [[], [draft, draft], [{ ...draft, draft: false }]])
+    assert.throws(() => findDraft(release, () => entries));
+  const responseJson = '{"enabled":true}',
+    now = Date.parse("2026-10-18T00:00:00Z"),
+    decision = {
+      immutableReleases: {
+        responseJson,
+        checkedAt: "2026-10-17T23:30:00Z",
+        evidence: {
+          url: `https://api.github.com/repos/${repository}/immutable-releases`,
+          sha256: sha256(Buffer.from(responseJson)),
+        },
+      },
+    };
+  verifyArchiveSettings(decision, now);
+  for (const mutate of [
+    (d) => (d.immutableReleases.checkedAt = "2026-10-17T22:00:00Z"),
+    (d) => (d.immutableReleases.checkedAt = "2026-10-18T00:00:01Z"),
+    (d) => (d.immutableReleases.evidence.sha256 = sha),
+    (d) => (d.immutableReleases.responseJson = '{"enabled":false}'),
+  ]) {
+    const copy = structuredClone(decision);
+    mutate(copy);
+    assert.throws(() => verifyArchiveSettings(copy, now));
+  }
+});
+test("unknown promotion permits only explicit owner repair of the observed GitHub label and never npm replay", () => {
+  const record = { targetVersion: "1.0.0" },
+    records = [{ operation: "npm-latest" }, { operation: "github-latest" }];
+  assert.throws(() =>
+    reconcilePromotionLabels(
+      record,
+      records,
+      { latest: "1.0.0" },
+      { tag_name: "v0.9.0" },
+    ),
+  );
+  const repair = {
+    ...record,
+    githubAction: "repair-current-label",
+    expectedGithubLatest: "v0.9.0",
+  };
+  assert.deepEqual(
+    reconcilePromotionLabels(
+      repair,
+      records,
+      { latest: "1.0.0" },
+      { tag_name: "v0.9.0" },
+    ),
+    { npmLatest: "1.0.0", githubLatest: "v0.9.0" },
+  );
+  assert.throws(() =>
+    reconcilePromotionLabels(
+      repair,
+      records,
+      { latest: "0.9.0" },
+      { tag_name: "v0.9.0" },
+    ),
+  );
+  assert.throws(() =>
+    reconcilePromotionLabels(
+      repair,
+      records,
+      { latest: "1.0.0" },
+      { tag_name: "v0.9.1" },
+    ),
+  );
+  assert.deepEqual(
+    reconcilePromotionLabels(
+      { ...repair, expectedGithubLatest: null },
+      records,
+      { latest: "1.0.0" },
+      null,
+    ),
+    { npmLatest: "1.0.0", githubLatest: null },
+  );
+});
+test("completion refuses labels changed during a recovered promotion's fresh audits", () => {
+  assert.deepEqual(
+    verifyCompletedLabels(
+      "1.0.0",
+      { latest: "1.0.0" },
+      { tag_name: "v1.0.0", immutable: true },
+    ),
+    {
+      npm: { latest: "1.0.0" },
+      github: { tag_name: "v1.0.0", immutable: true },
+    },
+  );
+  assert.throws(() =>
+    verifyCompletedLabels(
+      "1.0.0",
+      { latest: "1.0.1" },
+      { tag_name: "v1.0.0", immutable: true },
+    ),
+  );
+  assert.throws(() =>
+    verifyCompletedLabels(
+      "1.0.0",
+      { latest: "1.0.0" },
+      { tag_name: "v1.0.1", immutable: true },
+    ),
+  );
+  assert.throws(() =>
+    verifyCompletedLabels(
+      "1.0.0",
+      { latest: "1.0.0" },
+      { tag_name: "v1.0.0", immutable: false },
+    ),
+  );
+});
+test("completed native continuations retain exact historical settlements across versions and reject all live status variants", (t) => {
+  const root = temp(t),
+    release = fixture(),
+    originalPath = join(root, "stage.jsonl"),
+    continuationPath = join(root, "promote.jsonl");
+  const original = providerFixture();
+  original.run.id = 17;
+  original.jobs.jobs.forEach((job) => (job.run_id = 17));
+  original.jobs.jobs[1].steps = [
+    {
+      name: "Apply admitted release effect",
+      started_at: "2026-10-18T00:00:00Z",
+      conclusion: "failure",
+    },
+  ];
+  assert.throws(() =>
+    journalEffect(
+      originalPath,
+      release,
+      "stage",
+      () => {
+        throw new Error("lost response");
+      },
+      { env: environment() },
+    ),
+  );
+  original.journal = readFileSync(originalPath);
+  const continuation = providerFixture();
+  continuation.phase = "promote";
+  continuation.run.id = 18;
+  continuation.run.path = ".github/workflows/promote-release.yml";
+  continuation.jobs.jobs.forEach((job) => (job.run_id = 18));
+  continuation.jobs.jobs[1].name = "promote";
+  continuation.jobs.jobs[1].steps = [
+    {
+      name: "Apply admitted release effect",
+      started_at: "2026-10-18T00:01:00Z",
+      conclusion: "success",
+    },
+  ];
+  continuation.settlements = [
+    {
+      schemaVersion: 1,
+      owner: "maksymshostak",
+      phase: "stage",
+      run: "17",
+      attempt: "2",
+      version: release.version,
+      manifestSha256: sha,
+      journalSha256: sha256(original.journal),
+    },
+  ];
+  journalEffect(
+    continuationPath,
+    release,
+    "completion-readback",
+    () => ({ publicVersion: release.version }),
+    { env: { ...environment("promote"), GITHUB_RUN_ID: "18" } },
+  );
+  continuation.journal = readFileSync(continuationPath);
+  assert.equal(
+    verifyEffectHistory(
+      [original, continuation],
+      { run: "20", attempt: "1" },
+      { package: packageName, version: "1.0.0" },
+    ).length,
+    0,
+  );
+  const failed = structuredClone(continuation);
+  failed.run.conclusion = "failure";
+  assert.throws(() =>
+    verifyEffectHistory(
+      [original, failed],
+      { run: "20", attempt: "1" },
+      { package: packageName, version: "1.0.0" },
+    ),
+  );
+  for (const status of [
+    "queued",
+    "requested",
+    "waiting",
+    "pending",
+    "in_progress",
+    "future-unknown",
+  ])
+    assert.throws(() =>
+      verifyEffectHistory(
+        [{ ...original, run: { ...original.run, status } }],
+        { run: "20", attempt: "1" },
+        { package: packageName, version: "1.0.0" },
+      ),
+    );
 });
 test("signed source tags must be annotated, verified and name the original candidate commit", () => {
   const release = fixture(),

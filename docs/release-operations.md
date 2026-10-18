@@ -125,11 +125,19 @@ Attach `release-acceptance.json` to the draft with phase `pilot`, decision names
 `registryRun` and `registryAttempt` strings. Each decision retains the evidence
 and rationale described above. Consumer acceptance concerns this package's exact
 public pilot; there are no copied downstream repository-specific keys.
+The pilot decision also carries `immutableReleases`: an owner-collected native
+settings response in `responseJson`, its `evidence.sha256`, the exact
+`evidence.url` (`https://api.github.com/repos/Hadden-Industries/json-quality/immutable-releases`),
+and `checkedAt`. The response must report `enabled: true` and be at most one hour
+old at publication. The owner reads this Administration setting with their own
+authorized account; the workflow token has no Administration permission.
 
 Dispatch `github-release.yml` with that completed registry predecessor, the
 manifest/review digests, and `acceptance_sha`. The archival environment has GitHub
 write authority and no npm OIDC. It verifies the signed tag, complete draft assets,
-downloaded bytes and enabled immutability before publication. It archives the
+downloaded bytes and the digest-bound owner settings evidence before publication.
+It resolves drafts through the complete draft-capable release list and pins their
+native release ID. Actual immutability is verified after publication. It archives the
 tarball, manifest, public and candidate evidence, original staging journal,
 complete corresponding source archive, license and notices. Every native asset
 and release attestation is verified after publication.
@@ -186,6 +194,11 @@ The optional `recovery_json` dispatch input contains `schemaVersion: 1`, owner,
 exact manifest/version, originating `phase`, `run`, `attempt`, original
 `journalSha256`, `acceptedAt` and a specific `rationale`. Stage continuation also
 names the owner-inspected `stageId`; label reconciliation names `targetVersion`.
+If npm has already reached the target but a GitHub label request is unknown,
+the owner may explicitly select `githubAction: "repair-current-label"` and
+`expectedGithubLatest` (including null). Fresh native readback must observe the
+exact prior GitHub label and npm target. This authorizes only a separate guarded
+GitHub label repair; it neither certifies the old request absent nor replays npm.
 Only the owner may dispatch or re-run these workflows. Native readback must
 actually observe the matching public package, complete immutable assets, or
 already-applied label. Public registry qualification still verifies original
@@ -219,6 +232,11 @@ attempts, changed controllers and unknown effects remain blockers. Readback uses
 bounded native raw contents transport, including checkpoints larger than 1 MB.
 Retain or renew checkpoints while their original artifacts remain available;
 missing original bytes cannot be reconstructed from a green run or public state.
+Completed native writer continuations retain their exact owner recovery records
+alongside the original journals. Checkpoint renewal preserves those settlements;
+later versions accept them only with a fresh successful complete continuation
+graph and matching original journal/run/attempt/manifest/version. Failed or
+incomplete continuations cannot settle historical unknown effects.
 
 Execution budgets are distinct: each install/ci has five minutes, a Node suite
 has thirty minutes, hosted qualification jobs have forty-five minutes, and fast

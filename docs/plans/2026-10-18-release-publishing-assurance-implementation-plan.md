@@ -711,6 +711,8 @@ Consolidated source review identified and repaired the release artifact root, or
 The retention repair reuses the digest-bound owner review: an explicitly reviewed signed annotated checkpoint tag retains exact original journals before expiry, while every fresh native writer/attempt is still enumerated and unknown outcomes remain blockers.
 The read-only exporter accepts a prior checkpoint for renewal; it creates no remote state. The operations guide owns the exact checkpoint and restoration inputs.
 Focused regressions cover admission-driven promotion journal acquisition, digest-bound restoration without mutable release assets, and expired-history readback above 1 MB with unresolved outcomes still refused.
+Independent CLI review additionally repaired draft-capable lookup, workflow-token settings permission assumptions, complete-only prior-run status admission, bounded completion jobs, historical successful-continuation settlements, explicit idempotent GitHub-only repair, and fresh target-label verification before completion.
+The one-hour owner native immutability read is digest-bound in the existing pilot decision because the workflow token has no Administration permission; actual immutable release and asset verification remain mandatory after publication.
 No push, hosted dispatch, remote setting change, first-package bootstrap, real version selection, npm stage/approval, GitHub publication or availability-label change is claimed at this source checkpoint.
 
 ## 18. Authoritative references and source links
