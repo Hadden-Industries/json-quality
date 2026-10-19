@@ -15,12 +15,22 @@
         ]
       },
       "then": {
+        "properties": {
+          "check": {
+            "$ref": "#/properties/check"
+          }
+        },
         "required": [
           "check"
         ]
       },
       "else": {
         "not": {
+          "properties": {
+            "check": {
+              "$ref": "#/properties/check"
+            }
+          },
           "required": [
             "check"
           ]
@@ -39,12 +49,22 @@
         ]
       },
       "then": {
+        "properties": {
+          "scope": {
+            "$ref": "#/properties/scope"
+          }
+        },
         "required": [
           "scope"
         ]
       },
       "else": {
         "not": {
+          "properties": {
+            "scope": {
+              "$ref": "#/properties/scope"
+            }
+          },
           "required": [
             "scope"
           ]

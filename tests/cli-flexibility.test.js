@@ -40,6 +40,35 @@ function fixture(t) {
   return root;
 }
 
+test("the exported result schema compiles strictly and enforces operation-specific modifiers", async (t) => {
+  const root = fixture(t);
+  const validate = new Ajv({ strict: true, allErrors: true }).compile(
+    resultSchema,
+  );
+  for (const [operation, modifier, value] of [
+    ["format", "check", true],
+    ["format", "check", false],
+    ["check", "scope", "protected"],
+    ["check", "scope", "all"],
+  ]) {
+    const result = await runJsonQuality(operation, {
+      root,
+      files: [],
+      [modifier]: value,
+    });
+    assert.equal(validate(result), true, JSON.stringify(validate.errors));
+    const missing = { ...result };
+    delete missing[modifier];
+    assert.equal(validate(missing), false);
+    assert.equal(validate({ ...result, [modifier]: "invalid" }), false);
+    assert.equal(validate({ ...result, operation: "inventory" }), false);
+  }
+  const inventory = await runJsonQuality("inventory", { root, files: [] });
+  assert.equal(validate(inventory), true, JSON.stringify(validate.errors));
+  assert.equal(Object.hasOwn(inventory, "check"), false);
+  assert.equal(Object.hasOwn(inventory, "scope"), false);
+});
+
 test("explicit checking analyzes requested physical files and reports a scoped inventory", async (t) => {
   const root = fixture(t);
   writeFileSync(join(root, "selected.json"), "{}\n");
