@@ -43,7 +43,11 @@ Record commands, results and remaining gaps in the issue, PR or task.
 Local tests, hosted platform qualification and downstream acceptance are separate evidence.
 
 Markdown formatting belongs to `format:markdown` and `check:markdown`; generic Prettier excludes Markdown.
-JSON formatting and validation belong to this package's CLI; generic Prettier excludes JSON.
+The `prettier` package script declares the generic formatting scope once: the repository root with `.gitignore` and `.prettierignore` boundaries, including every supported file under `.github`.
+`format:code` and `format:code:check` reuse that script with `--write` and `--check`.
+`format` combines `format:code` with `format:markdown`; `format:check` pairs their read-only checks and is reused by `check:full`.
+New workflow files enter both formatting and verification automatically.
+JSON formatting and validation belong to this package's CLI; generic Prettier excludes JSON-family files.
 Use `format:json`, `format:json:check`, `normalize:json`, `inventory:json` and `lint:json` for explicit JSON maintenance.
 `normalize:json` requires a nonempty explicit `files` selection, supplied as literal paths after `--` or an encoded `--files` JSON array; it never runs as part of generic formatting.
 CLI and library verbs/modifiers follow the same [consumer contract](docs/consumer-guide.md#cli-and-object-mappings), including `format` with `check: true` and `check` with `scope: "protected"`.
