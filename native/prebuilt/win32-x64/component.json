@@ -10,15 +10,15 @@
   },
   "platform": "win32-x64",
   "nodeApiVersion": 9,
-  "sourceInputsSha256": "732a724e041d0dfab4d0f17eea767bc044fef579887fd17fe21318d8367ff49e",
+  "sourceInputsSha256": "87123b841c014f67f8421455dc7faddb6f339ce86e07ab31e31da6babb7802cd",
   "artifacts": {
     "json-quality.node": {
-      "sha256": "014e5dc8848c2292978e0258cded1fcfffc4c25057e811c0dc56f9b1d8e41a76",
-      "bytes": 36268544
+      "sha256": "765a0c6546375fa4d9efdcd4b81f8c4d8d7035644d7eb82aa8f78796357b2dca",
+      "bytes": 36271104
     },
     "json-quality-native.exe": {
-      "sha256": "af557e63780b39b89be2c1ef85897aca7a6048faecffb367d375cc10f35972a0",
-      "bytes": 36257280
+      "sha256": "7c3d8235938476c353d373cf5ddab14c0a05386b97ffd019c68ccdd906185b4a",
+      "bytes": 36259328
     }
   },
   "configurationSchemaSha256": "fd955571d8aec8f13f317fa58357c6545d26c3d6df3d22595539d4b5bac71a24",
