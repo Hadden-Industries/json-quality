@@ -14,6 +14,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tarfile
 import time
 import urllib.request
@@ -205,7 +206,7 @@ def command(args, directory, logs, label, timeout=900):
     temporary.mkdir(exist_ok=True)
     env["TMP"] = env["TEMP"] = str(temporary)
     started = time.monotonic()
-    print(json.dumps({"stage": label, "state": "started"}), flush=True)
+    print(json.dumps({"stage": label, "state": "started"}), file=sys.stderr, flush=True)
     with logfile.open("xb") as output:
         try:
             result = subprocess.run(
@@ -237,7 +238,11 @@ def command(args, directory, logs, label, timeout=900):
         "logBytes": logfile.stat().st_size,
     }
     save(logfile.with_suffix(".json"), facts)
-    print(json.dumps({k: v for k, v in facts.items() if k != "arguments"}), flush=True)
+    print(
+        json.dumps({k: v for k, v in facts.items() if k != "arguments"}),
+        file=sys.stderr,
+        flush=True,
+    )
     if result.returncode:
         with logfile.open("rb") as source:
             source.seek(max(0, logfile.stat().st_size - 8192))
@@ -248,6 +253,7 @@ def command(args, directory, logs, label, timeout=900):
                         "outputTail": source.read().decode("utf-8", "replace"),
                     }
                 ),
+                file=sys.stderr,
                 flush=True,
             )
         raise RuntimeError("Native producer stage failed: " + label)
@@ -314,7 +320,7 @@ def extract(archive, spec, destination, verify=False):
     seen = set()
     total = count = 0
 
-    def member(name, size, regular, opener):
+    def member(name, size, regular, mode, opener):
         nonlocal prefix, total, count
         count += 1
         if count > 200000:
@@ -366,6 +372,17 @@ def extract(archive, spec, destination, verify=False):
                 raise ValueError("Truncated dependency member")
             if verify and output.read(1):
                 raise ValueError("Reused dependency has trailing bytes")
+        if os.name != "nt":
+            executable_bits = mode & 0o111
+            if verify:
+                if stat.S_IMODE(target.stat().st_mode) & 0o111 != executable_bits:
+                    raise ValueError(
+                        "Reused dependency executable mode differs: " + relative
+                    )
+            else:
+                # Keep the verified archive's executable bits for build scripts,
+                # while never admitting set-id or group/world write permissions.
+                target.chmod(0o644 | executable_bits)
 
     if spec["format"] == "zip":
         with zipfile.ZipFile(archive) as source:
@@ -377,6 +394,7 @@ def extract(archive, spec, destination, verify=False):
                     entry.filename,
                     entry.file_size,
                     kind in (0, stat.S_IFREG),
+                    entry.external_attr >> 16,
                     lambda entry=entry: source.open(entry),
                 )
     else:
@@ -388,6 +406,7 @@ def extract(archive, spec, destination, verify=False):
                     entry.name,
                     entry.size,
                     entry.isfile(),
+                    entry.mode,
                     lambda entry=entry: source.extractfile(entry),
                 )
     if not seen:
