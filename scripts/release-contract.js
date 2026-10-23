@@ -25,6 +25,20 @@ import {
 
 export const repository = "Hadden-Industries/json-quality";
 export const packageName = "@hadden-industries/json-quality";
+const linuxNativeExecutable = "native/prebuilt/linux-x64/json-quality-native";
+
+/** Universal archives must be directly runnable by a non-Node POSIX host. */
+export function assertNativeExecutableModes(files) {
+  const executable = files.find(({ path }) => path === linuxNativeExecutable);
+  if (
+    !executable ||
+    !Number.isSafeInteger(executable.mode) ||
+    (executable.mode & 0o111) === 0
+  )
+    throw new Error(
+      "The universal archive lost the Linux executable mode; use a POSIX producer with the Git-owned executable bit.",
+    );
+}
 export function effectJournal(phase, origin) {
   assert.ok(["stage", "archive", "promote"].includes(phase));
   for (const value of [origin.run, origin.attempt])
@@ -255,6 +269,8 @@ export async function archiveInventory(path, npm = npmCli()) {
       assert.equal(entry.type, "File", "Linked or non-file archive member");
       assert.ok(entry.path.startsWith("package/"));
       const name = safeMember(entry.path.slice(8));
+      if (name === linuxNativeExecutable)
+        assertNativeExecutableModes([{ path: name, mode: entry.mode }]);
       assert.ok(
         !contents.has(name.toLowerCase()) &&
           contents.size < packageCapabilities.maximumMembers,

@@ -86,7 +86,7 @@ Native binaries participate in source identity through bounded hashing.
 `npm run check:full` retains architecture, release, tests, lint, style, clean package qualification and JSON dogfood checks.
 
 The manually dispatched hosted workflow retains Windows/Linux and supported Node consumer lanes.
-The separate [native component workflow](.github/workflows/native.yml) builds the pinned dependencies and both bindings on Windows/Linux, stages each component through the verified owner, and runs the native suite including public installed resolution.
+The separate [native component workflow](https://github.com/Hadden-Industries/json-quality/blob/main/.github/workflows/native.yml) builds the pinned dependencies and both bindings on Windows/Linux, stages each component through the verified owner, and runs the native suite including public installed resolution.
 It retains payloads, original notices, exact source/control identities and build diagnostics for inspection; it neither publishes a package nor automatically adopts a newly built component.
 An explicit manual run with `run_checks: false` produces an unqualified component for assembling a frozen candidate before its final reviews; ordinary push/PR runs and the manual default retain native checks.
 Local Windows evidence does not qualify Linux.

@@ -7,7 +7,10 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { readPackReport, runNpmPack } from "../scripts/pack.js";
-import { verifyShippedLinks } from "../scripts/release-contract.js";
+import {
+  assertNativeExecutableModes,
+  verifyShippedLinks,
+} from "../scripts/release-contract.js";
 import { temporaryDirectory } from "./temporary-directory.js";
 
 test("shared native packing distinguishes inspection from archive writing without running lifecycle scripts", (t) => {
@@ -64,6 +67,20 @@ test("native npm 12 pack reporting admits exactly one package and rejects legacy
   );
   const report = readPackReport(output);
   assert.equal(report.name, "@hadden-industries/json-quality");
+  const nativeExecutable = report.files.find(
+    ({ path }) => path === "native/prebuilt/linux-x64/json-quality-native",
+  );
+  assert.ok(nativeExecutable, "The Linux native executable must ship.");
+  if (process.platform === "win32") {
+    assert.equal(nativeExecutable.mode & 0o111, 0);
+    assert.throws(
+      () => assertNativeExecutableModes(report.files),
+      /POSIX producer/u,
+    );
+  } else {
+    assert.notEqual(nativeExecutable.mode & 0o111, 0);
+    assert.doesNotThrow(() => assertNativeExecutableModes(report.files));
+  }
   assert.ok(report.files.some((file) => file.path === "src/cli.js"));
   verifyShippedLinks(
     report.files,

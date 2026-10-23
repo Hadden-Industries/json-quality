@@ -3,9 +3,9 @@
   "status": "pending installed, rights and final review qualification",
   "sourceInputs": {
     "native/CMakeLists.txt": "133b8daf6a834cf862c405b3946d520f17ece4434cd1968137bd05996862d0df",
-    "native/dependencies.json": "002d9f17403fa2b85daf501026c39988d0e1b0e64cd579d53a90c2f719c37843",
+    "native/dependencies.json": "246bee9dfbbbaeca3fce1c6c98c3b585238e137ff467838f726b2b2d5df07556",
     "native/icu-windows.props.in": "e82fbda22ab86278e259841fa2eb6fb51398bee1fc4e38bc5aa034354c097b89",
-    "native/build.py": "01eadafc29825921c3a914f2c7241bce0852ad92311168edfb47892988c07c6e",
+    "native/build.py": "81270840d88c129f3e38241fc729513795508a770e1784e482215fc4db987365",
     "native/core/adaptive_store.hpp": "6f0e3b2c0859bc281959d4e0f68b27202aa68e5dcc06bc2db0d6b5a2704d244c",
     "native/core/allocation_ledger.hpp": "f377f54d256d943cb1b47636585fa2955102ce153ad700287e42d432ea024a6f",
     "native/core/control_memory.hpp": "883c9949aa80a6144699f91fad3e518179a9c08eeeac298da49bbb9a3adf7545",
@@ -40,7 +40,7 @@
     "schemas/source-contract.schema.json": "f2ed86bb912237c8880cda89c6ad33fabc9b451949bc589e371276b0754392ff",
     "schemas/contract-cohort.json": "c8ea223658e45aad176288c957ceae72e81584eac5e5832ba6b450b126c42c98"
   },
-  "sourceInputsSha256": "ec56791787eef3c60c83b80a65a180bf1c5216a9f68167af5cf40dc33aa16090",
+  "sourceInputsSha256": "732a724e041d0dfab4d0f17eea767bc044fef579887fd17fe21318d8367ff49e",
   "platform": "win32-x64",
   "dependencies": [
     {
@@ -127,9 +127,9 @@
     "source_contract_enums.hpp": "8b2b94f3a745266f232e779ba3681b29c7eecddcd9732c020ec632ee17288262"
   },
   "artifactFiles": {
-    "component.json": "9398606fcdeeee0e4712ff247f5de071c8a6535a84a44d65276fac10820c4e3d",
-    "json-quality-native.exe": "186ba3d3473fedf3290a6651c643bb89618b8eda2b30c94e07b972cb9b4a7b8f",
-    "json-quality.node": "1e5304ff12643dc26baf903d6dbc1e1ae8878dd51cd50cdcc77a5e6463bde75a",
+    "component.json": "33ca64bbf4749e5027c208d0af136cd1f1917ed53167832171430b27b14f1c92",
+    "json-quality-native.exe": "af557e63780b39b89be2c1ef85897aca7a6048faecffb367d375cc10f35972a0",
+    "json-quality.node": "014e5dc8848c2292978e0258cded1fcfffc4c25057e811c0dc56f9b1d8e41a76",
     "notice-inventory.json": "cb9bd3641bc03aedb6c4dbefe84baf3bd2deda7c938f88415dbae80f87c94a83",
     "notices/boost/LICENSE_1_0.txt": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
     "notices/doubleConversion/AUTHORS": "02f8e5babc63a87d460219a74b97e15046d198ed3bab061e3d46b4f44ea77a9d",

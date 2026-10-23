@@ -6,6 +6,8 @@ Automatic CodeQL remains independent.
 A source push, dependency update, or tag cannot stage or publish a package.
 
 The package has one designated tarball.
+The reference Linux producer packs that universal archive with the Git-owned Linux native executable mode.
+Windows recipients qualify the same archive through the existing `--archive` and `--provenance` inputs; a Windows-produced archive that loses POSIX execute permissions is rejected.
 Its local `.provenance.json` records byte identity; authenticated registry provenance comes from native npm verification.
 The current oversized-value source candidate uses package version 2.0.0 and configuration/event/native cohort 2.
 Public API/schema exports, executable artifacts, CLI entrypoints and consumer Node floors remain separate compatibility contracts.

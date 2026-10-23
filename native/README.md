@@ -51,6 +51,8 @@ Clean installed and final qualification remain part of the implementation work.
 See the [native protocol contract](../docs/native-protocol.md) for non-Node supervision, framing, authority and completion requirements.
 
 Focused native conformance tests live under `tests/native/`.
+The native CI workflow separately builds an instrumented Linux component and exercises actual spill, framed faults, cancellation and cleanup with address, leak and undefined-behavior checks.
+That job retains verification diagnostics and never stages its instrumented binaries as production package assets.
 They default to fixed installed resolution; explicit test-only artifact locations verify binary digest, byte length, platform, component versions and embedded source identity before opening a session.
 Default test scratch uses the OS temporary parent; explicit artifact qualification can use its identified producer group.
 Each session owns cleanup.

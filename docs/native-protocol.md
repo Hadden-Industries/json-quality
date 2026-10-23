@@ -1,6 +1,8 @@
 # Native protocol, cohort 2
 
 The packaged `native/prebuilt/PLATFORM/json-quality-native` executable (`.exe` on Windows) exposes the same core used by Node-API.
+Qualified hosts launch the verified package-relative executable, rather than resolving a command from `PATH`.
+Universal archives must retain the Linux executable's POSIX execute bit; the reference Linux producer packs its Git-owned executable mode, and package qualification rejects an archive that loses it.
 A non-Node host needs the matching verified platform payload and its own process supervision; it does not need Node, a compiler, global ICU or an additional JSON parser for source data.
 Python hosts can use standard-library process and binary-I/O facilities.
 Actual HISEW integration remains a separately governed consumer change.
