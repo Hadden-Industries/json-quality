@@ -65,7 +65,9 @@ struct SqliteMemory {
   inline static std::once_flag initialization;
   inline static SqliteMemoryOwner runtime{1048576, true};
   inline static thread_local SqliteMemoryOwner *current = nullptr;
-  struct alignas(std::max_align_t) Header {
+  // SQLite's maintained allocator guarantees eight-byte alignment, including
+  // when its own size prefix offsets a more strongly aligned system block.
+  struct alignas(8) Header {
     SqliteMemoryOwner *owner;
     int allocated;
   };

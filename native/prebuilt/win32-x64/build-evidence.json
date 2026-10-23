@@ -6,8 +6,8 @@
     "native/dependencies.json": "246bee9dfbbbaeca3fce1c6c98c3b585238e137ff467838f726b2b2d5df07556",
     "native/icu-windows.props.in": "e82fbda22ab86278e259841fa2eb6fb51398bee1fc4e38bc5aa034354c097b89",
     "native/build.py": "81270840d88c129f3e38241fc729513795508a770e1784e482215fc4db987365",
-    "native/core/adaptive_store.hpp": "54788a51da457ae271c99cbba0c4982387f09edbbd42bdaf16ea5d528d0394f1",
-    "native/core/allocation_ledger.hpp": "f377f54d256d943cb1b47636585fa2955102ce153ad700287e42d432ea024a6f",
+    "native/core/adaptive_store.hpp": "e08457fc0f3e4543b8eba57e86d4166a367caea593c8c9c2d10ff4394b174812",
+    "native/core/allocation_ledger.hpp": "acc407e4980abed2248e527369c44083747a2300e105fc6c811705edb5ed58e1",
     "native/core/control_memory.hpp": "883c9949aa80a6144699f91fad3e518179a9c08eeeac298da49bbb9a3adf7545",
     "native/core/decimal_admission.hpp": "836c95a5858e1aacdd149c2f7f719c2a6b64333b732229c9f7bbd6fd26273cca",
     "native/core/document_check.hpp": "673e98072d2802e107594b75a49f7325a4227b396a6e5b3b0cf6a52fa4861210",
@@ -40,7 +40,7 @@
     "schemas/source-contract.schema.json": "f2ed86bb912237c8880cda89c6ad33fabc9b451949bc589e371276b0754392ff",
     "schemas/contract-cohort.json": "c8ea223658e45aad176288c957ceae72e81584eac5e5832ba6b450b126c42c98"
   },
-  "sourceInputsSha256": "87123b841c014f67f8421455dc7faddb6f339ce86e07ab31e31da6babb7802cd",
+  "sourceInputsSha256": "99fe880c25f2e200b97bdccd6ca97bd05e50f9208fddaff581cb97677e7b3957",
   "platform": "win32-x64",
   "dependencies": [
     {
@@ -127,9 +127,9 @@
     "source_contract_enums.hpp": "8b2b94f3a745266f232e779ba3681b29c7eecddcd9732c020ec632ee17288262"
   },
   "artifactFiles": {
-    "component.json": "fd493bcf316ff40a26da35a12ac14310f7d720248d3471a3dafa164197acd902",
-    "json-quality-native.exe": "7c3d8235938476c353d373cf5ddab14c0a05386b97ffd019c68ccdd906185b4a",
-    "json-quality.node": "765a0c6546375fa4d9efdcd4b81f8c4d8d7035644d7eb82aa8f78796357b2dca",
+    "component.json": "12c1c03cd30fdaf0cbbe9e3b60737e30a6fecad713dd87ed114959648919c68d",
+    "json-quality-native.exe": "63fe09d084e1fdba5b7f89cba749b63ce24fceed1bce942881845f9ae97d4793",
+    "json-quality.node": "1e182b2e642b1499b3c2306946a0f9c60058de5da86bc1fb113e046acc6d9293",
     "notice-inventory.json": "cb9bd3641bc03aedb6c4dbefe84baf3bd2deda7c938f88415dbae80f87c94a83",
     "notices/boost/LICENSE_1_0.txt": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
     "notices/doubleConversion/AUTHORS": "02f8e5babc63a87d460219a74b97e15046d198ed3bab061e3d46b4f44ea77a9d",
