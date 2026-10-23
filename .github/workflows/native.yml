@@ -138,7 +138,7 @@ jobs:
           python native/build.py --workspace "$RUNNER_TEMP/json-quality-sanitizers" --jobs 2 > "$RUNNER_TEMP/native-sanitizer-result.json"
       - name: Check real spill, references, transport faults and cleanup under instrumentation
         env:
-          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:strict_string_checks=1
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:strict_string_checks=1:log_path=${{ runner.temp }}/native-sanitizer-asan
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           python - <<'PY'
@@ -158,6 +158,12 @@ jobs:
           dynamic = subprocess.run(['readelf', '--dynamic', str(executable)], check=True, capture_output=True, text=True, timeout=10).stdout
           assert 'libasan.so' in dynamic and 'libubsan.so' in dynamic
           (root / 'native-sanitizer-dynamic.txt').write_text(dynamic, encoding='utf-8')
+          sys.path.insert(0, str(Path('tests/native').resolve()))
+          from stdio_probe import Host
+          manifest = json.loads((artifacts / 'component.json').read_text(encoding='utf-8'))
+          for _ in range(32):
+              Host(executable, root, manifest).close()
+          (root / 'native-sanitizer-startup.json').write_text(json.dumps({'launches': 32, 'sourceInputsSha256': manifest['sourceInputsSha256']}), encoding='utf-8')
           with (root / 'native-sanitizer-protocol.json').open('x', encoding='utf-8') as output:
               subprocess.run([sys.executable, 'tests/native/stdio_probe.py', str(executable), str(artifacts / 'component.json'), str(root), str(os.getpid())], check=True, stdout=output, timeout=300)
           PY

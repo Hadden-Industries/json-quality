@@ -155,8 +155,12 @@ test("root NFC preflight rechecks actual changed logical JSON before its contain
     },
     logicalProviders = [
       {
-        definition: { id: "embedded", minimumDocuments: 1 },
-        inventory: (async function* () {
+        definition: {
+          id: "embedded",
+          minimumDocuments: 1,
+          containerPaths: ["container.json"],
+        },
+        async *inventory() {
           yield {
             path: "embedded.json",
             containerPath: "container.json",
@@ -164,7 +168,7 @@ test("root NFC preflight rechecks actual changed logical JSON before its contain
             encoding: "utf8",
             ...identity,
           };
-        })(),
+        },
       },
     ];
   await fixture(

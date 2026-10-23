@@ -54,7 +54,8 @@ inline fs::path ownedScratchPath(const fs::path &requested) {
   require(requested.is_absolute() && requested.has_filename() && requested.filename() != "." &&
               requested.filename() != "..",
           "scratch-path-contract");
-  const auto parent = fs::canonical(requested.parent_path());
+  // Windows canonicalization may drop the extended-length path prefix.
+  const auto parent = pathFromUtf8(pathToUtf8(fs::canonical(requested.parent_path())));
   require(fs::is_directory(parent), "scratch-parent-directory");
   return parent / requested.filename();
 }

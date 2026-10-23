@@ -10,8 +10,13 @@ runs:
     - name: Select the policy-owned producer npm
       shell: bash
       run: |
-        npm_root="$(npm root --global)"
-        JSON_QUALITY_PRODUCER_NPM="$npm_root/npm/bin/npm-cli.js" node scripts/qualification-process.js producer-npm
+        npm exec --global --call 'node scripts/qualification-process.js producer-npm'
+        npm_prefix="$(npm prefix --global)"
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          echo "$npm_prefix" >> "$GITHUB_PATH"
+        else
+          echo "$npm_prefix/bin" >> "$GITHUB_PATH"
+        fi
     - name: Install frozen producer dependencies
       shell: bash
       run: npm run ci:install
