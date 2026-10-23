@@ -1,5 +1,8 @@
 node_modules/
 coverage/
+# Immutable comparison inputs and verified producer payloads retain exact bytes.
+tests/oracles/finite-v1/**
+native/prebuilt/**
 **/*.md
 **/*.json
 **/*.jsonld

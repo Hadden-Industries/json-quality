@@ -3,404 +3,286 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { temporaryRepository } from "./temporary-repository.js";
-import { runJsonQuality } from "../src/execution.js";
-import { formatJsonDocument } from "../src/document-operation.js";
-import { mapConcurrent } from "../src/selection.js";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { validateJsonQualityResult } from "../src/result.js";
-import Ajv from "ajv";
-import requestSchema from "@hadden-industries/json-quality/document-request-schema" with { type: "json" };
-import responseSchema from "@hadden-industries/json-quality/document-response-schema" with { type: "json" };
-import resultSchema from "@hadden-industries/json-quality/result-schema" with { type: "json" };
+import { temporaryRepository } from "./temporary-repository.js";
+import * as api from "../src/index.js";
+import { repositoryEvents } from "./repository-fixture.js";
+import { validateJsonQualityEvent } from "../src/events.js";
 
+const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url)),
+  contextProbe = fileURLToPath(
+    new URL("./cli-context-probe.mjs", import.meta.url),
+  );
 function fixture(t) {
   const root = temporaryRepository(t, "json-flexibility-");
-  const policy = {
-    schemaVersion: 1,
-    defaults: {
-      formatContract: "prettier-json",
-      allowFormatWrites: true,
-      normalization: "NFC",
-    },
-    exceptions: [
-      {
-        paths: [".git/**", "**/node_modules/**"],
-        exclude: true,
-        owner: "Git and package manager",
-        reason: "External storage; tracked JSON retains checking.",
-      },
-    ],
-  };
   writeFileSync(
     join(root, ".json-quality.json"),
-    JSON.stringify(policy, null, 2) + "\n",
+    JSON.stringify(
+      {
+        schemaVersion: 2,
+        defaults: {
+          formatContract: "prettier-json",
+          allowFormatWrites: true,
+          normalization: "NFC",
+        },
+        exceptions: [
+          {
+            paths: [".git/**", "**/node_modules/**"],
+            exclude: true,
+            owner: "Git and npm",
+            reason: "External state; tracked JSON remains included.",
+          },
+        ],
+      },
+      null,
+      2,
+    ) + "\n",
   );
   return root;
 }
-
-test("the exported result schema compiles strictly and enforces operation-specific modifiers", async (t) => {
-  const root = fixture(t);
-  const validate = new Ajv({ strict: true, allErrors: true }).compile(
-    resultSchema,
-  );
-  for (const [operation, modifier, value] of [
-    ["format", "check", true],
-    ["format", "check", false],
-    ["check", "scope", "protected"],
-    ["check", "scope", "all"],
-  ]) {
-    const result = await runJsonQuality(operation, {
-      root,
-      files: [],
-      [modifier]: value,
-    });
-    assert.equal(validate(result), true, JSON.stringify(validate.errors));
-    const missing = { ...result };
-    delete missing[modifier];
-    assert.equal(validate(missing), false);
-    assert.equal(validate({ ...result, [modifier]: "invalid" }), false);
-    assert.equal(validate({ ...result, operation: "inventory" }), false);
-  }
-  const inventory = await runJsonQuality("inventory", { root, files: [] });
-  assert.equal(validate(inventory), true, JSON.stringify(validate.errors));
-  assert.equal(Object.hasOwn(inventory, "check"), false);
-  assert.equal(Object.hasOwn(inventory, "scope"), false);
-});
-
-test("explicit checking analyzes requested physical files and reports a scoped inventory", async (t) => {
-  const root = fixture(t);
-  writeFileSync(join(root, "selected.json"), "{}\n");
-  writeFileSync(join(root, "peer.json"), '{"value":9007199254740992}');
-  const result = await runJsonQuality("check", {
-    root,
-    files: ["selected.json"],
-    concurrency: 2,
-  });
-  assert.equal(result.status, "passed");
-  assert.deepEqual(
-    result.documents.map(({ path }) => path),
-    ["selected.json"],
-  );
-  assert.equal(result.selection.physicalInventory, 3);
-  assert.equal((await runJsonQuality("check", { root })).status, "failed");
-});
-
-test("selected formatting retains invalid-peer preflight and only replaces selected sources", async (t) => {
-  const root = fixture(t);
-  const selected = '{"value":1.00e+2}';
-  writeFileSync(join(root, "selected.json"), selected);
-  writeFileSync(join(root, "peer.json"), '{"value":9007199254740992}');
-  const rejected = await runJsonQuality("format", {
-    root,
-    files: ["selected.json"],
-  });
-  assert.equal(rejected.status, "failed");
-  assert.equal(readFileSync(join(root, "selected.json"), "utf8"), selected);
-  const peer = '{"peer":true}';
-  writeFileSync(join(root, "peer.json"), peer);
-  const accepted = await runJsonQuality("format", {
-    root,
-    files: ["selected.json"],
-    concurrency: 2,
-  });
-  assert.equal(accepted.status, "passed");
-  assert.deepEqual(accepted.writes.changed, ["selected.json"]);
-  assert.equal(readFileSync(join(root, "peer.json"), "utf8"), peer);
-  assert.match(readFileSync(join(root, "selected.json"), "utf8"), /1\.00e\+2/u);
-});
-
-test("literal selection rejects duplicates, escaping paths and absent documents", async (t) => {
-  const root = fixture(t);
-  for (const files of [
-    ["../outside.json"],
-    ["missing.json"],
-    [".json-quality.json", ".json-quality.json"],
-  ])
-    await assert.rejects(runJsonQuality("check", { root, files }));
-  assert.deepEqual(
-    (await runJsonQuality("inventory", { root, files: [] })).documents,
-    [],
-  );
-});
-
-test("supplied formatting retains numeric tokens and performs no checkout writes", async (t) => {
-  const root = fixture(t);
-  const policy = readFileSync(join(root, ".json-quality.json"));
-  const request = {
-    schemaVersion: 1,
-    requestId: "fixture",
-    path: "supplied.json",
-    contentBase64: Buffer.from('{"value":1.00e+2}').toString("base64"),
-  };
-  const result = await formatJsonDocument(request, { root });
-  const ajv = new Ajv({ strict: true });
-  assert.equal(ajv.compile(requestSchema)(request), true);
-  const validateResponse = ajv
-    .addSchema(resultSchema, "result.schema.json")
-    .compile(responseSchema);
-  assert.equal(
-    validateResponse(result),
-    true,
-    ajv.errorsText(validateResponse.errors),
-  );
-  assert.equal(
-    validateResponse({
-      ...result,
-      result: { ...result.result, unknown: true },
-    }),
-    false,
-  );
-  assert.equal(result.result.status, "passed");
-  assert.match(
-    Buffer.from(result.contentBase64, "base64").toString("utf8"),
-    /1\.00e\+2/u,
-  );
-  assert.deepEqual(result.result.writes.changed, []);
-  assert.deepEqual(readFileSync(join(root, ".json-quality.json")), policy);
-});
-
-test("supplied formatting does not normalize or silently repair invalid semantic values", async (t) => {
-  const root = fixture(t);
-  const source = '{"value":"e\\u0301"}';
-  const request = {
-    schemaVersion: 1,
-    requestId: "fixture",
-    path: "supplied.json",
-    contentBase64: Buffer.from(source).toString("base64"),
-  };
-  const result = await formatJsonDocument(request, { root });
-  assert.equal(result.result.status, "failed");
-  assert.equal(result.contentBase64, request.contentBase64);
-  await assert.rejects(
-    formatJsonDocument(
-      { ...request, contentBase64: request.contentBase64 + "\n" },
-      { root },
-    ),
-    /canonical base64/u,
-  );
-});
-
-test("supplied formatting preserves excluded ancestor boundaries and output budgets", async (t) => {
-  const root = fixture(t);
-  const request = {
-    schemaVersion: 1,
-    requestId: "boundary",
-    path: "node_modules/.hidden.json",
-    contentBase64: Buffer.from("[]").toString("base64"),
-  };
-  await assert.rejects(
-    formatJsonDocument(request, { root }),
-    /excluded or protected/u,
-  );
-  await assert.rejects(
-    formatJsonDocument(
-      { ...request, path: "supplied.json" },
-      { root, capacityLimits: { maxTotalBytes: 2 } },
-    ),
-    /total-byte budget/u,
-  );
-});
-
-test("concurrent preparation settles started peers before reporting a failure", async () => {
-  let release;
-  const barrier = new Promise((resolve) => {
-    release = resolve;
-  });
-  const events = [];
-  const result = mapConcurrent([0, 1, 2], 2, async (value) => {
-    events.push(`started:${value}`);
-    if (value === 0) {
-      await barrier;
-      events.push("settled:0");
-      return value;
-    }
-    release();
-    throw new Error("Expected preparation failure");
-  });
-  await assert.rejects(result, /Expected preparation failure/u);
-  assert.ok(events.includes("settled:0"));
-  assert.ok(!events.includes("started:2"));
-});
-
-test("concurrent preparation returns input order after out-of-order completion", async () => {
-  let release;
-  const gate = new Promise((resolve) => {
-    release = resolve;
-  });
-  const completed = [];
-  const values = await mapConcurrent([0, 1], 2, async (value) => {
-    if (value === 0) await gate;
-    else release();
-    completed.push(value);
-    return value;
-  });
-  assert.deepEqual(completed, [1, 0]);
-  assert.deepEqual(values, [0, 1]);
-});
-
-test("explicit formatting refuses protected repairs", async (t) => {
-  const root = fixture(t);
-  writeFileSync(join(root, "records.jsonl"), "{}\n");
-  await assert.rejects(
-    runJsonQuality("format", { root, files: ["records.jsonl"] }),
-    /protected JSON source/u,
-  );
-});
-
-test("supplied request metadata capacityLimits are policy-controlled and Unicode-aware", async (t) => {
-  const root = fixture(t);
-  const request = {
-    schemaVersion: 1,
-    requestId: "😀".repeat(1025),
-    path: "a".repeat(1500) + ".json",
-    contentBase64: Buffer.from("{}\n").toString("base64"),
-  };
-  await assert.rejects(
-    formatJsonDocument(request, { root }),
-    /character limit/u,
-  );
-  const result = await formatJsonDocument(request, {
-    root,
-    capacityLimits: { maxRequestIdCharacters: 1025 },
-  });
-  assert.equal(result.path, request.path);
-  assert.equal(result.requestId, request.requestId);
-  assert.equal(
-    (await formatJsonDocument(request, { root, capacityLimits: false })).result
-      .status,
-    "passed",
-  );
-});
-
-test("CLI admission failures keep the closed operational error envelope", (t) => {
-  const root = fixture(t);
-  const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
-  const duplicate =
-    '{"schemaVersion":1,"requestId":"request","path":"first.json","path":"last.json","contentBase64":"e30="}';
-  const cases = [
-    { args: ["check", "--files-json", "[]"] },
-    { args: ["format", "--stdin-request"], input: duplicate },
-    { args: ["check-protected"] },
-    { args: ["normalize", "--files", "[]"] },
-    { args: ["format", "--request", "data.json"] },
-    { args: ["format", "--request", "-", "--concurrency", "1"] },
-    { args: ["format", "--request", "-", "--files", "[]"] },
-    { args: ["check", "--files", "{}"] },
-    { args: ["check", "--files", "[]", "--", "peer.json"] },
-    { args: ["check", "--concurrency", "0"] },
-    { args: ["check", "--diagnostic-level", "unknown"] },
-    { args: ["format", "--request", "-"], input: duplicate },
-    { args: ["format", "--request", "-"], input: Buffer.from([255]) },
-    {
-      args: ["format", "--request", "-", "--max-file-bytes", "1"],
-      input: JSON.stringify({
-        schemaVersion: 1,
-        requestId: "request",
-        path: "data.json",
-        contentBase64: Buffer.from("{}").toString("base64"),
-      }),
-    },
-  ];
-  for (const { args, input } of cases) {
-    const result = spawnSync(
-      process.execPath,
-      [cli, "--json", "--root", root, ...args],
-      { input, encoding: "utf8", windowsHide: true, timeout: 30000 },
-    );
-    assert.equal(result.status, 2, result.stderr);
-    const report = validateJsonQualityResult(JSON.parse(result.stdout));
-    assert.equal(report.status, "error");
-    assert.equal(report.complete, false);
-  }
-});
-
-test("CLI and library preserve the same verb and format check modifier", async (t) => {
-  const root = fixture(t);
-  const path = join(root, "data.json");
-  const original = '{"number":1.00e+2}';
-  writeFileSync(path, original);
-  const options = { root, check: true, files: ["data.json"] };
-  const result = await runJsonQuality("format", options);
-  const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
-  const invoked = spawnSync(
+function run(args, { root, input = "", context } = {}) {
+  return spawnSync(
     process.execPath,
-    [
-      cli,
-      "format",
-      "--check",
-      "--files",
-      '["data.json"]',
-      "--root",
-      root,
-      "--json",
-    ],
-    { encoding: "utf8", windowsHide: true, timeout: 30000 },
-  );
-  assert.equal(invoked.status, 1, invoked.stderr);
-  assert.deepEqual(JSON.parse(invoked.stdout), result);
-  assert.equal(result.operation, "format");
-  assert.equal(result.check, true);
-  assert.equal(
-    result.selection.analysis,
-    "selected-physical-and-required-documents",
-  );
-  assert.equal(readFileSync(path, "utf8"), original);
-  assert.throws(
-    () => validateJsonQualityResult({ ...result, schemaVersion: 3 }),
-    /structure/u,
-  );
-  assert.throws(
-    () =>
-      validateJsonQualityResult({
-        ...result,
-        writes: { ...result.writes, unchanged: ["data.json"] },
-      }),
-    /write accounting/u,
-  );
-});
-
-test("library rejects retired names and invalid modifiers before repository access", async () => {
-  for (const [operation, options] of [
-    ["check-format", {}],
-    ["check-protected", {}],
-    ["format", { check: "true" }],
-    ["format", { scope: "protected" }],
-    ["check", { check: false }],
-    ["check", { scope: "producer" }],
-    ["normalize", {}],
-    ["normalize", { files: [] }],
-    ["normalize", { sourcePaths: ["data.json"] }],
-  ])
-    await assert.rejects(runJsonQuality(operation, options), TypeError);
-});
-
-test("supplied-document check uses the same modifier and retains original bytes", async (t) => {
-  const root = fixture(t);
-  const request = {
-    schemaVersion: 1,
-    requestId: "verify",
-    path: "data.json",
-    contentBase64: Buffer.from('{"x":1.00e+2}').toString("base64"),
-  };
-  const response = await formatJsonDocument(request, { root, check: true });
-  assert.equal(response.result.operation, "format");
-  assert.equal(response.result.check, true);
-  assert.equal(response.result.status, "failed");
-  assert.equal(response.contentBase64, request.contentBase64);
-  assert.deepEqual(response.result.writes.changed, []);
-  const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
-  const invoked = spawnSync(
-    process.execPath,
-    [cli, "format", "--check", "--request", "-", "--root", root, "--json"],
+    context === undefined
+      ? [cli, ...args]
+      : [contextProbe, JSON.stringify(args), JSON.stringify(context)],
     {
-      input: JSON.stringify(request),
+      cwd: root,
+      input,
       encoding: "utf8",
       windowsHide: true,
-      timeout: 30000,
+      timeout: 15000,
+      maxBuffer: 2097152,
     },
   );
-  assert.equal(invoked.status, 1, invoked.stderr);
-  assert.deepEqual(JSON.parse(invoked.stdout), response);
+}
+function delivered(result) {
+  assert.ifError(result.error);
+  return result.stdout
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const event = JSON.parse(line);
+      assert.equal(validateJsonQualityEvent(event), true, line);
+      return event;
+    });
+}
+test("public cohort rejects retired aggregate interfaces and document envelopes", async () => {
+  for (const name of [
+    "runJsonQuality",
+    "checkJsonDocument",
+    "checkJsonLines",
+    "inspectJsonInventory",
+    "formatJsonDocument",
+    "validateJsonQualityResult",
+    "readJsonPolicy",
+    "decodeJsonBytes",
+  ])
+    assert.equal(Object.hasOwn(api, name), false, name);
+  for (const suffix of [
+    "result-schema",
+    "document-request-schema",
+    "document-response-schema",
+  ])
+    await assert.rejects(import("@hadden-industries/json-quality/" + suffix), {
+      code: "ERR_PACKAGE_PATH_NOT_EXPORTED",
+    });
+});
+test("event admission is closed and requires complete terminal evidence", () => {
+  const terminal = {
+    schemaVersion: 2,
+    requestId: "fixture",
+    type: "execution-terminal",
+    inventoryComplete: true,
+    linkedExpectationsComplete: true,
+    sourceObservationsComplete: true,
+    diagnosticsComplete: true,
+    domainComplete: false,
+    members: "2",
+    qualityPassed: true,
+    contractSatisfied: true,
+  };
+  assert.equal(validateJsonQualityEvent(terminal), true);
+  assert.equal(validateJsonQualityEvent({ ...terminal, documents: [] }), false);
+  assert.equal(
+    validateJsonQualityEvent({ ...terminal, schemaVersion: 1 }),
+    false,
+  );
+  for (const name of [
+    "inventoryComplete",
+    "diagnosticsComplete",
+    "contractSatisfied",
+  ]) {
+    const missing = { ...terminal };
+    delete missing[name];
+    assert.equal(validateJsonQualityEvent(missing), false);
+  }
+});
+test("read-only repository checks retain complete scope and cannot select literal subsets", (t) => {
+  const root = fixture(t),
+    result = run(["check", "--root", root, "--json", "source.json"]);
+  assert.equal(result.status, 2);
+  assert.match(
+    delivered(result).at(-1).message,
+    /Read-only scope is complete/u,
+  );
+});
+test("selected formatting retains invalid-peer preflight and changes only selected sources", async (t) => {
+  const root = fixture(t);
+  writeFileSync(join(root, "selected.json"), '{"n":1.00}');
+  writeFileSync(join(root, "peer.json"), '{"bad":');
+  let events = await repositoryEvents({ root }, "format", ["selected.json"]);
+  assert.equal(events.at(-1).type, "write-failure");
+  assert.equal(events.at(-1).written, "0");
+  assert.equal(readFileSync(join(root, "selected.json"), "utf8"), '{"n":1.00}');
+  writeFileSync(join(root, "peer.json"), "{}\n");
+  events = await repositoryEvents({ root }, "format", ["selected.json"]);
+  assert.equal(events.at(-1).type, "write-terminal");
+  assert.equal(events.at(-1).written, "1");
+  assert.match(readFileSync(join(root, "selected.json"), "utf8"), /1\.00/u);
+  assert.equal(readFileSync(join(root, "peer.json"), "utf8"), "{}\n");
+});
+test("literal write selection rejects duplicate/escaping paths and undiscovered sources", async (t) => {
+  const root = fixture(t);
+  writeFileSync(join(root, "source.json"), "{}\n");
+  for (const files of [["source.json", "source.json"], ["../outside.json"]])
+    await assert.rejects(
+      repositoryEvents({ root }, "format", files),
+      /Duplicate|relative/u,
+    );
+  const events = await repositoryEvents({ root }, "format", ["absent.json"]);
+  assert.equal(events.at(-1).type, "write-failure");
+  assert.equal(events.at(-1).written, "0");
+});
+test("pure source formatting preserves exact number tokens and never acquires checkout writes", async (t) => {
+  const root = fixture(t),
+    before = readFileSync(join(root, ".json-quality.json"));
+  const text = await api.formatJsonSource('{"n":1.00e+2}');
+  assert.equal(text, '{\n  "n": 1.00e+2\n}\n');
+  assert.deepEqual(readFileSync(join(root, ".json-quality.json")), before);
+  for (const invalid of [
+    '{"x":9007199254740992}',
+    '{"a":1,"a":2}',
+    '{"x":"e\\u0301"}',
+  ])
+    await assert.rejects(api.formatJsonSource(invalid), /invalid or unsafe/u);
+});
+test("JSONL producer framing never grants generic format write permission", async (t) => {
+  const root = fixture(t);
+  writeFileSync(join(root, "records.jsonl"), "{}\n");
+  const events = await repositoryEvents({ root }, "format", ["records.jsonl"]);
+  assert.equal(events.at(-1).type, "write-failure");
+  assert.match(events.at(-1).message, /Protected/u);
+});
+test("request correlation counts Unicode scalars and supports explicit capacity overrides", async () => {
+  const requestId = "😀".repeat(1025);
+  for (const [capacityLimits, accepted] of [
+    [undefined, false],
+    [{ maxRequestIdCharacters: 1025 }, true],
+    [false, true],
+  ]) {
+    const session = await api.openJsonSourceSession({ capacityLimits });
+    try {
+      const consume = async () => {
+        let terminal;
+        for await (const event of session.check(
+          {
+            async *open() {
+              yield Buffer.from("{}\n");
+            },
+          },
+          {},
+          { requestId },
+        ))
+          terminal = event;
+        assert.equal(terminal.contractSatisfied, true);
+        assert.equal(terminal.requestId, requestId);
+      };
+      if (accepted) await consume();
+      else await assert.rejects(consume(), /request-id-capacity/u);
+    } finally {
+      await session.close();
+    }
+  }
+});
+test("CLI refuses retired verbs, flags and whole-document request envelopes", () => {
+  for (const args of [
+    ["inventory"],
+    ["lint"],
+    ["check", "--scope", "protected"],
+    ["format", "--check"],
+    ["source", "--request", "-"],
+    ["source", "--contract", '{"contentBase64":"e30="}'],
+    ["normalize"],
+  ]) {
+    const result = run([...args, "--json"]);
+    assert.equal(result.status, 2);
+    assert.equal(delivered(result).at(-1).type, "failure");
+  }
+});
+test("CLI argument admission and help run before trusted context loading", () => {
+  for (const args of [["--help"], ["check", "--help"]]) {
+    const result = run(args, { context: {} });
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /check\|source\|format\|normalize/u);
+    assert.doesNotMatch(result.stderr, /CONTEXT_LOADED/u);
+  }
+  const invalid = run(["inventory", "--json"], { context: {} });
+  assert.equal(invalid.status, 2);
+  assert.doesNotMatch(invalid.stderr, /CONTEXT_LOADED/u);
+});
+test("trusted CLI adapters retain fixed roots and required-output obligations", (t) => {
+  const root = fixture(t),
+    other = fixture(t);
+  const changedRoot = run(["check", "--root", other, "--json"], {
+    context: { root },
+  });
+  assert.equal(changedRoot.status, 2);
+  assert.match(delivered(changedRoot).at(-1).message, /fixes the root/u);
+  const missing = run(["check", "--json"], {
+    context: { root, requiredOutputs: ["generated/*.json"] },
+  });
+  assert.equal(missing.status, 2);
+  assert.match(
+    delivered(missing).at(-1).message,
+    /Missing required generated JSON/u,
+  );
+});
+test("raw source checks cannot replace a trusted repository adapter's obligations", (t) => {
+  const root = fixture(t);
+  const result = run(["source", "--json"], {
+    input: "{}\n",
+    context: { root },
+  });
+  assert.equal(result.status, 2);
+  assert.match(
+    delivered(result).at(-1).message,
+    /cannot replace trusted repository obligations/u,
+  );
+});
+test("unknown trusted context fields and insufficient output budgets remain incomplete", (t) => {
+  const root = fixture(t),
+    unknown = run(["check", "--json"], {
+      context: { root, logicalInventory: [] },
+    });
+  assert.equal(unknown.status, 2);
+  assert.match(
+    delivered(unknown).at(-1).message,
+    /Invalid trusted repository CLI context/u,
+  );
+  const bounded = run([
+    "check",
+    "--root",
+    root,
+    "--json",
+    "--max-tool-output-bytes",
+    "1",
+  ]);
+  assert.equal(bounded.status, 2);
+  assert.equal(
+    delivered(bounded).some((event) => event.type === "execution-terminal"),
+    false,
+  );
 });

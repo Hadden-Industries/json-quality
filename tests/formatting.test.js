@@ -9,9 +9,9 @@ import { temporaryRepository } from "./temporary-repository.js";
 import {
   formatJsonSource,
   formatJsonValue,
-  checkJsonDocument,
   jsonFormatOptions,
 } from "../src/index.js";
+import { checkFixture } from "./source-fixture.js";
 
 test("API formatting and native preservation checking ignore consumer formatter settings", async (t) => {
   const root = temporaryRepository(t, "json-quality-formatter-config-");
@@ -41,15 +41,24 @@ test("API formatting and native preservation checking ignore consumer formatter 
 
 test("public printer preserves token spelling, order and unnormalized source values", async () => {
   const source = '{"z":1.00e+2,"x":"e\\u0301","a":[2,1]}';
-  const printed = await formatJsonSource(source);
+  await assert.rejects(formatJsonSource(source), /invalid or unsafe/u);
+  const preservation = {
+    contract: {
+      normalization: "preserve",
+      allowFormatWrites: false,
+      owner: "Fixture owner",
+      reason: "Keep the independent decomposed literal.",
+    },
+  };
+  const printed = await formatJsonSource(source, preservation);
   const tokens = (text) =>
     tokenize(text).map((token) =>
       text.slice(token.loc.start.offset, token.loc.end.offset),
     );
   assert.deepEqual(tokens(printed), tokens(source));
-  assert.equal(await formatJsonSource(printed), printed);
+  assert.equal(await formatJsonSource(printed, preservation), printed);
   assert.ok(
-    (await checkJsonDocument(Buffer.from(printed))).findings.some(
+    (await checkFixture(Buffer.from(printed))).findings.some(
       (f) => f.messageId === "unnormalized",
     ),
   );
@@ -104,8 +113,8 @@ test("public value printer rejects lossy values without invoking their accessors
     await assert.rejects(formatJsonValue(value), TypeError);
   assert.equal(calls, 0);
   assert.equal(
-    await formatJsonValue({ z: 1, a: ["e\u0301", null] }),
-    '{\n  "z": 1,\n  "a": [\n    "é",\n    null\n  ]\n}\n',
+    await formatJsonValue({ z: 1, a: ["é", null] }),
+    '{\n  "z": 1,\n  "a": [\n    "é",\n    null\n  ]\n}\n',
   );
 });
 

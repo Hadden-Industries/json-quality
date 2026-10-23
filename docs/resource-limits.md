@@ -1,85 +1,107 @@
-# Consumer resource controls
+# Resource controls
 
-Every package-owned capacity limit has a consumer override.
-Capacity changes never disable JSON quality, immutable-source identity, native/logical obligations or write protection.
-The canonical setting is `capacityLimits`: CLI `--capacity-limits` maps to JSON/API `capacityLimits: true`, and its native negative form `--no-capacity-limits` maps to `capacityLimits: false`.
-False disables the 17 shared operation capacities listed below, with no claim to change separate ESLint, cleanup, workflow or platform controls.
-Invocation overrides include policy bootstrap capacity; a policy's own settings take effect only after that policy has been admitted.
-Defaults are conservative engineering choices for a batch CLI, not universal limits from the JSON standard or measured throughput guarantees.
+Cohort 2 separates input admission from finite runtime controls.
+`schemas/configuration.schema.json` owns the names, ranges and defaults.
+Native build controls, API resolution, CLI flags, event resources and cold-bootstrap projections use that authority.
 
-RFC 8259 [section 9](https://www.rfc-editor.org/rfc/rfc8259#section-9) permits implementation limits without prescribing a maximum JSON document size.
-OWASP recommends [limiting input before buffering/parsing](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html) and [workload-based resource controls](https://cheatsheetseries.owasp.org/cheatsheets/Denial_of_Service_Cheat_Sheet.html).
-Those principles support explicit finite defaults and accountable consumer overrides; they do not establish a particular MiB value.
+`capacityLimits: true` enables configured/default admission.
+An override object enables admission and amends selected limits.
+`capacityLimits: false` removes all 17 package admission ceilings; events represent them as `null`.
+It does not disable quality, identity, EOF, diagnostics, domain validation or finite runtime controls.
+Invocation settings override policy; invocation settings govern policy bootstrap before the effective policy exists.
+A positive invocation can re-enable admission disabled by policy.
 
-The [configuration schema](../schemas/configuration.schema.json#/definitions/capacityLimits) is the canonical numeric-default authority.
+| Admission control          | Default     | Scope                                                  |
+| -------------------------- | ----------- | ------------------------------------------------------ |
+| `maxFiles`                 | 50,000      | Distinct physical/native source census members.        |
+| `maxFileBytes`             | 33,554,432  | Source bytes, not a native binary installation limit.  |
+| `maxTotalBytes`            | 268,435,456 | Aggregate admitted source bytes.                       |
+| `maxLogicalDocuments`      | 100,000     | Native and logical member admission.                   |
+| `maxRecords`               | 100,000     | JSONL records across the execution.                    |
+| `maxDiagnostics`           | 10,000      | Complete shared finding delivery.                      |
+| `maxPolicyBytes`           | 1,048,576   | Strict policy bootstrap before object materialization. |
+| `maxGitOutputBytes`        | 67,108,864  | Streamed Git metadata and diagnostics.                 |
+| `maxToolOutputBytes`       | 67,108,864  | Tool/report output admission.                          |
+| `maxToolTimeMs`            | 120,000     | Tool operation admission.                              |
+| `maxGitTimeMs`             | 120,000     | Git operation admission.                               |
+| `maxAcquisitionTimeMs`     | 1,200,000   | Explicit acquisition admission.                        |
+| `maxCacheLookupTimeMs`     | 60,000      | Native cache-location lookup admission.                |
+| `maxCacheOutputBytes`      | 1,048,576   | Cache-location output admission.                       |
+| `maxRequestIdCharacters`   | 1,024       | Unicode scalar count of request correlation.           |
+| `maxRequestBytes`          | 50,331,648  | Request/control admission; payloads travel separately. |
+| `maxRequestPathCharacters` | 32,768      | Literal path/control identity admission.               |
 
-| Setting                    | Default   | Purpose and rationale                                                                                                                                              |
-| -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `maxFiles`                 | 50,000    | Physical/native inventory allowance; retained without evidence supporting a higher default workload.                                                               |
-| `maxFileBytes`             | 32 MiB    | Bounds individual admitted inputs and formatter output; AST parsing can need much more memory than the source.                                                     |
-| `maxTotalBytes`            | 256 MiB   | Aggregate admitted input capacity, including native/logical buffers; this is not a process-memory quota.                                                           |
-| `maxLogicalDocuments`      | 100,000   | Logical/native member admission.                                                                                                                                   |
-| `maxRecords`               | 100,000   | Records per JSON Lines document.                                                                                                                                   |
-| `maxDiagnostics`           | 10,000    | Findings/expectations; exhaustion fails with incomplete coverage instead of truncating a pass.                                                                     |
-| `maxPolicyBytes`           | 1 MiB     | Policy bootstrap input; an invocation override is needed before reading a larger policy.                                                                           |
-| `maxGitOutputBytes`        | 64 MiB    | Git inventory/metadata output; raised from 16 MiB to accommodate long-path inventories. Blob bytes use their admitted file/policy size.                            |
-| `maxToolOutputBytes`       | 64 MiB    | Captured native tool output, per stdout/stderr buffer.                                                                                                             |
-| `maxToolTimeMs`            | 120,000   | Native formatter preservation subprocess; not an in-process parser deadline.                                                                                       |
-| `maxGitTimeMs`             | 120,000   | Each Git subprocess.                                                                                                                                               |
-| `maxCacheLookupTimeMs`     | 60,000    | Native npm cache-path lookup, including process startup.                                                                                                           |
-| `maxCacheOutputBytes`      | 1 MiB     | Cache-path lookup output, using Node's documented default buffer scale.                                                                                            |
-| `maxAcquisitionTimeMs`     | 1,200,000 | Each whole acquisition command; larger than one native npm fetch attempt.                                                                                          |
-| `maxRequestBytes`          | 48 MiB    | Encoded stdin request before parsing; accommodates base64 expansion of a default 32 MiB document plus metadata. Raise this too when transporting larger documents. |
-| `maxRequestIdCharacters`   | 1,024     | Supplied-document correlation identifier, counted in Unicode code points.                                                                                          |
-| `maxRequestPathCharacters` | 32,768    | Supplied virtual-document path allowance; host filesystem path restrictions remain independent.                                                                    |
+Positive safe-integer overrides are validated without coercion.
+Counts and lengths on the native wire and in events use canonical decimal strings.
+Disabling admission does not remove physical address-space, filesystem, database or protocol integer limits.
 
-Byte and count defaults are retained where the research supplies no evidence for an increase.
-The Git/formatter timeouts use the same two-minute native-read allowance.
-[Node documents explicit subprocess buffer/timeout controls](https://nodejs.org/api/child_process.html); a timeout of zero disables the native timer.
-[npm documents](https://docs.npmjs.com/cli/v12/using-npm/config/#fetch-timeout) a five-minute fetch timeout, two retries and retry backoff.
-The twenty-minute whole-command default allows substantially more than one request attempt, while remaining finite; it is not a guarantee for every dependency graph or network.
-The virtual path allowance is sized for long paths; [Windows documents its own long-path conditions](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation), which a package setting cannot change.
-No performance test or hosted qualification was run to claim these defaults fit every consumer.
+| Runtime control            | Default       | Contract                                                      |
+| -------------------------- | ------------- | ------------------------------------------------------------- |
+| `managedMemoryTargetBytes` | 33,554,432    | Managed checker/accounted reservation target; minimum 16 MiB. |
+| `maxTemporaryBytes`        | 2,147,483,648 | Owned spill/scratch allowance.                                |
+| `maxNestingDepth`          | 128           | Finite strict-parser nesting; maximum 4096.                   |
+| `maxCheckTimeMs`           | 120,000       | Aggregate check deadline; maximum one day.                    |
+| `maxConcurrency`           | 1             | One active lane per session; other values refused.            |
 
-Both CLIs accept the same generated capacity flags and `--no-capacity-limits`:
+`runtimeControls` must remain finite.
+These settings do not expose backend, segment, SQLite page/cache or spill-threshold selection. The same reader starts in memory, spills once when necessary and retains stable range/reference identities.
+Existing byte buffers, native allocations, SQLite pages, census/index rows, diagnostics, controls and materialization reservations participate in their declared owners.
+Scratch exhaustion or failed transition makes the operation incomplete; it never selects a different parser.
 
-```sh
-json-quality check --max-file-bytes 134217728 --max-total-bytes 1073741824
-json-quality format --request - --json --max-file-bytes 134217728 --max-request-bytes 188743680
-json-quality-qualify --trusted-root TRUSTED --trusted-sha FULL_SHA --candidate-root CANDIDATE --candidate-sha FULL_SHA --max-policy-bytes 4194304 --max-git-output-bytes 134217728 --max-git-time-ms 300000
+The memory target is **not whole-process RSS**.
+Node/V8 and native loader/code pages, OS/runtime overhead, the bounded module-level schema template, producer-owned objects and caller-retained output have separate ownership or measurement. Qualify whole-process peaks for the actual operation/platform before making an RSS claim.
+An explicit materialization can refuse even when streamed checking succeeds.
+Raising a policy-byte limit does not automatically raise the runtime workspace needed to validate its object graph.
+
+Whole-source UTF-8/BOM admission precedes JSON and JSONL record claims.
+Invalid bytes do not establish zero admitted records: the record count is unknown (`null`).
+Successful byte admission still requires complete framing, syntax, rules, expectations and diagnostic delivery.
+
+## API, CLI and environment
+
+```js
+const session = await openJsonSourceSession({
+  capacityLimits: { maxFileBytes: 134217728 },
+  runtimeControls: { managedMemoryTargetBytes: 33554432 },
+});
 ```
 
-CLI and cold-acquisition environment `JSON_QUALITY_CAPACITY_LIMITS` accepts JSON `true`, `false` or the closed numeric override object.
-For example, set it to `{"maxAcquisitionTimeMs":3600000,"maxCacheLookupTimeMs":120000}` before running a generated acquisition bootstrap.
-Explicit CLI boolean switches override environment booleans, and numeric CLI values override environment-object entries.
-Omission inherits policy; explicit `true` or an override object enables finite capacities, preserving configured policy values where present and using defaults elsewhere.
-An explicit empty object enables capacities with no numeric overrides; cold acquisition has no policy and uses the canonical defaults for `true` or an empty object.
-The shared capacity bypass cannot be mixed with individual finite CLI values.
-The candidate's policy never controls trusted consumer qualification.
+```sh
+json-quality check --root . --json --max-file-bytes 134217728
+json-quality check --root . --json --no-capacity-limits
+json-quality source --json --managed-memory-target-bytes 16777216
+```
 
-Library APIs accept `capacityLimits: true`, `capacityLimits: false` or numeric override objects: `runJsonQuality`, `qualifyJsonConsumer`, `formatJsonDocument`, `formatJsonSource`/`formatJsonValue` and `verifyJsonQualityInstallation`.
-Policy `capacityLimits: false` removes shared capacity checks after bootstrap; it cannot authorize loading a policy larger than the bootstrap limit before that policy has been read.
-The standalone `checkJsonLines` API accepts `maxRecords` in its contract, including `Infinity` for a caller-selected bypass.
-The separate ESLint identity rule has `maxFrames`/`maxSteps` options, each admitting `false`; these analysis settings remain independent of document capacities.
+CLI names are the schema names converted to kebab case.
+`JSON_QUALITY_CAPACITY_LIMITS` accepts `true`, `false` or a typed override object; `JSON_QUALITY_RUNTIME_CONTROLS` accepts a runtime override object.
+Explicit flags take precedence.
+A bypass plus contradictory numeric admission flags is refused.
+The retired `limits`/`JSON_QUALITY_LIMITS` vocabulary is rejected.
 
-Raw UTF-8/BOM/duplicate-member transport validation belongs to CLI stdin; the object API receives an already parsed request.
-Request/response schemas describe structure; runtime policy controls metadata capacity, so refresh exported schema copies when adopting these controls.
-Generated acquisition source remains verbatim and script-free.
-Its cleanup retry strategy is separately configurable through `JSON_QUALITY_CLEANUP`, a closed object with native nonnegative integer `maxRetries` and `retryDelay` milliseconds.
-Defaults are three retries and Node's [100 ms retry delay](https://nodejs.org/api/fs.html#fsrmsyncpath-options); zero retries or zero delay are supported.
-`capacityLimits: false` does not change this retry strategy or native npm's own configuration defaults.
+Trusted openers/providers cooperate with `AbortSignal`.
+Core work also observes its runtime deadline.
+Output delivery uses backpressure and a bounded report deadline.
+An absent terminal, cancelled producer, exhausted diagnostic allowance, failed sink or cleanup failure cannot become success.
 
-The shared workflow exposes `capacity-limits` (JSON `true`, `false` or object; default `true`), `timeout-minutes` (default 45) and `artifact-retention-days` (default 14; zero selects repository defaults).
-The job deadline covers two sequential acquisition commands, checkouts and qualification; raise `timeout-minutes` alongside acquisition or Git budgets when needed.
-Two acquisition commands can consume forty minutes at their defaults, so the default job allowance does not guarantee completion at both acquisition deadlines.
-Resource JSON reaches producer acquisition and qualification through a caller-owned environment value; it is never interpolated into shell code.
-GitHub enforces [external runner limits](https://docs.github.com/en/actions/reference/limits), including the hosted-job ceiling and repository artifact-retention policy.
-Node memory, string/Buffer, stack, operating-system and native-tool limits also remain external constraints; a package bypass cannot remove them.
+## Separate operation capabilities
 
-Maintainers change defaults only in the canonical configuration schema, run `npm run sync:resources`, and retain `npm run check:resources` in qualification.
-The cold bootstrap has a checked generated literal projection because the package is not installed when that bootstrap first runs.
-The removed `--no-limits`, API/policy `limits`, environment `JSON_QUALITY_LIMITS` and workflow input `resource-limits` have no compatibility aliases.
+`JSON_TRANSFORM_CAPABILITIES` limits materializing pure/root candidate transformations to 2 MiB input and output, with at most 4096 normalization changes.
+This finite allowance covers the existing 1,665,003-byte frozen-report writer; its caller separately selects sufficient managed workspace.
+It does not change the ordinary checker memory target or scalable read/check admission.
+`JSON_PRODUCER_CAPABILITIES` additionally bounds caller-owned object serialization to depth 32 and 65,536 members.
+These capabilities remain when admission is bypassed.
+The scalable source checker does not inherit a hidden document DOM ceiling from the writer.
 
-Kebab-case CLI spelling and camelCase JSON spelling represent the same concept.
-[Node's native parser](https://nodejs.org/api/util.html#utilparseargsconfig) defines `--no-foo` as boolean `foo: false`; [Meow's author documentation](https://github.com/sindresorhus/meow#flags) likewise maps kebab-case flags to camelCase keys.
-The positive name and its native negative CLI form therefore share one setting rather than a separate `noCapacityLimits` JSON key.
+Package verification has a separate binary transport contract, exposed as `PACKAGE_VERIFICATION_CAPABILITIES`: 128 MiB archive and member limits, 512 MiB expanded bytes, 8192 members, 4 MiB inventory metadata, 1 MiB control files, 4 KiB extended tar metadata, 32 KiB paths, depth 64 and a 120-second verification deadline.
+Source JSON's `maxFileBytes` does not reject a correctly admitted native library.
+Selector, SRI, member hashes, regular-file observations and unexpected-member checks remain mandatory.
+
+The verifier consumes the selected npm SDK's public streamed cache reader and tar parser.
+It incrementally hashes members and installed files and never extracts them.
+The npm SDK can own a fixed read as large as 64 MiB; package installation verification does not claim the checker's 32 MiB managed target.
+Cold acquisition also retains finite working time/output ceilings independently of bypassed package admission. Cleanup retry options and development/hosted job budgets are separate controls.
+
+The implementation's common-path acceptance ceiling is no p95 regression against its frozen baseline.
+Final acceptance must name the measured candidate, runtimes, corpus, alternation and warmup scheme; results for older artifacts are not final-candidate evidence.
+Local Linux measurements were explicitly deferred by the requester to remote CI where needed.
+Neither deferral nor Windows evidence establishes Linux qualification.

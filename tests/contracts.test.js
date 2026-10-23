@@ -3,15 +3,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { jsonTokenMeaning } from "./json-token-meaning.js";
 import * as prettier from "prettier";
-import { checkJsonDocument } from "../src/documents.js";
-import { normalizeJsonSource } from "../src/quality.js";
-import { decodeJsonBytes } from "../src/json-bytes.js";
-import { jsonFormatOptions } from "../src/presentation.js";
+import { checkFixture } from "./source-fixture.js";
+import { normalizeJsonSource, jsonFormatOptions } from "../src/index.js";
 
 // Independently retained UO acceptance vectors; ordinary whitespace is isolated
 // from semantic findings so formatter decisions cannot become the lint oracle.
 const findings = async (text) =>
-  (await checkJsonDocument(Buffer.from(text))).findings.filter(
+  (await checkFixture(Buffer.from(text))).findings.filter(
     (f) => f.phase !== "presentation",
   );
 for (const text of [
@@ -54,19 +52,21 @@ for (const bytes of [
   [0xe2, 0x82],
   [0xef, 0xbb, 0xbf, 123, 125],
 ]) {
-  test(`byte admission rejects ${bytes}`, () =>
-    assert.throws(() => decodeJsonBytes(Uint8Array.from(bytes))));
+  test(`byte admission rejects ${bytes}`, async () => {
+    const checked = await checkFixture(Uint8Array.from(bytes));
+    assert.equal(checked.terminal.contractSatisfied, false);
+    assert.equal(checked.terminal.semanticRulesApplicable, false);
+  });
 }
 test("empty-key exception is restricted to the exact decoded pointer", async () => {
-  const accepted = await checkJsonDocument(
-    Buffer.from('{"packages":{"":{}}}'),
-    { allowEmptyKeys: ["/packages/"] },
-  );
+  const accepted = await checkFixture(Buffer.from('{"packages":{"":{}}}'), {
+    allowEmptyKeys: ["/packages/"],
+  });
   assert.deepEqual(
     accepted.findings.filter((f) => f.phase === "lint"),
     [],
   );
-  const rejected = await checkJsonDocument(
+  const rejected = await checkFixture(
     Buffer.from('{"packages":{"":{}},"":0}'),
     { allowEmptyKeys: ["/packages/"] },
   );

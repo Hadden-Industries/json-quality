@@ -31,6 +31,6 @@ body:
     id: result
     attributes:
       label: Expected and actual behavior
-      description: Include exit codes and diagnostics; identify check, inventory, format or normalize.
+      description: Include exit codes and complete terminal evidence; identify check, source, format or normalize.
     validations:
       required: true

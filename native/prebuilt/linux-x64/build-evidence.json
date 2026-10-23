@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "status": "pending installed, rights and final review qualification",
+  "sourceInputs": {
+    "native/CMakeLists.txt": "133b8daf6a834cf862c405b3946d520f17ece4434cd1968137bd05996862d0df",
+    "native/dependencies.json": "246bee9dfbbbaeca3fce1c6c98c3b585238e137ff467838f726b2b2d5df07556",
+    "native/icu-windows.props.in": "e82fbda22ab86278e259841fa2eb6fb51398bee1fc4e38bc5aa034354c097b89",
+    "native/build.py": "81270840d88c129f3e38241fc729513795508a770e1784e482215fc4db987365",
+    "native/core/adaptive_store.hpp": "54788a51da457ae271c99cbba0c4982387f09edbbd42bdaf16ea5d528d0394f1",
+    "native/core/allocation_ledger.hpp": "f377f54d256d943cb1b47636585fa2955102ce153ad700287e42d432ea024a6f",
+    "native/core/control_memory.hpp": "883c9949aa80a6144699f91fad3e518179a9c08eeeac298da49bbb9a3adf7545",
+    "native/core/decimal_admission.hpp": "836c95a5858e1aacdd149c2f7f719c2a6b64333b732229c9f7bbd6fd26273cca",
+    "native/core/document_check.hpp": "673e98072d2802e107594b75a49f7325a4227b396a6e5b3b0cf6a52fa4861210",
+    "native/core/event_log.hpp": "b97478753d71368dbc8a7481ad96d1a1c343f587e89735f40a12377a8f12ffc0",
+    "native/core/failure.hpp": "4b605bd22807c5af9cd5c42cc9a6449f3310841c1093a4085a987e5e11918420",
+    "native/core/index_digest.hpp": "a871710bd0db412f6501ac9ff14866725bbcada6dbb7daf23d679d69e0526fcb",
+    "native/core/indexed_streams.hpp": "25a6cb7f9a73e68ed4d2b00ea17fc803e8701705965f394fa59bc0cb582f709d",
+    "native/core/json_lines.hpp": "51c6ab455305afcc787acd41029e679193bcd65b9b62cdee31a3964d41b16925",
+    "native/core/json_pointer.hpp": "06e67ef88093ff9e1855e85e41b75157e7c55a824c90158cb8f43e7226d582ed",
+    "native/core/linked_bytes.hpp": "43b9afc46bbae524ffdf92f970fb8e5b5a585816d5ab4bc34b937b405cce7b10",
+    "native/core/operation_control.hpp": "0c7ab53c0493ec971ae3ee3793954c68c74034da60906ab981e045d1980d5115",
+    "native/core/producer_presentation.hpp": "de8751ea3c69bdeeb0d8f15446129e55c2c1e1b2777ab30544ecbcb54597a934",
+    "native/core/resource_policy.hpp": "160792adb75d6a3c102af579e663e7cc9af4fed02881c7cd6c21f124b98ea6ac",
+    "native/core/scratch_quota_vfs.hpp": "a71ed19532449c0bc701dfff77bfd485dc9c38a23427f63121a316c86fe52f38",
+    "native/core/session.hpp": "3c09e9b22039f3cbc31e779efd6d310ab963f558911cfff1ff73f812b342eb55",
+    "native/core/sha256.hpp": "21eeef3c3b6edc9156b324aacf02ea85c7ae613a96e1bd26cc396761b422c307",
+    "native/core/source_analysis.hpp": "7a980bab309bada35cd0e901233ea52a369698e3e48e0517cc5e2d42cf78d28e",
+    "native/core/source_census.hpp": "a3fd8fbed770ec4aadbb3c61accf80dd497c1ad53c97badc5b7683e03dbd555b",
+    "native/core/source_contract.hpp": "e970e6de6b22bc904a4008d8a1ec28dee2779ead38e946bfe6fac1c007da3e8a",
+    "native/core/source_outcome.hpp": "62004ead464b2e29bf1bb59e237fc9a52f5bb7c97ab6e2e629fe56284b3b2b4d",
+    "native/core/source_rewrites.hpp": "b0c3f61a4a375fbf4c631a21e12ed76588f364e63b8d7287f0bfb48d4b6a7435",
+    "native/core/streamed_pointer.hpp": "af8b0fbb1bca9f6b33bcbf1a7068940716c64df15c660af091e8f329c9ef437a",
+    "native/core/unicode_normalization.hpp": "72830cf57f912e2be0793435d81fc8e3d7a727c561411ca2663204e9f77aad81",
+    "native/core/value_index.hpp": "1a1a8702038b0cae54b36969fb3a99a1649dd2b330729bdf2e71d51cc6eb2cd3",
+    "native/core/value_pointer.hpp": "8f902fed7fc8583e208c108ff59e9b29e02d70c288d6f77a601490a20fdde024",
+    "native/core/wire_integer.hpp": "8040ee6b11266c12127fc6d64f4013fb1c631c9e50749b83b95bc6128f037415",
+    "native/bindings/framed_stdio.cpp": "90889acde29c39026eeda75ca60869d91a14bb2cf12968d7fd422fac13343c68",
+    "native/bindings/node_api.cpp": "87ba5545c8773f816bed010bdad375794b4774136260ac18b0681544b3726ac8",
+    "schemas/configuration.schema.json": "fd955571d8aec8f13f317fa58357c6545d26c3d6df3d22595539d4b5bac71a24",
+    "schemas/source-contract.schema.json": "f2ed86bb912237c8880cda89c6ad33fabc9b451949bc589e371276b0754392ff",
+    "schemas/contract-cohort.json": "c8ea223658e45aad176288c957ceae72e81584eac5e5832ba6b450b126c42c98"
+  },
+  "sourceInputsSha256": "87123b841c014f67f8421455dc7faddb6f339ce86e07ab31e31da6babb7802cd",
+  "platform": "linux-x64",
+  "dependencies": [
+    {
+      "name": "boost",
+      "url": "https://archives.boost.io/release/1.92.0/source/boost_1_92_0.tar.gz",
+      "sha256": "c4a3b310ddd2472416e091067166b0713be97c63f38c212c484ada022fd296ce",
+      "bytes": 235384471,
+      "role": "compiled headers"
+    },
+    {
+      "name": "icuLinux",
+      "url": "https://github.com/unicode-org/icu/releases/download/release-79.1/icu4c-79.1-sources.tgz",
+      "sha256": "06fa63ecb521048f8082f12ad988f6b678d90cbd88aafce24cbc94902b191d99",
+      "bytes": 28162455,
+      "role": "compiled common code and embedded Unicode data from the official POSIX source archive"
+    },
+    {
+      "name": "sqlite",
+      "url": "https://www.sqlite.org/2026/sqlite-amalgamation-3540100.zip",
+      "sha256": "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9",
+      "bytes": 2990966,
+      "role": "compiled private metadata engine"
+    },
+    {
+      "name": "doubleConversion",
+      "url": "https://api.github.com/repos/google/double-conversion/tarball/v3.4.0",
+      "sha256": "254abbf4fa464b36d485b3ad97da672bb21a326139627c5c29365f83aae2b8a2",
+      "bytes": 7035733,
+      "role": "compiled bounded producer-number conversion"
+    },
+    {
+      "name": "nodeHeaders",
+      "url": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-headers.tar.gz",
+      "sha256": "322e0a27db9088093ab8347bdc8c7e0aaa21dc9ed548390bf06b394494c09267",
+      "bytes": 10292286,
+      "role": "build-only Node-API declarations"
+    },
+    {
+      "name": "nodeLicense",
+      "url": "https://raw.githubusercontent.com/nodejs/node/v24.22.1/LICENSE",
+      "sha256": "5888dbb9a1d2b18f2c3e6c5f6af1b39de658372b402a0577b002777f14c62ace",
+      "bytes": 157609,
+      "role": "original Node SDK notices"
+    }
+  ],
+  "compilers": [
+    {
+      "language": "C",
+      "id": "GNU",
+      "version": "13.3.0",
+      "executableSha256": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26"
+    },
+    {
+      "language": "CXX",
+      "id": "GNU",
+      "version": "13.3.0",
+      "executableSha256": "1353e9bdd29a7295c7226bf6c63abccce056d8cac31f112e5cdbecc3f28c2769"
+    }
+  ],
+  "generatedFiles": {
+    "contract_cohort.hpp": "38a0fad027693cf77e690bc9855d1d65a7a90f0da7889d1ae16e590eff450823",
+    "resource_defaults.hpp": "43e32dfd5b350193986b601d72b51ead789fea38f9478ed67c51f3683a45e7c8",
+    "source_contract_enums.hpp": "95948dde3b0b965d984e50ae652514324352c4cc19d4f64ea11021449af9c7bc"
+  },
+  "artifactFiles": {
+    "THIRD-PARTY-NOTICES.txt": "0eb3cbd86a354cfee4d3c031ec1f4cd8f3195313ecf3eca41d835030dc20af5d",
+    "component.json": "30a73ee0ca6dce410b69b7ac53df102d7aadefa36d758d4dfc1a1a83aecd5886",
+    "json-quality-native": "759a67bf01327c628b922d2a9e25ccd2de0ae93b34e55c581b7dbaef016921c7",
+    "json-quality.node": "dbd5e999c2a0098fdd8e0ce757db5de71f84d54db0a0aa3a1e7f0ee15628b982",
+    "notice-inventory.json": "7186b1c9eb3741cadadd53219dd4ad4d5e485fdba0ce479c0627fd140d6743fb",
+    "notices/boost/LICENSE_1_0.txt": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
+    "notices/doubleConversion/AUTHORS": "02f8e5babc63a87d460219a74b97e15046d198ed3bab061e3d46b4f44ea77a9d",
+    "notices/doubleConversion/COPYING": "4af93c12062c58058378de2397dc1c92bbff9ddfb1d583a01c84127557ce97ca",
+    "notices/doubleConversion/LICENSE": "4af93c12062c58058378de2397dc1c92bbff9ddfb1d583a01c84127557ce97ca",
+    "notices/icuLinux/LICENSE": "e09827667e0bb3c808b2a463548ba814a5e6249b67353234d70c8dfc2bcc417d",
+    "notices/nodeLicense/LICENSE": "5888dbb9a1d2b18f2c3e6c5f6af1b39de658372b402a0577b002777f14c62ace",
+    "notices/sqlite-dedication.txt": "7bb55c35242a9576e378d53227fd863fe7f2eab6a6bf54cf6052e6a4491f48a5"
+  }
+}

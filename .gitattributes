@@ -2,3 +2,6 @@
 # - Auto-detect text vs binary files
 # - Normalise text files to LF on commit and keep LF on checkout
 * text=auto eol=lf
+# Producer payloads and finite historical oracles retain their exact identified bytes.
+native/prebuilt/** -text
+tests/oracles/finite-v1/** -text

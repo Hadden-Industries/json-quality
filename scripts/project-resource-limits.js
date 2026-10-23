@@ -3,6 +3,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 export function projectResourceLimits({ write = false } = {}) {
   const schema = JSON.parse(
@@ -56,6 +57,39 @@ export function projectResourceLimits({ write = false } = {}) {
       );
     writeFileSync(path, projected);
   }
+  const eventsPath = new URL("../schemas/event.schema.json", import.meta.url),
+    events = JSON.parse(readFileSync(eventsPath, "utf8")),
+    resources = events.properties.resources.properties;
+  for (const [wireName, definitionName] of [
+    ["admission", "capacityLimits"],
+    ["runtime", "runtimeControls"],
+  ]) {
+    const names = Object.keys(schema.definitions[definitionName].properties),
+      integer = {
+        $ref: "configuration.schema.json#/definitions/positiveIntegerText",
+      },
+      rule = {
+        type: "object",
+        additionalProperties: false,
+        required: names,
+        properties: Object.fromEntries(
+          names.map((name) => [
+            name,
+            wireName === "admission"
+              ? { anyOf: [integer, { type: "null" }] }
+              : integer,
+          ]),
+        ),
+      };
+    if (!isDeepStrictEqual(resources[wireName], rule)) {
+      if (!write)
+        throw new Error(
+          "Event resource contract drifted; run npm run sync:resources.",
+        );
+      resources[wireName] = rule;
+    }
+  }
+  if (write) writeFileSync(eventsPath, JSON.stringify(events, null, 2) + "\n");
   return { defaults: values.split("\n").length, synchronized: true };
 }
 

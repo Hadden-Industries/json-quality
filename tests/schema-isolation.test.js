@@ -6,14 +6,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { temporaryRepository } from "./temporary-repository.js";
 
-for (const mode of ["writes", "empty-key-options"])
+for (const mode of ["events", "empty-key-options"])
   test(`public schema customization preserves initialized ${mode} admission`, (t) => {
     const root = temporaryRepository(t, "json-quality-schema-isolation-");
     writeFileSync(
       join(root, ".json-quality.json"),
       JSON.stringify(
         {
-          schemaVersion: 1,
+          schemaVersion: 2,
           defaults: {
             formatContract: "prettier-json",
             allowFormatWrites: true,

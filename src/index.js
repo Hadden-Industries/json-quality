@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-export { runJsonQuality } from "./execution.js";
-export { formatJsonDocument } from "./document-operation.js";
-export { qualifyJsonConsumer } from "./qualification.js";
-export { formatJsonSource, formatJsonValue } from "./formatting.js";
+export {
+  openJsonSourceSession,
+  openJsonRepositorySession,
+} from "./sessions.js";
+export {
+  formatJsonSource,
+  formatJsonValue,
+  normalizeJsonSource,
+} from "./writers.js";
+export { validateJsonQualityEvent } from "./events.js";
+export { jsonContract, admitJsonPolicy } from "./configuration.js";
+export { jsonFormatOptions } from "./format-options.js";
+export { JSON_TRANSFORM_CAPABILITIES } from "./transform-capabilities.js";
+export { JSON_PRODUCER_CAPABILITIES } from "./producer-json.js";
+export { PACKAGE_VERIFICATION_CAPABILITIES } from "./package-payload.js";
 export { runJsonQualityCli } from "./cli.js";
-export { inspectJsonInventory, checkJsonInventory } from "./inventory.js";
-export { checkJsonDocument } from "./documents.js";
-export { checkJsonLines } from "./json-lines.js";
-export { validateJsonQualityResult } from "./result.js";
 export {
   assertIsolatedJsonQuality,
   jsonQualityAcquisitionBootstrap,
   jsonQualitySourceCoordinate,
   verifyJsonQualityInstallation,
 } from "./installation.js";
-export {
-  normalizeJsonSource,
-  jsonContract,
-  readJsonPolicy,
-} from "./quality.js";
-export { decodeJsonBytes } from "./json-bytes.js";
-export { jsonFormatOptions, checkJsonPresentation } from "./presentation.js";
+export { qualifyJsonConsumer } from "./qualification.js";

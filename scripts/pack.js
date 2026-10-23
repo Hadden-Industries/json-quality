@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isPathContained } from "../src/paths.js";
+import { assertNativeExecutableModes } from "./release-contract.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -81,6 +82,7 @@ export function packCandidate(destination) {
   const sourceCommit = git(["rev-parse", "HEAD"]);
   const sourceTree = git(["rev-parse", "HEAD^{tree}"]);
   const packed = runNpmPack(root, { npm, destination });
+  assertNativeExecutableModes(packed.files);
   const original = resolve(destination, packed.filename);
   const archive = resolve(
     destination,

@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { createHash } from "node:crypto";
-import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join, relative, isAbsolute, sep } from "node:path";
+import { join, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
-import { operationLimits } from "./limits.js";
-import { assertRegularSource, assertRepositoryPath } from "./paths.js";
+import { resolveExecutionResources } from "./execution-resources.js";
+import {
+  readPackageMetadata,
+  readPackageMetadataBytes,
+  verifyPackagePayload,
+} from "./package-payload.js";
+import { assertRegularSource } from "./paths.js";
 import { nativeQualityCachePath } from "./acquire.js";
 
 const packageName = "@hadden-industries/json-quality";
 const gitRepository =
   "git+https://github.com/Hadden-Industries/json-quality.git#";
-const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
-const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 /** Producer-owned source for the minimal cold-install bootstrap in consumers. */
 export function jsonQualityAcquisitionBootstrap() {
@@ -88,13 +90,23 @@ export async function verifyJsonQualityInstallation({
   cachePath,
   capacityLimits,
   bootstrapPath,
+  signal,
   ...otherOptions
 } = {}) {
   if (Object.hasOwn(otherOptions, "limits"))
     throw new TypeError("Use capacityLimits; limits is not supported.");
+  if (Object.keys(otherOptions).length)
+    throw new TypeError("Invalid installation verification options.");
+  if (signal !== undefined && !(signal instanceof AbortSignal))
+    throw new TypeError("Expected AbortSignal.");
+  signal?.throwIfAborted();
   const root = realpathSync(toolingRoot);
-  const manifest = readJson(assertRegularSource(root, "package.json"));
-  const lock = readJson(assertRegularSource(root, "package-lock.json"));
+  const manifest = await readPackageMetadata(
+    assertRegularSource(root, "package.json"),
+  );
+  const lock = await readPackageMetadata(
+    assertRegularSource(root, "package-lock.json"),
+  );
   const specifier = manifest.devDependencies?.[packageName];
   const coordinate = jsonQualitySourceCoordinate(specifier, npmExecutable);
   const entry = lock.packages?.[`node_modules/${packageName}`];
@@ -115,127 +127,38 @@ export async function verifyJsonQualityInstallation({
     throw new Error(
       "JSON tooling resolved source disagrees with its selector.",
     );
-  const npmRequire = createRequire(npmExecutable);
-  const bounds = operationLimits({}, capacityLimits);
-  const cache =
-    cachePath ??
-    nativeQualityCachePath(root, npmExecutable, capacityLimits ?? {});
-  const chunks = [];
-  let archiveBytes = 0;
-  for await (const chunk of npmRequire("cacache").get.stream.byDigest(
-    join(cache, "_cacache"),
-    entry.integrity,
-  )) {
-    archiveBytes += chunk.length;
-    if (archiveBytes > bounds.maxFileBytes)
-      throw new Error("Package archive byte limit exceeded.");
-    chunks.push(chunk);
-  }
-  const bytes = Buffer.concat(chunks, archiveBytes);
-  if (
-    `sha512-${createHash("sha512").update(bytes).digest("base64")}` !==
-    entry.integrity
-  )
-    throw new Error("Cached JSON quality archive integrity differs.");
-  const expected = new Map();
-  const seen = new Set();
-  let expandedBytes = 0;
-  await new Promise((resolve, reject) => {
-    const parser = new (npmRequire("tar").Parser)({
-      strict: true,
-      maxMetaEntrySize: bounds.maxFileBytes,
-      maxDecompressionRatio: Infinity,
-    });
-    parser.on("error", reject);
-    parser.on("end", resolve);
-    parser.on("ignoredEntry", () => {
-      const error = new Error(
-        "Unsupported or oversized package archive member.",
-      );
-      parser.abort(error);
-      reject(error);
-    });
-    parser.on("entry", (member) => {
-      try {
-        if (!member.path.startsWith("package/"))
-          throw new Error("Unexpected package archive root.");
-        const path = member.path.slice(8).replace(/\/$/u, "");
-        if (!path && member.type === "Directory") return member.resume();
-        assertRepositoryPath(path);
-        if (member.type === "Directory") return member.resume();
-        if (
-          !["File", "OldFile"].includes(member.type) ||
-          path.split("/").includes("node_modules") ||
-          seen.has(path.toLowerCase())
-        )
-          throw new Error(
-            "Duplicate, linked or non-file package archive member.",
-          );
-        seen.add(path.toLowerCase());
-        expandedBytes += member.size;
-        if (
-          member.size > bounds.maxFileBytes ||
-          expandedBytes > bounds.maxTotalBytes ||
-          seen.size > bounds.maxFiles
-        )
-          throw new Error("Package payload resource limit exceeded.");
-        const hash = createHash("sha256");
-        member.on("data", (chunk) => hash.update(chunk));
-        member.on("end", () => expected.set(path, hash.digest("hex")));
-        member.resume();
-      } catch (error) {
-        parser.abort(error);
-        reject(error);
-      }
-    });
-    parser.end(bytes);
-  });
-  const installedRoot = join(root, "node_modules", packageName);
-  assertRegularSource(root, `node_modules/${packageName}/package.json`);
-  const installed = readJson(join(installedRoot, "package.json"));
+  const npmRequire = createRequire(npmExecutable),
+    admission = resolveExecutionResources({}, { capacityLimits }).admission,
+    cache =
+      cachePath ??
+      nativeQualityCachePath(root, npmExecutable, capacityLimits ?? {}),
+    installedRoot = join(root, "node_modules", packageName);
+  if (!isAbsolute(cache))
+    throw new TypeError("Expected an absolute native npm cache path.");
+  const installed = await readPackageMetadata(
+    assertRegularSource(root, "node_modules/" + packageName + "/package.json"),
+  );
   if (installed.name !== packageName || installed.version !== entry.version)
     throw new Error("Installed JSON quality package metadata differs.");
-  const actual = new Map();
-  let installedBytes = 0;
-  const walk = (directory) => {
-    for (const member of readdirSync(directory, { withFileTypes: true })) {
-      const path = join(directory, member.name);
-      if (member.name === "node_modules" && member.isDirectory()) continue;
-      if (member.isDirectory()) walk(path);
-      else {
-        const key = relative(installedRoot, path).split(sep).join("/");
-        const regular = assertRegularSource(installedRoot, key);
-        installedBytes += lstatSync(regular).size;
-        if (
-          isAbsolute(key) ||
-          actual.size >= bounds.maxFiles ||
-          lstatSync(regular).size > bounds.maxFileBytes ||
-          installedBytes > bounds.maxTotalBytes
-        )
-          throw new Error("Installed package resource limit exceeded.");
-        actual.set(key, digest(readFileSync(regular)));
-      }
-    }
-  };
-  walk(installedRoot);
-  if (
-    actual.size !== expected.size ||
-    [...expected].some(([path, hash]) => actual.get(path) !== hash)
-  )
-    throw new Error(
-      "Installed JSON quality payload differs from its locked cached archive.",
-    );
+  const verified = await verifyPackagePayload(npmRequire, {
+    cache,
+    integrity: entry.integrity,
+    installedRoot,
+    admission,
+    signal,
+  });
   if (bootstrapPath) {
-    if (
-      !lstatSync(bootstrapPath).isFile() ||
-      lstatSync(bootstrapPath).isSymbolicLink()
-    )
-      throw new Error("Nonregular quality acquisition bootstrap.");
     const normalize = (bytes) =>
-      bytes.toString("utf8").replaceAll("\r\n", "\n");
+      new TextDecoder("utf-8", { fatal: true })
+        .decode(bytes)
+        .replaceAll("\r\n", "\n");
     if (
-      normalize(readFileSync(bootstrapPath)) !==
-      normalize(readFileSync(join(installedRoot, "src/acquire.js")))
+      normalize(await readPackageMetadataBytes(bootstrapPath)) !==
+      normalize(
+        await readPackageMetadataBytes(
+          assertRegularSource(installedRoot, "src/acquire.js"),
+        ),
+      )
     )
       throw new Error(
         "Quality acquisition bootstrap differs from its shared producer source.",
@@ -245,6 +168,6 @@ export async function verifyJsonQualityInstallation({
     specifier,
     coordinate,
     integrity: entry.integrity,
-    files: actual.size,
+    files: verified.files,
   };
 }

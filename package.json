@@ -1,6 +1,6 @@
 {
   "name": "@hadden-industries/json-quality",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Strict JSON quality controls with complete discovery and guarded source repair",
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -39,13 +39,14 @@
     ".": "./src/index.js",
     "./eslint": "./src/eslint/index.js",
     "./configuration-schema": "./schemas/configuration.schema.json",
-    "./result-schema": "./schemas/result.schema.json",
-    "./document-request-schema": "./schemas/document-request.schema.json",
-    "./document-response-schema": "./schemas/document-response.schema.json"
+    "./source-contract-schema": "./schemas/source-contract.schema.json",
+    "./event-schema": "./schemas/event.schema.json",
+    "./contract-cohort": "./schemas/contract-cohort.json"
   },
   "files": [
     "src/",
     "schemas/",
+    "native/",
     "LICENSE",
     "THIRD-PARTY-NOTICES.md",
     "README.md",
@@ -57,12 +58,13 @@
     "docs/node-runtime-compatibility.md",
     "docs/architecture.md",
     "docs/ci-trust.md",
-    "docs/resource-limits.md"
+    "docs/resource-limits.md",
+    "docs/native-protocol.md"
   ],
   "scripts": {
     "graph:dependencies": "node scripts/dependency-graph.js",
     "check:focused": "node --test tests/contracts.test.js tests/identity.test.js tests/markdown-quality.test.js",
-    "test": "node --test tests/*.test.js",
+    "test": "node --test --test-concurrency=1 tests/*.test.js tests/native/*.test.mjs",
     "check:affected": "node scripts/affected-tests.js",
     "check:full": "npm run check:node && npm run check:resources && npm run check:architecture && npm run check:release && npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
     "check:resources": "node scripts/project-resource-limits.js",
@@ -98,24 +100,27 @@
     "inspect:markdown": "npm --prefix tooling/markdown run --silent inspect --",
     "test:markdown": "node --test tests/markdown-quality.test.js",
     "check:json": "node src/cli.js check --root .",
-    "inventory:json": "node src/cli.js inventory --root .",
-    "lint:json": "node src/cli.js lint --root .",
+    "inventory:json": "node src/cli.js check --root . --json",
+    "lint:json": "node src/cli.js check --root .",
     "format:json": "node src/cli.js format --root .",
-    "format:json:check": "node src/cli.js format --check --root .",
+    "format:json:check": "node src/cli.js check --root .",
     "normalize:json": "node src/cli.js normalize --root .",
-    "qualify:package": "node scripts/qualify-package.js"
+    "qualify:package": "node scripts/qualify-package.js",
+    "test:native": "node --test --test-concurrency=1 tests/native/*.test.mjs",
+    "native:build": "python native/build.py",
+    "native:stage": "python native/stage.py"
   },
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
-    "@eslint/json": "2.1.1",
     "ajv": "8.20.0",
-    "eslint": "10.13.0",
     "prettier": "3.9.10"
   },
   "devDependencies": {
+    "@eslint/json": "2.1.1",
     "@humanwhocodes/momoa": ">=3.3.13",
-    "dependency-cruiser": ">=18.6.0"
+    "dependency-cruiser": ">=18.6.0",
+    "eslint": "10.13.0"
   }
 }

@@ -7,6 +7,12 @@ import { join } from "node:path";
 import { temporaryRepository } from "./temporary-repository.js";
 import { qualifyJsonConsumer } from "../src/qualification.js";
 
+async function qualificationEvents(options) {
+  const events = [];
+  for await (const event of qualifyJsonConsumer(options)) events.push(event);
+  return events;
+}
+
 function commit(root) {
   const git = (args) =>
     execFileSync("git", ["-C", root, ...args], {
@@ -31,7 +37,7 @@ function commit(root) {
 
 function policy() {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     defaults: {
       formatContract: "prettier-json",
       allowFormatWrites: true,
@@ -76,19 +82,21 @@ test("shared qualification ignores candidate policy relaxation and never execute
     'import {writeFileSync} from "node:fs"; writeFileSync("candidate-executed", "bad"); throw new Error("Candidate must remain data");',
   );
   const candidateSha = commit(candidateRoot);
-  const result = await qualifyJsonConsumer({
+  const result = await qualificationEvents({
     trustedRoot,
     candidateRoot,
     trustedSha,
     candidateSha,
   });
-  assert.equal(result.result.status, "failed");
-  assert.ok(result.result.findings.some(({ path }) => path === "data.json"));
+  assert.equal(result.at(-1).contractSatisfied, false);
+  assert.ok(
+    result.some(({ type, path }) => type === "finding" && path === "data.json"),
+  );
   assert.equal(existsSync(join(candidateRoot, "candidate-executed")), false);
   assert.equal(existsSync(join(trustedRoot, "candidate-executed")), false);
 });
 
-test("shared qualification rejects dirty or mismatched immutable inputs", async (t) => {
+test("shared qualification rejects missing immutable inputs and excludes uncommitted files", async (t) => {
   const root = temporaryRepository(t, "json-ci-identity-");
   writeFileSync(
     join(root, ".json-quality.json"),
@@ -96,23 +104,25 @@ test("shared qualification rejects dirty or mismatched immutable inputs", async 
   );
   const sha = commit(root);
   await assert.rejects(
-    qualifyJsonConsumer({
+    qualificationEvents({
       trustedRoot: root,
       candidateRoot: root,
       trustedSha: sha,
       candidateSha: "0".repeat(40),
     }),
-    /identity/u,
+    /Command failed/u,
   );
   writeFileSync(join(root, "untracked.json"), "{}\n");
-  await assert.rejects(
-    qualifyJsonConsumer({
-      trustedRoot: root,
-      candidateRoot: root,
-      trustedSha: sha,
-      candidateSha: sha,
-    }),
-    /dirty/u,
+  const events = await qualificationEvents({
+    trustedRoot: root,
+    candidateRoot: root,
+    trustedSha: sha,
+    candidateSha: sha,
+  });
+  assert.equal(events.at(-1).contractSatisfied, true);
+  assert.equal(
+    events.some((event) => event.path === "untracked.json"),
+    false,
   );
 });
 
@@ -128,13 +138,13 @@ test("shared qualification requires policy from the declared trusted commit", as
   writeFileSync(join(candidateRoot, "data.json"), "{}\n");
   const candidateSha = commit(candidateRoot);
   await assert.rejects(
-    qualifyJsonConsumer({
+    qualificationEvents({
       trustedRoot,
       candidateRoot,
       trustedSha,
       candidateSha,
     }),
-    /regular blob/u,
+    /regular immutable Git blob/u,
   );
   unlinkSync(join(trustedRoot, ".json-quality.json"));
 });
@@ -158,7 +168,7 @@ test("shared source-only qualification refuses logical admission requirements", 
   writeFileSync(join(candidateRoot, "data.json"), "{}\n");
   const candidateSha = commit(candidateRoot);
   await assert.rejects(
-    qualifyJsonConsumer({
+    qualificationEvents({
       trustedRoot,
       candidateRoot,
       trustedSha,
@@ -168,7 +178,7 @@ test("shared source-only qualification refuses logical admission requirements", 
   );
 });
 
-test("qualification resource overrides reach initial Git and nested scratch inventory", async (t) => {
+test("qualification resource overrides reach the immutable Git census", async (t) => {
   const root = temporaryRepository(t, "json-ci-resource-");
   const selected = policy();
   selected.capacityLimits = { maxGitOutputBytes: 1 };
@@ -184,20 +194,20 @@ test("qualification resource overrides reach initial Git and nested scratch inve
     trustedSha: sha,
     candidateSha: sha,
   };
-  await assert.rejects(qualifyJsonConsumer(input), { code: "ENOBUFS" });
+  await assert.rejects(qualificationEvents(input), /git-output-byte-capacity/u);
   assert.equal(
     (
-      await qualifyJsonConsumer({
+      await qualificationEvents({
         ...input,
         capacityLimits: { maxGitOutputBytes: 65536 },
       })
-    ).result.complete,
-    true,
+    ).at(-1).type,
+    "execution-terminal",
   );
   assert.equal(
-    (await qualifyJsonConsumer({ ...input, capacityLimits: false })).result
-      .complete,
-    true,
+    (await qualificationEvents({ ...input, capacityLimits: false })).at(-1)
+      .type,
+    "execution-terminal",
   );
 });
 
@@ -217,14 +227,14 @@ test("qualification can bootstrap a trusted policy larger than the default one M
     trustedSha: sha,
     candidateSha: sha,
   };
-  await assert.rejects(qualifyJsonConsumer(input), /bootstrap byte limit/u);
+  await assert.rejects(qualificationEvents(input), /policy-byte-capacity/u);
   assert.equal(
     (
-      await qualifyJsonConsumer({
+      await qualificationEvents({
         ...input,
         capacityLimits: { maxPolicyBytes: 2 * 1024 * 1024 },
       })
-    ).result.complete,
-    true,
+    ).at(-1).type,
+    "execution-terminal",
   );
 });

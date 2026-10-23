@@ -7,6 +7,9 @@ import {
   writeFileSync,
   realpathSync,
   existsSync,
+  openSync,
+  readSync,
+  closeSync,
 } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -18,6 +21,24 @@ import { isPathContained, assertRepositoryPath } from "../src/paths.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+/** Native binaries participate in source identity without becoming whole-file
+ * JavaScript buffers. Development graph generation owns this fixed read buffer.
+ */
+function fileDigest(path) {
+  const descriptor = openSync(path, "r"),
+    buffer = Buffer.alloc(65536),
+    hash = createHash("sha256");
+  try {
+    while (true) {
+      const length = readSync(descriptor, buffer, 0, buffer.length, null);
+      if (!length) return hash.digest("hex");
+      hash.update(buffer.subarray(0, length));
+    }
+  } finally {
+    closeSync(descriptor);
+  }
+}
 
 /** Bind Git-owned inventory and bytes so a report cannot conceal source drift. */
 export function graphSourceIdentity(repository = root) {
@@ -40,7 +61,7 @@ export function graphSourceIdentity(repository = root) {
       paths
         .map((path) => {
           assertRepositoryPath(path);
-          return `${path}\0${existsSync(join(repository, path)) ? digest(readFileSync(join(repository, path))) : "deleted"}`;
+          return `${path}\0${existsSync(join(repository, path)) ? fileDigest(join(repository, path)) : "deleted"}`;
         })
         .join("\0"),
     ),

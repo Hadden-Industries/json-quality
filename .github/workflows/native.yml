@@ -1,0 +1,179 @@
+name: Native component qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_checks:
+        description: Run native checks after production; false retains an unqualified build for candidate assembly
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths:
+      - native/**
+      - schemas/configuration.schema.json
+      - schemas/source-contract.schema.json
+      - schemas/contract-cohort.json
+      - tests/native/**
+      - .github/workflows/native.yml
+  pull_request:
+    paths:
+      - native/**
+      - schemas/configuration.schema.json
+      - schemas/source-contract.schema.json
+      - schemas/contract-cohort.json
+      - tests/native/**
+      - .github/workflows/native.yml
+
+permissions:
+  contents: read
+
+jobs:
+  component:
+    name: Native / ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            platform: win32-x64
+          - os: ubuntu-24.04
+            platform: linux-x64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-producer
+        if: github.event_name != 'workflow_dispatch' || inputs.run_checks
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Build the exact native and control sources
+        id: build
+        run: |
+          cmake --version > "$RUNNER_TEMP/native-toolchain.txt"
+          python --version >> "$RUNNER_TEMP/native-toolchain.txt"
+          mkdir "$RUNNER_TEMP/json-quality-native"
+          python native/build.py --workspace "$RUNNER_TEMP/json-quality-native" --jobs 2 > "$RUNNER_TEMP/native-result.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          root = Path(os.environ['RUNNER_TEMP']) / 'json-quality-native'
+          result = json.loads((root.parent / 'native-result.json').read_text(encoding='utf-8'))
+          artifacts = Path(result['artifacts'])
+          assert result['state'] == 'built'
+          assert artifacts.name == 'artifacts' and artifacts.parent.parent == root
+          assert re.fullmatch(r'producer-[a-f0-9]{32}', artifacts.parent.name)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              print('artifacts=' + artifacts.as_posix(), file=output)
+          PY
+      - name: Stage the verified component through its owner
+        if: github.event_name != 'workflow_dispatch' || inputs.run_checks
+        env:
+          NATIVE_ARTIFACTS: ${{ steps.build.outputs.artifacts }}
+        run: python native/stage.py --artifacts "$NATIVE_ARTIFACTS" --replace
+      - name: Qualify both bindings and public installed resolution
+        if: github.event_name != 'workflow_dispatch' || inputs.run_checks
+        env:
+          JSON_QUALITY_NATIVE_TEST_ARTIFACTS: ${{ steps.build.outputs.artifacts }}
+        run: npm run test:native
+      - name: Identify production-only evidence
+        if: github.event_name == 'workflow_dispatch' && !inputs.run_checks
+        run: echo 'Production only. Native tests, installed qualification, rights acceptance and final review remain pending.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain exact native payload, rights and source identities
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-${{ matrix.platform }}-${{ github.run_attempt }}
+          path: ${{ steps.build.outputs.artifacts }}/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Retain original build diagnostics and source snapshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-diagnostics-${{ matrix.platform }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/native-result.json
+            ${{ runner.temp }}/native-toolchain.txt
+            ${{ runner.temp }}/json-quality-native/producer-*/first-party-inputs.zip
+            ${{ runner.temp }}/json-quality-native/producer-*/failure.json
+            ${{ runner.temp }}/json-quality-native/producer-*/logs/
+            ${{ runner.temp }}/json-quality-native/producer-*/generated/
+            ${{ runner.temp }}/json-quality-native/producer-*/build/CMakeCache.txt
+          if-no-files-found: warn
+          retention-days: 90
+
+  sanitizers:
+    name: Native / address and undefined behavior sanitizers
+    if: github.event_name != 'workflow_dispatch' || inputs.run_checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Build a separate instrumented component for verification
+        env:
+          CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+          CXXFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+          LDFLAGS: -fsanitize=address,undefined
+        run: |
+          cmake --version > "$RUNNER_TEMP/native-sanitizer-toolchain.txt"
+          python --version >> "$RUNNER_TEMP/native-sanitizer-toolchain.txt"
+          mkdir "$RUNNER_TEMP/json-quality-sanitizers"
+          python native/build.py --workspace "$RUNNER_TEMP/json-quality-sanitizers" --jobs 2 > "$RUNNER_TEMP/native-sanitizer-result.json"
+      - name: Check real spill, references, transport faults and cleanup under instrumentation
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:strict_string_checks=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          import sys
+          root = Path(os.environ['RUNNER_TEMP'])
+          result = json.loads((root / 'native-sanitizer-result.json').read_text(encoding='utf-8'))
+          artifacts = Path(result['artifacts'])
+          assert result['state'] == 'built' and result['platform'] == 'linux-x64'
+          assert artifacts.name == 'artifacts' and artifacts.parent.parent == root / 'json-quality-sanitizers'
+          assert re.fullmatch(r'producer-[a-f0-9]{32}', artifacts.parent.name)
+          executable = artifacts / 'json-quality-native'
+          dynamic = subprocess.run(['readelf', '--dynamic', str(executable)], check=True, capture_output=True, text=True, timeout=10).stdout
+          assert 'libasan.so' in dynamic and 'libubsan.so' in dynamic
+          (root / 'native-sanitizer-dynamic.txt').write_text(dynamic, encoding='utf-8')
+          with (root / 'native-sanitizer-protocol.json').open('x', encoding='utf-8') as output:
+              subprocess.run([sys.executable, 'tests/native/stdio_probe.py', str(executable), str(artifacts / 'component.json'), str(root), str(os.getpid())], check=True, stdout=output, timeout=300)
+          PY
+      - name: Retain instrumented verification diagnostics separately from production payloads
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-sanitizers-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/native-sanitizer-*
+            ${{ runner.temp }}/json-quality-sanitizers/producer-*/first-party-inputs.zip
+            ${{ runner.temp }}/json-quality-sanitizers/producer-*/failure.json
+            ${{ runner.temp }}/json-quality-sanitizers/producer-*/logs/
+            ${{ runner.temp }}/json-quality-sanitizers/producer-*/generated/
+            ${{ runner.temp }}/json-quality-sanitizers/producer-*/build/CMakeCache.txt
+            ${{ runner.temp }}/json-quality-sanitizers/producer-*/artifacts/build-evidence.json
+            ${{ runner.temp }}/json-quality-sanitizers/producer-*/artifacts/component.json
+          if-no-files-found: warn
+          retention-days: 90

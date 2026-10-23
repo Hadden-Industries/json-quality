@@ -96,6 +96,7 @@ try {
         version: "0.0.0",
         private: true,
         type: "module",
+        devDependencies: { eslint: "10.13.0" },
         dependencies: {
           [provenance.name]: values.registry
             ? provenance.version
@@ -170,7 +171,7 @@ try {
     join(fixture, ".json-quality.json"),
     JSON.stringify(
       {
-        schemaVersion: 1,
+        schemaVersion: 2,
         defaults: {
           formatContract: "prettier-json",
           allowFormatWrites: true,
@@ -190,94 +191,17 @@ try {
     ) + "\n",
   );
   writeFileSync(join(fixture, "source.json"), "{}\n");
-  writeFileSync(
-    join(consumer, "probe.mjs"),
-    `import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { createHash } from "node:crypto";
-import * as api from "@hadden-industries/json-quality";
-import plugin from "@hadden-industries/json-quality/eslint";
-import configuration from "@hadden-industries/json-quality/configuration-schema" with { type: "json" };
-import resultSchema from "@hadden-industries/json-quality/result-schema" with { type: "json" };
-import requestSchema from "@hadden-industries/json-quality/document-request-schema" with { type: "json" };
-import responseSchema from "@hadden-industries/json-quality/document-response-schema" with { type: "json" };
-assert.equal(configuration.properties.schemaVersion.const, 1);
-assert.equal(resultSchema.properties.schemaVersion.const, 4);
-assert.equal(requestSchema.properties.schemaVersion.const, 1);
-assert.equal(responseSchema.properties.schemaVersion.const, 1);
-assert.equal(responseSchema.properties.result.$ref, "result.schema.json");
-assert.equal(typeof plugin.rules["no-json-stringify-identity"].create, "function");
-assert.equal(api.validateJsonQualityResult(await api.runJsonQuality("check", {root: process.argv[2]})).status, "passed");
-assert.equal(await api.formatJsonValue({x: 1}), '{\\n  "x": 1\\n}\\n');
-assert.match(await api.formatJsonSource('{"x":1.00e+2}'), /1\\.00e\\+2/u);
-const root = process.argv[2];
-const policyPath = join(root, ".json-quality.json");
-const originalPolicy = readFileSync(policyPath);
-const policy = JSON.parse(originalPolicy);
-policy.nativeSources = [{id: "evidence", provider: "owner", owner: "Native evidence owner", reason: "Transported census proof."}];
-policy.preserveSourcePresentation = [{paths:["native.blob"], owner:"Original source owner", reason:"Transported original presentation admission."}];
-writeFileSync(policyPath, await api.formatJsonValue(policy));
-const bytes = Buffer.from(' { "x": 1 }\\r\\n');
-const identity = {path: "native.blob", byteLength: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex")};
-writeFileSync(join(root, identity.path), bytes);
-const nativeProviders = {owner: async () => ({
-  inventory: [{...identity, source: {...identity, kind: "content-addressed"}}],
-  documents: [{path: identity.path, bytes}], authorities: [identity]
-})};
-const native = await api.runJsonQuality("check", {root, nativeProviders});
-assert.equal(native.status, "passed");
-assert.equal(native.counts.native, 1);
-assert.equal(native.nativeSources[0].inventoried, 1);
-assert.equal(native.documents.find(d => d.representation === "native").presentationChecked, false);
-assert.equal(native.documents.find(d => d.representation === "native").contract.formatContract, "preserved-bytes");
-await assert.rejects(api.runJsonQuality("check", {root}), /Missing required native provider/u);
-writeFileSync(policyPath, originalPolicy);
-await assert.rejects(import("@hadden-industries/json-quality/src/quality.js"), {code:"ERR_PACKAGE_PATH_NOT_EXPORTED"});
-`,
-  );
-  execFileSync(process.execPath, [join(consumer, "probe.mjs"), fixture], {
-    cwd: consumer,
-    windowsHide: true,
-    timeout: 120000,
-  });
-  const cli = join(
-    consumer,
-    "node_modules",
-    "@hadden-industries",
-    "json-quality",
-    "src",
-    "cli.js",
-  );
-  const result = JSON.parse(
-    execFileSync(
-      process.execPath,
-      [cli, "check", "--root", fixture, "--json"],
-      { cwd: consumer, windowsHide: true, encoding: "utf8", timeout: 120000 },
-    ),
-  );
-  if (result.status !== "passed" || result.counts.physical !== 2)
-    throw new Error("Transported CLI coverage failed.");
-  const formatting = JSON.parse(
-    execFileSync(
-      process.execPath,
-      [cli, "format", "--check", "--root", fixture, "--json"],
-      { cwd: consumer, windowsHide: true, encoding: "utf8", timeout: 120000 },
-    ),
-  );
-  if (
-    formatting.status !== "passed" ||
-    formatting.counts.physical !== 2 ||
-    formatting.writes.changed.length !== 0
-  )
-    throw new Error("Transported format --check coverage failed.");
-  // Public behavior corpus runs from the isolated installation, never producer imports.
+  // One maintained public corpus is copied into the isolated installation.
   const corpus = readFileSync(new URL("./consumer-probe.mjs", import.meta.url));
   writeFileSync(join(consumer, "consumer-probe.mjs"), corpus);
   execFileSync(
     process.execPath,
     [join(consumer, "consumer-probe.mjs"), fixture],
-    { cwd: consumer, windowsHide: true, timeout: 120000 },
+    {
+      cwd: consumer,
+      windowsHide: true,
+      timeout: 120000,
+    },
   );
   const lock = JSON.parse(readFileSync(join(consumer, "package-lock.json")));
   if (
@@ -306,11 +230,15 @@ await assert.rejects(import("@hadden-industries/json-quality/src/quality.js"), {
       phase: `${values.layout}-offline-reinstall`,
     },
   );
-  execFileSync(process.execPath, [join(consumer, "probe.mjs"), fixture], {
-    cwd: consumer,
-    windowsHide: true,
-    timeout: 120000,
-  });
+  execFileSync(
+    process.execPath,
+    [join(consumer, "consumer-probe.mjs"), fixture],
+    {
+      cwd: consumer,
+      windowsHide: true,
+      timeout: 120000,
+    },
+  );
   if (values.git) {
     if (values.git !== sourceCommit)
       throw new Error(

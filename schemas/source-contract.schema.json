@@ -1,0 +1,85 @@
+{
+  "title": "JSON Quality source contract, cohort 2",
+  "description": "Selected complete source quality contract. Payload bytes travel separately as a backpressured stream. No compatibility with whole-document requests.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "format": {
+      "enum": [
+        "json",
+        "jsonl"
+      ]
+    },
+    "formatContract": {
+      "enum": [
+        "prettier-json",
+        "producer-json-body",
+        "producer-json-indent",
+        "producer-json-indent-body",
+        "producer-json-compact",
+        "producer-json-compact-body",
+        "preserved-bytes"
+      ]
+    },
+    "normalization": {
+      "enum": [
+        "NFC",
+        "preserve"
+      ]
+    },
+    "allowEmptyKeys": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(?:/(?:[^~/]|~[01])*)*/$"
+      }
+    },
+    "allowFormatWrites": {
+      "const": false
+    },
+    "owner": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "reason": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "preserveNfcValues": {
+      "$ref": "configuration.schema.json#/definitions/nfcValues"
+    },
+    "expected": {
+      "$ref": "configuration.schema.json#/definitions/sourceExpectation"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "preserveNfcValues": true
+        },
+        "required": [
+          "preserveNfcValues"
+        ]
+      },
+      "then": {
+        "properties": {
+          "allowFormatWrites": true,
+          "owner": true,
+          "reason": true
+        },
+        "required": [
+          "allowFormatWrites",
+          "owner",
+          "reason"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,1025 @@
+{
+  "title": "JSON Quality event, cohort 2",
+  "description": "One delivered event. Absence of the applicable terminal means incomplete delivery. Serialized reference identities are labels, never access capabilities.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "requestId",
+    "type"
+  ],
+  "properties": {
+    "qualification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trustedSha",
+        "candidateSha",
+        "trustedPolicyBlob",
+        "scope"
+      ],
+      "properties": {
+        "trustedSha": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "candidateSha": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "trustedPolicyBlob": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "scope": {
+          "const": "immutable-git-json"
+        }
+      }
+    },
+    "schemaVersion": {
+      "const": 2
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "enum": [
+        "source",
+        "value",
+        "finding",
+        "terminal",
+        "execution",
+        "execution-terminal",
+        "failure",
+        "write-preflight",
+        "written",
+        "write-terminal",
+        "write-failure"
+      ]
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "$ref": "#/definitions/sourceReference"
+    },
+    "reference": {
+      "$ref": "#/definitions/valueReference"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/valueReference"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "parent": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/valueReference"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "name": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/valueReference"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "scope": {
+      "enum": [
+        "source",
+        "candidate"
+      ]
+    },
+    "linkedExpectationsComplete": {
+      "type": "boolean"
+    },
+    "byteLength": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "sha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ordinal": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "record": {
+      "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+    },
+    "rawByteLength": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "sourceByteOffset": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "nfcByteLength": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "closed": {
+      "type": "boolean"
+    },
+    "nfcAvailable": {
+      "type": "boolean"
+    },
+    "valueKind": {
+      "enum": [
+        "string",
+        "key",
+        "number",
+        "true",
+        "false",
+        "null",
+        "array",
+        "object"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "string",
+        "key",
+        "number",
+        "true",
+        "false",
+        "null",
+        "array",
+        "object"
+      ]
+    },
+    "severity": {
+      "const": "error"
+    },
+    "phase": {
+      "enum": [
+        "bytes",
+        "syntax",
+        "lint",
+        "framing",
+        "expectation",
+        "presentation"
+      ]
+    },
+    "ruleId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "messageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "arguments": {
+      "type": "object"
+    },
+    "line": {
+      "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+    },
+    "column": {
+      "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+    },
+    "endLine": {
+      "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+    },
+    "endColumn": {
+      "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+    },
+    "parserComplete": {
+      "type": "boolean"
+    },
+    "rulesComplete": {
+      "type": "boolean"
+    },
+    "semanticRulesApplicable": {
+      "type": "boolean"
+    },
+    "presentationSelected": {
+      "type": "boolean"
+    },
+    "presentationChecked": {
+      "type": "boolean"
+    },
+    "diagnosticsComplete": {
+      "type": "boolean"
+    },
+    "qualityPassed": {
+      "type": "boolean"
+    },
+    "contractSatisfied": {
+      "type": "boolean"
+    },
+    "inventoryComplete": {
+      "type": "boolean"
+    },
+    "sourceObservationsComplete": {
+      "type": "boolean"
+    },
+    "expectedMatched": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "domainAdmission": {
+      "const": "unassessed"
+    },
+    "domainComplete": {
+      "const": false
+    },
+    "findings": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "managedPeakBytes": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "transitions": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "scratchPeakBytes": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "members": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "recordCount": {
+      "anyOf": [
+        {
+          "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "diagnosticSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "policySha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "coreSourceInputsSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "linkage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "containerSource",
+        "value",
+        "encoding"
+      ],
+      "properties": {
+        "containerSource": {
+          "$ref": "#/definitions/sourceReference"
+        },
+        "value": {
+          "$ref": "#/definitions/valueReference"
+        },
+        "encoding": {
+          "enum": [
+            "utf8",
+            "base64"
+          ]
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "admission",
+        "runtime"
+      ],
+      "properties": {
+        "admission": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "maxFiles",
+            "maxFileBytes",
+            "maxTotalBytes",
+            "maxLogicalDocuments",
+            "maxRecords",
+            "maxDiagnostics",
+            "maxPolicyBytes",
+            "maxGitOutputBytes",
+            "maxToolOutputBytes",
+            "maxToolTimeMs",
+            "maxGitTimeMs",
+            "maxAcquisitionTimeMs",
+            "maxCacheLookupTimeMs",
+            "maxCacheOutputBytes",
+            "maxRequestIdCharacters",
+            "maxRequestBytes",
+            "maxRequestPathCharacters"
+          ],
+          "properties": {
+            "maxFiles": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxFileBytes": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxTotalBytes": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxLogicalDocuments": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxRecords": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxDiagnostics": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxPolicyBytes": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxGitOutputBytes": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxToolOutputBytes": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxToolTimeMs": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxGitTimeMs": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxAcquisitionTimeMs": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxCacheLookupTimeMs": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxCacheOutputBytes": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxRequestIdCharacters": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxRequestBytes": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxRequestPathCharacters": {
+              "anyOf": [
+                {
+                  "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "managedMemoryTargetBytes",
+            "maxTemporaryBytes",
+            "maxNestingDepth",
+            "maxCheckTimeMs",
+            "maxConcurrency"
+          ],
+          "properties": {
+            "managedMemoryTargetBytes": {
+              "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+            },
+            "maxTemporaryBytes": {
+              "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+            },
+            "maxNestingDepth": {
+              "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+            },
+            "maxCheckTimeMs": {
+              "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+            },
+            "maxConcurrency": {
+              "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+            }
+          }
+        }
+      }
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "operation": {
+      "enum": [
+        "format",
+        "normalize"
+      ]
+    },
+    "selected": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "changed": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "written": {
+      "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+    },
+    "preflightComplete": {
+      "type": "boolean"
+    },
+    "writesComplete": {
+      "type": "boolean"
+    },
+    "uncertainPath": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "source": true,
+        "path": true,
+        "scope": true,
+        "linkedExpectationsComplete": true,
+        "byteLength": true,
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "type": {
+          "const": "source"
+        }
+      },
+      "required": [
+        "source"
+      ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "source": true,
+        "reference": true,
+        "parent": true,
+        "name": true,
+        "ordinal": true,
+        "kind": true,
+        "byteLength": true,
+        "sha256": true,
+        "closed": true,
+        "rawByteLength": true,
+        "sourceByteOffset": true,
+        "nfcAvailable": true,
+        "path": true,
+        "scope": true,
+        "linkedExpectationsComplete": true,
+        "record": true,
+        "nfcByteLength": true,
+        "type": {
+          "const": "value"
+        }
+      },
+      "required": [
+        "source",
+        "reference",
+        "parent",
+        "name",
+        "ordinal",
+        "kind",
+        "byteLength",
+        "sha256",
+        "closed",
+        "rawByteLength",
+        "sourceByteOffset",
+        "nfcAvailable"
+      ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "source": true,
+        "value": true,
+        "severity": true,
+        "phase": true,
+        "ruleId": true,
+        "messageId": true,
+        "arguments": true,
+        "line": true,
+        "column": true,
+        "endLine": true,
+        "endColumn": true,
+        "path": true,
+        "scope": true,
+        "linkedExpectationsComplete": true,
+        "record": true,
+        "type": {
+          "const": "finding"
+        }
+      },
+      "required": [
+        "source",
+        "value",
+        "severity",
+        "phase",
+        "ruleId",
+        "messageId",
+        "arguments",
+        "line",
+        "column",
+        "endLine",
+        "endColumn"
+      ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "source": true,
+        "parserComplete": true,
+        "rulesComplete": true,
+        "semanticRulesApplicable": true,
+        "presentationSelected": true,
+        "presentationChecked": true,
+        "diagnosticsComplete": true,
+        "domainAdmission": true,
+        "qualityPassed": true,
+        "expectedMatched": true,
+        "contractSatisfied": true,
+        "findings": true,
+        "diagnosticSha256": true,
+        "sourceSha256": true,
+        "managedPeakBytes": true,
+        "transitions": true,
+        "scratchPeakBytes": true,
+        "path": true,
+        "scope": true,
+        "linkedExpectationsComplete": true,
+        "recordCount": true,
+        "linkage": true,
+        "type": {
+          "const": "terminal"
+        }
+      },
+      "required": [
+        "source",
+        "parserComplete",
+        "rulesComplete",
+        "semanticRulesApplicable",
+        "presentationSelected",
+        "presentationChecked",
+        "diagnosticsComplete",
+        "domainAdmission",
+        "qualityPassed",
+        "expectedMatched",
+        "contractSatisfied",
+        "findings",
+        "diagnosticSha256",
+        "sourceSha256",
+        "managedPeakBytes",
+        "transitions",
+        "scratchPeakBytes"
+      ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "resources": true,
+        "policySha256": true,
+        "coreSourceInputsSha256": true,
+        "qualification": true,
+        "type": {
+          "const": "execution"
+        }
+      },
+      "required": [
+        "resources",
+        "policySha256",
+        "coreSourceInputsSha256"
+      ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "inventoryComplete": true,
+        "qualification": true,
+        "linkedExpectationsComplete": true,
+        "sourceObservationsComplete": true,
+        "diagnosticsComplete": true,
+        "domainComplete": true,
+        "members": true,
+        "qualityPassed": true,
+        "contractSatisfied": true,
+        "type": {
+          "const": "execution-terminal"
+        }
+      },
+      "required": [
+        "inventoryComplete",
+        "linkedExpectationsComplete",
+        "sourceObservationsComplete",
+        "diagnosticsComplete",
+        "domainComplete",
+        "members",
+        "qualityPassed",
+        "contractSatisfied"
+      ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "code": true,
+        "message": true,
+        "truncated": true,
+        "type": {
+          "const": "failure"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "truncated"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "type": {
+          "const": "write-preflight"
+        },
+        "operation": true,
+        "selected": true,
+        "changed": true,
+        "preflightComplete": {
+          "const": true
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "type",
+        "operation",
+        "selected",
+        "changed",
+        "preflightComplete"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "type": {
+          "const": "written"
+        },
+        "operation": true,
+        "path": true,
+        "byteLength": true,
+        "sha256": true
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "type",
+        "operation",
+        "path",
+        "byteLength",
+        "sha256"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "type": {
+          "const": "write-terminal"
+        },
+        "operation": true,
+        "selected": true,
+        "changed": true,
+        "written": true,
+        "complete": {
+          "const": true
+        },
+        "writesComplete": {
+          "const": true
+        },
+        "preflightComplete": {
+          "const": true
+        },
+        "sourceObservationsComplete": {
+          "const": true
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "type",
+        "operation",
+        "selected",
+        "changed",
+        "written",
+        "complete",
+        "writesComplete",
+        "preflightComplete",
+        "sourceObservationsComplete"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "type": {
+          "const": "write-failure"
+        },
+        "operation": true,
+        "complete": {
+          "const": false
+        },
+        "preflightComplete": true,
+        "written": true,
+        "uncertainPath": true,
+        "message": true
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "type",
+        "operation",
+        "complete",
+        "preflightComplete",
+        "written",
+        "uncertainPath",
+        "message"
+      ]
+    }
+  ],
+  "definitions": {
+    "valueReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "identity"
+      ],
+      "properties": {
+        "kind": {
+          "const": "value"
+        },
+        "identity": {
+          "type": "string",
+          "pattern": "^[a-f0-9-]{36}:value:[1-9][0-9]*$"
+        },
+        "byteLength": {
+          "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ordinal": {
+          "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+        },
+        "record": {
+          "$ref": "configuration.schema.json#/definitions/positiveIntegerText"
+        },
+        "rawByteLength": {
+          "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+        },
+        "sourceByteOffset": {
+          "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+        },
+        "nfcByteLength": {
+          "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+        },
+        "closed": {
+          "type": "boolean"
+        },
+        "nfcAvailable": {
+          "type": "boolean"
+        },
+        "valueKind": {
+          "enum": [
+            "string",
+            "key",
+            "number",
+            "true",
+            "false",
+            "null",
+            "array",
+            "object"
+          ]
+        }
+      }
+    },
+    "sourceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "identity"
+      ],
+      "properties": {
+        "kind": {
+          "const": "source"
+        },
+        "identity": {
+          "type": "string",
+          "pattern": "^[a-f0-9-]{36}:source:[1-9][0-9]*$"
+        },
+        "byteLength": {
+          "$ref": "configuration.schema.json#/definitions/unsignedIntegerText"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}

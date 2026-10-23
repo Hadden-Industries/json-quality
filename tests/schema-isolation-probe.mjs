@@ -1,28 +1,76 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
-import { runJsonQuality, checkJsonDocument } from "../src/index.js";
-import resultSchema from "../schemas/result.schema.json" with { type: "json" };
+import {
+  openJsonRepositorySession,
+  openJsonSourceSession,
+  validateJsonQualityEvent,
+  admitJsonPolicy,
+} from "../src/index.js";
+import eventSchema from "../schemas/event.schema.json" with { type: "json" };
 import configurationSchema from "../schemas/configuration.schema.json" with { type: "json" };
 
-// Run in a fresh process: public schema customization must not leak into another
-// test or change the package's already-initialized runtime admission contract.
-if (process.argv[2] === "writes") {
-  resultSchema.properties.writes.required.pop();
-  const result = await runJsonQuality("check", { root: process.argv[3] });
-  assert.equal(result.status, "passed");
-  assert.equal(result.schemaVersion, 4);
-  assert.deepEqual(result.writes, {
-    changed: [],
-    unchanged: [],
-    failed: [],
-    unprocessed: [],
-  });
+// Run in a fresh process. Public schema customization cannot rewrite compiled
+// admission, weaken an initialized native contract or mint event capabilities.
+if (process.argv[2] === "events") {
+  eventSchema.oneOf.find(
+    (variant) => variant.properties.type.const === "execution",
+  ).required.length = 0;
+  assert.equal(
+    validateJsonQualityEvent({
+      schemaVersion: 2,
+      requestId: "fixture",
+      type: "execution",
+    }),
+    false,
+  );
+  const session = await openJsonRepositorySession({ root: process.argv[3] });
+  try {
+    let terminal;
+    for await (const event of session.events()) terminal = event;
+    assert.equal(terminal.type, "execution-terminal");
+    assert.equal(terminal.contractSatisfied, true);
+  } finally {
+    await session.close();
+  }
 } else {
   configurationSchema.properties.exceptions.items.properties.allowEmptyKeys.uniqueItems = false;
-  await assert.rejects(
-    checkJsonDocument(Buffer.from("{}\n"), {
-      allowEmptyKeys: ["/packages/", "/packages/"],
-    }),
-    /duplicate|unique/u,
-  );
+  const session = await openJsonSourceSession();
+  try {
+    assert.throws(
+      () =>
+        session.check(
+          {
+            async *open() {
+              throw new Error("must not open");
+            },
+          },
+          {
+            allowEmptyKeys: ["/packages/", "/packages/"],
+          },
+        ),
+      /source contract/u,
+    );
+    assert.throws(
+      () =>
+        admitJsonPolicy({
+          schemaVersion: 2,
+          defaults: {
+            formatContract: "prettier-json",
+            allowFormatWrites: true,
+            normalization: "NFC",
+          },
+          exceptions: [
+            {
+              paths: ["source.json"],
+              allowEmptyKeys: ["/packages/", "/packages/"],
+              owner: "Fixture",
+              reason: "Exercise compiled admission.",
+            },
+          ],
+        }),
+      /policy structure/u,
+    );
+  } finally {
+    await session.close();
+  }
 }

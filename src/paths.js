@@ -25,6 +25,22 @@ export function assertRepositoryPath(path) {
 
 /** Admit regular files through regular ancestors and verify real containment. */
 export function assertRegularSource(root, path, mode) {
+  return assertRegularPath(root, path, false, mode);
+}
+
+/** Admit one traversed directory through regular ancestors inside the root. */
+export function assertRegularDirectory(root, path) {
+  if (path === "") {
+    const stat = lstatSync(root);
+    if (stat.isSymbolicLink() || !stat.isDirectory())
+      throw new Error("Nonregular repository root.");
+    return root;
+  }
+  return assertRegularPath(root, path, true);
+}
+
+/** Share containment and ancestor admission for read-only source discovery. */
+function assertRegularPath(root, path, directory, mode) {
   assertRepositoryPath(path);
   if (mode !== undefined && mode !== "100644" && mode !== "100755")
     throw new Error(`Nonregular Git JSON entry: ${path}`);
@@ -35,7 +51,9 @@ export function assertRegularSource(root, path, mode) {
     const stat = lstatSync(current);
     if (
       stat.isSymbolicLink() ||
-      (index === parts.length - 1 ? !stat.isFile() : !stat.isDirectory())
+      (index === parts.length - 1 && !directory
+        ? !stat.isFile()
+        : !stat.isDirectory())
     )
       throw new Error(`Nonregular source path: ${path}`);
   }

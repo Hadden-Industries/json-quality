@@ -1,0 +1,46 @@
+{
+  "sourceCommit": "af739711efcea4edb80070950277e6b897c8899b",
+  "scope": "Independent finite differential/performance oracle only; never a runtime fallback or compatibility export.",
+  "files": [
+    {
+      "path": "src/documents.js",
+      "bytes": 4678,
+      "sha256": "da21503d9c485905d5ff5c761fb2a09646a59cb21d977871f7fc4f81abe3be59"
+    },
+    {
+      "path": "src/quality.js",
+      "bytes": 21475,
+      "sha256": "318139d22cd8b0c2e5ac8597fcdf5e2d32f18e6fbb6098eab37084c4ee93f33a"
+    },
+    {
+      "path": "src/json-bytes.js",
+      "bytes": 420,
+      "sha256": "0868a81ed6506fc8ccf4144dc53937720ec947d4f2a93e88188ca07ae2d07513"
+    },
+    {
+      "path": "src/presentation.js",
+      "bytes": 2273,
+      "sha256": "30b16a311546650ebdc4fa11dafc887ea94a27d22c7ea218fab316784158f2c6"
+    },
+    {
+      "path": "src/json-pointers.js",
+      "bytes": 864,
+      "sha256": "3ca5b0c981083ecdab1493ea13c89f0c109cfbd3d1d710e993f59647e7bf6612"
+    },
+    {
+      "path": "src/limits.js",
+      "bytes": 1319,
+      "sha256": "c19ae418ae4d563b40d2eaff19aa917e96e31b1eb1057a532ecb562a041b2f98"
+    },
+    {
+      "path": "src/json-format-options.json",
+      "bytes": 138,
+      "sha256": "9657f8bd6fbf31e2951225a405f01c1f56b787fc40787a7e76f74e01ba1e088e"
+    },
+    {
+      "path": "schemas/configuration.schema.json",
+      "bytes": 12329,
+      "sha256": "e3be5318ef1bc42a744ab66ab5688f3b8cf5b3f291fdf2514849282e99040828"
+    }
+  ]
+}
