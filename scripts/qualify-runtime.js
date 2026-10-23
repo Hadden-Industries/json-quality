@@ -61,7 +61,15 @@ const tests = readdirSync(new URL("../tests/", import.meta.url))
       ].includes(path),
   )
   .map((path) => join("tests", path));
-native(process.execPath, ["--test", ...tests], {
+tests.push(
+  ...readdirSync(new URL("../tests/native/", import.meta.url))
+    .filter((path) => path.endsWith(".test.mjs"))
+    .map((path) => join("tests", "native", path)),
+);
+// Each test may consume the declared native memory/scratch envelope. Runtime
+// qualification shares the producer's serial test admission instead of silently
+// multiplying it by the runner's CPU count.
+native(process.execPath, ["--test", "--test-concurrency=1", ...tests], {
   stdio: "inherit",
   windowsHide: true,
   timeout: budgets.suite,

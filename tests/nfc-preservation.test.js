@@ -1,36 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  checkJsonDocument,
-  checkJsonLines,
-  normalizeJsonSource,
-  readJsonPolicy,
-} from "../src/index.js";
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { temporaryDirectory } from "./temporary-directory.js";
+import { normalizeJsonSource, admitJsonPolicy } from "../src/index.js";
+import { checkFixture } from "./source-fixture.js";
 
 // Independent SHA-256 identity of the decoded UTF-8 Kelvin-sign language tag.
 const pin = {
   pointer: "/language",
   sha256: "14971fb7c5dc2552e42577c7dfad95c6f8ea49ef61a06eddeb10b7fcec2f3cdb",
-  byteLength: 6,
+  byteLength: "6",
 };
 const contract = {
   allowFormatWrites: false,
   normalization: "NFC",
   formatContract: "producer-json-compact-body",
-  exceptions: [
-    {
-      owner: "Language fixture owner",
-      reason: "Retain the intentional non-ASCII language tag.",
-    },
-  ],
+  owner: "Language fixture owner",
+  reason: "Retain the intentional non-ASCII language tag.",
   preserveNfcValues: [pin],
 };
 const nativeFindings = async (text) =>
-  (await checkJsonDocument(Buffer.from(text), contract)).findings;
+  (await checkFixture(Buffer.from(text), contract)).findings;
 
 test("value preservation admits only the exact decoded value at its declared pointer", async () => {
   assert.deepEqual(await nativeFindings('{"language":"en-K"}'), []);
@@ -71,7 +60,15 @@ test("preserving one value cannot waive other values, keys or NFC collisions", a
     ),
   );
   await assert.rejects(
-    normalizeJsonSource('{"language":"en-K"}', contract),
+    normalizeJsonSource('{"language":"en-K"}', {
+      contract: {
+        normalization: contract.normalization,
+        allowFormatWrites: false,
+        preserveNfcValues: contract.preserveNfcValues,
+        owner: contract.owner,
+        reason: contract.reason,
+      },
+    }),
     /preserv/iu,
   );
 });
@@ -80,6 +77,7 @@ test("JSONL pins use one unique record identity and survive record reordering", 
   const selected = {
     ...contract,
     path: "vectors.jsonl",
+    format: "jsonl",
     preserveNfcValues: [
       { ...pin, record: { pointer: "/id", value: "intentional" } },
     ],
@@ -89,7 +87,7 @@ test("JSONL pins use one unique record identity and survive record reordering", 
     '{"id":"ordinary","language":"en-K"}\n{"id":"intentional","language":"en-K"}\n',
   ]) {
     assert.deepEqual(
-      (await checkJsonLines(Buffer.from(text), selected)).findings,
+      (await checkFixture(Buffer.from(text), selected)).findings,
       [],
     );
   }
@@ -98,12 +96,12 @@ test("JSONL pins use one unique record identity and survive record reordering", 
     '{"id":"intentional","language":"en-K"}\n{"id":"intentional","language":"en-K"}\n',
   ]) {
     assert(
-      (await checkJsonLines(Buffer.from(text), selected)).findings.some(
+      (await checkFixture(Buffer.from(text), selected)).findings.some(
         (f) => f.messageId === "nfc-record-identity-mismatch",
       ),
     );
   }
-  const additional = await checkJsonLines(
+  const additional = await checkFixture(
     Buffer.from(
       '{"id":"intentional","language":"en-K"}\n{"id":"other","language":"en-K"}\n',
     ),
@@ -111,13 +109,12 @@ test("JSONL pins use one unique record identity and survive record reordering", 
   );
   assert(
     additional.findings.some(
-      (f) => f.messageId === "unnormalized" && f.record === 2,
+      (f) => f.messageId === "unnormalized" && f.record === "2",
     ),
   );
 });
 
-test("policy admission requires exact protected paths, attributable ownership and unique document/record locations", async (t) => {
-  const root = temporaryDirectory(t, "json-nfc-policy-");
+test("policy admission requires exact protected paths, attributable ownership and unique document/record locations", () => {
   const rule = {
     paths: ["fixture.json"],
     allowFormatWrites: false,
@@ -125,25 +122,16 @@ test("policy admission requires exact protected paths, attributable ownership an
     reason: "Retain intentional input spelling",
     preserveNfcValues: [pin],
   };
-  const write = (entry) =>
-    writeFileSync(
-      join(root, ".json-quality.json"),
-      JSON.stringify(
-        {
-          schemaVersion: 1,
-          defaults: {
-            formatContract: "prettier-json",
-            allowFormatWrites: true,
-            normalization: "NFC",
-          },
-          exceptions: [entry],
-        },
-        null,
-        2,
-      ) + "\n",
-    );
-  write(rule);
-  await readJsonPolicy(root);
+  const policyFor = (entry) => ({
+    schemaVersion: 2,
+    defaults: {
+      formatContract: "prettier-json",
+      allowFormatWrites: true,
+      normalization: "NFC",
+    },
+    exceptions: [entry],
+  });
+  admitJsonPolicy(policyFor(rule));
   for (const change of [
     (value) => delete value.owner,
     (value) => delete value.allowFormatWrites,
@@ -159,7 +147,6 @@ test("policy admission requires exact protected paths, attributable ownership an
   ]) {
     const changed = structuredClone(rule);
     change(changed);
-    write(changed);
-    await assert.rejects(readJsonPolicy(root));
+    assert.throws(() => admitJsonPolicy(policyFor(changed)));
   }
 });

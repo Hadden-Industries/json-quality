@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "nodeApiVersion": 9,
+  "nodeHeadersVersion": "24.22.1",
+  "icuVersion": "79.1",
+  "unicodeVersion": "18.0",
+  "sqliteVersion": "3.54.1",
+  "boostVersion": "1.92.0",
+  "doubleConversionVersion": "3.4.0",
+  "sources": {
+    "boost": {
+      "url": "https://archives.boost.io/release/1.92.0/source/boost_1_92_0.tar.gz",
+      "sha256": "c4a3b310ddd2472416e091067166b0713be97c63f38c212c484ada022fd296ce",
+      "format": "tar.gz",
+      "prefix": "boost_1_92_0/",
+      "include": [
+        "boost/",
+        "LICENSE_1_0.txt"
+      ],
+      "maximumArchiveBytes": 268435456,
+      "maximumExtractedBytes": 536870912,
+      "role": "compiled headers"
+    },
+    "icu": {
+      "url": "https://github.com/unicode-org/icu/releases/download/release-79.1/icu4c-79.1-sources.zip",
+      "sha256": "86fed675c2270afd2faa4ec0c3f37342bd38740feb101432e131758292ae72e7",
+      "format": "zip",
+      "prefix": "icu/",
+      "include": [
+        "source/",
+        "LICENSE"
+      ],
+      "maximumArchiveBytes": 33554432,
+      "maximumExtractedBytes": 536870912,
+      "role": "compiled common code and embedded Unicode data"
+    },
+    "icuWindowsTools": {
+      "url": "https://github.com/unicode-org/icu/releases/download/release-79.1/icu4c-79.1-Win64-MSVC2026.zip",
+      "sha256": "c4ae1cbadb4187007f76f8b1bcf3a10deb699395ab3c74df01362bfdfa0f1ac2",
+      "format": "zip",
+      "prefix": "",
+      "include": [
+        "bin64/",
+        "LICENSE"
+      ],
+      "maximumArchiveBytes": 33554432,
+      "maximumExtractedBytes": 268435456,
+      "platform": "win32-x64",
+      "role": "producer-only data-object generator"
+    },
+    "sqlite": {
+      "url": "https://www.sqlite.org/2026/sqlite-amalgamation-3540100.zip",
+      "sha256": "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9",
+      "format": "zip",
+      "prefix": "sqlite-amalgamation-3540100/",
+      "include": [
+        "sqlite3.c",
+        "sqlite3.h"
+      ],
+      "maximumArchiveBytes": 4194304,
+      "maximumExtractedBytes": 16777216,
+      "role": "compiled private metadata engine"
+    },
+    "doubleConversion": {
+      "url": "https://api.github.com/repos/google/double-conversion/tarball/v3.4.0",
+      "sha256": "254abbf4fa464b36d485b3ad97da672bb21a326139627c5c29365f83aae2b8a2",
+      "format": "tar.gz",
+      "prefix": "single-directory",
+      "include": [
+        "double-conversion/",
+        "LICENSE",
+        "COPYING",
+        "AUTHORS"
+      ],
+      "maximumArchiveBytes": 8388608,
+      "maximumExtractedBytes": 16777216,
+      "role": "compiled bounded producer-number conversion"
+    },
+    "nodeHeaders": {
+      "url": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-headers.tar.gz",
+      "sha256": "322e0a27db9088093ab8347bdc8c7e0aaa21dc9ed548390bf06b394494c09267",
+      "format": "tar.gz",
+      "prefix": "node-v24.22.1/",
+      "include": [
+        "include/node/node_api.h",
+        "include/node/node_api_types.h",
+        "include/node/js_native_api.h",
+        "include/node/js_native_api_types.h",
+        "include/node/node_version.h",
+        "include/node/LICENSE"
+      ],
+      "maximumArchiveBytes": 16777216,
+      "maximumExtractedBytes": 1048576,
+      "role": "build-only Node-API declarations"
+    },
+    "nodeImportLibrary": {
+      "url": "https://nodejs.org/dist/v24.22.1/win-x64/node.lib",
+      "sha256": "a0a84aa03917b578d286010b7521837e9ff1136ffb2e4a406c14316c33fd06f7",
+      "format": "file",
+      "filename": "node.lib",
+      "maximumArchiveBytes": 4194304,
+      "platform": "win32-x64",
+      "role": "build-only Node-API import library"
+    },
+    "nodeLicense": {
+      "url": "https://raw.githubusercontent.com/nodejs/node/v24.22.1/LICENSE",
+      "sha256": "5888dbb9a1d2b18f2c3e6c5f6af1b39de658372b402a0577b002777f14c62ace",
+      "format": "file",
+      "filename": "LICENSE",
+      "maximumArchiveBytes": 262144,
+      "role": "original Node SDK notices"
+    }
+  }
+}

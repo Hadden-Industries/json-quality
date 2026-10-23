@@ -1,0 +1,107 @@
+name: Native component qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_checks:
+        description: Run native checks after production; false retains an unqualified build for candidate assembly
+        type: boolean
+        default: true
+  push:
+    branches: [main, build/oversized-json-01a165ac]
+    paths:
+      - native/**
+      - schemas/configuration.schema.json
+      - schemas/source-contract.schema.json
+      - schemas/contract-cohort.json
+      - tests/native/**
+      - .github/workflows/native.yml
+  pull_request:
+    paths:
+      - native/**
+      - schemas/configuration.schema.json
+      - schemas/source-contract.schema.json
+      - schemas/contract-cohort.json
+      - tests/native/**
+      - .github/workflows/native.yml
+
+permissions:
+  contents: read
+
+jobs:
+  component:
+    name: Native / ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            platform: win32-x64
+          - os: ubuntu-24.04
+            platform: linux-x64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-producer
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Build the exact native and control sources
+        id: build
+        run: |
+          mkdir "$RUNNER_TEMP/json-quality-native"
+          python native/build.py --workspace "$RUNNER_TEMP/json-quality-native" --jobs 2 > "$RUNNER_TEMP/native-result.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          root = Path(os.environ['RUNNER_TEMP']) / 'json-quality-native'
+          result = json.loads((root.parent / 'native-result.json').read_text(encoding='utf-8'))
+          artifacts = Path(result['artifacts'])
+          assert result['state'] == 'built'
+          assert artifacts.name == 'artifacts' and artifacts.parent.parent == root
+          assert re.fullmatch(r'producer-[a-f0-9]{32}', artifacts.parent.name)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              print('artifacts=' + artifacts.as_posix(), file=output)
+          PY
+      - name: Stage the verified component through its owner
+        if: github.ref != 'refs/heads/build/oversized-json-01a165ac' && (github.event_name != 'workflow_dispatch' || inputs.run_checks)
+        env:
+          NATIVE_ARTIFACTS: ${{ steps.build.outputs.artifacts }}
+        run: python native/stage.py --artifacts "$NATIVE_ARTIFACTS" --replace
+      - name: Qualify both bindings and public installed resolution
+        if: github.ref != 'refs/heads/build/oversized-json-01a165ac' && (github.event_name != 'workflow_dispatch' || inputs.run_checks)
+        env:
+          JSON_QUALITY_NATIVE_TEST_ARTIFACTS: ${{ steps.build.outputs.artifacts }}
+        run: npm run test:native
+      - name: Identify production-only evidence
+        if: github.ref == 'refs/heads/build/oversized-json-01a165ac' || (github.event_name == 'workflow_dispatch' && !inputs.run_checks)
+        run: echo 'Production only. Native tests, installed qualification, rights acceptance and final review remain pending.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain exact native payload, rights and source identities
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-${{ matrix.platform }}-${{ github.run_attempt }}
+          path: ${{ steps.build.outputs.artifacts }}/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Retain original build diagnostics and source snapshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-diagnostics-${{ matrix.platform }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/native-result.json
+            ${{ runner.temp }}/json-quality-native/producer-*/first-party-inputs.zip
+            ${{ runner.temp }}/json-quality-native/producer-*/failure.json
+            ${{ runner.temp }}/json-quality-native/producer-*/logs/
+            ${{ runner.temp }}/json-quality-native/producer-*/generated/
+          if-no-files-found: warn
+          retention-days: 90

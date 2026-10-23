@@ -3,8 +3,20 @@
 export const fullFiles = new Set([
   "src/acquire.js", // Copied bootstrap and dynamic installed-package loading.
   "src/installation.js", // Reads the installed source/lock/metadata graph as data.
+  "src/installed-component.js", // Fixed installed native assets are non-import inputs.
+  "src/native-component.js", // Admission binds binary and generated-control bytes.
 ]);
 export const relations = [
+  {
+    dependency: "tests/native/stdio_probe.py",
+    consumer: "tests/native/stdio.test.mjs",
+    kind: "python-process",
+  },
+  {
+    dependency: "native/",
+    consumer: "tests/native/stdio.test.mjs",
+    kind: "packaged-native-process",
+  },
   {
     dependency: "schemas/release-manifest.schema.json",
     consumer: "tests/release-contract.test.js",
@@ -22,7 +34,7 @@ export const relations = [
   },
   {
     dependency: "tests/cli-context-probe.mjs",
-    consumer: "tests/execution.test.js",
+    consumer: "tests/cli-flexibility.test.js",
     kind: "node-process",
   },
   {
@@ -37,7 +49,7 @@ export const relations = [
   },
   {
     dependency: "src/cli.js",
-    consumer: "tests/execution.test.js",
+    consumer: "tests/cli-flexibility.test.js",
     kind: "node-process",
   },
   {
@@ -47,8 +59,18 @@ export const relations = [
   },
   {
     dependency: "src/eslint/index.js",
-    consumer: "tests/retained-quality.test.js",
+    consumer: "tests/retained-identity.test.js",
     kind: "eslint-process",
+  },
+  {
+    dependency: "src/qualification-cli.js",
+    consumer: "tests/native/git-qualification.test.mjs",
+    kind: "node-process",
+  },
+  {
+    dependency: "native/",
+    consumer: "tests/native/public-api.test.mjs",
+    kind: "shared-native-artifacts",
   },
   {
     dependency: "tests/schema-isolation-probe.mjs",

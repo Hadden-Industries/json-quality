@@ -5,7 +5,9 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { readPackReport, runNpmPack } from "../scripts/pack.js";
+import { verifyShippedLinks } from "../scripts/release-contract.js";
 import { temporaryDirectory } from "./temporary-directory.js";
 
 test("shared native packing distinguishes inspection from archive writing without running lifecycle scripts", (t) => {
@@ -54,14 +56,32 @@ test("native npm 12 pack reporting admits exactly one package and rejects legacy
   const output = execFileSync(
     process.execPath,
     [npm, "pack", "--ignore-scripts", "--dry-run", "--json"],
-    { encoding: "utf8", windowsHide: true },
+    {
+      cwd: fileURLToPath(new URL("../", import.meta.url)),
+      encoding: "utf8",
+      windowsHide: true,
+    },
   );
   const report = readPackReport(output);
   assert.equal(report.name, "@hadden-industries/json-quality");
   assert.ok(report.files.some((file) => file.path === "src/cli.js"));
+  verifyShippedLinks(
+    report.files,
+    new Map(
+      report.files
+        .filter(({ path }) => path.endsWith(".md"))
+        .map(({ path }) => [
+          path.toLowerCase(),
+          readFileSync(new URL("../" + path, import.meta.url)),
+        ]),
+    ),
+  );
   for (const path of [
-    "src/json-bytes.js",
-    "src/presentation.js",
+    "src/native-session.js",
+    "src/installed-component.js",
+    "schemas/event.schema.json",
+    "schemas/source-contract.schema.json",
+    "schemas/contract-cohort.json",
     "src/json-format-options.json",
   ])
     assert.ok(

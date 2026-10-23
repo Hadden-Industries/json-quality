@@ -1,121 +1,105 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { LIMIT_NAMES, operationLimits } from "./limits.js";
+// Public CLI controls project the same schema-owned admission/runtime vocabulary.
+import schema from "../schemas/configuration.schema.json" with { type: "json" };
+import { resolveExecutionResources } from "./execution-resources.js";
 import { capacityLimitsEnvironment } from "./acquire.js";
-import { operationRequest } from "./result.js";
 
-/** CLI verbs use the same operation vocabulary as library requests and results. */
-export const COMMANDS = Object.freeze({
-  inventory: {
-    summary: "List complete scope and contracts without document analysis.",
-  },
-  lint: {
-    summary: "Check JSON syntax, interoperability and Unicode rules.",
-  },
-  check: {
-    summary:
-      "Check all quality phases; --scope protected selects write-protected documents.",
-  },
-  format: {
-    summary:
-      "Format admitted writable sources; --check verifies presentation without writing.",
-  },
-  normalize: {
-    summary:
-      "Normalize NFC tokens in explicit writable source paths; not presentation formatting.",
-  },
-});
+const capacityNames = Object.keys(schema.definitions.capacityLimits.properties),
+  runtimeNames = Object.keys(schema.definitions.runtimeControls.properties);
 export const limitFlag = (name) =>
   name.replace(/[A-Z]/gu, (letter) => "-" + letter.toLowerCase());
 export const RESOURCE_OPTIONS = Object.freeze({
   "capacity-limits": { type: "boolean" },
   ...Object.fromEntries(
-    LIMIT_NAMES.map((name) => [limitFlag(name), { type: "string" }]),
+    capacityNames.map((name) => [limitFlag(name), { type: "string" }]),
   ),
 });
-
-/** Same resource admission for the product and consumer-qualification CLIs. */
+export const RUNTIME_OPTIONS = Object.freeze(
+  Object.fromEntries(
+    runtimeNames.map((name) => [limitFlag(name), { type: "string" }]),
+  ),
+);
+function overrides(values, names) {
+  const selected = {};
+  for (const name of names) {
+    const value = values[limitFlag(name)];
+    if (value === undefined) continue;
+    if (!/^[1-9][0-9]*$/u.test(value) || !Number.isSafeInteger(Number(value)))
+      throw new TypeError("Invalid resource control: " + limitFlag(name));
+    selected[name] = Number(value);
+  }
+  return selected;
+}
 export function resourceCliLimits(
   values,
   encoded = capacityLimitsEnvironment(),
 ) {
-  const base = encoded === undefined ? undefined : JSON.parse(encoded);
-  operationLimits({}, base);
-  const capacityLimits = {};
-  for (const name of LIMIT_NAMES) {
-    const value = values[limitFlag(name)];
-    if (value === undefined) continue;
-    if (
-      !/^\d+$/u.test(value) ||
-      !Number.isSafeInteger(Number(value)) ||
-      Number(value) < 1
-    )
-      throw new TypeError(`Invalid resource limit: ${limitFlag(name)}`);
-    capacityLimits[name] = Number(value);
-  }
-  const enabled = values["capacity-limits"];
-  const hasOverrides = Object.keys(capacityLimits).length > 0;
+  const base = encoded === undefined ? undefined : JSON.parse(encoded),
+    selected = overrides(values, capacityNames),
+    enabled = values["capacity-limits"],
+    hasOverrides = Object.keys(selected).length > 0;
+  resolveExecutionResources({}, { capacityLimits: base });
   if (
     hasOverrides &&
     (enabled === false || (enabled === undefined && base === false))
   )
     throw new TypeError(
-      "Choose the shared capacity bypass or individual capacity overrides, not both.",
+      "Choose admission bypass or capacity overrides, not both.",
     );
   if (enabled === false) return false;
-  const merged = {
-    ...(typeof base === "object" ? base : {}),
-    ...capacityLimits,
-  };
+  const merged = { ...(typeof base === "object" ? base : {}), ...selected };
   if (enabled === true) return Object.keys(merged).length ? merged : true;
   return hasOverrides ? merged : base;
 }
+export function resourceCliControls(values) {
+  const capacityLimits = resourceCliLimits(values),
+    encoded = process.env.JSON_QUALITY_RUNTIME_CONTROLS,
+    base = encoded === undefined ? undefined : JSON.parse(encoded);
+  resolveExecutionResources({}, { runtimeControls: base });
+  const selected = overrides(values, runtimeNames),
+    runtimeControls =
+      base === undefined && !Object.keys(selected).length
+        ? undefined
+        : { ...base, ...selected };
+  resolveExecutionResources({}, { capacityLimits, runtimeControls });
+  return { capacityLimits, runtimeControls };
+}
+
+export const COMMANDS = Object.freeze({
+  check:
+    "Check complete repository obligations and deliver final execution evidence.",
+  source:
+    "Check raw stdin bytes under an explicit source contract; no repository policy.",
+  format:
+    "Preflight the complete repository and explicitly format writable physical sources.",
+  normalize:
+    "Preflight complete candidate obligations and NFC-repair explicit physical paths.",
+});
 export const CLI_OPTIONS = Object.freeze({
   ...RESOURCE_OPTIONS,
+  ...RUNTIME_OPTIONS,
   root: { type: "string" },
   json: { type: "boolean", default: false },
-  check: { type: "boolean" },
-  scope: { type: "string" },
+  contract: { type: "string" },
+  "request-id": { type: "string" },
   help: { type: "boolean", short: "h", default: false },
-  files: { type: "string" },
-  concurrency: { type: "string" },
-  request: { type: "string" },
-  "diagnostic-level": { type: "string", default: "info" },
 });
-export function commandRequest(command, values, files) {
-  const request = operationRequest(command, values);
-  if (
-    values.request !== undefined &&
-    (command !== "format" ||
-      values.request !== "-" ||
-      files.length ||
-      values.files !== undefined ||
-      values.concurrency !== undefined)
-  )
-    throw new TypeError(
-      "--request - requires format without file selection or concurrency.",
-    );
-  return request;
-}
-export function commandHelp(command) {
-  const entries =
-    command === undefined
-      ? Object.entries(COMMANDS)
-      : [[command, COMMANDS[command]]];
+export function commandHelp() {
   return [
-    "Usage: json-quality <command> [options]",
-    ...entries.map(([name, descriptor]) => `  ${name}: ${descriptor.summary}`),
-    "Options: --root PATH, --json, --help (-h)",
-    "Capacity switch: --capacity-limits enables configured/default capacities; --no-capacity-limits disables them",
-    "Formatting verification: format --check",
-    "Checking scope: check --scope all|protected (default all)",
-    "Normalization selection: normalize -- relative/source.json",
-    "Literal selection: -- relative/source.json, or --files '[\"source.json\"]' (all repository verbs)",
-    "Preparation concurrency: --concurrency N (default 1)",
-    "Supplied document: format --request - --json (bounded JSON request on stdin; --check verifies without formatting)",
-    "Human diagnostics: --diagnostic-level info|warning|error (JSON findings and exits unchanged)",
-    "Capacity overrides: " +
-      LIMIT_NAMES.map((name) => "--" + limitFlag(name) + " N").join(", "),
-    "Read-only requests never acquire tools or replace checkout files.",
+    "Usage: json-quality <check|source|format|normalize> [options] [-- literal/path.json ...]",
+    ...Object.entries(COMMANDS).map(
+      ([name, description]) => "  " + name + ": " + description,
+    ),
+    "Options: --root PATH, --json (versioned NDJSON), --request-id ID, --help",
+    "source reads raw stdin; --contract JSON selects its closed source contract.",
+    "Only format/normalize accept literal paths. Normalize requires explicit paths.",
+    "--no-capacity-limits removes admission ceilings; finite runtime controls stay active.",
+    "Capacity controls: " +
+      capacityNames.map((name) => "--" + limitFlag(name) + " N").join(", "),
+    "Runtime controls: " +
+      runtimeNames.map((name) => "--" + limitFlag(name) + " N").join(", "),
+    "JSON_QUALITY_CAPACITY_LIMITS and JSON_QUALITY_RUNTIME_CONTROLS supply the same typed controls.",
+    "Absence of the final applicable terminal or a nonzero process exit means no successful completion.",
     "",
   ].join("\n");
 }

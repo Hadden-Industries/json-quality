@@ -3,7 +3,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, copyFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { temporaryDirectory } from "./temporary-directory.js";
 import { createRequire } from "node:module";
@@ -49,7 +50,11 @@ test("source coordinates admit exact versions and full producer commits only", (
     assert.throws(() => jsonQualitySourceCoordinate(value));
 });
 
-async function installation(t, source = "1.2.3") {
+async function installation(
+  t,
+  source = "1.2.3",
+  { nativeBinary = false } = {},
+) {
   const root = temporaryDirectory(t, "json-quality-installation-");
   const producer = join(root, "producer");
   mkdirSync(producer);
@@ -60,6 +65,26 @@ async function installation(t, source = "1.2.3") {
     files: ["index.js", "src/acquire.js"],
   };
   const payload = "export const approved = true;\n";
+  const binary = nativeBinary
+    ? join(
+        process.env.JSON_QUALITY_NATIVE_TEST_ARTIFACTS ??
+          fileURLToPath(
+            new URL(
+              "../native/prebuilt/" +
+                process.platform +
+                "-" +
+                process.arch +
+                "/",
+              import.meta.url,
+            ),
+          ),
+        "json-quality.node",
+      )
+    : null;
+  if (nativeBinary) {
+    manifest.files.push("native-component.node");
+    copyFileSync(binary, join(producer, "native-component.node"));
+  }
   writeFileSync(join(producer, "package.json"), JSON.stringify(manifest));
   writeFileSync(join(producer, "index.js"), payload);
   mkdirSync(join(producer, "src"));
@@ -95,6 +120,8 @@ async function installation(t, source = "1.2.3") {
   writeFileSync(join(installedRoot, "package.json"), JSON.stringify(manifest));
   writeFileSync(join(installedRoot, "index.js"), payload);
   mkdirSync(join(installedRoot, "src"));
+  if (nativeBinary)
+    copyFileSync(binary, join(installedRoot, "native-component.node"));
   writeFileSync(
     join(installedRoot, "src/acquire.js"),
     jsonQualityAcquisitionBootstrap(),
@@ -117,7 +144,14 @@ async function installation(t, source = "1.2.3") {
     },
   };
   writeFileSync(join(toolingRoot, "package-lock.json"), JSON.stringify(lock));
-  return { toolingRoot, cachePath, installedRoot, lock };
+  // Fixture bookkeeping is not part of the closed public verifier request.
+  return Object.defineProperties(
+    { toolingRoot, cachePath },
+    {
+      installedRoot: { value: installedRoot },
+      lock: { value: lock },
+    },
+  );
 }
 
 test("native packed fixture validates cached bytes independently of installed files", async (t) => {
@@ -131,6 +165,43 @@ test("native packed fixture validates cached bytes independently of installed fi
   await assert.rejects(
     verifyJsonQualityInstallation(context),
     /payload differs/u,
+  );
+});
+
+test("a real native binary member is streamed independently of the JSON file-byte admission", async (t) => {
+  const context = await installation(t, "1.2.3", { nativeBinary: true });
+  assert.equal(
+    (
+      await verifyJsonQualityInstallation({
+        ...context,
+        capacityLimits: { maxFileBytes: 1 },
+      })
+    ).files,
+    4,
+  );
+  const binary = join(context.installedRoot, "native-component.node");
+  const bytes = readFileSync(binary);
+  bytes[0] ^= 1;
+  writeFileSync(binary, bytes);
+  await assert.rejects(
+    verifyJsonQualityInstallation({ ...context, capacityLimits: false }),
+    /payload differs/,
+  );
+});
+
+test("installation verification rejects unknown controls and honors pre-aborted cancellation", async () => {
+  await assert.rejects(
+    verifyJsonQualityInstallation({ toolingRoot: "absent", backend: "other" }),
+    /verification options/,
+  );
+  const controller = new AbortController();
+  controller.abort(new Error("deliberate stop"));
+  await assert.rejects(
+    verifyJsonQualityInstallation({
+      toolingRoot: "absent",
+      signal: controller.signal,
+    }),
+    /deliberate stop/,
   );
 });
 

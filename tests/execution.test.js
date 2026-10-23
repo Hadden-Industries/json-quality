@@ -1,179 +1,140 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
-import fs from "node:fs";
-import { syncBuiltinESMExports } from "node:module";
-import { fileURLToPath } from "node:url";
-import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { writeFileSync, readFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { temporaryRepository } from "./temporary-repository.js";
-import { createHash } from "node:crypto";
-import { runJsonQuality } from "../src/execution.js";
-import { inspectJsonInventory } from "../src/inventory.js";
-import { checkJsonDocument } from "../src/documents.js";
+import { openJsonRepositorySession } from "../src/index.js";
+import { fixtureStream, repositoryEvents } from "./repository-fixture.js";
 
+const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 function repository(t) {
-  const root = temporaryRepository(t, "json-quality-test-");
-  const policy = {
-    schemaVersion: 1,
-    defaults: {
-      formatContract: "prettier-json",
-      allowFormatWrites: true,
-      normalization: "NFC",
-    },
-    exceptions: [
-      {
-        paths: [".git/**", "**/node_modules/**"],
-        exclude: true,
-        owner: "Git and npm",
-        reason: "External installations; tracked JSON remains included.",
+  const root = temporaryRepository(t, "json-quality-test-"),
+    policy = {
+      schemaVersion: 2,
+      defaults: {
+        formatContract: "prettier-json",
+        allowFormatWrites: true,
+        normalization: "NFC",
       },
-    ],
-  };
-  writeFileSync(
-    join(root, ".json-quality.json"),
-    JSON.stringify(policy, null, 2) + "\n",
-  );
-  return root;
+      exceptions: [
+        {
+          paths: [".git/**", "**/node_modules/**"],
+          exclude: true,
+          owner: "Git and npm",
+          reason: "External installations; tracked JSON remains included.",
+        },
+      ],
+    },
+    save = () =>
+      writeFileSync(
+        join(root, ".json-quality.json"),
+        JSON.stringify(policy, null, 2) + "\n",
+      );
+  save();
+  return { root, policy, save };
 }
-
-test("separate API operations retain independent schema-owned result accounting", async (t) => {
-  const root = repository(t);
+test("independent public sessions retain immutable event and resource state", async (t) => {
+  const { root } = repository(t);
   writeFileSync(join(root, "source.json"), "{}\n");
-  const first = await runJsonQuality("check", { root });
-  assert.equal(first.schemaVersion, 4);
-  first.writes.changed.push("unrelated.json");
-  const second = await runJsonQuality("check", { root });
-  assert.equal(second.status, "passed");
-  assert.deepEqual(second.writes, {
-    changed: [],
-    unchanged: [],
-    failed: [],
-    unprocessed: [],
-  });
+  const first = await repositoryEvents({ root }),
+    second = await repositoryEvents({ root });
+  assert.equal(second.at(-1).contractSatisfied, true);
+  assert.notEqual(first[0].requestId, second[0].requestId);
+  assert.throws(() => {
+    first[0].resources.runtime.maxCheckTimeMs = "0";
+  }, TypeError);
+  assert.equal(second[0].resources.runtime.maxCheckTimeMs, "120000");
 });
-
-test("sibling external trees cannot multiply boundary matching work", async (t) => {
-  const root = repository(t);
-  const peers = 200;
-  for (let n = 0; n < peers; n++) {
-    const directory = join(root, `peer-${String(n).padStart(5, "0")}`);
+test("many sibling external boundaries reconcile through the bounded adaptive census", async (t) => {
+  const { root } = repository(t),
+    peers = 200;
+  for (let index = 0; index < peers; index++) {
+    const directory = join(root, `peer-${index}`);
     mkdirSync(join(directory, "node_modules"), { recursive: true });
     writeFileSync(join(directory, "data.json"), "{}\n");
-    writeFileSync(join(directory, "node_modules", "marker.txt"), "marker\n");
-  }
-  execFileSync("git", ["-C", root, "add", "--force", "."], {
-    windowsHide: true,
-  });
-  const originalFind = Array.prototype.find;
-  let comparisons = 0;
-  Array.prototype.find = function (predicate, thisArg) {
-    const boundaries =
-      this.length === peers + 1 &&
-      this.every(
-        (entry) =>
-          entry &&
-          typeof entry.path === "string" &&
-          Array.isArray(entry.exceptions),
-      );
-    return originalFind.call(
-      this,
-      boundaries
-        ? function (...args) {
-            comparisons++;
-            return predicate.apply(this, args);
-          }
-        : predicate,
-      thisArg,
+    writeFileSync(
+      join(directory, "node_modules", "outside.json"),
+      "invalid outside boundary",
     );
-  };
-  let inventory;
-  try {
-    inventory = await inspectJsonInventory({ root });
-  } finally {
-    Array.prototype.find = originalFind;
   }
-  assert.equal(inventory.files.length, peers + 1);
-  assert.equal(inventory.boundaries.length, peers + 1);
-  assert.equal(inventory.counts.writable, peers + 1);
-  // Count matching work rather than relying on machine-dependent wall time.
-  assert.ok(
-    comparisons <= 4 * inventory.files.length,
-    `${comparisons} comparisons`,
+  const events = await repositoryEvents({
+    root,
+    runtimeControls: { managedMemoryTargetBytes: 16777216 },
+  });
+  assert.equal(events.at(-1).members, String(peers + 1));
+  assert.equal(events.at(-1).contractSatisfied, true);
+  assert.equal(
+    events.some((event) => event.path?.includes("node_modules")),
+    false,
   );
+  for (const event of events)
+    if (event.type === "terminal")
+      assert.ok(BigInt(event.managedPeakBytes) <= 16777216n);
 });
-
-test("discovery includes hidden, untracked and ignored generated JSON", async (t) => {
-  const root = repository(t);
+test("complete discovery includes hidden, untracked and Git-ignored generated JSON", async (t) => {
+  const { root } = repository(t);
   writeFileSync(join(root, ".gitignore"), "dist/\n");
   mkdirSync(join(root, "dist"));
   writeFileSync(join(root, "dist", "generated.json"), '{"x":9007199254740992}');
   writeFileSync(join(root, ".hidden.json"), "{}\n");
-  const result = await runJsonQuality("check", { root });
-  assert.equal(result.status, "failed");
+  const events = await repositoryEvents({ root });
   assert.deepEqual(
-    result.documents.map((d) => d.path),
+    events
+      .filter((event) => event.type === "source")
+      .map((event) => event.path),
     [".hidden.json", ".json-quality.json", "dist/generated.json"],
   );
+  assert.equal(events.at(-1).contractSatisfied, false);
   assert.ok(
-    result.findings.some(
-      (f) => f.path === "dist/generated.json" && f.phase === "lint",
+    events.some(
+      (event) =>
+        event.path === "dist/generated.json" &&
+        event.type === "finding" &&
+        event.phase === "lint",
     ),
   );
 });
-
-test("tracked hidden files rescued from an excluded boundary remain checked and never writable", async (t) => {
-  const root = repository(t);
+test("tracked hidden JSON in a pruned ancestor is checked and cannot acquire write permission", async (t) => {
+  const { root } = repository(t),
+    path = "node_modules/.hidden.json";
   mkdirSync(join(root, "node_modules"));
   writeFileSync(join(root, ".gitignore"), "node_modules/\n");
-  const path = "node_modules/.hidden.json";
   const original = '{"n":1}\n';
   writeFileSync(join(root, path), original);
   execFileSync("git", ["-C", root, "add", "--force", path], {
     windowsHide: true,
   });
-  const formatted = await runJsonQuality("format", { root });
-  assert.equal(formatted.status, "failed");
+  const events = await repositoryEvents({ root }, "format");
+  assert.equal(events.at(-1).type, "write-failure");
+  assert.equal(events.at(-1).written, "0");
   assert.ok(
-    formatted.findings.some(
-      (finding) => finding.path === path && finding.phase === "presentation",
+    events.some(
+      (event) =>
+        event.type === "finding" &&
+        event.path === path &&
+        event.phase === "presentation",
     ),
   );
-  assert.deepEqual(formatted.writes.changed, []);
   assert.equal(readFileSync(join(root, path), "utf8"), original);
-  const decomposed = '{"name":"A\\u030a"}\n';
-  writeFileSync(join(root, path), decomposed);
-  const normalized = await runJsonQuality("lint", { root });
-  assert.equal(normalized.status, "failed");
-  assert.ok(
-    normalized.findings.some(
-      (finding) =>
-        finding.path === path &&
-        finding.ruleId === "json-quality/normalized-strings",
-    ),
-  );
-  assert.deepEqual(normalized.writes.changed, []);
-  await assert.rejects(
-    runJsonQuality("normalize", { root, files: [path] }),
-    /Protected or undiscovered JSON source/u,
-  );
-  assert.equal(readFileSync(join(root, path), "utf8"), decomposed);
+  writeFileSync(join(root, path), '{"name":"A\\u030a"}\n');
+  const normalized = await repositoryEvents({ root }, "normalize", [path]);
+  assert.equal(normalized.at(-1).type, "write-failure");
+  assert.match(normalized.at(-1).message, /Protected/u);
 });
-
 test(
-  "Windows Git casing cannot make a rescued hidden file writable",
+  "Windows Git casing cannot make a rescued hidden JSON source writable",
   { skip: process.platform !== "win32" },
   async (t) => {
-    const root = repository(t);
+    const { root } = repository(t),
+      actualPath = "node_modules/.hidden.json",
+      trackedPath = "NODE_MODULES/.hidden.json",
+      original = '{"n":1}\n';
     mkdirSync(join(root, "node_modules"));
-    writeFileSync(join(root, ".gitignore"), "node_modules/\n");
-    const actualPath = "node_modules/.hidden.json";
-    const trackedPath = "NODE_MODULES/.hidden.json";
-    const original = '{"n":1}\n';
     writeFileSync(join(root, actualPath), original);
-    const objectId = execFileSync(
+    const oid = execFileSync(
       "git",
       ["-C", root, "hash-object", "-w", "--", actualPath],
       { encoding: "utf8", windowsHide: true },
@@ -187,671 +148,254 @@ test(
         "--add",
         "--cacheinfo",
         "100644",
-        objectId,
+        oid,
         trackedPath,
       ],
       { windowsHide: true },
     );
-    assert.equal(
-      execFileSync("git", ["-C", root, "ls-files"], {
-        encoding: "utf8",
-        windowsHide: true,
-      }).trim(),
-      trackedPath,
-    );
-    const result = await runJsonQuality("format", { root });
-    assert.equal(result.status, "failed");
-    assert.ok(
-      result.findings.some(
-        (finding) =>
-          finding.path === trackedPath && finding.phase === "presentation",
-      ),
-    );
-    assert.deepEqual(result.writes.changed, []);
+    const events = await repositoryEvents({ root }, "format");
+    assert.equal(events.at(-1).type, "write-failure");
+    assert.equal(events.at(-1).written, "0");
     assert.equal(readFileSync(join(root, actualPath), "utf8"), original);
   },
 );
-
-test("consumer ESLint and formatter configuration cannot weaken checks", async (t) => {
-  const root = repository(t);
+test("consumer ESLint/formatter configuration cannot weaken complete checking", async (t) => {
+  const { root } = repository(t);
   writeFileSync(
     join(root, "eslint.config.js"),
     'throw new Error("Consumer configuration executed");',
   );
-  writeFileSync(join(root, ".prettierignore"), "**\n");
-  writeFileSync(join(root, "data.json"), '{"a":1,"a":2}');
-  const result = await runJsonQuality("check", { root });
-  assert.equal(result.status, "failed");
-  assert.ok(result.findings.some((f) => f.ruleId === "json/no-duplicate-keys"));
-});
-
-test("format repairs valid authored bytes with package-owned options", async (t) => {
-  const root = repository(t);
-  writeFileSync(join(root, "data.json"), '{"z":1.00e+2,"a":[2,1]}');
-  const result = await runJsonQuality("format", { root });
-  assert.equal(
-    readFileSync(join(root, "data.json"), "utf8"),
-    '{\n  "z": 1.00e+2,\n  "a": [\n    2,\n    1\n  ]\n}\n',
+  writeFileSync(
+    join(root, ".prettierrc.json"),
+    '{"parser":"babel","tabWidth":8}',
   );
-  assert.deepEqual(result.writes.changed, ["data.json"]);
-  assert.equal(result.status, "passed");
+  writeFileSync(join(root, "source.json"), '{"n":9007199254740992}');
+  const events = await repositoryEvents({ root });
+  assert.equal(events.at(-1).contractSatisfied, false);
+  assert.ok(
+    events.some(
+      (event) =>
+        event.type === "finding" && event.messageId === "unsafeInteger",
+    ),
+  );
 });
-
-test("an invalid peer blocks every formatting write", async (t) => {
-  const root = repository(t);
-  const before = '{"x":1}';
-  writeFileSync(join(root, "a.json"), before);
-  writeFileSync(join(root, "z.json"), '{"x":1,"x":2}');
-  const result = await runJsonQuality("format", { root });
-  assert.equal(result.status, "failed");
-  assert.equal(readFileSync(join(root, "a.json"), "utf8"), before);
-  assert.deepEqual(result.writes.changed, []);
+test("explicit formatting repairs valid authored bytes with fixed package options", async (t) => {
+  const { root } = repository(t);
+  writeFileSync(join(root, "source.json"), '{"x":1.00e+2}');
+  const events = await repositoryEvents({ root }, "format");
+  assert.equal(events.at(-1).type, "write-terminal");
+  assert.equal(events.at(-1).written, "1");
+  assert.equal(
+    readFileSync(join(root, "source.json"), "utf8"),
+    '{\n  "x": 1.00e+2\n}\n',
+  );
 });
-
-test("producer presentation alone protects formatting and normalization writes", async (t) => {
-  const root = repository(t);
-  const policyPath = join(root, ".json-quality.json");
-  const policy = JSON.parse(readFileSync(policyPath, "utf8"));
+test("an invalid unselected peer blocks every formatting write", async (t) => {
+  const { root } = repository(t);
+  writeFileSync(join(root, "source.json"), '{"x":1}');
+  writeFileSync(join(root, "peer.json"), '{"x":1,"x":2}');
+  const events = await repositoryEvents({ root }, "format", ["source.json"]);
+  assert.equal(events.at(-1).type, "write-failure");
+  assert.equal(events.at(-1).written, "0");
+  assert.equal(readFileSync(join(root, "source.json"), "utf8"), '{"x":1}');
+});
+test("producer presentation protects both formatting and normalization effects", async (t) => {
+  const { root, policy, save } = repository(t);
   policy.exceptions.push({
     paths: ["producer.json"],
-    formatContract: "producer-json-compact-body",
-    owner: "Fixture producer",
-    reason: "Only the producer owns this compact document's presentation.",
+    formatContract: "producer-json-compact",
+    owner: "Producer",
+    reason: "Producer owns exact presentation.",
   });
-  writeFileSync(policyPath, JSON.stringify(policy, null, 2) + "\n");
-  const before = '{"x":1}';
-  writeFileSync(join(root, "producer.json"), before);
-  const result = await runJsonQuality("format", { root });
-  assert.equal(result.status, "passed");
-  assert.deepEqual(result.writes.changed, []);
-  assert.equal(readFileSync(join(root, "producer.json"), "utf8"), before);
-  const inventory = await runJsonQuality("inventory", { root });
-  assert.equal(
-    inventory.documents.find((document) => document.path === "producer.json")
-      .contract.allowFormatWrites,
-    false,
-  );
-  await assert.rejects(
-    runJsonQuality("normalize", { root, files: ["producer.json"] }),
-    /protected/iu,
-  );
-  writeFileSync(join(root, "producer.json"), '{ "x": 1 }');
-  const invalid = await runJsonQuality("format", { root });
-  assert.equal(invalid.status, "failed");
-  assert.deepEqual(invalid.writes.changed, []);
-  assert.equal(readFileSync(join(root, "producer.json"), "utf8"), '{ "x": 1 }');
-  assert.ok(
-    invalid.findings.some(
-      (finding) =>
-        finding.path === "producer.json" && finding.phase === "presentation",
-    ),
-  );
+  save();
+  const bytes = '{"x":"e\\u0301"}\n';
+  writeFileSync(join(root, "producer.json"), bytes);
+  for (const operation of ["format", "normalize"]) {
+    const events = await repositoryEvents({ root }, operation, [
+      "producer.json",
+    ]);
+    assert.equal(events.at(-1).type, "write-failure");
+    assert.equal(events.at(-1).written, "0");
+    assert.match(events.at(-1).message, /Protected/u);
+    assert.equal(readFileSync(join(root, "producer.json"), "utf8"), bytes);
+  }
 });
-
-test("logical inventory is cumulative and rejects lost, duplicate or changed members", async (t) => {
-  const root = repository(t);
-  const bytes = Buffer.from('{"x":1,"x":2}');
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-  writeFileSync(
-    join(root, "bundle.json"),
-    JSON.stringify({ artifacts: [{ text: bytes.toString() }] }, null, 2) + "\n",
-  );
-  const logicalInventory = [
-    {
-      path: "logical/source.json",
-      sha256,
-      byteLength: bytes.length,
-      containerPath: "bundle.json",
-      pointer: "/artifacts/0/text",
-      encoding: "utf8",
-    },
-  ];
-  const logicalDocuments = [{ path: "logical/source.json", bytes }];
-  const result = await runJsonQuality("check", {
-    root,
-    logicalInventory,
-    logicalDocuments,
-  });
-  assert.equal(result.counts.logical, 1);
-  assert.equal(result.counts.physical, 2);
-  assert.ok(
-    result.findings.some(
-      (f) =>
-        f.path === "logical/source.json" &&
-        f.ruleId === "json/no-duplicate-keys",
-    ),
-  );
-  await assert.rejects(
-    runJsonQuality("check", { root, logicalInventory, logicalDocuments: [] }),
-    /logical inventory/iu,
-  );
-  await assert.rejects(
-    runJsonQuality("check", {
-      root,
-      logicalInventory,
-      logicalDocuments: [...logicalDocuments, ...logicalDocuments],
-    }),
-    /logical inventory/iu,
-  );
-  await assert.rejects(
-    runJsonQuality("check", {
-      root,
-      logicalInventory,
-      logicalDocuments: [
-        { path: "logical/source.json", bytes: Buffer.from("{}") },
-      ],
-    }),
-    /logical (bytes|provenance)/iu,
-  );
-});
-
-test("inventory reports scope without claiming JSON validation", async (t) => {
-  const root = repository(t);
-  writeFileSync(join(root, "broken.json"), '{"x":');
-  const result = await runJsonQuality("inventory", { root });
-  assert.equal(result.status, "passed");
-  assert.deepEqual(result.counts, {
-    physical: 2,
-    logical: 0,
-    native: 0,
-    records: null,
-    checked: 0,
-  });
-  assert.ok(
-    result.documents.every(
-      (document) =>
-        document.syntaxValid === null &&
-        !document.presentationChecked &&
-        document.contract,
-    ),
-  );
-  assert.equal((await runJsonQuality("check", { root })).status, "failed");
-  await assert.rejects(
-    runJsonQuality("inspect", { root }),
-    /Unknown JSON quality operation/u,
-  );
-});
-
-test("policy and per-invocation capacityLimits can be raised or explicitly bypassed", async (t) => {
-  const root = repository(t);
-  const path = join(root, ".json-quality.json");
-  const policy = JSON.parse(readFileSync(path, "utf8"));
+test("policy and invocation byte capacities can be raised or bypassed without changing runtime controls", async (t) => {
+  const { root, policy, save } = repository(t);
   policy.capacityLimits = { maxFiles: 1 };
-  writeFileSync(path, JSON.stringify(policy, null, 2) + "\n");
-  writeFileSync(join(root, "data.json"), "{}\n");
-  await assert.rejects(runJsonQuality("check", { root }), /file limit/iu);
-  assert.equal(
-    (
-      await runJsonQuality("check", {
-        root,
-        capacityLimits: { maxFiles: 2000000 },
-      })
-    ).status,
-    "passed",
-  );
-  await assert.rejects(
-    runJsonQuality("inventory", {
-      root,
-      capacityLimits: { maxFiles: 2, maxFileBytes: 1 },
-    }),
-    /byte limit/iu,
-  );
-  assert.equal(
-    (await runJsonQuality("check", { root, capacityLimits: false })).status,
-    "passed",
-  );
-  policy.capacityLimits = false;
-  writeFileSync(path, JSON.stringify(policy, null, 2) + "\n");
-  writeFileSync(join(root, "data.json"), '{"x":1,"x":2}');
-  assert.equal((await runJsonQuality("check", { root })).status, "failed");
-  assert.equal(
-    Number.isFinite(
-      (await inspectJsonInventory({ root, capacityLimits: true }))
-        .capacityLimits.maxFiles,
-    ),
-    true,
-  );
-  assert.equal(
-    (await runJsonQuality("check", { root, capacityLimits: false })).status,
-    "failed",
-  );
-  delete policy.capacityLimits;
-  policy.limits = false;
-  writeFileSync(path, JSON.stringify(policy, null, 2) + "\n");
-  await assert.rejects(
-    runJsonQuality("inventory", { root }),
-    /Invalid JSON policy structure/u,
-  );
-});
-
-test("CLI resource overrides enforce the same capacityLimits and reject contradictions", (t) => {
-  const root = repository(t);
-  writeFileSync(join(root, "data.json"), "{}\n");
-  const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
-  const run = (...args) =>
-    spawnSync(
-      process.execPath,
-      [cli, "inventory", "--root", root, "--json", ...args],
-      { encoding: "utf8", windowsHide: true },
+  save();
+  writeFileSync(join(root, "source.json"), "{}\n");
+  await assert.rejects(repositoryEvents({ root }), /file-capacity/u);
+  for (const capacityLimits of [{ maxFiles: 2 }, false]) {
+    const events = await repositoryEvents({ root, capacityLimits });
+    assert.equal(events.at(-1).contractSatisfied, true);
+    assert.equal(
+      events[0].resources.runtime.managedMemoryTargetBytes,
+      "33554432",
     );
-  const limited = run("--max-files", "1");
-  assert.equal(limited.status, 2);
-  assert.equal(JSON.parse(limited.stdout).complete, false);
-  const raised = run("--max-files", "2000000");
-  assert.equal(raised.status, 0, raised.stderr);
-  assert.equal(JSON.parse(raised.stdout).counts.physical, 2);
-  assert.equal(run("--no-capacity-limits").status, 0);
-  assert.equal(run("--capacity-limits").status, 0);
-  assert.equal(run("--capacity-limits", "--max-files", "1").status, 2);
-  assert.equal(run("--no-limits").status, 2);
-  const removedFlag = spawnSync(
-    process.execPath,
-    [cli, "inventory", "--root", root, "--no-limits"],
-    { encoding: "utf8", windowsHide: true },
-  );
-  assert.equal(removedFlag.status, 2);
-  assert.match(removedFlag.stderr, /Unknown option.*no-limits/u);
-  assert.equal(run("--no-capacity-limits", "--max-files", "2").status, 2);
-  assert.equal(run("--max-files", "0").status, 2);
-  assert.equal(JSON.parse(run("--unknown-option").stdout).status, "error");
+  }
 });
-
-test("a real document over 32 MiB is admitted only after raising capacity", async (t) => {
-  const root = repository(t);
-  const bytes = Buffer.alloc(32 * 1024 * 1024 + 1, 0x20);
-  bytes[0] = 0x7b;
-  bytes[bytes.length - 1] = 0x7d;
+test("a real source above 32 MiB is streamed only after raising source byte capacity", async (t) => {
+  const { root } = repository(t),
+    bytes = Buffer.from('"' + "x".repeat(33 * 1024 * 1024) + '"\n');
   writeFileSync(join(root, "large.json"), bytes);
-  await assert.rejects(runJsonQuality("inventory", { root }), /byte limit/iu);
-  const result = await runJsonQuality("inventory", {
+  await assert.rejects(repositoryEvents({ root }), /source-byte-capacity/u);
+  const events = await repositoryEvents({
     root,
-    capacityLimits: { maxFileBytes: 64 * 1024 * 1024 },
+    capacityLimits: { maxFileBytes: bytes.length },
   });
-  assert.equal(result.status, "passed");
-  assert.equal(result.counts.physical, 2);
-  assert.equal(result.counts.checked, 0);
+  assert.equal(events.at(-1).contractSatisfied, true);
+  const terminal = events.find(
+    (event) => event.type === "terminal" && event.path === "large.json",
+  );
+  assert.equal(terminal.transitions, "1");
+  assert.ok(BigInt(terminal.managedPeakBytes) <= 33554432n);
 });
-
-test("literal brackets in a JSON filename do not turn it into a tool glob", async (t) => {
-  const root = repository(t);
+test("literal brackets in selected filenames cannot become tool globs", async (t) => {
+  const { root } = repository(t);
   writeFileSync(join(root, "data[1].json"), '{"x":1}');
-  const result = await runJsonQuality("format", { root });
-  assert.equal(result.status, "passed");
-  assert.deepEqual(result.writes.changed, ["data[1].json"]);
+  const events = await repositoryEvents({ root }, "format", ["data[1].json"]);
+  assert.equal(events.at(-1).type, "write-terminal");
   assert.equal(
     readFileSync(join(root, "data[1].json"), "utf8"),
     '{\n  "x": 1\n}\n',
   );
 });
-
-test("normalization rejects malformed UTF-8 without replacing source bytes", async (t) => {
-  const root = repository(t);
-  const bytes = Buffer.from([
-    0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0xc3, 0x28, 0x22, 0x7d,
-  ]);
+test("malformed UTF-8 never authorizes normalization or replaces original bytes", async (t) => {
+  const { root } = repository(t),
+    bytes = Buffer.from([
+      0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0xc3, 0x28, 0x22, 0x7d,
+    ]);
   writeFileSync(join(root, "data.json"), bytes);
-  await assert.rejects(
-    runJsonQuality("normalize", { root, files: ["data.json"] }),
-    /UTF-8/iu,
-  );
+  const events = await repositoryEvents({ root }, "normalize", ["data.json"]);
+  assert.equal(events.at(-1).type, "write-failure");
+  assert.equal(events.at(-1).written, "0");
   assert.deepEqual(readFileSync(join(root, "data.json")), bytes);
 });
-
-test("a later replacement failure reports earlier writes and unprocessed files truthfully", async (t) => {
-  const root = repository(t);
-  const before = '{"x":1}';
+test("late peer mutation reports earlier writes and leaves subsequent files untouched", async (t) => {
+  const { root } = repository(t);
   for (const path of ["a.json", "b.json", "c.json"])
-    writeFileSync(join(root, path), before);
-  const rename = fs.renameSync;
-  t.mock.method(fs, "renameSync", (from, to) => {
-    if (to === join(root, "b.json"))
-      throw new Error("Injected second-file replacement failure");
-    return rename(from, to);
-  });
-  syncBuiltinESMExports();
-  let result;
+    writeFileSync(join(root, path), '{"x":1}');
+  const session = await openJsonRepositorySession({ root });
+  let terminal;
   try {
-    result = await runJsonQuality("format", { root });
+    for await (const event of session.events()) terminal = event;
+    for await (const event of session.rewrite("format")) {
+      if (event.type === "written" && event.path === "a.json")
+        writeFileSync(join(root, "b.json"), '{"changed":true}');
+      terminal = event;
+    }
   } finally {
-    t.mock.restoreAll();
-    syncBuiltinESMExports();
+    await session.close();
   }
-  assert.equal(result.status, "failed");
-  assert.equal(result.complete, false);
-  assert.deepEqual(result.writes.changed, ["a.json"]);
-  assert.deepEqual(result.writes.failed, ["b.json"]);
-  assert.deepEqual(result.writes.unprocessed, ["c.json"]);
+  assert.equal(terminal.type, "write-failure");
+  assert.equal(terminal.written, "1");
+  assert.equal(terminal.preflightComplete, true);
   assert.equal(readFileSync(join(root, "a.json"), "utf8"), '{\n  "x": 1\n}\n');
-  assert.equal(readFileSync(join(root, "b.json"), "utf8"), before);
-  assert.equal(readFileSync(join(root, "c.json"), "utf8"), before);
-  assert.ok(fs.readdirSync(root).every((path) => !path.endsWith(".tmp")));
+  assert.equal(readFileSync(join(root, "b.json"), "utf8"), '{"changed":true}');
+  assert.equal(readFileSync(join(root, "c.json"), "utf8"), '{"x":1}');
+  assert.ok(readdirSync(root).every((path) => !path.endsWith(".tmp")));
 });
-
-test("JSONL scope reports its single-line producer contract without per-file classification", async (t) => {
-  const root = repository(t);
+test("JSONL execution reports exact admitted record counts after default framing presentation", async (t) => {
+  const { root } = repository(t);
   writeFileSync(join(root, "records.jsonl"), "{}\n{}\n");
-  const result = await runJsonQuality("inventory", { root });
+  const events = await repositoryEvents({ root });
+  assert.equal(events.at(-1).contractSatisfied, true);
   assert.equal(
-    result.documents.find((document) => document.path === "records.jsonl")
-      .contract.formatContract,
-    "producer-json-compact-body",
+    events.find(
+      (event) => event.type === "terminal" && event.path === "records.jsonl",
+    ).recordCount,
+    "2",
   );
 });
-
-test("unknown JSONL record coverage is null rather than an invented zero", async (t) => {
-  const root = repository(t);
-  writeFileSync(join(root, "records.jsonl"), Buffer.from([0xff]));
-  const result = await runJsonQuality("check", { root });
-  assert.equal(result.status, "failed");
-  assert.equal(
-    result.documents.find((document) => document.path === "records.jsonl")
-      .recordCount,
-    null,
-  );
-  assert.equal(result.counts.records, null);
-  assert.equal(result.counts.checked, null);
-});
-
-test("inventory does not read ordinary document contents", async (t) => {
-  const root = repository(t);
-  const path = join(root, "data.json");
-  writeFileSync(path, "{}\n");
-  const read = fs.readFileSync;
-  t.mock.method(fs, "readFileSync", (...args) => {
-    if (args[0] === path)
-      throw new Error("Unexpected document read during scope inventory");
-    return read(...args);
-  });
-  syncBuiltinESMExports();
-  try {
-    assert.equal(
-      (await runJsonQuality("inventory", { root })).status,
-      "passed",
-    );
-  } finally {
-    t.mock.restoreAll();
-    syncBuiltinESMExports();
-  }
-});
-
-test("expected container diagnostics require complete logical linkage", async (t) => {
-  const root = repository(t);
-  const bytes = Buffer.from('{\n  "x": "\uFDD0"\n}\n');
-  const containerBytes = Buffer.from(
-    JSON.stringify({ artifacts: [{ text: bytes.toString() }] }, null, 2) + "\n",
-  );
-  writeFileSync(join(root, "bundle.json"), containerBytes);
-  const hash = (value) => createHash("sha256").update(value).digest("hex");
-  const member = {
-    path: "logical/source.json",
-    sha256: hash(bytes),
-    byteLength: bytes.length,
-    containerPath: "bundle.json",
-    pointer: "/artifacts/0/text",
-    encoding: "utf8",
-  };
-  const policyPath = join(root, ".json-quality.json");
-  const policy = JSON.parse(readFileSync(policyPath, "utf8"));
-  const container = await checkJsonDocument(containerBytes, {
-    path: "bundle.json",
-  });
-  // The native indentation fixture places the 24-character encoded string at
-  // columns 15..38. Its decoded value contains the independently chosen U+FDD0.
-  const containerDiagnostics = [
-    {
-      phase: "lint",
-      ruleId: "json-quality/interoperability",
-      messageId: "noncharacter",
-      line: 4,
-      column: 15,
-      endLine: 4,
-      endColumn: 39,
-    },
-  ];
-  assert.deepEqual(
-    container.findings.map(({ path: _path, ...finding }) => finding),
-    containerDiagnostics,
-  );
-  policy.exceptions.push({
-    paths: ["bundle.json"],
-    allowFormatWrites: false,
-    owner: "Negative-vector oracle",
-    reason:
-      "Preserve the independently pinned negative source through its actual container string.",
-    expected: {
-      sha256: hash(containerBytes),
-      byteLength: containerBytes.length,
-      diagnostics: containerDiagnostics,
-      linkedDocuments: [
-        {
-          path: member.path,
-          pointer: member.pointer,
-          encoding: member.encoding,
-          sha256: member.sha256,
-          byteLength: member.byteLength,
-        },
-      ],
-    },
-  });
-  policy.exceptions.push({
-    paths: [member.path],
-    allowFormatWrites: false,
-    owner: "Negative-vector oracle",
-    reason: "The fixture intentionally contains U+FDD0.",
-    expected: {
-      sha256: hash(bytes),
-      byteLength: bytes.length,
-      diagnostics: [
-        {
-          phase: "lint",
-          ruleId: "json-quality/interoperability",
-          messageId: "noncharacter",
-          line: 2,
-          column: 8,
-          endLine: 2,
-          endColumn: 11,
-        },
-      ],
-    },
-  });
-  writeFileSync(policyPath, JSON.stringify(policy, null, 2) + "\n");
-  await assert.rejects(
-    runJsonQuality("check", { root }),
-    /required logical document/iu,
-  );
-  const logicalInventory = [member],
-    logicalDocuments = [{ path: member.path, bytes }];
-  const result = await runJsonQuality("check", {
-    root,
-    logicalInventory,
-    logicalDocuments,
-  });
-  assert.equal(result.status, "passed");
-  assert.equal(result.counts.logical, 1);
-  assert.equal(
-    result.documents.reduce(
-      (sum, document) => sum + document.expectedFindings.length,
-      0,
+test("exact expected container findings require every pinned logical linkage", async (t) => {
+  const { root, policy, save } = repository(t),
+    bytes = Buffer.from('{\n  "x": "\uFDD0"\n}\n'),
+    container = Buffer.from(
+      JSON.stringify({ artifacts: [{ text: bytes.toString() }] }, null, 2) +
+        "\n",
     ),
+    member = {
+      path: "logical/source.json",
+      sha256: hash(bytes),
+      byteLength: String(bytes.length),
+      containerPath: "bundle.json",
+      pointer: "/artifacts/0/text",
+      encoding: "utf8",
+    };
+  writeFileSync(join(root, "bundle.json"), container);
+  const expected = (value, line, column, endColumn) => ({
+    sha256: hash(value),
+    byteLength: String(value.length),
+    diagnostics: [
+      {
+        severity: "error",
+        phase: "lint",
+        ruleId: "json-quality/interoperability",
+        messageId: "noncharacter",
+        codePoint: "U+FDD0",
+        line,
+        column,
+        endLine: line,
+        endColumn,
+      },
+    ],
+  });
+  policy.exceptions.push(
+    {
+      paths: ["bundle.json"],
+      allowFormatWrites: false,
+      owner: "Negative-vector oracle",
+      reason: "Exact original negative source and actual container.",
+      expected: {
+        ...expected(container, "4", "15", "39"),
+        linkedDocuments: [
+          {
+            path: member.path,
+            pointer: member.pointer,
+            encoding: member.encoding,
+            sha256: member.sha256,
+            byteLength: member.byteLength,
+          },
+        ],
+      },
+    },
+    {
+      paths: [member.path],
+      allowFormatWrites: false,
+      owner: "Negative-vector oracle",
+      reason: "Intentional Unicode counterexample.",
+      expected: expected(bytes, "2", "8", "11"),
+    },
+  );
+  save();
+  await assert.rejects(
+    repositoryEvents({ root }),
+    /Missing required logical document/u,
+  );
+  const options = () => ({
+    root,
+    logicalProviders: [
+      {
+        definition: {
+          id: "logical",
+          minimumDocuments: 1,
+          containerPaths: [member.containerPath],
+        },
+        inventory: () => fixtureStream(member),
+      },
+    ],
+  });
+  const events = await repositoryEvents(options());
+  assert.equal(events.at(-1).contractSatisfied, true);
+  assert.equal(
+    events.filter(
+      (event) => event.type === "terminal" && event.expectedMatched === true,
+    ).length,
     2,
   );
-  await assert.rejects(
-    checkJsonDocument(containerBytes, {
-      ...policy.exceptions.at(-2),
-      path: "bundle.json",
-    }),
-    /logical linkage/iu,
-  );
-  const changedPolicy = structuredClone(policy);
-  changedPolicy.exceptions.at(-2).expected.linkedDocuments[0].pointer =
+  policy.exceptions.at(-2).expected.linkedDocuments[0].pointer =
     "/artifacts/0/absent";
-  writeFileSync(policyPath, JSON.stringify(changedPolicy, null, 2) + "\n");
-  await assert.rejects(
-    runJsonQuality("check", { root, logicalInventory, logicalDocuments }),
-    /logical linkage/iu,
-  );
-});
-
-test("public CLI adapters retain required outputs, resource flags and a fixed repository root", (t) => {
-  const root = repository(t);
-  const api = new URL("../src/index.js", import.meta.url).href;
-  const invoke = (args) =>
-    spawnSync(
-      process.execPath,
-      [
-        "--input-type=module",
-        "-e",
-        `import { runJsonQualityCli } from ${JSON.stringify(api)}; process.exitCode = await runJsonQualityCli(${JSON.stringify(args)}, {root:${JSON.stringify(root)}, requiredOutputs:["generated/*.json"]});`,
-      ],
-      { encoding: "utf8", windowsHide: true },
-    );
-  const absent = invoke(["check", "--json"]);
-  assert.equal(absent.status, 2);
-  assert.equal(JSON.parse(absent.stdout).complete, false);
-  mkdirSync(join(root, "generated"));
-  writeFileSync(join(root, "generated/output.json"), "{}\n");
-  const present = invoke(["check", "--json", "--max-files", "10"]);
-  assert.equal(present.status, 0, present.stderr);
-  assert.equal(JSON.parse(present.stdout).counts.physical, 2);
-  const escape = invoke(["check", "--json", "--root", tmpdir()]);
-  assert.equal(escape.status, 2);
-  assert.equal(JSON.parse(escape.stdout).counts, null);
-});
-
-test("format --check is the sole read-only formatting CLI spelling", (t) => {
-  const root = repository(t);
-  const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
-  const invoke = (...args) =>
-    spawnSync(process.execPath, [cli, ...args, "--root", root, "--json"], {
-      encoding: "utf8",
-      windowsHide: true,
-    });
-  const path = join(root, "ordinary.json");
-  const original = '{"value":1}';
-  writeFileSync(path, original);
-  const unformatted = invoke("format", "--check");
-  assert.equal(unformatted.status, 1, unformatted.stderr);
-  const result = JSON.parse(unformatted.stdout);
-  assert.equal(result.status, "failed");
-  assert.equal(result.operation, "format");
-  assert.equal(result.check, true);
-  assert.deepEqual(result.writes.changed, []);
-  assert.equal(readFileSync(path, "utf8"), original);
-  for (const args of [
-    ["check-format"],
-    ["format-check"],
-    ["check", "--check"],
-    ["lint", "--check"],
-    ["normalize", "--check"],
-  ]) {
-    const rejected = invoke(...args);
-    assert.equal(rejected.status, 2, args.join(" "));
-    assert.equal(JSON.parse(rejected.stdout).complete, false);
-    assert.equal(readFileSync(path, "utf8"), original);
-  }
-  const formatted = invoke("format");
-  assert.equal(formatted.status, 0, formatted.stderr);
-  const formattedBytes = readFileSync(path, "utf8");
-  assert.notEqual(formattedBytes, original);
-  assert.deepEqual(JSON.parse(formattedBytes), { value: 1 });
-  const checked = invoke("format", "--check");
-  assert.equal(checked.status, 0, checked.stderr);
-  assert.deepEqual(JSON.parse(checked.stdout).writes.changed, []);
-  assert.equal(readFileSync(path, "utf8"), formattedBytes);
-});
-
-test("protected scope describes write permission and rejects the retired producer interface", async (t) => {
-  const root = repository(t);
-  const policyPath = join(root, ".json-quality.json");
-  const policy = JSON.parse(readFileSync(policyPath, "utf8"));
-  policy.exceptions.push({
-    paths: ["authored.json"],
-    allowFormatWrites: false,
-    owner: "Authored fixture",
-    reason: "Review-only text.",
-  });
-  writeFileSync(policyPath, JSON.stringify(policy, null, 2) + "\n");
-  writeFileSync(join(root, "authored.json"), '{"x":1}');
-  const result = await runJsonQuality("check", { root, scope: "protected" });
-  assert.equal(result.schemaVersion, 4);
-  assert(result.findings.some((finding) => finding.path === "authored.json"));
-  const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
-  const invoke = (...args) =>
-    spawnSync(process.execPath, [cli, ...args, "--root", root, "--json"], {
-      encoding: "utf8",
-      windowsHide: true,
-    });
-  assert.equal(
-    JSON.parse(invoke("check", "--scope", "protected").stdout).operation,
-    "check",
-  );
-  assert.equal(result.scope, "protected");
-  assert.equal(
-    JSON.parse(invoke("check", "--scope", "protected").stdout).scope,
-    "protected",
-  );
-  for (const args of [
-    ["producers"],
-    ["check", "--scope", "producer"],
-    ["format", "--scope", "protected"],
-  ])
-    assert.equal(invoke(...args).status, 2);
-  await assert.rejects(runJsonQuality("producers", { root }), /Unknown/u);
-});
-
-test("help comes from the command grammar without loading a repository adapter", () => {
-  const api = new URL("../src/index.js", import.meta.url).href;
-  for (const args of [[], ["--help"], ["format", "--help"]]) {
-    const result = spawnSync(
-      process.execPath,
-      [
-        "--input-type=module",
-        "-e",
-        `import {runJsonQualityCli} from ${JSON.stringify(api)}; process.exitCode = await runJsonQualityCli(${JSON.stringify(args)}, () => {throw new Error("ADAPTER_LOADED");});`,
-      ],
-      { encoding: "utf8", windowsHide: true },
-    );
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /format --check/u);
-    assert(!result.stderr.includes("ADAPTER_LOADED"));
-  }
-});
-
-test("trusted asynchronous CLI context failures retain the public machine error envelope", () => {
-  const api = new URL("../src/index.js", import.meta.url).href;
-  const result = spawnSync(
-    process.execPath,
-    [
-      "--input-type=module",
-      "-e",
-      `import {runJsonQualityCli} from ${JSON.stringify(api)}; process.exitCode = await runJsonQualityCli(["check", "--json"], async () => { throw new Error("Native corpus verification failed"); });`,
-    ],
-    { encoding: "utf8", windowsHide: true },
-  );
-  assert.equal(result.status, 2);
-  assert.equal(JSON.parse(result.stdout).operation, "check");
-  assert.equal(JSON.parse(result.stdout).complete, false);
-  assert.equal(JSON.parse(result.stdout).counts, null);
-});
-
-test("CLI argument admission precedes trusted context loading and validates its returned shape", (t) => {
-  const root = repository(t);
-  const invoke = (args, context) =>
-    spawnSync(
-      process.execPath,
-      [
-        fileURLToPath(new URL("./cli-context-probe.mjs", import.meta.url)),
-        JSON.stringify(args),
-        JSON.stringify(context),
-      ],
-      { encoding: "utf8", windowsHide: true },
-    );
-  const invalid = invoke(["invalid", "--json"], {});
-  assert.equal(invalid.status, 2);
-  assert(!invalid.stderr.includes("CONTEXT_LOADED"));
-  const good = invoke(["check", "--json"], { root });
-  assert.equal(good.status, 0, good.stderr);
-  assert.equal(JSON.parse(good.stdout).complete, true);
-  const unknown = invoke(["check", "--json"], { unexpected: true });
-  assert.equal(unknown.status, 2);
+  save();
+  await assert.rejects(repositoryEvents(options()), /pointer|linkage/u);
 });

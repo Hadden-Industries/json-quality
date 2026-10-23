@@ -1,34 +1,45 @@
 # Trusted consumer CI
 
-The public `json-quality-qualify` command and `qualifyJsonConsumer` API check an immutable candidate under an independently selected trusted root policy.
-The reusable workflow is [json-quality.yml](https://github.com/Hadden-Industries/json-quality/blob/main/.github/workflows/json-quality.yml).
-Pin the workflow to a full reviewed producer commit.
-Pass full `trusted-sha` and `candidate-sha` commits and their repository names.
-Caller inputs `capacity-limits`, `timeout-minutes` and `artifact-retention-days` configure capacity and evidence retention; see [consumer resource controls](resource-limits.md).
-The CLI exposes the ordinary capacity flags and environment `JSON_QUALITY_CAPACITY_LIMITS`; CLI `--capacity-limits` / `--no-capacity-limits` map to API/JSON `capacityLimits: true` / `capacityLimits: false`.
-Boolean `true` or a numeric override object enables finite configured/default capacities; `false` disables the 17 shared capacities.
-Invocation limits reach initial trusted-policy bootstrap, Git metadata/blob acquisition and nested checking.
-Both checkouts must be clean and match those identities.
-The shared workflow disables automatic CRLF conversion before checkout because working JSON and policy bytes must equal their Git blobs.
-Explicit attributes that force transformed checkout bytes are refused by byte-exact qualification.
-
-The workflow acquires only the producer's frozen dependency graph with lifecycle scripts disabled.
-It uses read-only repository permissions and receives no registry credential, publication environment or OIDC permission.
-Candidate npm scripts, JavaScript configuration, Git attributes and dependency graphs never execute.
-Only regular tracked JSON-family blobs are materialized as data in a fresh temporary Git inventory.
-The root `.json-quality.json` comes from the trusted checkout; a candidate policy change cannot relax the current check.
-Candidate and trusted source identities and the trusted policy digest are retained with the native quality result.
-The checker does not emit document bodies in its report.
+`json-quality-qualify` and the `qualifyJsonConsumer` asynchronous iterator check immutable candidate Git JSON under the policy from an independently selected immutable trusted commit.
+The reusable [workflow](https://github.com/Hadden-Industries/json-quality/blob/main/.github/workflows/json-quality.yml) must be pinned to a reviewed full producer commit.
 
 ```sh
-json-quality-qualify --trusted-root /path/to/trusted --trusted-sha FULL_COMMIT_SHA --candidate-root /path/to/candidate --candidate-sha FULL_COMMIT_SHA
+json-quality-qualify --trusted-root /trusted --candidate-root /candidate \
+  --trusted-sha FULL_COMMIT --candidate-sha FULL_COMMIT
 ```
 
-This source-only qualification covers tracked candidate JSON and the trusted policy.
-It does not certify generated or untracked outputs, native storage/domain admission, or logical-document census.
-A policy requiring native sources or preserved source presentation is refused; use the repository's trusted adapter for those obligations.
-The ordinary library and CLI retain their complete owned-tree, logical and native checking interfaces.
-Consumer CI success is separate from product qualification, package acquisition verification and release acceptance.
+Both identities must be full 40-character commit object IDs.
+The scope is explicitly `immutable-git-json`: checkout/HEAD cleanliness is not a qualification claim. The command reads the selected objects, leaving dirty or transformed working bytes untouched. A missing commit, non-commit identity or absent/nonregular trusted policy refuses completion.
 
-Product CI remains manually dispatched.
-This workflow has only `workflow_call`; adding it does not enable automatic product tests on pushes or pull requests.
+The producer's installed component and local schemas own admission.
+A bounded native/Ajv bootstrap reads the trusted `.json-quality.json` from its Git blob, verifies exact bytes and transfers the admitted frozen control charge into the main core.
+Candidate policy is ordinary checked candidate data; it never selects the governing policy or loads code.
+
+Raw native Git metadata and blob streams supply the candidate census.
+Blob length and Git's framed object SHA-1 are independently verified before the source terminator.
+JSON parsing and byte/rule checking occur in the shared native core. No complete document array, copied scratch checkout or second JavaScript JSON checker is used. Recognized unsupported dialects and tracked symlink/nonregular JSON entries refuse admission.
+
+Git is selected as an external native tool outside both source roots.
+Its identity is observed and rechecked.
+Inherited Git directory/config injection, replacement objects and lazy fetching are disabled. The path uses `ls-tree`/raw `cat-file`; it does not invoke candidate npm scripts, imports, dependency graphs, Git status/fsmonitor, checkout filters or hooks.
+The trusted policy cannot fetch schemas or executable providers from data.
+
+Source-only qualification refuses policy requirements for native sources, original native/logical presentation or expected logical linkage.
+Use the complete trusted repository adapter to discharge those obligations.
+It also makes no application-domain, archive-meaning or installation-integrity claim.
+
+Output is cohort-2 NDJSON, with correlated `execution`, source/finding/terminal events and final `execution-terminal`.
+Execution metadata names the trusted/candidate commits, trusted policy blob, policy SHA-256, core source identity and `immutable-git-json` scope.
+Only the final terminal closes inventory, diagnostic and source-observation obligations.
+`domainComplete` stays false.
+The terminal is delivered after owned native storage and Git subprocesses settle.
+
+Exit 0 means the selected source contracts were satisfied and delivery completed.
+Shared contract failure returns 1.
+Acquisition, resource, identity, cancellation, cleanup or output failure returns 2 and provides no successful final verdict.
+Exact expected negatives can satisfy their pinned contracts while intrinsic `qualityPassed` is false; findings remain visible.
+
+The API takes `{ trustedRoot, candidateRoot, trustedSha, candidateSha, capacityLimits, runtimeControls, temporaryDirectory, signal, requestId }`.
+Consume the iterator to completion or cancel/return it. CLI resource/runtime flags share the ordinary vocabulary and environment contracts in the [resource guide](resource-limits.md).
+
+The reusable workflow retains read-only repository permissions and no publication/OIDC authority. Its `capacity-limits`, job timeout and artifact-retention inputs govern separate boundaries. Hosted checkout/acquisition and native platform availability still need real workflow evidence; a local source-only pass does not establish a clean transported package, consumer adoption or release approval.

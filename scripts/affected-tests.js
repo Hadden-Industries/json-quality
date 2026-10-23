@@ -21,7 +21,7 @@ import { assertJavaScriptSyntax } from "./check-javascript-syntax.js";
 
 const self = fileURLToPath(import.meta.url);
 const isModule = (path) => /^(?:src|tests)\/.*\.(?:js|mjs|cjs)$/u.test(path);
-const isTest = (path) => /^tests\/.*\.test\.js$/u.test(path);
+const isTest = (path) => /^tests\/.*\.test\.(?:js|mjs)$/u.test(path);
 const git = (root, args) =>
   execFileSync("git", ["-C", root, ...args], {
     windowsHide: true,
@@ -68,11 +68,13 @@ function snapshot(root, base) {
       const [header, name] = entry.split("\t");
       const [mode, type, oid] = header.split(" ");
       path = safePath(name);
+      if (!/\.(?:js|mjs|cjs|json)$/u.test(path)) continue;
       if (type !== "blob" || !["100644", "100755"].includes(mode))
         throw new Error("Unsupported baseline entry");
       bytes = git(root, ["cat-file", "blob", oid]);
     } else {
       safePath(path);
+      if (!/\.(?:js|mjs|cjs|json)$/u.test(path)) continue;
       let stat;
       try {
         stat = lstatSync(join(root, path));
@@ -233,12 +235,31 @@ export async function planAffected(root, base) {
   }
 }
 
+/** Independent filesystem inventory includes native mjs tests even when graph
+ * planning is unavailable. Directory entries never follow linked subtrees.
+ */
+function fullTestInventory(root) {
+  const files = [];
+  const visit = (directory) => {
+    for (const entry of readdirSync(join(root, directory), {
+      withFileTypes: true,
+    })) {
+      const path = directory + "/" + entry.name;
+      if (entry.isDirectory()) visit(path);
+      else if (entry.isFile() && isTest(path)) files.push(path);
+    }
+  };
+  visit("tests");
+  return files.sort();
+}
+
 export function runTests(root, plan) {
   const result = spawnSync(
     process.execPath,
     [
       "--test",
-      ...(plan.mode === "affected" ? plan.tests : ["tests/*.test.js"]),
+      "--test-concurrency=1",
+      ...(plan.mode === "affected" ? plan.tests : fullTestInventory(root)),
     ],
     {
       cwd: root,
@@ -260,10 +281,7 @@ export function runTests(root, plan) {
  */
 export function runShadow(root, plan) {
   const before = graphSourceIdentity(root);
-  const full = readdirSync(join(root, "tests"), { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".test.js"))
-    .map(({ name }) => `tests/${name}`)
-    .sort();
+  const full = fullTestInventory(root);
   const selected = plan.mode === "affected" ? plan.tests : full;
   if (
     !full.length ||
@@ -279,6 +297,7 @@ export function runShadow(root, plan) {
       process.execPath,
       [
         "--test",
+        "--test-concurrency=1",
         `--test-reporter=${pathToFileURL(fileURLToPath(new URL("./test-outcomes.js", import.meta.url))).href}`,
         ...files,
       ],

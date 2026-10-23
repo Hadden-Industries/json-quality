@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { temporaryDirectory } from "./temporary-directory.js";
-import { operationLimits, DEFAULT_LIMITS } from "../src/limits.js";
+import { resolveExecutionResources } from "../src/execution-resources.js";
 import {
   acquisitionResourceLimits,
   acquisitionCleanupOptions,
@@ -16,34 +16,35 @@ import {
 import { RESOURCE_OPTIONS, resourceCliLimits } from "../src/commands.js";
 import { projectResourceLimits } from "../scripts/project-resource-limits.js";
 import {
-  runJsonQuality,
-  inspectJsonInventory,
-  formatJsonDocument,
+  openJsonSourceSession,
+  openJsonRepositorySession,
   qualifyJsonConsumer,
   verifyJsonQualityInstallation,
   formatJsonSource,
 } from "../src/index.js";
+const DEFAULT_LIMITS = resolveExecutionResources().admission;
+const admission = (policy = {}, capacityLimits) =>
+  resolveExecutionResources(policy, { capacityLimits }).admission;
 
 test("removed broad limits option cannot silently fall back to default capacities", async () => {
   await assert.rejects(
-    runJsonQuality("inventory", { limits: false }),
-    /operation options/u,
+    openJsonRepositorySession({ limits: false }),
+    /session options/u,
   );
   await assert.rejects(
     formatJsonSource("{}", { limits: false }),
-    /formatting options/u,
+    /writer options/u,
   );
   await assert.rejects(
-    inspectJsonInventory({ limits: false }),
-    /Use capacityLimits/u,
+    openJsonSourceSession({ limits: false }),
+    /session options/u,
   );
   await assert.rejects(
-    formatJsonDocument({}, { limits: false }),
-    /supplied formatting options/u,
-  );
-  await assert.rejects(
-    qualifyJsonConsumer({ limits: false }),
-    /Use capacityLimits/u,
+    (async () => {
+      for await (const event of qualifyJsonConsumer({ limits: false }))
+        void event;
+    })(),
+    /qualification options/u,
   );
   await assert.rejects(
     verifyJsonQualityInstallation({ limits: false }),
@@ -56,7 +57,7 @@ test("both public CLIs reject the removed environment name before loading roots"
   const env = { ...process.env, JSON_QUALITY_LIMITS: "false" };
   delete env.JSON_QUALITY_CAPACITY_LIMITS;
   for (const [entry, args] of [
-    ["../src/cli.js", ["inventory"]],
+    ["../src/cli.js", ["check"]],
     ["../src/qualification-cli.js", []],
   ]) {
     const result = spawnSync(
@@ -74,12 +75,20 @@ test("both public CLIs reject the removed environment name before loading roots"
 });
 
 test("cold acquisition and installed operations share canonical defaults and unlimited capacity", () => {
-  assert.deepEqual(acquisitionResourceLimits({}), operationLimits({}));
-  assert.deepEqual(acquisitionResourceLimits(true), operationLimits({}, true));
+  assert.deepEqual(acquisitionResourceLimits({}), admission({}));
+  assert.deepEqual(acquisitionResourceLimits(true), admission({}, true));
   assert.equal(projectResourceLimits().synchronized, true);
   const cold = acquisitionResourceLimits(false);
-  const installed = operationLimits({}, false);
-  assert.deepEqual(cold, installed);
+  const installed = admission({}, false);
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.keys(cold).map((name) => [
+        name,
+        cold[name] === Infinity ? null : cold[name],
+      ]),
+    ),
+    installed,
+  );
   assert.ok(Object.values(cold).every((value) => value === Infinity));
   for (const capacityLimits of [
     { maxCacheOutputBytes: 0 },
@@ -87,7 +96,7 @@ test("cold acquisition and installed operations share canonical defaults and unl
     null,
   ]) {
     assert.throws(() => acquisitionResourceLimits(capacityLimits));
-    assert.throws(() => operationLimits({}, capacityLimits));
+    assert.throws(() => admission({}, capacityLimits));
   }
   assert.equal(DEFAULT_LIMITS.maxRequestBytes, 48 * 1024 * 1024);
 });
@@ -125,23 +134,21 @@ test("common CLI capacityLimits merge caller JSON with explicit flags and reject
 test("canonical positive boolean and finite override objects re-enable policy-disabled capacities", () => {
   const disabled = { capacityLimits: false };
   assert.ok(
-    Object.values(operationLimits(disabled)).every(
-      (value) => value === Infinity,
-    ),
+    Object.values(admission(disabled)).every((value) => value === null),
   );
-  assert.deepEqual(operationLimits(disabled, true), DEFAULT_LIMITS);
-  assert.deepEqual(operationLimits(disabled, {}), DEFAULT_LIMITS);
-  assert.deepEqual(operationLimits(disabled, { maxFiles: 7 }), {
+  assert.deepEqual(admission(disabled, true), DEFAULT_LIMITS);
+  assert.deepEqual(admission(disabled, {}), DEFAULT_LIMITS);
+  assert.deepEqual(admission(disabled, { maxFiles: 7 }), {
     ...DEFAULT_LIMITS,
     maxFiles: 7,
   });
   assert.equal(
-    operationLimits({ capacityLimits: { maxFiles: 9 } }, true).maxFiles,
+    admission({ capacityLimits: { maxFiles: 9 } }, true).maxFiles,
     9,
   );
   assert.ok(
-    Object.values(operationLimits({ capacityLimits: true }, false)).every(
-      (value) => value === Infinity,
+    Object.values(admission({ capacityLimits: true }, false)).every(
+      (value) => value === null,
     ),
   );
 });

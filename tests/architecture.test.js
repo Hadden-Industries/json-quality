@@ -115,9 +115,9 @@ for (const [rule, files, metadata] of [
   [
     "foundations-stay-independent",
     {
-      "src/json-bytes.js": 'import "./bridge.js";\n',
-      "src/bridge.js": 'import "./quality.js";\n',
-      "src/quality.js": "export {};\n",
+      "src/json-paths.js": 'import "./bridge.js";\n',
+      "src/bridge.js": 'import "./repository-check.js";\n',
+      "src/repository-check.js": "export {};\n",
     },
   ],
   [

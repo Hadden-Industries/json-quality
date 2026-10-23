@@ -13,6 +13,8 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
+import { randomBytes } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { native, budgets } from "../scripts/qualification-process.js";
 import {
   archiveInventory,
@@ -91,7 +93,9 @@ const requiredFiles = [
   "src/index.js",
   "src/cli.js",
   "schemas/configuration.schema.json",
-  "schemas/result.schema.json",
+  "schemas/event.schema.json",
+  "schemas/source-contract.schema.json",
+  "schemas/contract-cohort.json",
 ];
 const fixture = () => ({
   schemaVersion: 1,
@@ -208,6 +212,31 @@ test("native tar inventory retains bytes and refuses link entries without extrac
   ]);
   // The real npm pack corruption tests remain the archive parser's independent adversarial oracle.
 });
+
+test("release inventory streams native binary members above the former JSON-sized bound", async (t) => {
+  const directory = temp(t),
+    input = join(directory, "package");
+  mkdirSync(input);
+  const binary = randomBytes(36 * 1024 * 1024);
+  writeFileSync(join(input, "json-quality.node"), binary);
+  writeFileSync(join(input, "package.json"), '{"name":"native-fixture"}\n');
+  const archive = join(directory, "native.tgz"),
+    tar = createRequire(process.env.npm_execpath)("tar");
+  await tar.c({ cwd: directory, gzip: true, file: archive }, [
+    "package/json-quality.node",
+    "package/package.json",
+  ]);
+  const result = await archiveInventory(archive);
+  assert.equal(
+    result.files.find(({ path }) => path === "json-quality.node").sha256,
+    sha256(binary),
+  );
+  assert.equal(result.contents.get("json-quality.node"), null);
+  assert.equal(
+    JSON.parse(result.contents.get("package.json")).name,
+    "native-fixture",
+  );
+});
 test("real hard-link tar members are rejected by the release reader without extraction", async (t) => {
   const root = temp(t);
   mkdirSync(join(root, "package"));
@@ -227,7 +256,12 @@ test("real hard-link tar members are rejected by the release reader without extr
       'import {archiveInventory} from "./scripts/release-contract.js"; await archiveInventory(process.argv[1]);',
       archive,
     ],
-    { encoding: "utf8", windowsHide: true, timeout: 5000 },
+    {
+      cwd: fileURLToPath(new URL("../", import.meta.url)),
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 5000,
+    },
   );
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Linked or non-file archive member/u);

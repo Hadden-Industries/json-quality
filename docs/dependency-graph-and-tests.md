@@ -5,7 +5,7 @@ Generate a new external report directory with:
 
 ```sh
 npm run graph:dependencies -- --output /absolute/external/new-graph
-npm run graph:dependencies -- --output /absolute/external/new-focused-graph --focus src/formatting.js
+npm run graph:dependencies -- --output /absolute/external/new-focused-graph --focus src/native-formatting.js
 ```
 
 The bundle retains the complete native JSON import graph, native Mermaid overview/runtime/test views, optional focus/dependent views, declared process relations and source/lock provenance.

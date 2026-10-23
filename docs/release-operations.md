@@ -7,15 +7,16 @@ A source push, dependency update, or tag cannot stage or publish a package.
 
 The package has one designated tarball.
 Its local `.provenance.json` records byte identity; authenticated registry provenance comes from native npm verification.
-Configuration schema 1, result schema 4, public API/schema exports and CLI entrypoints, and the consumer Node floors remain separate compatibility contracts.
+The current oversized-value source candidate uses package version 2.0.0 and configuration/event/native cohort 2.
+Public API/schema exports, executable artifacts, CLI entrypoints and consumer Node floors remain separate compatibility contracts.
 
-The owner selected `@hadden-industries/json-quality@1.0.0` as the next intended release on 2026-10-18.
-CLI flexibility, supplied-document formatting, trusted consumer qualification, development analysis and the consumer-document shipment allowlist belong to that candidate.
-Its new regression tests are authored but have not been executed under the owner's explicit no-tests instruction.
-Source versioning and static reviews do not establish release qualification or acceptance.
+The earlier release plan recorded a 1.0.0 selection on 2026-10-18.
+The later accepted oversized-value plan replaces conflicting APIs and requires a new complete consumer cohort; that older selection does not authorize publishing the 2.0.0 candidate.
+Current implementation verification follows its task's explicit ordering: consolidate the candidate, resolve external review findings, then perform final security/full verification.
+Source versioning, focused checks and static reviews do not establish release qualification or acceptance.
 
 No artificial prerelease is required to warm npm or GitHub.
-Use the same exact `1.0.0` package initially under the existing `pilot` availability tag, qualify real registry recipients, and promote only after acceptance.
+Use the exact separately accepted version initially under the existing `pilot` availability tag, qualify real registry recipients, and promote only after acceptance.
 Create the GitHub release as a draft, attach and verify every asset, then publish immutably through the existing archival workflow.
 Its pilot/prerelease marker can later change during promotion without replacing locked assets or tags.
 For a new npm package identity, native staging may create the public `0.0.0-stage` placeholder; owner bootstrap and 2FA still precede trusted-publisher setup.

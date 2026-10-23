@@ -4,28 +4,53 @@ import assert from "node:assert/strict";
 import { writeFileSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { temporaryDirectory } from "./temporary-directory.js";
-import { captureSource, replaceSource } from "../src/replacement.js";
+import { createHash } from "node:crypto";
+import {
+  observeRepositorySource,
+  identifyRepositorySource,
+} from "../src/repository-source.js";
+import { replaceObservedSource } from "../src/guarded-replacement.js";
+const candidate = {
+  byteLength: "3",
+  sha256: createHash("sha256").update("[]\n").digest("hex"),
+};
 
-test("a changed byte preimage refuses replacement", (t) => {
+test("a changed byte preimage refuses replacement", async (t) => {
   const root = temporaryDirectory(t, "json-quality-preimage-");
   writeFileSync(join(root, "data.json"), "{}\n");
-  const before = captureSource(root, "data.json");
+  const before = await identifyRepositorySource({
+    root,
+    member: observeRepositorySource(root, "data.json"),
+  });
   writeFileSync(join(root, "data.json"), '{"new":true}\n');
-  assert.throws(
-    () => replaceSource(root, "data.json", before, Buffer.from("[]\n")),
-    /changed after preflight/u,
+  await assert.rejects(
+    replaceObservedSource({
+      root,
+      member: before,
+      candidate,
+      chunks: [Buffer.from("[]\n")],
+    }),
+    /Source changed/u,
   );
   assert.equal(readFileSync(join(root, "data.json"), "utf8"), '{"new":true}\n');
 });
 
-test("a same-byte file identity replacement also refuses the write", (t) => {
+test("a same-byte file identity replacement also refuses the write", async (t) => {
   const root = temporaryDirectory(t, "json-quality-preimage-");
   writeFileSync(join(root, "data.json"), "{}\n");
-  const before = captureSource(root, "data.json");
+  const before = await identifyRepositorySource({
+    root,
+    member: observeRepositorySource(root, "data.json"),
+  });
   writeFileSync(join(root, "new.json"), "{}\n");
   renameSync(join(root, "new.json"), join(root, "data.json"));
-  assert.throws(
-    () => replaceSource(root, "data.json", before, Buffer.from("[]\n")),
-    /changed after preflight/u,
+  await assert.rejects(
+    replaceObservedSource({
+      root,
+      member: before,
+      candidate,
+      chunks: [Buffer.from("[]\n")],
+    }),
+    /Source changed/u,
   );
 });

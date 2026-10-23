@@ -55,13 +55,13 @@
     },
     {
       "name": "foundations-stay-independent",
-      "comment": "Byte, pointer, path, source-contract and identity-rule foundations cannot reach document or command orchestration.",
+      "comment": "Path, observation, fragment, control and identity-rule foundations cannot reach source or command orchestration.",
       "severity": "error",
       "from": {
-        "path": "^src/(?:json-bytes|json-pointers|paths|source-presentation|eslint/noJsonStringifyIdentity)\\.js$"
+        "path": "^src/(?:json-paths|paths|source-observation|source-streams|native-control|format-options|source-presentation|eslint/noJsonStringifyIdentity)\\.js$"
       },
       "to": {
-        "path": "^src/(?:cli|commands|execution|inventory|documents|quality|native-documents|logical-documents|installation|formatting|json-lines)\\.js$",
+        "path": "^src/(?:cli|commands|repository-execution|repository-check|repository-rewrite|qualification|installation|native-formatting|native-normalization)\\.js$",
         "reachable": true
       }
     },

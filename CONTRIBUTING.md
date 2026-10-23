@@ -23,9 +23,10 @@ Retain native npm lockfiles and inspect dependency changes before accepting them
 ## Changes and verification
 
 Describe the problem, intended behavior and compatibility implications before a substantive change.
-Keep unrelated changes separate and use the existing JavaScript ES module, CLI, configuration and result-schema boundaries.
+Keep unrelated changes separate and use the shared native core, JavaScript session/CLI, configuration and event-contract boundaries.
 Preserve independent test expectations for JSON meaning, numeric lexemes, Unicode, complete discovery, protected inputs and guarded writes.
-Checking and inventory operations must remain read-only; formatting must not silently normalize data or rewrite producer-owned evidence.
+Checking must not write source files; owned spill scratch is a separate effect.
+Formatting must not silently normalize data or rewrite producer-owned evidence.
 
 ```sh
 npm run format

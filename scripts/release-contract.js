@@ -6,10 +6,22 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  createReadStream,
+  existsSync,
+  lstatSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { join, posix } from "node:path";
 import Ajv from "ajv/dist/2020.js";
 import { npmCli } from "./qualification-process.js";
+import {
+  PACKAGE_VERIFICATION_CAPABILITIES as packageCapabilities,
+  packageTarSink,
+} from "../src/package-payload.js";
 
 export const repository = "Hadden-Industries/json-quality";
 export const packageName = "@hadden-industries/json-quality";
@@ -122,7 +134,9 @@ export function verifyManifest(release) {
     "src/index.js",
     "src/cli.js",
     "schemas/configuration.schema.json",
-    "schemas/result.schema.json",
+    "schemas/event.schema.json",
+    "schemas/source-contract.schema.json",
+    "schemas/contract-cohort.json",
   ])
     assert.ok(paths.includes(path), `Missing shipment ${path}`);
   assert.ok(
@@ -215,39 +229,102 @@ export function verifyProvenance(audit, release, origin) {
     verifier: "npm audit signatures --include-attestations",
   };
 }
-/** Native tar reader, bounded before buffering; never extract untrusted entries. */
+/** Native tar inventory shares acquisition's bounded decompressor transport.
+ * Hash binary bodies incrementally; retain only finite JSON/Markdown controls
+ * needed by release identity and shipped-link checks. Never extract entries.
+ */
 export async function archiveInventory(path, npm = npmCli()) {
   const tar = createRequire(npm)("tar");
   const files = [],
     contents = new Map();
-  let total = 0;
-  await tar.t({
-    file: path,
+  let total = 0,
+    retained = 0,
+    indexBytes = 0,
+    archiveBytes = 0;
+  const parser = new tar.Parser({
     strict: true,
-    onReadEntry(entry) {
+    maxMetaEntrySize: packageCapabilities.maximumArchiveMetadataBytes,
+    maxDecompressionRatio: 128,
+  });
+  const sink = packageTarSink(parser);
+  parser.on("ignoredEntry", () =>
+    sink.destroy(new Error("Unsupported or oversized package archive member.")),
+  );
+  parser.on("entry", (entry) => {
+    try {
       assert.equal(entry.type, "File", "Linked or non-file archive member");
       assert.ok(entry.path.startsWith("package/"));
       const name = safeMember(entry.path.slice(8));
       assert.ok(
-        !contents.has(name.toLowerCase()) && files.length < 4096,
+        !contents.has(name.toLowerCase()) &&
+          contents.size < packageCapabilities.maximumMembers,
         "Duplicate or excess archive entry",
       );
+      assert.ok(Number.isSafeInteger(entry.size) && entry.size >= 0);
       total += entry.size;
+      indexBytes += Buffer.byteLength(name) * 4 + 384;
       assert.ok(
-        entry.size <= 4000000 && total <= 32000000,
+        entry.size <= packageCapabilities.maximumMemberBytes &&
+          total <= packageCapabilities.maximumExpandedBytes &&
+          indexBytes <= packageCapabilities.maximumIndexBytes &&
+          Buffer.byteLength(name) <= packageCapabilities.maximumPathBytes &&
+          name.split("/").length <= packageCapabilities.maximumDepth,
         "Expanded archive exceeds bound",
       );
+      const retain = /\.(?:json|md)$/iu.test(name);
+      if (retain) {
+        retained += entry.size;
+        assert.ok(
+          entry.size <= 4000000 && retained <= 32000000,
+          "Retained release controls exceed bound",
+        );
+      }
       contents.set(name.toLowerCase(), null);
-      const chunks = [];
-      entry.on("data", (chunk) => chunks.push(chunk));
-      entry.on("end", () => {
-        const bytes = Buffer.concat(chunks);
-        assert.equal(bytes.length, entry.size);
-        files.push({ path: name, size: bytes.length, sha256: sha256(bytes) });
-        contents.set(name.toLowerCase(), bytes);
+      const chunks = [],
+        hash = createHash("sha256");
+      let length = 0;
+      entry.on("error", (error) => sink.destroy(error));
+      entry.on("data", (chunk) => {
+        length += chunk.length;
+        if (length > entry.size) {
+          sink.destroy(new Error("Package member exceeds declared size."));
+          return;
+        }
+        hash.update(chunk);
+        if (retain) chunks.push(chunk);
       });
-    },
+      entry.on("end", () => {
+        if (length !== entry.size) {
+          sink.destroy(new Error("Package member differs from declared size."));
+          return;
+        }
+        files.push({ path: name, size: length, sha256: hash.digest("hex") });
+        if (retain) contents.set(name.toLowerCase(), Buffer.concat(chunks));
+      });
+    } catch (error) {
+      sink.destroy(error);
+    }
   });
+  await pipeline(
+    createReadStream(path, { highWaterMark: 65536 }),
+    new Transform({
+      transform(chunk, encoding, done) {
+        archiveBytes += chunk.length;
+        done(
+          archiveBytes > packageCapabilities.maximumArchiveBytes
+            ? new Error("Compressed package archive exceeds bound.")
+            : null,
+          chunk,
+        );
+      },
+    }),
+    sink,
+    {
+      signal: AbortSignal.timeout(
+        packageCapabilities.maximumVerificationTimeMs,
+      ),
+    },
+  );
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   assert.ok(files.length);
   return { files, contents };

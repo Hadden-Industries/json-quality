@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 2,
+  "cohort": {
+    "cohortVersion": 2,
+    "configurationSchemaVersion": 2,
+    "eventSchemaVersion": 2,
+    "nativeProtocolVersion": 2,
+    "componentSchemaVersion": 2,
+    "nodeApiVersion": 9
+  },
+  "platform": "win32-x64",
+  "nodeApiVersion": 9,
+  "sourceInputsSha256": "ec56791787eef3c60c83b80a65a180bf1c5216a9f68167af5cf40dc33aa16090",
+  "artifacts": {
+    "json-quality.node": {
+      "sha256": "1e5304ff12643dc26baf903d6dbc1e1ae8878dd51cd50cdcc77a5e6463bde75a",
+      "bytes": 36271104
+    },
+    "json-quality-native.exe": {
+      "sha256": "186ba3d3473fedf3290a6651c643bb89618b8eda2b30c94e07b972cb9b4a7b8f",
+      "bytes": 36259840
+    }
+  },
+  "configurationSchemaSha256": "fd955571d8aec8f13f317fa58357c6545d26c3d6df3d22595539d4b5bac71a24",
+  "controlSchemas": {
+    "configuration.schema.json": {
+      "sha256": "fd955571d8aec8f13f317fa58357c6545d26c3d6df3d22595539d4b5bac71a24",
+      "bytes": 15108
+    },
+    "source-contract.schema.json": {
+      "sha256": "f2ed86bb912237c8880cda89c6ad33fabc9b451949bc589e371276b0754392ff",
+      "bytes": 1833
+    },
+    "contract-cohort.json": {
+      "sha256": "c8ea223658e45aad176288c957ceae72e81584eac5e5832ba6b450b126c42c98",
+      "bytes": 171
+    }
+  },
+  "components": {
+    "schemaVersion": 1,
+    "nodeApiVersion": 9,
+    "nodeHeadersVersion": "24.22.1",
+    "icuVersion": "79.1",
+    "unicodeVersion": "18.0",
+    "sqliteVersion": "3.54.1",
+    "boostVersion": "1.92.0",
+    "doubleConversionVersion": "3.4.0"
+  }
+}

@@ -1,11 +1,29 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "defaults": {
     "formatContract": "prettier-json",
     "allowFormatWrites": true,
     "normalization": "NFC"
   },
   "exceptions": [
+    {
+      "paths": [
+        "native/prebuilt/**"
+      ],
+      "formatContract": "producer-json-indent",
+      "allowFormatWrites": false,
+      "owner": "Verified native producer and frozen finite oracle",
+      "reason": "Exact manifest and historical oracle bytes retain their producing serialization and independent hashes; shared quality checks remain mandatory."
+    },
+    {
+      "paths": [
+        "tests/oracles/finite-v1/**"
+      ],
+      "formatContract": "producer-json-indent-body",
+      "allowFormatWrites": false,
+      "owner": "Frozen finite v1 oracle",
+      "reason": "Historical source bytes and their current-task identity catalog retain original line endings; only the comparison view projects CRLF and a final LF."
+    },
     {
       "paths": [
         ".git/**",

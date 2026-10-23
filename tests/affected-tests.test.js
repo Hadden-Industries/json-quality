@@ -80,6 +80,21 @@ test("snapshot graphs retain schema resources and imported package scripts", asy
   assert.deepEqual(plan.tests, ["tests/a.test.js"]);
 });
 
+test("native binary membership does not erase mjs test selection or enter graph snapshots", async (t) => {
+  const f = fixture(t, {
+    "native/prebuilt/fixture/component.bin": Buffer.alloc(5 * 1024 * 1024, 42),
+    "tests/native/source.test.mjs":
+      'import a from "../../src/a.js"; export default a;\n',
+  });
+  f.write("src/a.js", "export default 3;\n");
+  const plan = await planAffected(f.root, f.base);
+  assert.equal(plan.mode, "affected", plan.reason);
+  assert.deepEqual(plan.tests, [
+    "tests/a.test.js",
+    "tests/native/source.test.mjs",
+  ]);
+});
+
 test("deleted dependencies use the old graph, unresolved retained imports fall back", async (t) => {
   const f = fixture(t);
   rmSync(join(f.root, "src/a.js"));
@@ -136,6 +151,22 @@ test("failed selected tests keep their exit status", (t) => {
     runTests(f.root, { mode: "affected", tests: ["tests/a.test.js"] }),
     1,
   );
+});
+
+test("full fallback and shadow include an independent nested native failure", (t) => {
+  const f = fixture(t, {
+    "tests/native/stdio.test.mjs":
+      'import test from "node:test"; test("native failure", () => { throw new Error("Expected native failure"); });\n',
+  });
+  assert.equal(runTests(f.root, { mode: "full" }), 1);
+  const result = runShadow(f.root, {
+    mode: "affected",
+    tests: ["tests/a.test.js"],
+  });
+  assert.equal(result.selected.code, 0);
+  assert.equal(result.full.code, 1);
+  assert.ok(result.full.files.includes("tests/native/stdio.test.mjs"));
+  assert.equal(result.code, 1);
 });
 
 test("shadow comparison retains an unselected full-suite failure", (t) => {
