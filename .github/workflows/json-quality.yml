@@ -68,7 +68,9 @@ jobs:
           package-manager-cache: false
       - name: Select the producer npm
         working-directory: producer
-        run: npm run ci:setup-npm
+        run: |
+          npm_root="$(npm root --global)"
+          JSON_QUALITY_PRODUCER_NPM="$npm_root/npm/bin/npm-cli.js" node scripts/qualification-process.js producer-npm
       - name: Acquire the immutable producer graph
         working-directory: producer
         run: npm run ci:install

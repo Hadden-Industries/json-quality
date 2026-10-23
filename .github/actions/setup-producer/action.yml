@@ -9,7 +9,9 @@ runs:
         package-manager-cache: false
     - name: Select the policy-owned producer npm
       shell: bash
-      run: npm run ci:setup-npm
+      run: |
+        npm_root="$(npm root --global)"
+        JSON_QUALITY_PRODUCER_NPM="$npm_root/npm/bin/npm-cli.js" node scripts/qualification-process.js producer-npm
     - name: Install frozen producer dependencies
       shell: bash
       run: npm run ci:install
