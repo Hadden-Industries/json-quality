@@ -7,6 +7,8 @@ const references = new WeakMap();
 class ValueSession {
   #core;
   #closed = false;
+  #cleanupComplete = false;
+  #closing;
   #active = false;
   #cancelled = false;
   #scope = randomUUID();
@@ -358,7 +360,7 @@ class ValueSession {
     const release = async () => {
       if (released) return;
       releasing ??= (async () => {
-        if (!this.#closed)
+        if (!this.#closed || !this.#ownsCore)
           await this.#core.command("release-materialization", {
             reservation: result.reservation,
           });
@@ -456,23 +458,28 @@ class ValueSession {
     this.#cancelled = true;
     this.#core.cancel();
   }
-  async close() {
-    if (this.#closed) return;
-    if (this.#ownsCore) {
-      this.#closed = true;
-      try {
-        await this.#core.close();
-      } finally {
-        // Native close releases owner reservations even after cancellation.
+  close() {
+    if (this.#closing) return this.#closing;
+    if (this.#cleanupComplete) return Promise.resolve();
+    this.#closed = true;
+    const closing = Promise.resolve().then(async () => {
+      if (this.#ownsCore) {
+        try {
+          await this.#core.close();
+        } finally {
+          // Native close releases owner reservations even after cancellation.
+          for (const release of this.#leases) await release();
+        }
+      } else {
         for (const release of this.#leases) await release();
       }
-    } else {
-      try {
-        for (const release of this.#leases) await release();
-      } finally {
-        this.#closed = true;
-      }
-    }
+      this.#cleanupComplete = true;
+    });
+    this.#closing = closing;
+    closing.catch(() => {
+      if (this.#closing === closing) this.#closing = undefined;
+    });
+    return closing;
   }
 }
 

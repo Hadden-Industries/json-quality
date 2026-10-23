@@ -55,7 +55,7 @@ This target is managed checker accounting, not a whole-process RSS promise.
 See [resource controls](docs/resource-limits.md).
 
 Formatting preserves decoded meaning, member order and exact numeric lexemes.
-NFC normalization changes admitted string/key spans and refuses collisions. Materializing writers have a separate 1 MiB input/output capability.
+NFC normalization changes admitted string/key spans and refuses collisions. Materializing writers have a separate 2 MiB input/output capability.
 Repository writes require the complete candidate contract to pass, so normalization can refuse a file that would still have unrelated presentation errors.
 A later failure reports confirmed writes and any uncertain path; batches are not atomic.
 

@@ -212,7 +212,7 @@ test("an explicit unsupported source format cannot silently use document JSON", 
     await session.configure();
     await assert.rejects(
       check(session, "0", { ...contract, format: "json5" }),
-      /source-format-contract/,
+      /unsupported-source-format/,
     );
   } finally {
     await session.close();

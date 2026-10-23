@@ -53,6 +53,7 @@ export class NativeSession {
   #pending;
   #closing;
   #closed = false;
+  #released = false;
   constructor(component, scratch) {
     this.#binding = component.binding;
     this.#handle = this.#binding.create(scratch);
@@ -223,7 +224,7 @@ export class NativeSession {
   }
   close() {
     if (this.#closing) return this.#closing;
-    if (this.#closed) return Promise.resolve();
+    if (this.#released) return Promise.resolve();
     this.#closing = (async () => {
       if (this.#pending) {
         this.cancel();
@@ -233,11 +234,15 @@ export class NativeSession {
           /* Cleanup remains available after failure. */
         }
       }
+      this.#closed = true;
       try {
         await this.#command("close", {});
-      } finally {
-        this.#closed = true;
         this.#binding.release(this.#handle);
+        this.#released = true;
+      } finally {
+        // Keep the handle owned after a failed close so cleanup can be retried.
+        // Releasing an active native session would hide the original fault.
+        this.#closing = undefined;
       }
     })();
     return this.#closing;

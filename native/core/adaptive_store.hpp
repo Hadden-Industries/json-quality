@@ -495,13 +495,15 @@ struct Store {
   void close() {
     if (state == State::closed)
       return;
+    const bool wasAborted = state == State::aborted;
+    state = State::aborted;
     SqliteOwnerScope memoryScope(memory.value);
     if (database)
       database->bindOperation(nullptr);
     if (database)
       database->clearStatements();
     if (database && sqlite3_get_autocommit(database->value) == 0)
-      database->execute(state == State::aborted ? "ROLLBACK;" : "COMMIT;");
+      database->execute(wasAborted ? "ROLLBACK;" : "COMMIT;");
     if (database)
       database->close();
     database.reset();
@@ -509,7 +511,6 @@ struct Store {
     if (payload.is_open())
       payload.close();
     segments.clear();
-    state = State::closed;
     if (ownsScratch) {
       require(!fs::is_symlink(scratch), "cleanup-symlink");
       std::ifstream marker(scratch / "owner");
@@ -517,8 +518,30 @@ struct Store {
       marker >> identity;
       require(identity == owner, "cleanup-owner");
       marker.close();
-      fs::remove_all(scratch);
+      std::error_code cleanupError;
+      // Keep the authority marker until every other member is gone. A partial
+      // remove_all must not destroy the identity needed by a later close.
+      for (const auto &entry : fs::directory_iterator(scratch)) {
+        if (entry.path().filename() == "owner")
+          continue;
+        fs::remove_all(entry.path(), cleanupError);
+        require(!cleanupError, "cleanup-remove");
+      }
+      fs::remove(scratch / "owner", cleanupError);
+      require(!cleanupError, "cleanup-remove");
+      fs::remove(scratch, cleanupError);
+      if (cleanupError) {
+        // For example, a Windows handle may deny removal of the empty directory.
+        // Restore its already-validated marker before returning the cleanup fault.
+        require(!fs::is_symlink(scratch), "cleanup-symlink");
+        std::ofstream restored(scratch / "owner");
+        restored << owner;
+        restored.close();
+        require(bool(restored), "cleanup-remove-owner-restore");
+        throw Fault("cleanup-remove");
+      }
       ownsScratch = false;
     }
+    state = State::closed;
   }
 };

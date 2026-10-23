@@ -234,27 +234,40 @@ function surface(
     };
   facade.cancel = cancel;
   facade.close = () => {
-    closing ??= (async () => {
-      closed = true;
+    if (closing) return closing;
+    closed = true;
+    const attempt = Promise.resolve().then(async () => {
+      const failures = [];
       cancel();
       try {
         if (active) await active.return();
+      } catch (error) {
+        failures.push(error);
       } finally {
         active = undefined;
         eventFactory = undefined;
         rewriteFactory = undefined;
-        try {
-          await values.close();
-        } finally {
-          try {
-            await closeOwner?.();
-          } finally {
-            closeOwner = undefined;
-          }
-        }
       }
-    })();
-    return closing;
+      try {
+        await values.close();
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        await closeOwner?.();
+        closeOwner = undefined;
+      } catch (error) {
+        failures.push(error);
+      }
+      if (failures.length === 1) throw failures[0];
+      if (failures.length)
+        throw new AggregateError(failures, failures[0].message);
+    });
+    closing = attempt;
+    attempt.catch(() => {
+      if (closing === attempt) closing = undefined;
+    });
+    return attempt;
   };
   facade.signal = signal;
   facade.resources = resources;
