@@ -589,7 +589,7 @@ def main():
         configure += ["-A", "x64"]
     variables = {
         "BOOST": "boost",
-        "ICU": "icu",
+        "ICU": "icu" if host == "win32-x64" else "icuLinux",
         "SQLITE": "sqlite",
         "DOUBLE_CONVERSION": "doubleConversion",
         "NODE_HEADERS": "nodeHeaders",

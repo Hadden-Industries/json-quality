@@ -42,6 +42,7 @@ Neither binding implements grammar or quality decisions.
 Windows path boundaries convert UTF-8 explicitly to native filesystem paths and use UTF-8 for the SQLite C API.
 
 Build only from pinned, verified dependency artifacts.
+ICU's official ZIP supplies Windows sources; its separately pinned POSIX tar archive supplies Linux sources with their original shell-script line endings.
 The producer preserves their executable mode bits on POSIX hosts while removing set-id and group/world write permissions.
 Build progress is written to standard error; standard output contains only the final JSON result.
 Consumer acquisition must load verified platform artifacts without lifecycle downloads, a compiler, global ICU or an alternate JavaScript reader.

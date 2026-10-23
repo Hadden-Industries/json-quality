@@ -32,7 +32,22 @@
       ],
       "maximumArchiveBytes": 33554432,
       "maximumExtractedBytes": 536870912,
+      "platform": "win32-x64",
       "role": "compiled common code and embedded Unicode data"
+    },
+    "icuLinux": {
+      "url": "https://github.com/unicode-org/icu/releases/download/release-79.1/icu4c-79.1-sources.tgz",
+      "sha256": "06fa63ecb521048f8082f12ad988f6b678d90cbd88aafce24cbc94902b191d99",
+      "format": "tar.gz",
+      "prefix": "icu/",
+      "include": [
+        "source/",
+        "LICENSE"
+      ],
+      "maximumArchiveBytes": 33554432,
+      "maximumExtractedBytes": 536870912,
+      "platform": "linux-x64",
+      "role": "compiled common code and embedded Unicode data from the official POSIX source archive"
     },
     "icuWindowsTools": {
       "url": "https://github.com/unicode-org/icu/releases/download/release-79.1/icu4c-79.1-Win64-MSVC2026.zip",
