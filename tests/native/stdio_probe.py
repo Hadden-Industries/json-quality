@@ -54,19 +54,47 @@ class Host:
         self.errors = threading.Thread(target=self.read_errors, daemon=True)
         self.reader.start()
         self.errors.start()
-        hello = self.receive("J")
-        assert hello["protocolVersion"] == 2
-        assert hello["sourceInputsSha256"] == manifest["sourceInputsSha256"]
-        for field, component in [
-            ("icu", "icuVersion"),
-            ("unicode", "unicodeVersion"),
-            ("sqlite", "sqliteVersion"),
-        ]:
-            assert hello[field] == manifest["components"][component]
-        self.owner = hello["owner"]
-        assert len(self.owner) == 32 and all(
-            c in "0123456789abcdef" for c in self.owner
+        try:
+            hello = self.receive("J")
+            assert hello["protocolVersion"] == 2
+            assert hello["sourceInputsSha256"] == manifest["sourceInputsSha256"]
+            for field, component in [
+                ("icu", "icuVersion"),
+                ("unicode", "unicodeVersion"),
+                ("sqlite", "sqliteVersion"),
+            ]:
+                assert hello[field] == manifest["components"][component]
+            self.owner = hello["owner"]
+            assert len(self.owner) == 32 and all(
+                c in "0123456789abcdef" for c in self.owner
+            )
+        except BaseException as error:  # noqa: BLE001 - Settle every startup failure and preserve its original cause.
+            self.fail(error, "startup")
+
+    def fail(self, error, phase):
+        self.deadline.cancel()
+        cleanup_errors = []
+        for operation in (
+            lambda: self.process.kill() if self.process.poll() is None else None,
+            lambda: self.process.wait(timeout=10),
+            lambda: self.deadline.join(timeout=2),
+            lambda: self.reader.join(timeout=2),
+            lambda: self.errors.join(timeout=2),
+            self.process.stdin.close,
+            self.process.stdout.close,
+            self.process.stderr.close,
+        ):
+            try:
+                operation()
+            except Exception as cleanup_error:  # noqa: BLE001 - Preserve the original protocol failure while settling every owned resource.
+                cleanup_errors.append(repr(cleanup_error))
+        failure = RuntimeError(
+            f"Native {phase} failed (exit {self.process.returncode}): "
+            + self.stderr.decode("utf-8", errors="replace")
         )
+        for cleanup_error in cleanup_errors:
+            failure.add_note("Failure settlement: " + cleanup_error)
+        raise failure from error
 
     def read_frames(self):
         try:
@@ -144,8 +172,11 @@ class Host:
         )
 
     def close(self):
-        assert self.request("close")["type"] == "closed"
-        self.settle(0)
+        try:
+            assert self.request("close")["type"] == "closed"
+            self.settle(0)
+        except BaseException as error:  # noqa: BLE001 - Settle every close failure and preserve its original cause.
+            self.fail(error, "close")
 
 
 def windows_peak(process=None, parent=False):
