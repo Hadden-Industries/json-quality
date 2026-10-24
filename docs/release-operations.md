@@ -102,6 +102,8 @@ Original tarball/source qualification and publisher provenance retain their orig
 ## Stage and approve
 
 Dispatch `stage-release.yml` with `qualification_run`, `qualification_attempt`, `manifest_sha`, `review_sha`, and the exact decision text in `review_json`.
+Start staging within 30 days of qualification, while the producer archive, recipient reports and security evidence remain available.
+Expired qualification inputs require fresh qualification; a green historical run cannot replace their bytes.
 The read-only admission job does not need access to a private draft decision.
 Admission independently reads the completed native run, every job, artifact digest, expected recipient lane and previous writer attempt.
 Missing, duplicate, skipped, expired or substituted inputs stop the workflow.
@@ -235,7 +237,15 @@ Inspect existing runs, form a specific hypothesis, and select a bounded experime
 That CI run cannot satisfy release admission.
 Do not repeatedly launch a full matrix until a failure disappears.
 
-Uploads contain only named machine-consumed evidence, with 90-day hosted retention.
+Hosted retention follows the artifact's purpose:
+
+- Same-run admission bundles and ordinary producer transport: 1 day.
+- Routine reports: 7 days; failed-job diagnostics: 14 days where specified by the workflow.
+- Release qualification inputs and native payloads: 30 days.
+- Final effect journals and public-registry evidence bundles: 90 days.
+
+The shared JSON workflow defaults to 7 days and preserves explicit caller overrides, including `0` for the repository default.
+Same-run transfer expiration also bounds any environment approval wait; if approval exceeds that window, dispatch fresh admission.
 Disposable dependency installs, validator executables, caches and fixture directories stay outside uploads.
 Release archives retain the evidence that must survive hosted expiration.
 Native npm SBOMs keep their emitted schema version; source production inventories come from a clean production-only manifest against the unchanged source lock.
