@@ -19,6 +19,35 @@ import {
 } from "./release-contract.js";
 import { api, gh, provider, optionalApi } from "./release-provider.js";
 import { npmCommand } from "./qualification-process.js";
+import { verifyNativeAssets } from "./release-asset-verification.js";
+
+export function verifyArchiveIntent(directory, record, manifestSha) {
+  assert.equal(record.disposition, "complete-read-only");
+  assert.match(record.assetsIntentSha256, /^[a-f0-9]{64}$/u);
+  const bytes = regularBytes(join(directory, "archive-assets-intent.json"));
+  assert.equal(
+    sha256(bytes),
+    record.assetsIntentSha256,
+    "Archive intent differs from owner recovery decision",
+  );
+  const intent = JSON.parse(bytes);
+  assert.equal(intent.schemaVersion, 1);
+  assert.equal(intent.manifestSha256, manifestSha);
+  assert.ok(
+    Array.isArray(intent.assets) &&
+      intent.assets.length > 0 &&
+      intent.assets.length <= 4096,
+  );
+  const names = new Set();
+  for (const asset of intent.assets) {
+    assert.match(asset.name, /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,240}$/u);
+    assert.match(asset.sha256, /^[a-f0-9]{64}$/u);
+    assert.ok(Number.isSafeInteger(asset.size) && asset.size >= 0);
+    assert.ok(!names.has(asset.name), "Duplicate archive intent asset");
+    names.add(asset.name);
+  }
+  return intent;
+}
 
 export function verifyRecoveryRecord(record, release, manifestSha, journal) {
   assert.equal(record.schemaVersion, 1);
@@ -318,45 +347,36 @@ function reconcileOne(
       flush: true,
     });
   } else if (record.phase === "archive") {
-    const live = api(`releases/tags/v${release.version}`);
+    const readApi = readers.api ?? api,
+      invoke = readers.gh ?? gh,
+      verifyAssets = readers.verifyNativeAssets ?? verifyNativeAssets;
+    const live = readApi(`releases/tags/v${release.version}`);
     assert.equal(live.immutable, true);
     assert.equal(live.draft, false);
-    const intent = readJson(join(directory, "archive-assets-intent.json"));
+    const intent = verifyArchiveIntent(directory, record, manifestSha);
     assert.deepEqual(
       live.assets.map((a) => a.name).sort(),
       intent.assets.map((a) => a.name).sort(),
     );
+    invoke([
+      "release",
+      "download",
+      `v${release.version}`,
+      "--repo",
+      repository,
+      "--dir",
+      scratch,
+    ]);
     for (const asset of intent.assets) {
       const actual = live.assets.find((a) => a.name === asset.name);
       assert.equal(actual.digest, `sha256:${asset.sha256}`);
       assert.equal(actual.size, asset.size);
-      gh([
-        "release",
-        "download",
-        `v${release.version}`,
-        "--repo",
-        repository,
-        "--pattern",
-        asset.name,
-        "--dir",
-        scratch,
-      ]);
-      assert.equal(
-        sha256(releaseArtifactBytes(join(scratch, asset.name))),
-        asset.sha256,
-      );
-      gh([
-        "release",
-        "verify-asset",
-        `v${release.version}`,
-        join(scratch, asset.name),
-        "--repo",
-        repository,
-        "--format",
-        "json",
-      ]);
+      const bytes = releaseArtifactBytes(join(scratch, asset.name));
+      assert.equal(bytes.length, asset.size);
+      assert.equal(sha256(bytes), asset.sha256);
     }
-    gh([
+    const attestations = verifyAssets(release.version, scratch, intent.assets);
+    invoke([
       "release",
       "verify",
       `v${release.version}`,
@@ -365,7 +385,12 @@ function reconcileOne(
       "--format",
       "json",
     ]);
-    if (!existsSync(join(directory, "archive-outcome.json")))
+    if (existsSync(join(directory, "archive-outcome.json"))) {
+      const archived = readJson(join(directory, "archive-outcome.json"));
+      assert.equal(archived.manifestSha256, env.MANIFEST_SHA);
+      assert.equal(archived.release.id, live.id);
+      assert.deepEqual(archived.assets, intent.assets);
+    } else
       save(join(directory, "archive-outcome.json"), {
         schemaVersion: 1,
         manifestSha256: env.MANIFEST_SHA,
@@ -381,7 +406,11 @@ function reconcileOne(
     writeFileSync(join(directory, "context.json"), jsonBytes(context), {
       flush: true,
     });
-    observed = { immutableRelease: live.id, assets: intent.assets };
+    observed = {
+      immutableRelease: live.id,
+      assets: intent.assets,
+      attestations,
+    };
   } else if (observeCurrent) {
     const tags = npmViewObject(
       readNpm([

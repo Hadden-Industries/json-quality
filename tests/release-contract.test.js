@@ -49,6 +49,7 @@ import {
   verifyArchiveSettings,
   verifyCompletedLabels,
   verifyGithubPromotionState,
+  recordNoRequest,
 } from "../scripts/release-effects.js";
 import {
   verifyEffectHistory,
@@ -75,6 +76,7 @@ import {
   reconcilePromotionLabels,
   retainRecovery,
   reconcileObserved,
+  verifyArchiveIntent,
 } from "../scripts/release-recovery.js";
 import {
   verifyPublicMetadata,
@@ -86,6 +88,7 @@ import {
   admitRestoration,
   verifyBundle,
   verifyStageFamily,
+  controllerReviewFor,
 } from "../scripts/release-evidence.js";
 import { PACKAGE_VERIFICATION_CAPABILITIES } from "../src/package-payload.js";
 import { nativePackages } from "../src/native-packages.js";
@@ -729,6 +732,201 @@ function bundleFixture(directory, version = "0.1.0-dev.0") {
   sealBundle(directory, digest);
   return { release, digest };
 }
+
+test("interrupted archival imports only owner-bound intent and journal without resealing original evidence", (t) => {
+  const root = temp(t),
+    directory = join(root, "admitted"),
+    original = join(root, "original");
+  const { release, digest } = bundleFixture(directory);
+  bundleFixture(original);
+  const index = readFileSync(join(original, "evidence-index.json"));
+  const name = effectJournal("archive", { run: "17", attempt: "2" });
+  assert.throws(() =>
+    journalEffect(
+      join(original, name),
+      release,
+      "archive",
+      () => {
+        throw new Error("lost");
+      },
+      { env: { ...environment("archive"), MANIFEST_SHA: digest } },
+    ),
+  );
+  // A hard stop leaves the final intent without either completion or unknown outcome.
+  const journal = Buffer.from(
+    readFileSync(join(original, name), "utf8").split("\n")[0] + "\n",
+  );
+  writeFileSync(join(original, name), journal);
+  const intent = jsonBytes({
+    schemaVersion: 1,
+    manifestSha256: digest,
+    assets: [
+      { name: "LICENSE", size: 7, sha256: sha256(Buffer.from("license")) },
+    ],
+  });
+  writeFileSync(join(original, "archive-assets-intent.json"), intent);
+  writeFileSync(join(original, "LICENSE"), "license");
+  const record = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    phase: "archive",
+    version: release.version,
+    manifestSha256: digest,
+    run: "17",
+    attempt: "2",
+    disposition: "complete-read-only",
+    journalSha256: sha256(journal),
+    assetsIntentSha256: sha256(intent),
+    artifactSha256: sha,
+    acceptedAt: "2026-10-24T10:00:00Z",
+    rationale:
+      "Observe the immutable archive without repeating any publication request.",
+  };
+  assert.throws(() => verifyBundle(original, digest), /Unindexed/u);
+  assert.deepEqual(verifyBundle(original, digest, record), release);
+  const env = { MANIFEST_SHA: digest, RECOVERY_JSON: JSON.stringify(record) };
+  acquireRecoveryJournal(directory, root, env, () => ({
+    directory: original,
+    identity: { digest: `sha256:${sha}` },
+  }));
+  assert.deepEqual(readFileSync(join(directory, name)), journal);
+  assert.deepEqual(
+    readFileSync(join(directory, "archive-assets-intent.json")),
+    intent,
+  );
+  assert.deepEqual(readFileSync(join(original, "evidence-index.json")), index);
+  assert.deepEqual(verifyBundle(directory, digest), release);
+  writeFileSync(
+    join(directory, "context.json"),
+    jsonBytes({ registry: { run: "13", attempt: "1" } }),
+  );
+  const live = {
+    id: 123,
+    immutable: true,
+    draft: false,
+    assets: [
+      {
+        name: "LICENSE",
+        size: 7,
+        digest: `sha256:${sha256(Buffer.from("license"))}`,
+      },
+    ],
+  };
+  const commands = [];
+  const readers = {
+    provider: () => ({
+      run: { status: "completed", head_sha: environment("archive").GITHUB_SHA },
+    }),
+    api: () => live,
+    gh: (args) => {
+      assert.ok(
+        ["download", "verify"].includes(args[1]),
+        "Recovery attempted a release mutation",
+      );
+      commands.push(args[1]);
+      if (args[1] === "download")
+        writeFileSync(join(args.at(-1), "LICENSE"), "license");
+      return "{}";
+    },
+    verifyNativeAssets: (version, downloaded, assets) => {
+      assert.equal(version, release.version);
+      assert.equal(
+        readFileSync(join(downloaded, "LICENSE"), "utf8"),
+        "license",
+      );
+      assert.deepEqual(assets, JSON.parse(intent).assets);
+      return assets.map(({ name }) => ({ name, nativeOutputSha256: sha }));
+    },
+  };
+  const recovered = reconcileObserved(
+    directory,
+    join(root, "readback"),
+    env,
+    readers,
+  );
+  assert.deepEqual(commands, ["download", "verify"]);
+  assert.equal(recovered.archive.observed.immutableRelease, 123);
+  assert.equal(recovered.archive.observed.attestations.length, 1);
+  assert.deepEqual(
+    JSON.parse(readFileSync(join(directory, "context.json"))).archive,
+    { run: "17", attempt: "2", controller: environment("archive").GITHUB_SHA },
+  );
+  assert.deepEqual(readFileSync(join(directory, name)), journal);
+  live.assets[0].digest = `sha256:${"d".repeat(64)}`;
+  assert.throws(() =>
+    reconcileObserved(directory, join(root, "bad-readback"), env, readers),
+  );
+  assert.throws(() =>
+    verifyArchiveIntent(
+      directory,
+      { ...record, assetsIntentSha256: "c".repeat(64) },
+      digest,
+    ),
+  );
+  assert.throws(() =>
+    verifyBundle(original, digest, { ...record, disposition: "repeat" }),
+  );
+  writeFileSync(join(original, "foreign.json"), "{}");
+  assert.throws(
+    () => verifyBundle(original, digest, record),
+    /Unexpected interrupted/u,
+  );
+  rmSync(join(original, "foreign.json"));
+  writeFileSync(
+    join(original, release.archive.filename),
+    "tampered indexed archive",
+  );
+  assert.throws(() => verifyBundle(original, digest, record));
+});
+
+test("controller forward-fix authority is confined to observed read-only archival", () => {
+  const original = { controllerSource: source },
+    env = { REVIEW_SHA: sha, MANIFEST_SHA: "c".repeat(64) };
+  const reviewed = {
+    owner: "maksymshostak",
+    originalReviewSha256: sha,
+    manifestSha256: env.MANIFEST_SHA,
+  };
+  const recovery = {
+    archive: {
+      record: { disposition: "complete-read-only", controllerReview: reviewed },
+      observed: { immutableRelease: 123, assets: [{ name: "LICENSE" }] },
+    },
+  };
+  assert.equal(
+    controllerReviewFor(original, env, "archive", recovery),
+    reviewed,
+  );
+  for (const phase of ["stage", "registry", "promote"])
+    assert.equal(controllerReviewFor(original, env, phase, recovery), original);
+  for (const key of ["owner", "originalReviewSha256", "manifestSha256"]) {
+    const bad = structuredClone(recovery);
+    bad.archive.record.controllerReview[key] = "substituted";
+    assert.throws(() => controllerReviewFor(original, env, "archive", bad));
+  }
+  const missingObservation = structuredClone(recovery);
+  missingObservation.archive.observed.immutableRelease = null;
+  assert.throws(() =>
+    controllerReviewFor(original, env, "archive", missingObservation),
+  );
+});
+
+test("read-only archive completion emits no-request without claiming an original effect", (t) => {
+  const directory = temp(t),
+    env = environment("archive");
+  recordNoRequest(directory, "archive", env);
+  recordNoRequest(directory, "archive", env);
+  const marker = JSON.parse(
+    readFileSync(join(directory, "no-effect-archive-17-2.json")),
+  );
+  assert.equal(marker.state, "no-request");
+  assert.equal(marker.controller, env.GITHUB_SHA);
+  assert.equal(marker.run, "17");
+  const journal = join(directory, "archive-17-2.jsonl");
+  writeFileSync(journal, "original unknown intent\n");
+  assert.throws(() => recordNoRequest(directory, "archive", env), /conflicts/u);
+  assert.equal(readFileSync(journal, "utf8"), "original unknown intent\n");
+});
 test("promotion admission acquires original unknown journal independently of its archival predecessor", (t) => {
   const root = temp(t),
     directory = join(root, "admitted"),

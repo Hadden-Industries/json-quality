@@ -36,6 +36,7 @@ import {
   reconcileObserved,
   verifyRecoveryRecord,
   retainRecovery,
+  verifyArchiveIntent,
 } from "./release-recovery.js";
 import { verifyAudit } from "./release-inventory.js";
 import { native } from "./qualification-process.js";
@@ -130,7 +131,11 @@ export function verifySecurity(record, release, manifestSha, run, attempt) {
     ),
   );
 }
-export function verifyBundle(directory, manifestSha) {
+export function verifyBundle(
+  directory,
+  manifestSha,
+  interruptedArchive = null,
+) {
   const bytes = regularBytes(join(directory, "release-manifest.json"));
   assert.equal(sha256(bytes), manifestSha);
   const release = verifyManifest(JSON.parse(bytes));
@@ -159,11 +164,32 @@ export function verifyBundle(directory, manifestSha) {
   const observed = evidenceIndex(directory)
     .map(({ name }) => name)
     .filter((name) => name !== "evidence-index.json");
-  assert.deepEqual(
-    [...names].sort(),
-    observed.sort(),
-    "Unindexed evidence payload",
-  );
+  const extra = observed.filter((name) => !names.has(name));
+  if (interruptedArchive) {
+    assert.equal(interruptedArchive.phase, "archive");
+    assert.equal(interruptedArchive.disposition, "complete-read-only");
+    const journal = effectJournal("archive", interruptedArchive);
+    verifyRecoveryRecord(
+      interruptedArchive,
+      release,
+      manifestSha,
+      regularBytes(join(directory, journal)),
+    );
+    verifyArchiveIntent(directory, interruptedArchive, manifestSha);
+    const allowed = new Set([
+      "LICENSE",
+      "THIRD-PARTY-NOTICES.md",
+      journal,
+      "archive-assets-intent.json",
+      "release-acceptance.json",
+      "source.tar.gz",
+    ]);
+    assert.ok(
+      extra.every((name) => allowed.has(name)),
+      "Unexpected interrupted archive output",
+    );
+  } else assert.equal(extra.length, 0, "Unindexed evidence payload");
+  assert.ok([...names].every((name) => observed.includes(name)));
   return release;
 }
 /** Controller changes need explicit review of the actual control delta, not artifact rewriting. */
@@ -195,6 +221,19 @@ export function verifyController(release, decision, env) {
     sha256(diff),
     "Controller delta differs from review",
   );
+}
+/** A forward fix may finish readback only; original publication decisions stay immutable. */
+export function controllerReviewFor(decision, env, phase, recovery) {
+  if (phase !== "archive" || !recovery?.archive?.record.controllerReview)
+    return decision;
+  const { record, observed } = recovery.archive;
+  assert.equal(record.disposition, "complete-read-only");
+  assert.ok(observed.immutableRelease && observed.assets.length);
+  const review = record.controllerReview;
+  assert.equal(review.owner, "maksymshostak");
+  assert.equal(review.originalReviewSha256, env.REVIEW_SHA);
+  assert.equal(review.manifestSha256, env.MANIFEST_SHA);
+  return review;
 }
 /** Qualification is read again by the final writer, outside the still-running predecessor. */
 export function refreshAdmission(
@@ -233,7 +272,11 @@ export function refreshAdmission(
     env.MANIFEST_SHA,
     "review",
   );
-  verifyController(release, decision, env);
+  verifyController(
+    release,
+    controllerReviewFor(decision, env, phase, recovery),
+    env,
+  );
   if (phase === "promote" && env.RESTORE_VERSION)
     admitRestoration(directory, release, env);
   signedTag(release);
@@ -355,7 +398,19 @@ export function acquireRecoveryJournal(
   if (!env.RECOVERY_JSON) return;
   const record = JSON.parse(env.RECOVERY_JSON);
   const name = effectJournal(record.phase, record);
-  if (existsSync(join(directory, name))) return;
+  if (existsSync(join(directory, name))) {
+    if (record.phase === "archive") {
+      const release = verifyBundle(directory, env.MANIFEST_SHA);
+      verifyRecoveryRecord(
+        record,
+        release,
+        record.manifestSha256,
+        regularBytes(join(directory, name)),
+      );
+      verifyArchiveIntent(directory, record, env.MANIFEST_SHA);
+    }
+    return;
+  }
   const acquisition = join(scratch, "recovery-acquisition");
   mkdirSync(acquisition, { recursive: true });
   const original = acquire(
@@ -365,7 +420,19 @@ export function acquireRecoveryJournal(
     acquisition,
   );
   assert.match(record.manifestSha256, /^[a-f0-9]{64}$/u);
-  const release = verifyBundle(original.directory, record.manifestSha256);
+  if (record.phase === "archive") {
+    assert.match(record.artifactSha256, /^[a-f0-9]{64}$/u);
+    assert.equal(
+      original.identity.digest,
+      `sha256:${record.artifactSha256}`,
+      "Recovery artifact differs from owner-selected native transport",
+    );
+  }
+  const release = verifyBundle(
+    original.directory,
+    record.manifestSha256,
+    record.phase === "archive" ? record : null,
+  );
   const current = verifyBundle(directory, env.MANIFEST_SHA);
   if (record.manifestSha256 !== env.MANIFEST_SHA) {
     assert.equal(record.phase, "stage");
@@ -378,6 +445,16 @@ export function acquireRecoveryJournal(
   } else assert.deepEqual(release, current);
   const journal = regularBytes(join(original.directory, name));
   verifyRecoveryRecord(record, release, record.manifestSha256, journal);
+  if (record.phase === "archive") {
+    verifyArchiveIntent(original.directory, record, env.MANIFEST_SHA);
+    const path = join(directory, "archive-assets-intent.json"),
+      bytes = regularBytes(
+        join(original.directory, "archive-assets-intent.json"),
+      );
+    if (existsSync(path))
+      assert.equal(sha256(regularBytes(path)), sha256(bytes));
+    else save(path, bytes);
+  }
   const retained = retainedRecoveries(original.directory);
   for (const item of [record, ...retained]) {
     assert.match(item.manifestSha256, /^[a-f0-9]{64}$/u);

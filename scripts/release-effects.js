@@ -45,6 +45,7 @@ import {
 import { isolatedNpmEnvironment, verifyAudit } from "./release-inventory.js";
 import { qualifySecurity } from "./release-security.js";
 import { native, npmCommand } from "./qualification-process.js";
+import { verifyNativeAssets } from "./release-asset-verification.js";
 
 export function journalEffect(
   path,
@@ -400,9 +401,14 @@ function archiveAssets(directory, release, scratch) {
   return { bundle, assets };
 }
 export function archive(directory, scratch, env = process.env) {
-  const { release, context } = refreshAdmission(directory, "archive", env, {
-    historyRoot: scratch,
-  });
+  const { release, context, recovery } = refreshAdmission(
+    directory,
+    "archive",
+    env,
+    {
+      historyRoot: scratch,
+    },
+  );
   signedTag(release);
   const acceptance = decisionAsset(release, "release-acceptance.json", scratch);
   const decision = verifyDecision(
@@ -415,8 +421,27 @@ export function archive(directory, scratch, env = process.env) {
   assert.equal(decision.registryRun, context.registry.run);
   assert.equal(decision.registryAttempt, context.registry.attempt);
   assert.equal(decision.reviewSha256, env.REVIEW_SHA);
+  const acceptancePath = join(directory, "release-acceptance.json");
+  if (existsSync(acceptancePath))
+    assert.equal(sha256(regularBytes(acceptancePath)), sha256(acceptance));
+  else save(acceptancePath, acceptance);
+  if (recovery?.archive) {
+    assert.equal(recovery.archive.record.disposition, "complete-read-only");
+    assert.equal(context.archive.run, String(recovery.archive.record.run));
+    assert.equal(
+      context.archive.attempt,
+      String(recovery.archive.record.attempt),
+    );
+    assert.ok(recovery.archive.observed.immutableRelease);
+    recordNoRequest(directory, "archive", env);
+    completePrerelease(directory, scratch, release, env, recovery.archive);
+    return;
+  }
+  assert.ok(
+    !context.archive,
+    "An archived release requires read-only reconciliation",
+  );
   verifyArchiveSettings(decision);
-  save(join(directory, "release-acceptance.json"), acceptance);
   const draft = findDraft(release);
   assert.equal(draft.draft, true);
   assert.equal(draft.tag_name, `v${release.version}`);
@@ -513,17 +538,7 @@ export function archive(directory, scratch, env = process.env) {
         "--format",
         "json",
       ]);
-      for (const asset of assets)
-        gh([
-          "release",
-          "verify-asset",
-          `v${release.version}`,
-          join(readback, asset.name),
-          "--repo",
-          repository,
-          "--format",
-          "json",
-        ]);
+      verifyNativeAssets(release.version, readback, assets);
       return { id: result.id, immutable: true, assets };
     },
     { env },
@@ -540,6 +555,31 @@ export function archive(directory, scratch, env = process.env) {
     release: githubRelease(release),
     assets,
   });
+  completePrerelease(directory, scratch, release, env);
+}
+export function recordNoRequest(directory, phase, env) {
+  const origin = { run: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT };
+  assert.ok(
+    !existsSync(join(directory, effectJournal(phase, origin))) ||
+      regularBytes(join(directory, effectJournal(phase, origin))).length === 0,
+    "No-request marker conflicts with a request journal",
+  );
+  const path = join(
+      directory,
+      `no-effect-${phase}-${origin.run}-${origin.attempt}.json`,
+    ),
+    marker = {
+      schemaVersion: 1,
+      state: "no-request",
+      phase,
+      ...origin,
+      controller: env.GITHUB_SHA,
+      manifestSha256: env.MANIFEST_SHA,
+    };
+  if (existsSync(path)) assert.deepEqual(readJson(path), marker);
+  else save(path, marker);
+}
+function completePrerelease(directory, scratch, release, env, recovery = null) {
   if (isPrerelease(release.version)) {
     const tags = npmViewObject(
       npmCommand(
@@ -568,6 +608,7 @@ export function archive(directory, scratch, env = process.env) {
       npm: tags,
       github: live,
       state: "completed-prerelease",
+      ...(recovery ? { recovery } : {}),
       observedAt: new Date().toISOString(),
     });
   }
@@ -923,21 +964,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       }),
     );
     if (!existsSync(journal) || !regularBytes(journal).length)
-      save(
-        join(
-          directory,
-          `no-effect-${phase}-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}.json`,
-        ),
-        {
-          schemaVersion: 1,
-          state: "no-request",
-          phase,
-          run: process.env.GITHUB_RUN_ID,
-          attempt: process.env.GITHUB_RUN_ATTEMPT,
-          controller: process.env.GITHUB_SHA,
-          manifestSha256: process.env.MANIFEST_SHA,
-        },
-      );
+      recordNoRequest(directory, phase, process.env);
     throw error;
   } finally {
     sealBundle(directory, process.env.MANIFEST_SHA);
