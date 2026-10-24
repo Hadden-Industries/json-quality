@@ -37,6 +37,7 @@ import {
   verifyRun,
   verifyShippedLinks,
   releaseArtifactBytes,
+  releasePackages,
 } from "../scripts/release-contract.js";
 import {
   journalEffect,
@@ -64,6 +65,8 @@ import {
   isolatedNpmEnvironment,
   normalizeFileReferences,
   verifySbom,
+  installedInventory,
+  stageSourceNativePackages,
 } from "../scripts/release-inventory.js";
 import {
   verifyRecoveryRecord,
@@ -80,8 +83,10 @@ import {
   acquireRecoveryJournal,
   admitRestoration,
   verifyBundle,
+  verifyStageFamily,
 } from "../scripts/release-evidence.js";
 import { PACKAGE_VERIFICATION_CAPABILITIES } from "../src/package-payload.js";
+import { nativePackages } from "../src/native-packages.js";
 
 const source = "a".repeat(40),
   sha = "b".repeat(64);
@@ -102,7 +107,7 @@ const requiredFiles = [
   "schemas/contract-cohort.json",
 ];
 const fixture = () => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   package: packageName,
   version: "0.1.0-dev.0",
   source: {
@@ -118,6 +123,24 @@ const fixture = () => ({
     integrity: sha512(bytes),
     files: requiredFiles.map((path) => ({ path, size: 1, sha256: sha })),
   },
+  platformArchives: Object.entries(nativePackages).map(([platform, spec]) => ({
+    platform,
+    package: spec.package,
+    version: "0.1.0-dev.0",
+    archive: {
+      filename: platform + ".tgz",
+      size: bytes.length,
+      sha256: sha256(bytes),
+      integrity: sha512(bytes),
+      files: [
+        "package.json",
+        "LICENSE",
+        "component.json",
+        "json-quality.node",
+        spec.executable,
+      ].map((path) => ({ path, size: 1, sha256: sha })),
+    },
+  })),
   matrix: {
     os: ["ubuntu-24.04", "windows-2025"],
     node: [...new Set([...policy.minimums, policy.reference])],
@@ -209,6 +232,10 @@ test("schema and semantic identities independently reject substitutions and unsa
     (r) => r.matrix.node.splice(0, 1),
     (r) => (r.toolchain.npm = "0.0.1"),
     (r) => (r.extra = true),
+    (r) => r.platformArchives.pop(),
+    (r) => (r.platformArchives[1] = structuredClone(r.platformArchives[0])),
+    (r) => (r.platformArchives[0].version = "9.9.9"),
+    (r) => (r.platformArchives[0].archive.files[0].path = "../escape"),
   ];
   for (const change of changes) {
     const release = fixture();
@@ -491,7 +518,7 @@ test("recovery binds original request bytes and cannot become authority to repla
     journalEffect(
       path,
       release,
-      "stage",
+      `stage:${release.package}`,
       () => {
         throw new Error("lost response");
       },
@@ -599,12 +626,78 @@ test("native stage responses bind exact package, version, bytes and inspectable 
   }
 });
 
+test("a staged release requires all three independent native identities in publication order", () => {
+  const release = fixture(),
+    stages = releasePackages(release).map((subject, index) => ({
+      package: subject.package,
+      version: subject.version,
+      integrity: subject.archive.integrity,
+      stageId: `stage-${index}`,
+    }));
+  verifyStageFamily(stages, release);
+  for (const change of [
+    (values) => values.pop(),
+    (values) => values.reverse(),
+    (values) => (values[1].integrity = sha512(Buffer.from("substituted"))),
+    (values) => (values[1].stageId = values[0].stageId),
+  ]) {
+    const copy = structuredClone(stages);
+    change(copy);
+    assert.throws(() => verifyStageFamily(copy, release));
+  }
+});
+
+test("partial platform staging records its real subject and refuses replay after response loss", (t) => {
+  const release = fixture(),
+    subjects = releasePackages(release),
+    path = join(temp(t), "family.jsonl"),
+    env = environment("stage");
+  journalEffect(
+    path,
+    { ...release, ...subjects[0] },
+    `stage:${subjects[0].package}`,
+    () => ({ stageId: "first" }),
+    { env },
+  );
+  assert.throws(() =>
+    journalEffect(
+      path,
+      { ...release, ...subjects[1] },
+      `stage:${subjects[1].package}`,
+      () => {
+        throw new Error("lost response");
+      },
+      { env },
+    ),
+  );
+  let executed = false;
+  assert.throws(
+    () =>
+      journalEffect(
+        path,
+        release,
+        `stage:${release.package}`,
+        () => {
+          executed = true;
+        },
+        { env },
+      ),
+    /Unknown request/u,
+  );
+  assert.equal(executed, false);
+  const records = readFileSync(path, "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(records[0].package, subjects[0].package);
+  assert.equal(records[2].package, subjects[1].package);
+});
+
 function bundleFixture(directory) {
   mkdirSync(directory);
   const release = fixture(),
     manifest = jsonBytes(release);
   writeFileSync(join(directory, "release-manifest.json"), manifest);
   writeFileSync(join(directory, release.archive.filename), bytes);
+  for (const entry of release.platformArchives)
+    writeFileSync(join(directory, entry.archive.filename), bytes);
   const digest = sha256(manifest);
   sealBundle(directory, digest);
   return { release, digest };
@@ -882,6 +975,7 @@ test("promotion requires explicit prior-label absence and rejects prerelease or 
 test("restoration recovery preserves original prior labels after npm has already applied the target", () => {
   const release = fixture();
   release.version = "1.2.0";
+  for (const entry of release.platformArchives) entry.version = release.version;
   const expected = { latest: "1.1.0", githubLatest: "v1.1.0" };
   const recovery = {
     observed: { npmLatest: "1.0.0", githubLatest: "v1.1.0" },
@@ -950,6 +1044,7 @@ test("second partial GitHub repair uses the latest owner guard while retaining t
     directory = join(root, "admitted"),
     { release } = bundleFixture(directory);
   release.version = "1.2.0";
+  for (const entry of release.platformArchives) entry.version = release.version;
   writeFileSync(join(directory, "release-manifest.json"), jsonBytes(release));
   const manifestSha = sha256(jsonBytes(release));
   const origin = (run) => ({
@@ -1498,7 +1593,7 @@ test("native SBOM location, edge, integrity and license conservation survives on
   };
   const inventory = [
     { ref: "root", location: "", dependsOn: [component["bom-ref"]] },
-    { ref: component["bom-ref"], location, dependsOn: [] },
+    { ref: component["bom-ref"], location, name, version, dependsOn: [] },
   ];
   const result = normalizeFileReferences(bom, lock, directory, {
     path: archive,
@@ -1536,6 +1631,12 @@ test("registry metadata and bounded transport reject substituted bytes, redirect
       name: packageName,
       version: release.version,
       license: "AGPL-3.0-only",
+      optionalDependencies: Object.fromEntries(
+        release.platformArchives.map((entry) => [
+          entry.package,
+          release.version,
+        ]),
+      ),
       dist: {
         integrity: release.archive.integrity,
         tarball: "https://registry.npmjs.org/package.tgz",
@@ -1566,6 +1667,65 @@ test("registry metadata and bounded transport reject substituted bytes, redirect
     registryBytes("https://registry.npmjs.org/a", 2, fetcher),
   );
   await assert.rejects(registryBytes("https://attacker.test/a", 100, fetcher));
+});
+
+test("native source inventory conserves the selected optional platform while the lock records both platforms", async (t) => {
+  const directory = temp(t),
+    output = join(directory, "source-install"),
+    npm = process.env.npm_execpath;
+  const metadata = {
+    name: "source-platform-fixture",
+    version: "1.0.0",
+    license: "AGPL-3.0-only",
+    optionalDependencies: {},
+  };
+  for (const [platform, spec] of Object.entries(nativePackages)) {
+    const path = join(directory, "native", "prebuilt", platform);
+    mkdirSync(path, { recursive: true });
+    writeFileSync(
+      join(path, "package.json"),
+      jsonBytes({
+        name: spec.package,
+        version: "1.0.0",
+        license: "AGPL-3.0-only",
+        os: spec.os,
+        cpu: spec.cpu,
+        ...(spec.libc ? { libc: spec.libc } : {}),
+      }),
+    );
+    metadata.optionalDependencies[spec.package] =
+      `file:native/prebuilt/${platform}`;
+  }
+  writeFileSync(join(directory, "package.json"), jsonBytes(metadata));
+  const run = (cwd, args) =>
+    native(
+      process.execPath,
+      [
+        npm,
+        ...args,
+        "--ignore-scripts",
+        "--offline",
+        "--no-audit",
+        "--no-fund",
+      ],
+      { cwd, env: isolatedNpmEnvironment(directory) },
+    );
+  run(directory, ["install", "--package-lock-only"]);
+  mkdirSync(output);
+  writeFileSync(join(output, "package.json"), jsonBytes(metadata));
+  const original = readFileSync(join(directory, "package-lock.json"));
+  writeFileSync(join(output, "package-lock.json"), original);
+  stageSourceNativePackages(directory, output);
+  run(output, ["ci", "--omit=dev"]);
+  const inventory = await installedInventory(output, npm),
+    bom = JSON.parse(
+      run(output, ["sbom", "--omit=dev", "--sbom-format=cyclonedx"]),
+    );
+  assert.equal(inventory.length, 2);
+  assert.equal(inventory.filter((entry) => entry.location).length, 1);
+  verifySbom(bom, JSON.parse(original), output, inventory);
+  run(output, ["ls", "--omit=dev", "--all", "--json"]);
+  assert.deepEqual(readFileSync(join(output, "package-lock.json")), original);
 });
 test("real command failure and timeout retain native diagnostics and finite classification", () => {
   assert.throws(
@@ -1613,6 +1773,11 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
       cliPhysicalFiles: 2,
       packageVersion: release.version,
       installSource: "registry",
+      nativePackage: {
+        name: nativePackages["win32-x64"].package,
+        version: release.version,
+        integrity: release.platformArchives[1].archive.integrity,
+      },
     };
   verifyReport(report, release, lane, "public registry", "isolated");
   for (const [key, value] of Object.entries({

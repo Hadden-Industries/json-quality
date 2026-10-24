@@ -24,7 +24,12 @@ The cache is populated by native npm acquisition from the locked registry artifa
 Git dependencies do not guarantee a portable packed-archive digest and cannot supply this proof.
 
 `assertIsolatedJsonQuality(toolingRoot)` prevents a tooling bridge from silently resolving a parent installation.
-An installed checker resolves its exact platform component under `native/prebuilt/`; there is no environment override, PATH search, runtime compiler or acquisition fallback.
+The core declares exact-version optional packages for Windows x64 and Linux x64 glibc, matching Markdown Quality's distribution pattern.
+Native npm installs the matching package; keep optional dependencies enabled.
+The installed checker resolves that package and requires its version to match the core.
+Each native package contains both the Node addon and standalone executable, component identities and notices.
+There is no environment override, PATH search, runtime compiler or acquisition fallback.
+Omitting the matching optional dependency fails explicitly.
 
 The root export supplies:
 

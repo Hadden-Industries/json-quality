@@ -3,7 +3,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync, readFileSync, copyFileSync } from "node:fs";
+import {
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  copyFileSync,
+  rmSync,
+} from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { temporaryDirectory } from "./temporary-directory.js";
@@ -15,6 +21,7 @@ import {
   verifyJsonQualityInstallation,
 } from "../src/installation.js";
 import { readPackReport } from "../scripts/pack.js";
+import { nativePackages, nativePlatformSpec } from "../src/native-packages.js";
 
 const name = "@hadden-industries/json-quality";
 const git = "git+https://github.com/Hadden-Industries/json-quality.git#";
@@ -60,6 +67,9 @@ async function installation(
     version: "1.2.3",
     type: "module",
     files: ["index.js", "src/acquire.js"],
+    optionalDependencies: Object.fromEntries(
+      Object.values(nativePackages).map((spec) => [spec.package, "1.2.3"]),
+    ),
   };
   const payload = "export const approved = true;\n";
   const binary = nativeBinary
@@ -137,8 +147,56 @@ async function installation(
           ? source
           : "https://registry.npmjs.org/@hadden-industries/json-quality/-/json-quality-1.2.3.tgz",
         integrity,
+        optionalDependencies: manifest.optionalDependencies,
       },
     },
+  };
+  const { spec } = nativePlatformSpec();
+  const nativeProducer = join(root, "native-producer"),
+    nativeRoot = join(toolingRoot, "node_modules", spec.package),
+    nativeManifest = {
+      name: spec.package,
+      version: "1.2.3",
+      os: spec.os,
+      cpu: spec.cpu,
+      ...(spec.libc ? { libc: spec.libc } : {}),
+      exports: { "./package.json": "./package.json" },
+      files: ["binding.txt"],
+    };
+  mkdirSync(nativeProducer);
+  mkdirSync(nativeRoot, { recursive: true });
+  for (const path of [nativeProducer, nativeRoot]) {
+    writeFileSync(join(path, "package.json"), JSON.stringify(nativeManifest));
+    writeFileSync(
+      join(path, "binding.txt"),
+      "independently packed native payload\n",
+    );
+  }
+  const nativePacked = readPackReport(
+    execFileSync(
+      process.env.JSON_QUALITY_PRODUCER_NODE ?? process.execPath,
+      [
+        process.env.JSON_QUALITY_PRODUCER_NPM ?? npm,
+        "pack",
+        "--ignore-scripts",
+        "--json",
+        "--pack-destination",
+        root,
+      ],
+      { cwd: nativeProducer, encoding: "utf8", windowsHide: true },
+    ),
+  );
+  const nativeBytes = readFileSync(join(root, nativePacked.filename));
+  await npmRequire("cacache").put(
+    join(cachePath, "_cacache"),
+    "independent-native-fixture",
+    nativeBytes,
+  );
+  lock.packages[`node_modules/${spec.package}`] = {
+    version: "1.2.3",
+    resolved: `https://registry.npmjs.org/${spec.package}/-/fixture-1.2.3.tgz`,
+    integrity: nativePacked.integrity,
+    optional: true,
   };
   writeFileSync(join(toolingRoot, "package-lock.json"), JSON.stringify(lock));
   // Fixture bookkeeping is not part of the closed public verifier request.
@@ -146,6 +204,7 @@ async function installation(
     { toolingRoot, cachePath },
     {
       installedRoot: { value: installedRoot },
+      nativeRoot: { value: nativeRoot },
       lock: { value: lock },
     },
   );
@@ -154,7 +213,7 @@ async function installation(
 test("native packed fixture validates cached bytes independently of installed files", async (t) => {
   const context = await installation(t);
   const result = await verifyJsonQualityInstallation(context);
-  assert.equal(result.files, 3);
+  assert.equal(result.files, 5);
   writeFileSync(
     join(context.installedRoot, "index.js"),
     "export const approved = false;\n",
@@ -162,6 +221,42 @@ test("native packed fixture validates cached bytes independently of installed fi
   await assert.rejects(
     verifyJsonQualityInstallation(context),
     /payload differs/u,
+  );
+});
+
+test("the selected optional package has independent locked archive and installed-byte proof", async (t) => {
+  const context = await installation(t);
+  const result = await verifyJsonQualityInstallation(context);
+  assert.equal(result.native.name, nativePlatformSpec().spec.package);
+  assert.equal(result.native.files, 2);
+  writeFileSync(
+    join(context.nativeRoot, "binding.txt"),
+    "changed native payload\n",
+  );
+  await assert.rejects(
+    verifyJsonQualityInstallation(context),
+    /payload differs/u,
+  );
+});
+
+test("omitting the optional package fails explicitly without an acquisition fallback", async (t) => {
+  const context = await installation(t);
+  rmSync(context.nativeRoot, { recursive: true });
+  await assert.rejects(
+    verifyJsonQualityInstallation(context),
+    /matching optional JSON Quality platform package/u,
+  );
+});
+
+test("a mismatched optional package version cannot load as the selected core's native component", async (t) => {
+  const context = await installation(t);
+  const metadataPath = join(context.nativeRoot, "package.json"),
+    metadata = JSON.parse(readFileSync(metadataPath));
+  metadata.version = "9.9.9";
+  writeFileSync(metadataPath, JSON.stringify(metadata));
+  await assert.rejects(
+    verifyJsonQualityInstallation(context),
+    /package identities differ/u,
   );
 });
 
@@ -174,7 +269,7 @@ test("a real native binary member is streamed independently of the JSON file-byt
         capacityLimits: { maxFileBytes: 1 },
       })
     ).files,
-    4,
+    6,
   );
   const binary = join(context.installedRoot, "native-component.node");
   const bytes = readFileSync(binary);
@@ -257,7 +352,7 @@ test("default verification follows the same native cache policy as acquisition",
           toolingRoot: context.toolingRoot,
         })
       ).files,
-      3,
+      5,
     );
   } finally {
     if (previous === undefined) delete process.env.npm_config_cache;
@@ -274,7 +369,7 @@ test("consumer bootstraps are generated from one shared source and drift fails",
   );
   assert.equal(
     (await verifyJsonQualityInstallation({ ...context, bootstrapPath })).files,
-    3,
+    5,
   );
   writeFileSync(
     bootstrapPath,
@@ -341,12 +436,12 @@ test("payload bounds can be raised or bypassed without waiving file identity", a
         capacityLimits: { maxFiles: 10 },
       })
     ).files,
-    3,
+    5,
   );
   assert.equal(
     (await verifyJsonQualityInstallation({ ...context, capacityLimits: false }))
       .files,
-    3,
+    5,
   );
   writeFileSync(join(context.installedRoot, "unexpected.js"), "unexpected\n");
   await assert.rejects(

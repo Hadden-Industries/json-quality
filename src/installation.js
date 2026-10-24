@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join, isAbsolute } from "node:path";
+import { join, isAbsolute, relative, sep } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
 import { resolveExecutionResources } from "./execution-resources.js";
 import {
@@ -11,6 +12,7 @@ import {
 } from "./package-payload.js";
 import { assertRegularSource } from "./paths.js";
 import { nativeQualityCachePath } from "./acquire.js";
+import { nativePackages, resolveNativePackage } from "./native-packages.js";
 
 const packageName = "@hadden-industries/json-quality";
 
@@ -126,6 +128,55 @@ export async function verifyJsonQualityInstallation({
     admission,
     signal,
   });
+  const expectedPlatforms = Object.fromEntries(
+    Object.values(nativePackages).map((spec) => [
+      spec.package,
+      coordinate.version,
+    ]),
+  );
+  if (
+    !isDeepStrictEqual(installed.optionalDependencies, expectedPlatforms) ||
+    !isDeepStrictEqual(entry.optionalDependencies, expectedPlatforms)
+  )
+    throw new Error("Installed JSON quality platform declarations differ.");
+  const platform = await resolveNativePackage(installedRoot),
+    location = relative(root, platform.directory).split(sep).join("/");
+  if (
+    !location.startsWith("node_modules/") ||
+    location.split("/").includes("..")
+  )
+    throw new Error(
+      "JSON quality native package escaped its isolated installation.",
+    );
+  assertRegularSource(root, location + "/package.json");
+  const nativeLock = lock.packages[location];
+  if (
+    !nativeLock ||
+    nativeLock.link ||
+    nativeLock.version !== coordinate.version ||
+    !/^sha512-[A-Za-z0-9+/]+={0,2}$/u.test(nativeLock.integrity) ||
+    !nativeLock.resolved?.startsWith("https://registry.npmjs.org/") ||
+    !isDeepStrictEqual(platform.metadata.os, platform.spec.os) ||
+    !isDeepStrictEqual(platform.metadata.cpu, platform.spec.cpu) ||
+    !isDeepStrictEqual(platform.metadata.libc, platform.spec.libc)
+  )
+    throw new Error(
+      "JSON quality native package lock or platform identity differs.",
+    );
+  const nativeVerified = await verifyPackagePayload(npmRequire, {
+    cache,
+    integrity: nativeLock.integrity,
+    installedRoot: platform.directory,
+    admission,
+    signal,
+  });
+  const files = verified.files + nativeVerified.files,
+    bytes = BigInt(verified.bytes) + BigInt(nativeVerified.bytes);
+  if (
+    (admission.maxFiles != null && files > admission.maxFiles) ||
+    (admission.maxTotalBytes != null && bytes > BigInt(admission.maxTotalBytes))
+  )
+    throw new Error("Installed package family resource limit exceeded.");
   if (bootstrapPath) {
     const normalize = (bytes) =>
       new TextDecoder("utf-8", { fatal: true })
@@ -147,6 +198,12 @@ export async function verifyJsonQualityInstallation({
     specifier,
     coordinate,
     integrity: entry.integrity,
-    files: verified.files,
+    files,
+    native: {
+      name: platform.metadata.name,
+      version: platform.metadata.version,
+      integrity: nativeLock.integrity,
+      files: nativeVerified.files,
+    },
   };
 }

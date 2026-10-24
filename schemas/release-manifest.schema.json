@@ -12,11 +12,12 @@
     "matrix",
     "policy",
     "policySha256",
-    "toolchain"
+    "toolchain",
+    "platformArchives"
   ],
   "properties": {
     "schemaVersion": {
-      "const": 1
+      "const": 2
     },
     "package": {
       "const": "@hadden-industries/json-quality"
@@ -161,6 +162,38 @@
           "type": "string"
         }
       }
+    },
+    "platformArchives": {
+      "maxItems": 2,
+      "minItems": 2,
+      "items": {
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "package": {
+            "type": "string"
+          },
+          "archive": {
+            "$ref": "#/properties/archive"
+          },
+          "platform": {
+            "enum": [
+              "linux-x64",
+              "win32-x64"
+            ]
+          }
+        },
+        "required": [
+          "platform",
+          "package",
+          "version",
+          "archive"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "type": "array"
     }
   },
   "$defs": {

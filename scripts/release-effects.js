@@ -26,6 +26,7 @@ import {
   verifyManifest,
   verifyRun,
   effectJournal,
+  releasePackages,
 } from "./release-contract.js";
 import { refreshAdmission, verifyBundle } from "./release-evidence.js";
 import {
@@ -198,27 +199,29 @@ export function stage(directory, scratch, env = process.env) {
     historyRoot: scratch,
   });
   const isolation = npmEnvironment(scratch);
-  // A nonexistent package requires an independently authorized owner bootstrap.
-  const metadata = JSON.parse(
-    npmCommand(
-      [
-        "view",
-        release.package,
-        "--json",
-        "--registry=https://registry.npmjs.org/",
-      ],
-      { env: isolation },
-    ),
-  );
-  assert.equal(
-    metadata.name,
-    release.package,
-    "First-package bootstrap is incomplete",
-  );
-  assert.ok(
-    !metadata.versions?.includes(release.version),
-    "Version is already public",
-  );
+  // Preflight the entire family before the first privileged effect.
+  for (const subject of releasePackages(release)) {
+    const metadata = JSON.parse(
+      npmCommand(
+        [
+          "view",
+          subject.package,
+          "--json",
+          "--registry=https://registry.npmjs.org/",
+        ],
+        { env: isolation },
+      ),
+    );
+    assert.equal(
+      metadata.name,
+      subject.package,
+      "First-package bootstrap is incomplete",
+    );
+    assert.ok(
+      !metadata.versions?.includes(release.version),
+      "Version is already public",
+    );
+  }
   const journal = join(
     directory,
     effectJournal("stage", {
@@ -227,31 +230,48 @@ export function stage(directory, scratch, env = process.env) {
     }),
   );
   writeFileSync(journal, "", { flag: "wx", flush: true });
-  const outcome = journalEffect(
-    journal,
-    release,
-    "stage",
-    () => {
-      currentMain(env);
-      const response = npmCommand(
-        [
-          "stage",
-          "publish",
-          resolve(directory, release.archive.filename),
-          "--ignore-scripts",
-          "--access=public",
-          "--tag=pilot",
-          "--provenance",
-          "--json",
-          "--registry=https://registry.npmjs.org/",
-        ],
-        { env: isolation, phase: "npm-stage" },
-      );
-      save(join(directory, "stage-native.json"), Buffer.from(response));
-      return JSON.parse(response);
-    },
-    { env, verify: (value) => verifyStageResponse(value, release) },
-  );
+  const stages = [];
+  for (const subject of releasePackages(release)) {
+    const outcome = journalEffect(
+      journal,
+      { ...release, ...subject },
+      `stage:${subject.package}`,
+      () => {
+        currentMain(env);
+        const response = npmCommand(
+          [
+            "stage",
+            "publish",
+            resolve(directory, subject.archive.filename),
+            "--ignore-scripts",
+            "--access=public",
+            "--tag=pilot",
+            "--provenance",
+            "--json",
+            "--registry=https://registry.npmjs.org/",
+          ],
+          { env: isolation, phase: "npm-stage" },
+        );
+        save(
+          join(directory, `stage-native-${stages.length}.json`),
+          Buffer.from(response),
+        );
+        return JSON.parse(response);
+      },
+      { env, verify: (value) => verifyStageResponse(value, subject) },
+    );
+    stages.push({
+      package: subject.package,
+      version: subject.version,
+      integrity: subject.archive.integrity,
+      ...outcome.result,
+    });
+  }
+  const result = {
+    stageId: stages.at(-1).stageId,
+    state: "staged-awaiting-owner",
+    stages,
+  };
   context.stage = {
     run: env.GITHUB_RUN_ID,
     attempt: env.GITHUB_RUN_ATTEMPT,
@@ -267,11 +287,11 @@ export function stage(directory, scratch, env = process.env) {
       source: release.source.commit,
       integrity: release.archive.integrity,
     },
-    result: outcome.result,
+    result,
     origin: context.stage,
     journalSha256: sha256(regularBytes(journal)),
   });
-  return outcome;
+  return { state: "completed", result };
 }
 function githubRelease(release) {
   return api(`releases/tags/v${release.version}`);

@@ -368,5 +368,5 @@ export async function verifyPackagePayload(
     throw new Error(
       "Installed JSON quality payload differs from its locked cached archive.",
     );
-  return { files };
+  return { files, bytes: installedBytes.toString() };
 }

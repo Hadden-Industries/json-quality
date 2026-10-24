@@ -1,0 +1,37 @@
+{
+  "name": "@hadden-industries/json-quality-win32-x64",
+  "version": "1.0.0-rc.1",
+  "description": "Verified win32-x64 native component for JSON Quality",
+  "license": "AGPL-3.0-only",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "json-quality.node",
+    "json-quality-native.exe",
+    "component.json",
+    "build-evidence.json",
+    "notice-inventory.json",
+    "THIRD-PARTY-NOTICES.txt",
+    "notices",
+    "LICENSE"
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    "./component.json": "./component.json",
+    "./executable": "./json-quality-native.exe"
+  },
+  "bin": {
+    "json-quality-native": "json-quality-native.exe"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hadden-Industries/json-quality.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

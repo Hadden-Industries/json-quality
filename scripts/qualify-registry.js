@@ -9,7 +9,9 @@ import {
   save,
   verifyArchive,
   verifyManifest,
+  releasePackages,
 } from "./release-contract.js";
+import { nativePlatformSpec, nativePackages } from "../src/native-packages.js";
 import { verifyBundle } from "./release-evidence.js";
 import { budgets, native } from "./qualification-process.js";
 
@@ -43,6 +45,25 @@ export function verifyPublicMetadata(metadata, release) {
     metadata.dist.attestations?.url && metadata.dist.signatures?.length,
     "Native signatures and provenance metadata required",
   );
+  if (release.platformArchives) {
+    assert.deepEqual(
+      metadata.optionalDependencies,
+      Object.fromEntries(
+        release.platformArchives.map((entry) => [
+          entry.package,
+          release.version,
+        ]),
+      ),
+    );
+  } else if (release.platform) {
+    const spec = nativePackages[release.platform];
+    for (const key of ["os", "cpu", "libc"])
+      assert.deepEqual(
+        metadata[key],
+        spec[key],
+        `Wrong native ${key} selection`,
+      );
+  }
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   assert.equal(process.argv.length, 4);
@@ -52,25 +73,37 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     verifyBundle(directory, process.env.MANIFEST_SHA),
   );
   const context = JSON.parse(regularBytes(join(directory, "context.json")));
-  const metadata = JSON.parse(
-    await registryBytes(
-      `https://registry.npmjs.org/${encodeURIComponent(release.package)}/${encodeURIComponent(release.version)}`,
-      1048576,
-    ),
-  );
-  verifyPublicMetadata(metadata, release);
-  const archive = await registryBytes(
-    metadata.dist.tarball,
-    release.archive.size,
-  );
-  verifyArchive(archive, release.archive);
-  // Public bytes have been independently acquired; install remains an anonymous registry install.
+  const platform = nativePlatformSpec().platform;
+  for (const subject of releasePackages(release)) {
+    const metadata = JSON.parse(
+      await registryBytes(
+        `https://registry.npmjs.org/${encodeURIComponent(subject.package)}/${encodeURIComponent(release.version)}`,
+        1048576,
+      ),
+    );
+    verifyPublicMetadata(metadata, subject.platform ? subject : release);
+    save(
+      join(
+        output,
+        subject.platform
+          ? `registry-metadata-${subject.platform}.json`
+          : "registry-metadata.json",
+      ),
+      metadata,
+    );
+    if (subject.platform && subject.platform !== platform) continue;
+    const archive = await registryBytes(
+      metadata.dist.tarball,
+      subject.archive.size,
+    );
+    verifyArchive(archive, subject.archive);
+    // Public bytes have been independently acquired; install remains an anonymous registry install.
+    save(join(output, subject.archive.filename), archive);
+  }
   const tarball = join(output, release.archive.filename);
-  save(tarball, archive);
   const proof = join(directory, `${release.archive.filename}.provenance.json`);
   const publication = join(output, "publication.json");
   save(publication, { release, origin: context.stage });
-  save(join(output, "registry-metadata.json"), metadata);
   const npm = process.env.JSON_QUALITY_CONSUMER_NPM;
   assert.ok(npm);
   assert.ok(

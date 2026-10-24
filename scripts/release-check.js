@@ -9,6 +9,7 @@ import { npmCli } from "./qualification-process.js";
 import { verifyShippedLinks } from "./release-contract.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+await import("./project-native-packages.js");
 const pack = runNpmPack(root, { npm: npmCli() });
 const contents = new Map(
   pack.files
@@ -19,7 +20,7 @@ verifyShippedLinks(pack.files, contents);
 const schema = JSON.parse(
   readFileSync(join(root, "schemas/release-manifest.schema.json")),
 );
-assert.equal(schema.properties.schemaVersion.const, 1);
+assert.equal(schema.properties.schemaVersion.const, 2);
 console.log(
   JSON.stringify({ shipmentLinks: "passed", members: pack.files.length }),
 );

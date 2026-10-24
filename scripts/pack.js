@@ -7,12 +7,17 @@ import {
   unlinkSync,
   constants,
   mkdirSync,
+  mkdtempSync,
+  rmSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isPathContained } from "../src/paths.js";
 import { assertNativeExecutableModes } from "./release-contract.js";
+import { stageCore } from "./package-stage.js";
+import { nativePackages } from "../src/native-packages.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -81,8 +86,54 @@ export function packCandidate(destination) {
   mkdirSync(destination, { recursive: true });
   const sourceCommit = git(["rev-parse", "HEAD"]);
   const sourceTree = git(["rev-parse", "HEAD^{tree}"]);
-  const packed = runNpmPack(root, { npm, destination });
-  assertNativeExecutableModes(packed.files);
+  const stage = mkdtempSync(join(tmpdir(), "json-quality-core-"));
+  let packed;
+  const platformPackages = [];
+  try {
+    for (const [platform, spec] of Object.entries(nativePackages)) {
+      const directory = join(root, "native", "prebuilt", platform),
+        metadata = JSON.parse(readFileSync(join(directory, "package.json")));
+      if (
+        metadata.name !== spec.package ||
+        metadata.version !==
+          JSON.parse(readFileSync(join(root, "package.json"))).version
+      )
+        throw new Error("Platform package metadata differs from its core");
+      const nativePacked = runNpmPack(directory, { npm, destination });
+      if (platform === "linux-x64")
+        assertNativeExecutableModes(nativePacked.files);
+      const original = join(destination, nativePacked.filename),
+        archive = nativePacked.filename.replace(
+          /\.tgz$/u,
+          `-${sourceCommit}.tgz`,
+        );
+      copyFileSync(
+        original,
+        join(destination, archive),
+        constants.COPYFILE_EXCL,
+      );
+      unlinkSync(original);
+      const bytes = readFileSync(join(destination, archive));
+      platformPackages.push({
+        platform,
+        name: nativePacked.name,
+        version: nativePacked.version,
+        archive,
+        sha256: hash(bytes),
+        integrity: nativePacked.integrity,
+        files: nativePacked.files.map(({ path, size, mode }) => ({
+          path,
+          size,
+          mode,
+        })),
+      });
+    }
+    const core = join(stage, "core");
+    stageCore(root, core);
+    packed = runNpmPack(core, { npm, destination });
+  } finally {
+    rmSync(stage, { recursive: true, force: true });
+  }
   const original = resolve(destination, packed.filename);
   const archive = resolve(
     destination,
@@ -107,6 +158,13 @@ export function packCandidate(destination) {
     integrity: packed.integrity,
     lockSha256: hash(readFileSync(resolve(root, "package-lock.json"))),
     dependencies: manifest.dependencies,
+    optionalDependencies: Object.fromEntries(
+      Object.values(nativePackages).map((spec) => [
+        spec.package,
+        manifest.version,
+      ]),
+    ),
+    platformPackages,
     files: packed.files.map(({ path, size, mode }) => ({ path, size, mode })),
   };
   if (

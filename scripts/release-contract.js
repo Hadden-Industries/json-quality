@@ -22,12 +22,13 @@ import {
   PACKAGE_VERIFICATION_CAPABILITIES as packageCapabilities,
   packageTarSink,
 } from "../src/package-payload.js";
+import { nativePackages } from "../src/native-packages.js";
 
 export const repository = "Hadden-Industries/json-quality";
 export const packageName = "@hadden-industries/json-quality";
-const linuxNativeExecutable = "native/prebuilt/linux-x64/json-quality-native";
+const linuxNativeExecutable = "json-quality-native";
 
-/** Universal archives must be directly runnable by a non-Node POSIX host. */
+/** The Linux package must also be directly runnable by a non-Node host. */
 export function assertNativeExecutableModes(files) {
   const executable = files.find(({ path }) => path === linuxNativeExecutable);
   if (
@@ -35,9 +36,7 @@ export function assertNativeExecutableModes(files) {
     !Number.isSafeInteger(executable.mode) ||
     (executable.mode & 0o111) === 0
   )
-    throw new Error(
-      "The universal archive lost the Linux executable mode; use a POSIX producer with the Git-owned executable bit.",
-    );
+    throw new Error("The Linux package lost its native executable mode.");
 }
 export function effectJournal(phase, origin) {
   assert.ok(["stage", "archive", "promote"].includes(phase));
@@ -131,23 +130,58 @@ export function verifyManifest(release) {
     `Invalid release manifest: ${JSON.stringify(validate.errors)}`,
   );
   validVersion(release.version);
-  assert.ok(
-    release.archive.size <= packageCapabilities.maximumArchiveBytes,
-    "Release archive exceeds package transport capability",
+  assert.deepEqual(
+    release.platformArchives.map((entry) => entry.platform).sort(),
+    Object.keys(nativePackages).sort(),
+    "Missing, duplicate or unexpected platform archive",
   );
-  let expandedBytes = 0n;
-  for (const member of release.archive.files) {
-    assert.ok(
-      Number.isSafeInteger(member.size) &&
-        member.size <= packageCapabilities.maximumMemberBytes,
-      "Release member exceeds package transport capability",
-    );
-    expandedBytes += BigInt(member.size);
+  for (const entry of release.platformArchives) {
+    const spec = nativePackages[entry.platform];
+    assert.equal(entry.package, spec.package);
+    assert.equal(entry.version, release.version);
+    for (const required of [
+      "package.json",
+      "LICENSE",
+      "component.json",
+      "json-quality.node",
+      spec.executable,
+    ])
+      assert.ok(
+        entry.archive.files.some((file) => file.path === required),
+        `Missing native shipment ${required}`,
+      );
   }
-  assert.ok(
-    expandedBytes <= BigInt(packageCapabilities.maximumExpandedBytes),
-    "Release expanded bytes exceed package transport capability",
+  assert.equal(
+    new Set(releasePackages(release).map((entry) => entry.archive.filename))
+      .size,
+    3,
+    "Colliding package archive names",
   );
+  for (const { archive } of releasePackages(release)) {
+    const paths = archive.files.map(({ path }) => safeMember(path));
+    assert.equal(
+      new Set(paths.map((path) => path.toLowerCase())).size,
+      paths.length,
+      "Colliding archive members",
+    );
+    assert.ok(
+      archive.size <= packageCapabilities.maximumArchiveBytes,
+      "Release archive exceeds package transport capability",
+    );
+    let expandedBytes = 0n;
+    for (const member of archive.files) {
+      assert.ok(
+        Number.isSafeInteger(member.size) &&
+          member.size <= packageCapabilities.maximumMemberBytes,
+        "Release member exceeds package transport capability",
+      );
+      expandedBytes += BigInt(member.size);
+    }
+    assert.ok(
+      expandedBytes <= BigInt(packageCapabilities.maximumExpandedBytes),
+      "Release expanded bytes exceed package transport capability",
+    );
+  }
   const { matrix, policy } = release;
   assert.deepEqual([...matrix.os].sort(), [...policy.platforms].sort());
   assert.ok(matrix.node.includes(policy.reference));
@@ -185,6 +219,17 @@ export function verifyManifest(release) {
     ),
   );
   return release;
+}
+/** One frozen publication family; stage platform packages before its core. */
+export function releasePackages(release) {
+  return [
+    ...release.platformArchives,
+    {
+      package: release.package,
+      version: release.version,
+      archive: release.archive,
+    },
+  ];
 }
 export function validateFrozenMatrix(matrix, policy) {
   assert.deepEqual([...matrix.os].sort(), [...policy.platforms].sort());

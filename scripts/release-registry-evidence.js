@@ -45,6 +45,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       "root-result.json",
       "isolated-result.json",
       "registry-metadata.json",
+      ...release.platformArchives.map(
+        (entry) => `registry-metadata-${entry.platform}.json`,
+      ),
       "publication.json",
       ...["root", "isolated"].flatMap((layout) => [
         `${layout}-lock.json`,

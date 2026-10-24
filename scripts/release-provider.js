@@ -323,7 +323,10 @@ export function verifyEffectHistory(
         sha256(Buffer.from(JSON.stringify(intent) + "\n")),
       );
       if (
-        intent.package === subject.package &&
+        [
+          subject.package,
+          ...(subject.platformArchives ?? []).map((entry) => entry.package),
+        ].includes(intent.package) &&
         intent.version === subject.version
       )
         evidence.push({ intent, outcome });

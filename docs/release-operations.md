@@ -5,10 +5,14 @@ Ordinary product CI stays manual.
 Automatic CodeQL remains independent.
 A source push, dependency update, or tag cannot stage or publish a package.
 
-The package has one designated tarball.
-The reference Linux producer packs that universal archive with the Git-owned Linux native executable mode.
-Windows recipients qualify the same archive through the existing `--archive` and `--provenance` inputs; a Windows-produced archive that loses POSIX execute permissions is rejected.
-Its local `.provenance.json` records byte identity; authenticated registry provenance comes from native npm verification.
+The release has three designated tarballs: `@hadden-industries/json-quality`, `@hadden-industries/json-quality-linux-x64`, and `@hadden-industries/json-quality-win32-x64`.
+The small core declares exact-version optional dependencies, following Markdown Quality's existing distribution pattern.
+Native npm selects Windows x64 or Linux x64 glibc; each platform package contains its Node addon, standalone executable and verified notices.
+The producer's development file links are rewritten to exact registry versions only in the staged core.
+All packages share the owner-selected version, but retain independent archive integrity and authenticated registry provenance.
+The existing `--archive` and `--provenance` inputs identify the core and its frozen companion archives; each recipient qualifies the core and only its matching platform payload.
+Linux executable mode is checked in the actual native archive.
+The local `.provenance.json` records all three byte identities; authenticated registry provenance comes from native npm verification.
 The owner-selected package release candidate is `1.0.0-rc.1`, with configuration/event/native cohort 2.
 Public API/schema exports, executable artifacts, CLI entrypoints and consumer Node floors remain separate compatibility contracts.
 
@@ -61,7 +65,8 @@ The promotion connection's native ability to stage remains a residual capability
 For a nonexistent package, npm staging creates a public `0.0.0-stage` placeholder.
 Owner-session bootstrap, native rejection and OIDC re-staging need exact-version, exact-byte authorization and observed native support.
 Do not create a dummy release, approve a local bootstrap and call it OIDC provenance, or infer package ownership from a 404.
-The hosted staging command refuses incomplete bootstrap.
+The hosted staging command checks all three package identities before any effect and refuses incomplete bootstrap.
+Each identity needs its own owner access and trusted-publisher connections.
 See [npm staged publishing](https://docs.npmjs.com/staged-publishing/).
 
 ## Qualification and owner review
@@ -71,7 +76,7 @@ See [npm staged publishing](https://docs.npmjs.com/staged-publishing/).
    Keep the producer npm policy in `assets/node-support.json`; do not raise consumer floors to run publisher tools.
 2. Dispatch `release-qualification.yml` on `main` with the exact committed version.
    One matrix is frozen once.
-   Callable product CI runs producer checks and transports the same tarball through every Windows/Linux minimum, reference, and current-family lane.
+   Callable product CI runs producer checks and transports the same frozen release family through every Windows/Linux minimum, reference, and current-family lane.
    Root and isolated consumers retain native dependency validity, audit, lock, SBOM, location and behavioral evidence.
 3. Wait for the complete run.
    Inspect the real provider job graph, all reports, exact-source Actions and JavaScript/TypeScript CodeQL analyses, warnings and query identities.
@@ -177,7 +182,10 @@ Retain the exact original journal, request/response, candidate digest and provid
 Preserve the original records and any already completed effect; never edit evidence to turn failure into success or automatically overwrite a newer legitimate promotion.
 
 The optional `recovery_json` dispatch input contains `schemaVersion: 1`, owner, exact manifest/version, originating `phase`, `run`, `attempt`, original `journalSha256`, `acceptedAt` and a specific `rationale`.
-Stage continuation also names the owner-inspected `stageId`; label reconciliation names `targetVersion`.
+Stage continuation names all three owner-inspected stages in `stages`, each with `package` and `stageId`; label reconciliation names `targetVersion`.
+Every stage effect records its actual package identity, integrity and independent response before the next package is attempted.
+Platforms stage before core; all three owner approvals precede registry qualification.
+An incomplete family cannot be reported as a successful release or automatically completed by replaying requests.
 If npm has already reached the target but a GitHub label request is unknown, the owner may explicitly select `githubAction: "repair-current-label"` and `expectedGithubLatest` (including null).
 Fresh native readback must observe the exact prior GitHub label and npm target.
 This authorizes only a separate guarded GitHub label repair; it neither certifies the old request absent nor replays npm.

@@ -19,6 +19,7 @@ import {
   repository,
   effectJournal,
   retainedRecoveries,
+  releasePackages,
 } from "./release-contract.js";
 import {
   checkEnvironment,
@@ -60,6 +61,15 @@ export function verifyReport(report, release, lane, qualification, layout) {
     report.installSource,
     qualification === "public registry" ? "registry" : "producer-archive",
   );
+  const platform = lane.os.startsWith("windows") ? "win32-x64" : "linux-x64",
+    expected = release.platformArchives.find(
+      (entry) => entry.platform === platform,
+    );
+  assert.deepEqual(report.nativePackage, {
+    name: expected.package,
+    version: release.version,
+    integrity: expected.archive.integrity,
+  });
 }
 function copyEvidence(from, to) {
   mkdirSync(to, { recursive: true });
@@ -128,6 +138,11 @@ export function verifyBundle(directory, manifestSha) {
     releaseArtifactBytes(join(directory, release.archive.filename)),
     release.archive,
   );
+  for (const entry of release.platformArchives)
+    verifyArchive(
+      releaseArtifactBytes(join(directory, entry.archive.filename)),
+      entry.archive,
+    );
   const index = readJson(join(directory, "evidence-index.json"));
   assert.equal(index.manifestSha256, manifestSha);
   const names = new Set();
@@ -227,6 +242,8 @@ export function refreshAdmission(
     assert.equal(stage.subject.source, release.source.commit);
     assert.equal(stage.subject.integrity, release.archive.integrity);
     assert.ok(stage.result.stageId);
+    verifyStageFamily(stage.result.stages, release);
+    assert.equal(stage.result.stageId, stage.result.stages.at(-1).stageId);
     assert.deepEqual(stage.origin, context.stage);
     assert.equal(
       stage.journalSha256,
@@ -267,17 +284,36 @@ export function refreshAdmission(
     history = verifyEffectHistory(
       readEffectHistory(env, historyRoot, decision.historyCheckpoint),
       { run: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT },
-      { package: release.package, version: release.version },
+      release,
       recovery,
     );
     if (phase === "stage")
       assert.ok(
-        !history.some((entry) => entry.intent.operation === "stage"),
+        !history.some(
+          (entry) =>
+            entry.intent.operation === "stage" ||
+            entry.intent.operation.startsWith("stage:"),
+        ),
         "Version was staged already; use continuation, never re-stage",
       );
   }
   currentMain(env);
   return { release, context, history, recovery };
+}
+/** Every optional package is an independently approved immutable publication. */
+export function verifyStageFamily(stages, release) {
+  assert.equal(stages?.length, 3, "Incomplete staged package family");
+  for (const [index, subject] of releasePackages(release).entries()) {
+    const actual = stages[index];
+    assert.equal(actual.package, subject.package);
+    assert.equal(actual.version, subject.version);
+    assert.equal(actual.integrity, subject.archive.integrity);
+    assert.match(actual.stageId, /^[^\x00-\x1f]{1,256}$/u);
+  }
+  assert.equal(
+    new Set(stages.map((entry) => entry.stageId)).size,
+    stages.length,
+  );
 }
 /** A post-publication owner decision cannot be attached to an immutable release. */
 export function admitRestoration(directory, release, env) {

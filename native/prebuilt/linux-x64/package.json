@@ -1,0 +1,40 @@
+{
+  "name": "@hadden-industries/json-quality-linux-x64",
+  "version": "1.0.0-rc.1",
+  "description": "Verified linux-x64 native component for JSON Quality",
+  "license": "AGPL-3.0-only",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "files": [
+    "json-quality.node",
+    "json-quality-native",
+    "component.json",
+    "build-evidence.json",
+    "notice-inventory.json",
+    "THIRD-PARTY-NOTICES.txt",
+    "notices",
+    "LICENSE"
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    "./component.json": "./component.json",
+    "./executable": "./json-quality-native"
+  },
+  "bin": {
+    "json-quality-native": "json-quality-native"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hadden-Industries/json-quality.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

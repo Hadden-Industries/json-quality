@@ -3,6 +3,9 @@
 import assert from "node:assert/strict";
 import {
   chmodSync,
+  cpSync,
+  lstatSync,
+  readdirSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -21,7 +24,9 @@ import {
   sha256,
   sha512,
   verifyProvenance,
+  releasePackages,
 } from "./release-contract.js";
+import { nativePackages } from "../src/native-packages.js";
 
 export function isolatedNpmEnvironment(root, env = process.env) {
   const result = Object.fromEntries(
@@ -67,11 +72,24 @@ export function verifySbom(bom, lock, directory, inventory) {
     );
   }
   const components = [...bom.components, bom.metadata.component];
-  for (const [location, entry] of Object.entries(lock.packages).filter(
-    ([path, value]) => path && !value.dev,
-  )) {
+  assert.ok(Array.isArray(inventory));
+  for (const [location, entry] of Object.entries(lock.packages))
+    if (location && !entry.dev && !entry.link && !entry.optional)
+      assert.ok(
+        inventory.some((node) => node.location === location),
+        `Missing required installed location: ${location}`,
+      );
+  for (const node of inventory.filter((entry) => entry.location)) {
+    const location = node.location,
+      entry = lock.packages[location];
+    assert.ok(
+      entry && !entry.dev && !entry.link,
+      `Installed location absent from frozen production lock: ${location}`,
+    );
     const metadata = readJson(join(directory, location, "package.json"));
     assert.equal(metadata.version, entry.version);
+    assert.equal(node.version, entry.version);
+    assert.equal(node.name, metadata.name);
     const matching = components.filter(
       (c) => c.name === metadata.name && c.version === entry.version,
     );
@@ -136,7 +154,7 @@ export async function installedInventory(directory, npm) {
     ignoreScripts: true,
   }).loadActual();
   return [...tree.inventory.values()]
-    .filter((node) => !node.dev && !node.isLink)
+    .filter((node) => !node.dev && !node.isLink && !node.extraneous)
     .map((node) => ({
       location: node.location,
       ref: `${node.packageName}@${node.version}`,
@@ -174,18 +192,26 @@ export function normalizeFileReferences(bom, lock, directory, expectedArchive) {
       assert.equal(component.name, metadata.name);
       assert.ok(entry.integrity?.startsWith("sha512-"));
       const original = reference.url;
-      assert.ok(
-        expectedArchive &&
-          metadata.name === expectedArchive.name &&
-          metadata.version === expectedArchive.version,
-        "Only the verified package tarball may receive a file URI repair",
+      const expected = (
+        Array.isArray(expectedArchive) ? expectedArchive : [expectedArchive]
+      ).filter(
+        (entry) =>
+          entry &&
+          entry.name === metadata.name &&
+          entry.version === metadata.version,
       );
+      assert.equal(
+        expected.length,
+        1,
+        "Only one verified package tarball may receive a file URI repair",
+      );
+      const selected = expected[0];
       const archivePath = filePath(original);
-      assert.equal(archivePath, resolve(expectedArchive.path));
-      assert.equal(entry.integrity, expectedArchive.integrity);
+      assert.equal(archivePath, resolve(selected.path));
+      assert.equal(entry.integrity, selected.integrity);
       assert.equal(
         sha512(releaseArtifactBytes(archivePath)),
-        expectedArchive.integrity,
+        selected.integrity,
       );
       // npm lock file references are paths after file:, relative to the install root.
       reference.url = pathToFileURL(archivePath).href;
@@ -332,11 +358,23 @@ export async function recipientEvidence({
         phase: `${layout}-signatures-provenance`,
       },
     );
-    verifyProvenance(
-      JSON.parse(verification),
-      publication.release,
-      publication.origin,
+    const subjects = releasePackages(publication.release).filter((subject) =>
+      inventory.some(
+        (entry) =>
+          entry.name === subject.package && entry.version === subject.version,
+      ),
     );
+    assert.equal(
+      subjects.length,
+      2,
+      "Registry recipient must contain core and exactly one native package",
+    );
+    for (const subject of subjects)
+      verifyProvenance(
+        JSON.parse(verification),
+        { ...publication.release, ...subject },
+        publication.origin,
+      );
     save(join(output, `${layout}-signatures.json`), Buffer.from(verification));
   }
   save(join(output, `${layout}-inventory.json`), {
@@ -367,6 +405,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   delete metadata.devDependencies;
   delete metadata.scripts;
   save(join(install, "package.json"), metadata);
+  stageSourceNativePackages(directory, install);
   const environment = isolatedNpmEnvironment(output);
   npmCommand(
     ["ci", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"],
@@ -411,4 +450,23 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     `v${bom.specVersion.replace(".", "_")}`,
     "--fail-on-errors",
   ]);
+}
+/** Preserve the producer's checked-in development links in a disposable install. */
+export function stageSourceNativePackages(directory, install) {
+  function inspect(path) {
+    const info = lstatSync(path);
+    assert.ok(!info.isSymbolicLink(), "Redirected source native package");
+    if (info.isDirectory())
+      for (const name of readdirSync(path)) inspect(join(path, name));
+    else assert.ok(info.isFile(), "Nonregular source native package");
+  }
+  for (const platform of Object.keys(nativePackages)) {
+    const path = join(directory, "native", "prebuilt", platform);
+    inspect(path);
+    cpSync(path, join(install, "native", "prebuilt", platform), {
+      recursive: true,
+      force: false,
+      errorOnExist: true,
+    });
+  }
 }

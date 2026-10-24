@@ -13,6 +13,7 @@ import {
   verifyManifest,
   effectJournal,
   retainedRecoveries,
+  releasePackages,
 } from "./release-contract.js";
 import { api, gh, provider, optionalApi } from "./release-provider.js";
 import { npmCommand } from "./qualification-process.js";
@@ -46,14 +47,21 @@ export function verifyRecoveryRecord(record, release, manifestSha, journal) {
     assert.equal(intent.run, String(record.run));
     assert.equal(intent.attempt, String(record.attempt));
     assert.equal(intent.manifestSha256, manifestSha);
-    assert.equal(intent.package, release.package);
+    const subject =
+      record.phase === "stage"
+        ? releasePackages(release).find(
+            (entry) => entry.package === intent.package,
+          )
+        : release;
+    assert.ok(subject, "Unknown recovery package");
+    assert.equal(intent.package, subject.package);
     assert.equal(intent.version, release.version);
     assert.equal(intent.source, release.source.commit);
-    assert.equal(intent.integrity, release.archive.integrity);
+    assert.equal(intent.integrity, subject.archive.integrity);
     assert.match(intent.controller, /^[a-f0-9]{40}$/u);
     assert.ok(
       record.phase === "stage"
-        ? intent.operation === "stage"
+        ? intent.operation === `stage:${subject.package}`
         : record.phase === "archive"
           ? intent.operation === "archive" ||
             intent.operation.startsWith("upload:")
@@ -190,28 +198,50 @@ function reconcileOne(
   assert.equal(original.run.head_sha, first.controller);
   let observed;
   if (record.phase === "stage") {
-    assert.ok(
-      typeof record.stageId === "string" &&
-        /^[^\x00-\x1f]{1,256}$/u.test(record.stageId),
+    // Recovery observes all members. It cannot authorize a missing stage effect.
+    const stages = [];
+    assert.equal(
+      record.stages?.length,
+      3,
+      "Owner must identify every native stage",
     );
-    const metadata = JSON.parse(
-      readNpm([
-        "view",
-        `${release.package}@${release.version}`,
-        "--json",
-        "--registry=https://registry.npmjs.org/",
-      ]),
-    );
-    assert.equal(metadata.dist.integrity, release.archive.integrity);
-    assert.equal(metadata.name, release.package);
-    assert.equal(metadata.version, release.version);
-    assert.ok(
-      metadata.dist.attestations?.url && metadata.dist.signatures?.length,
-    );
-    observed = {
-      publicVersion: metadata.version,
-      integrity: metadata.dist.integrity,
-    };
+    for (const subject of releasePackages(release)) {
+      const selected = record.stages.filter(
+        (entry) => entry.package === subject.package,
+      );
+      assert.equal(selected.length, 1);
+      assert.match(selected[0].stageId, /^[^\x00-\x1f]{1,256}$/u);
+      assert.ok(
+        records.some(
+          (intent) =>
+            intent.state === "intent" && intent.package === subject.package,
+        ),
+        "Recovery cannot stage a missing family member",
+      );
+      const metadata = JSON.parse(
+        readNpm([
+          "view",
+          `${subject.package}@${release.version}`,
+          "--json",
+          "--registry=https://registry.npmjs.org/",
+        ]),
+      );
+      assert.equal(metadata.dist.integrity, subject.archive.integrity);
+      assert.equal(metadata.name, subject.package);
+      assert.equal(metadata.version, release.version);
+      assert.ok(
+        metadata.dist.attestations?.url && metadata.dist.signatures?.length,
+      );
+      stages.push({
+        package: subject.package,
+        version: release.version,
+        integrity: metadata.dist.integrity,
+        stageId: selected[0].stageId,
+        state: "public-observed-awaiting-qualification",
+      });
+    }
+    assert.equal(new Set(stages.map((entry) => entry.stageId)).size, 3);
+    observed = { stages };
     const context = readJson(join(directory, "context.json"));
     context.stage = {
       run: String(record.run),
@@ -229,8 +259,9 @@ function reconcileOne(
           integrity: release.archive.integrity,
         },
         result: {
-          stageId: record.stageId,
+          stageId: stages.at(-1).stageId,
           state: "public-observed-awaiting-qualification",
+          stages,
         },
         origin: context.stage,
         journalSha256: sha256(journal),

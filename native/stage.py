@@ -106,9 +106,26 @@ def main():
     if destination.exists() and not args.replace:
         raise ValueError("Component already exists; use explicit --replace")
     directory(destination)
+    package_metadata = destination / "package.json"
+    package_license = destination / "LICENSE"
+    if package_metadata.exists():
+        regular(package_metadata)
+        package = json.loads(package_metadata.read_text(encoding="utf-8"))
+        core = json.loads((build.REPO / "package.json").read_text(encoding="utf-8"))
+        if (
+            package.get("name") != "@hadden-industries/json-quality-" + platform
+            or package.get("version") != core["version"]
+        ):
+            raise ValueError("Platform package identity differs from the core")
+    if package_license.exists():
+        regular(package_license)
+        if build.digest(package_license) != build.digest(build.REPO / "LICENSE"):
+            raise ValueError("Platform package license differs from its owner")
     for path in destination.rglob("*"):
         if path.is_dir():
             directory(path)
+        elif path in (package_metadata, package_license):
+            regular(path)
         elif path.relative_to(destination).as_posix() not in members:
             raise ValueError(
                 "Unknown existing package asset; preserved without modification"

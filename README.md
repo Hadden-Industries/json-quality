@@ -68,6 +68,8 @@ Protected, native, logical and JSONL sources retain their owning producer's effe
 The exact native dependencies are Boost 1.92.0, ICU 79.1 with Unicode 18.0, SQLite 3.54.1 and double-conversion 3.4.0.
 Node-API and the framed executable use the same core.
 Installed operation loads only verified packaged artifacts; it performs no compiler or downloader fallback.
+The small core uses exact-version optional packages for Windows x64 and Linux x64 glibc, so native npm installs only the matching platform's binaries.
+Keep optional dependencies enabled; both the Node addon and standalone executable remain available in that platform package.
 The [native protocol](docs/native-protocol.md) documents the non-Node boundary.
 
 The `./eslint` export retains the separate JavaScript `no-json-stringify-identity` rule.

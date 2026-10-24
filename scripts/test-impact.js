@@ -4,6 +4,7 @@ export const fullFiles = new Set([
   "src/acquire.js", // Copied bootstrap and dynamic installed-package loading.
   "src/installation.js", // Reads the installed source/lock/metadata graph as data.
   "src/installed-component.js", // Fixed installed native assets are non-import inputs.
+  "src/native-packages.js", // Native npm platform packages are resolved dynamically.
   "src/native-component.js", // Admission binds binary and generated-control bytes.
 ]);
 export const relations = [

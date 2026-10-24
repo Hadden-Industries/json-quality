@@ -9,7 +9,7 @@ import {
   realpathSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { join, sep, dirname } from "node:path";
 import { createHash } from "node:crypto";
 import { parseArgs } from "node:util";
 import { packCandidate } from "./pack.js";
@@ -20,6 +20,10 @@ import {
   recipientEvidence,
   isolatedNpmEnvironment,
 } from "./release-inventory.js";
+import {
+  nativePlatformSpec,
+  resolveNativePackage,
+} from "../src/native-packages.js";
 
 const { values } = parseArgs({
   options: {
@@ -85,6 +89,22 @@ try {
       ? join(directory, "consumer", "tooling", "json")
       : join(directory, "consumer");
   const fixture = join(directory, "fixture");
+  const selectedPlatform = nativePlatformSpec(),
+    platformArchive = provenance.platformPackages.find(
+      (entry) => entry.platform === selectedPlatform.platform,
+    );
+  if (
+    !platformArchive ||
+    platformArchive.name !== selectedPlatform.spec.package ||
+    platformArchive.version !== provenance.version
+  )
+    throw new Error("Missing or mismatched frozen platform package");
+  const nativeArchive = join(dirname(archive), platformArchive.archive);
+  verifyArchive(readFileSync(nativeArchive), {
+    size: readFileSync(nativeArchive).length,
+    sha256: platformArchive.sha256,
+    integrity: platformArchive.integrity,
+  });
   mkdirSync(consumer, { recursive: true });
   mkdirSync(fixture);
   writeFileSync(
@@ -101,6 +121,15 @@ try {
             ? provenance.version
             : `file:${archive}`,
         },
+        ...(!values.registry
+          ? {
+              overrides: {
+                [provenance.name]: {
+                  [platformArchive.name]: `file:${nativeArchive}`,
+                },
+              },
+            }
+          : {}),
       },
       null,
       2,
@@ -126,25 +155,24 @@ try {
       phase: `${values.layout}-recipient-install`,
     },
   );
-  if (values.registry) {
-    const inventory = await archiveInventory(archive, npm);
+  const coreRoot = join(
+    consumer,
+    "node_modules",
+    ...provenance.name.split("/"),
+  );
+  const selectedNative = await resolveNativePackage(coreRoot);
+  if (selectedNative.metadata.name !== platformArchive.name)
+    throw new Error("Installed optional package differs from its platform");
+  for (const [path, installedRoot] of [
+    [archive, coreRoot],
+    [nativeArchive, selectedNative.directory],
+  ]) {
+    const inventory = await archiveInventory(path, npm);
     for (const member of inventory.files) {
-      const installed = readFileSync(
-        join(
-          consumer,
-          "node_modules",
-          ...provenance.name.split("/"),
-          member.path,
-        ),
-      );
+      const installed = readFileSync(join(installedRoot, member.path));
       if (sha256(installed) !== member.sha256)
         throw new Error(`Installed payload differs: ${member.path}`);
     }
-    verifyArchive(readFileSync(archive), {
-      size: readFileSync(archive).length,
-      sha256: provenance.sha256,
-      integrity: provenance.integrity,
-    });
   }
   if (values.evidence) {
     await recipientEvidence({
@@ -157,12 +185,20 @@ try {
       publication: values.publication
         ? JSON.parse(readFileSync(values.publication))
         : undefined,
-      expectedArchive: {
-        path: archive,
-        name: provenance.name,
-        version: provenance.version,
-        integrity: provenance.integrity,
-      },
+      expectedArchive: [
+        {
+          path: archive,
+          name: provenance.name,
+          version: provenance.version,
+          integrity: provenance.integrity,
+        },
+        {
+          path: nativeArchive,
+          name: platformArchive.name,
+          version: platformArchive.version,
+          integrity: platformArchive.integrity,
+        },
+      ],
     });
   }
   execFileSync("git", ["init", "-q", fixture], { windowsHide: true });
@@ -251,6 +287,11 @@ try {
     nativeToolchain: toolchain,
     packageVersion: provenance.version,
     installSource: values.registry ? "registry" : "producer-archive",
+    nativePackage: {
+      name: platformArchive.name,
+      version: platformArchive.version,
+      integrity: platformArchive.integrity,
+    },
     qualification: values.registry ? "public registry" : "transported archive",
     layout: values.layout,
     publicExports: 6,

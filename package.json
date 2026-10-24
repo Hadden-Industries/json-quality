@@ -46,7 +46,7 @@
   "files": [
     "src/",
     "schemas/",
-    "native/",
+    "assets/native-packages.json",
     "LICENSE",
     "THIRD-PARTY-NOTICES.md",
     "README.md",
@@ -116,6 +116,10 @@
   "dependencies": {
     "ajv": "8.20.0",
     "prettier": "3.9.10"
+  },
+  "optionalDependencies": {
+    "@hadden-industries/json-quality-linux-x64": "file:native/prebuilt/linux-x64",
+    "@hadden-industries/json-quality-win32-x64": "file:native/prebuilt/win32-x64"
   },
   "devDependencies": {
     "@eslint/json": "2.1.1",

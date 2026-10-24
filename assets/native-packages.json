@@ -1,0 +1,25 @@
+{
+  "linux-x64": {
+    "package": "@hadden-industries/json-quality-linux-x64",
+    "os": [
+      "linux"
+    ],
+    "cpu": [
+      "x64"
+    ],
+    "libc": [
+      "glibc"
+    ],
+    "executable": "json-quality-native"
+  },
+  "win32-x64": {
+    "package": "@hadden-industries/json-quality-win32-x64",
+    "os": [
+      "win32"
+    ],
+    "cpu": [
+      "x64"
+    ],
+    "executable": "json-quality-native.exe"
+  }
+}

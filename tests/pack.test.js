@@ -12,6 +12,7 @@ import {
   verifyShippedLinks,
 } from "../scripts/release-contract.js";
 import { temporaryDirectory } from "./temporary-directory.js";
+import { stageCore } from "../scripts/package-stage.js";
 
 test("shared native packing distinguishes inspection from archive writing without running lifecycle scripts", (t) => {
   const root = temporaryDirectory(t, "json-native-pack-");
@@ -67,20 +68,24 @@ test("native npm 12 pack reporting admits exactly one package and rejects legacy
   );
   const report = readPackReport(output);
   assert.equal(report.name, "@hadden-industries/json-quality");
-  const nativeExecutable = report.files.find(
-    ({ path }) => path === "native/prebuilt/linux-x64/json-quality-native",
+  assert.ok(
+    !report.files.some(({ path }) => path.startsWith("native/")),
+    "The core must not ship platform payloads.",
   );
-  assert.ok(nativeExecutable, "The Linux native executable must ship.");
-  if (process.platform === "win32") {
-    assert.equal(nativeExecutable.mode & 0o111, 0);
-    assert.throws(
-      () => assertNativeExecutableModes(report.files),
-      /POSIX producer/u,
-    );
-  } else {
-    assert.notEqual(nativeExecutable.mode & 0o111, 0);
-    assert.doesNotThrow(() => assertNativeExecutableModes(report.files));
-  }
+  const nativeReport = runNpmPack(
+    fileURLToPath(new URL("../native/prebuilt/linux-x64/", import.meta.url)),
+    { npm },
+  );
+  const nativeExecutable = nativeReport.files.find(
+    ({ path }) => path === "json-quality-native",
+  );
+  assert.ok(
+    nativeExecutable,
+    "The Linux package must ship its standalone executable.",
+  );
+  // npm owns bin-mode normalization even when the producer runs on Windows.
+  assert.notEqual(nativeExecutable.mode & 0o111, 0);
+  assert.doesNotThrow(() => assertNativeExecutableModes(nativeReport.files));
   assert.ok(report.files.some((file) => file.path === "src/cli.js"));
   verifyShippedLinks(
     report.files,
@@ -115,4 +120,22 @@ test("native npm 12 pack reporting admits exactly one package and rejects legacy
     () => readPackReport(JSON.stringify([report, report])),
     /exactly one/u,
   );
+});
+
+test("producer staging publishes exact optional registry versions without changing development inputs", (t) => {
+  const root = fileURLToPath(new URL("../", import.meta.url)),
+    parent = temporaryDirectory(t, "json-core-stage-"),
+    before = readFileSync(join(root, "package.json")),
+    destination = join(parent, "core");
+  const published = stageCore(root, destination);
+  assert.deepEqual(readFileSync(join(root, "package.json")), before);
+  assert.equal(published.scripts, undefined);
+  assert.deepEqual(published.optionalDependencies, {
+    "@hadden-industries/json-quality-linux-x64": published.version,
+    "@hadden-industries/json-quality-win32-x64": published.version,
+  });
+  assert.ok(!readdirSync(destination).includes("native"));
+  const report = runNpmPack(destination, { npm: process.env.npm_execpath });
+  assert.ok(report.unpackedSize < 2 * 1024 * 1024);
+  assert.ok(!report.files.some(({ path }) => /\.(?:node|exe)$/u.test(path)));
 });
