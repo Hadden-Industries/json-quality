@@ -97,17 +97,21 @@ export async function* qualifyJsonConsumer(options) {
       capacities,
       signal,
     }),
-    trusted = context(roots[0], options.trustedSha, bootstrap.wire.admission),
+    policySource = context(
+      roots[0],
+      options.trustedSha,
+      bootstrap.wire.admission,
+    ),
     admitted = await bootstrapJsonPolicySource({
       component,
       temporaryDirectory,
       resources: bootstrap.native,
       signal: operationSignal,
       async source({ signal, maximumBytes }) {
-        await assertGitCommit({ ...trusted, signal });
+        await assertGitCommit({ ...policySource, signal });
         let member;
         for await (const entry of gitTree({
-          ...trusted,
+          ...policySource,
           signal,
           path: ".json-quality.json",
         })) {
@@ -126,10 +130,13 @@ export async function* qualifyJsonConsumer(options) {
         )
           throw new Error("policy-byte-capacity");
         const hash = createHash("sha256");
-        for await (const part of gitBlob({ ...trusted, member, signal }))
+        for await (const part of gitBlob({ ...policySource, member, signal }))
           hash.update(part);
         member = { ...member, sha256: hash.digest("hex") };
-        return { member, open: () => gitBlob({ ...trusted, member, signal }) };
+        return {
+          member,
+          open: () => gitBlob({ ...policySource, member, signal }),
+        };
       },
     });
   if (
