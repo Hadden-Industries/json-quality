@@ -1,6 +1,6 @@
 {
   "name": "@hadden-industries/json-quality",
-  "version": "2.0.0",
+  "version": "1.0.0-rc.1",
   "description": "Strict JSON quality controls with complete discovery and guarded source repair",
   "license": "AGPL-3.0-only",
   "type": "module",

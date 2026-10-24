@@ -1,6 +1,6 @@
 # Consumer guide: cohort 2
 
-Version 2 replaces the aggregate checking APIs and Base64 document request/response envelopes.
+Contract cohort 2 replaces the aggregate checking APIs and Base64 document request/response envelopes.
 Move consumers together to the configuration, source-contract, event and native-protocol versions in `./contract-cohort`.
 There is no old-reader backend or size-dependent dispatch.
 Historical artifacts retain their original bytes and versions.
@@ -8,16 +8,20 @@ Historical artifacts retain their original bytes and versions.
 ## Acquisition and public exports
 
 Install the package in an isolated tooling graph with lifecycle scripts disabled.
-Pin a reviewed full producer commit until a separately authorized registry release is available.
-Retain the native npm lock.
-`jsonQualitySourceCoordinate` admits exact versions or a full commit in the declared producer repository; ranges and alternate repositories are refused.
+Declare the published package version in the tooling project's `devDependencies` and commit the native npm lockfile.
+The owner-selected release candidate is `@hadden-industries/json-quality@1.0.0-rc.1`; source preparation does not itself establish registry availability.
+Use `npm ci --ignore-scripts` for clean installations after the release is publicly qualified.
+`jsonQualitySourceCoordinate` admits exact registry versions or exact aliases of this package; ranges, Git dependencies, file archives and alternate packages are refused.
+The producer owns native compilation, packaging and distribution; consumers do not copy release archives into their repositories.
+Source commits identify review and CI inputs separately from the registry archive's immutable integrity.
 
 `jsonQualityAcquisitionBootstrap()` generates the maintained cold adapter.
 Copy its returned source verbatim into the consumer's installer.
 After installation, `verifyJsonQualityInstallation({ toolingRoot, bootstrapPath })` verifies selector/lock identity, generated-bootstrap agreement and every installed package member against the independently cached locked payload.
 It performs no extraction or download.
 Run through the selected npm toolchain and keep its native cache available.
-An unverified local archive is not equivalent proof.
+The cache is populated by native npm acquisition from the locked registry artifact.
+Git dependencies do not guarantee a portable packed-archive digest and cannot supply this proof.
 
 `assertIsolatedJsonQuality(toolingRoot)` prevents a tooling bridge from silently resolving a parent installation.
 An installed checker resolves its exact platform component under `native/prebuilt/`; there is no environment override, PATH search, runtime compiler or acquisition fallback.

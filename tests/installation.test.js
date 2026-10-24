@@ -22,7 +22,7 @@ const npm = process.env.npm_execpath;
 assert.ok(npm, "Run the maintained tests through npm.");
 const npmRequire = createRequire(npm);
 
-test("source coordinates admit exact versions and full producer commits only", () => {
+test("source coordinates admit exact published versions and aliases only", () => {
   assert.deepEqual(jsonQualitySourceCoordinate("1.2.3"), {
     kind: "registry",
     version: "1.2.3",
@@ -31,16 +31,13 @@ test("source coordinates admit exact versions and full producer commits only", (
     kind: "registry",
     version: "1.2.3-rc.1",
   });
-  assert.deepEqual(jsonQualitySourceCoordinate(git + "a".repeat(40)), {
-    kind: "git",
-    commit: "a".repeat(40),
-  });
   for (const value of [
     "*",
     ">=1.2.3",
     "^1.2.3",
     "latest",
     "file:../json-quality",
+    git + "a".repeat(40),
     git + "main",
     git + "abc123",
     git + "a".repeat(40) + "::path:subdirectory",
@@ -205,39 +202,25 @@ test("installation verification rejects unknown controls and honors pre-aborted 
   );
 });
 
-test("a full Git selection retains the same cached-payload proof", async (t) => {
+test("a Git source is refused even when a matching packed cache fixture exists", async (t) => {
   const context = await installation(t, git + "a".repeat(40));
-  assert.equal(
-    (await verifyJsonQualityInstallation(context)).coordinate.commit,
-    "a".repeat(40),
-  );
-  context.lock.packages[`node_modules/${name}`].resolved = git + "b".repeat(40);
-  writeFileSync(
-    join(context.toolingRoot, "package-lock.json"),
-    JSON.stringify(context.lock),
-  );
   await assert.rejects(
     verifyJsonQualityInstallation(context),
-    /resolved source/u,
+    /exact registry version/u,
   );
 });
 
-test("native Git lock transport canonicalization retains exact producer and commit admission", async (t) => {
-  const commit = "a".repeat(40);
-  const context = await installation(t, git + commit);
+test("a registry declaration rejects Git and non-registry resolved archives", async (t) => {
+  const context = await installation(t);
   const entry = context.lock.packages[`node_modules/${name}`];
-  entry.resolved = `git+ssh://git@github.com/Hadden-Industries/json-quality.git#${commit}`;
+  const commit = "a".repeat(40);
   const save = () =>
     writeFileSync(
       join(context.toolingRoot, "package-lock.json"),
       JSON.stringify(context.lock),
     );
-  save();
-  assert.equal(
-    (await verifyJsonQualityInstallation(context)).coordinate.commit,
-    commit,
-  );
   for (const resolved of [
+    `git+https://github.com/Hadden-Industries/json-quality.git#${commit}`,
     `git+http://github.com/Hadden-Industries/json-quality.git#${commit}`,
     `git://github.com/Hadden-Industries/json-quality.git#${commit}`,
     `https://github.com/Hadden-Industries/json-quality.git#${commit}`,
@@ -251,6 +234,8 @@ test("native Git lock transport canonicalization retains exact producer and comm
     "git+https://github.com/Hadden-Industries/json-quality.git#main",
     "git+https://github.com/Hadden-Industries/json-quality.git#semver:^1.0.0",
     "not a source coordinate",
+    "file:archives/json-quality.tgz",
+    "https://registry.npmjs.org.attacker.test/json-quality.tgz",
   ]) {
     entry.resolved = resolved;
     save();

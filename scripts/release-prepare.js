@@ -8,6 +8,7 @@ import {
   archiveInventory,
   readJson,
   regularBytes,
+  releaseArtifactBytes,
   save,
   sha256,
   verifyArchive,
@@ -27,7 +28,7 @@ export async function freezeRelease(directory, matrix, version) {
   const provenance = readJson(join(directory, proofs[0]));
   assert.equal(provenance.version, version);
   const archive = join(directory, provenance.archive),
-    bytes = regularBytes(archive);
+    bytes = releaseArtifactBytes(archive);
   const { files, contents } = await archiveInventory(archive);
   assert.deepEqual(
     files.map(({ path, size }) => ({ path, size })),

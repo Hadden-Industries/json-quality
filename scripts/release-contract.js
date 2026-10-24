@@ -65,6 +65,15 @@ export function regularBytes(path, limit = 20000000) {
   );
   return readFileSync(path);
 }
+/** Binary release artifacts share package transport bounds; metadata keeps its own bound. */
+export function releaseArtifactBytes(path) {
+  return regularBytes(
+    path,
+    /\.(?:tgz|tar\.gz)$/u.test(String(path))
+      ? packageCapabilities.maximumArchiveBytes
+      : 20000000,
+  );
+}
 export const readJson = (path) => JSON.parse(regularBytes(path));
 export function retainedRecoveries(directory) {
   const path = join(directory, "recovery-records.json");
@@ -122,6 +131,23 @@ export function verifyManifest(release) {
     `Invalid release manifest: ${JSON.stringify(validate.errors)}`,
   );
   validVersion(release.version);
+  assert.ok(
+    release.archive.size <= packageCapabilities.maximumArchiveBytes,
+    "Release archive exceeds package transport capability",
+  );
+  let expandedBytes = 0n;
+  for (const member of release.archive.files) {
+    assert.ok(
+      Number.isSafeInteger(member.size) &&
+        member.size <= packageCapabilities.maximumMemberBytes,
+      "Release member exceeds package transport capability",
+    );
+    expandedBytes += BigInt(member.size);
+  }
+  assert.ok(
+    expandedBytes <= BigInt(packageCapabilities.maximumExpandedBytes),
+    "Release expanded bytes exceed package transport capability",
+  );
   const { matrix, policy } = release;
   assert.deepEqual([...matrix.os].sort(), [...policy.platforms].sort());
   assert.ok(matrix.node.includes(policy.reference));

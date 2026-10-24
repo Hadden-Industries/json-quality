@@ -8,6 +8,7 @@ import { native } from "./qualification-process.js";
 import {
   repository,
   regularBytes,
+  releaseArtifactBytes,
   save,
   sha256,
   workflows,
@@ -510,7 +511,7 @@ export function evidenceIndex(directory) {
     .map((entry) => {
       const full = join(entry.parentPath, entry.name),
         name = full.slice(directory.length + 1).replaceAll("\\", "/");
-      const bytes = regularBytes(full);
+      const bytes = releaseArtifactBytes(full);
       return { name, sha256: sha256(bytes), size: bytes.length };
     });
   assert.ok(files.length <= 4096);

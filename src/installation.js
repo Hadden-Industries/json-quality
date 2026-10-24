@@ -13,8 +13,6 @@ import { assertRegularSource } from "./paths.js";
 import { nativeQualityCachePath } from "./acquire.js";
 
 const packageName = "@hadden-industries/json-quality";
-const gitRepository =
-  "git+https://github.com/Hadden-Industries/json-quality.git#";
 
 /** Producer-owned source for the minimal cold-install bootstrap in consumers. */
 export function jsonQualityAcquisitionBootstrap() {
@@ -40,7 +38,7 @@ export function assertIsolatedJsonQuality(toolingRoot) {
   return root;
 }
 
-/** Admit one native npm exact version or the producer's full Git commit. */
+/** Admit an exact registry version of this package, including an npm alias. */
 export function jsonQualitySourceCoordinate(
   specifier,
   npmExecutable = process.env.npm_execpath,
@@ -59,26 +57,9 @@ export function jsonQualitySourceCoordinate(
     parsed.subSpec.name === packageName
   )
     return { kind: "registry", version: parsed.subSpec.fetchSpec };
-  if (
-    parsed.type === "git" &&
-    specifier.startsWith(gitRepository) &&
-    !parsed.gitRange &&
-    !parsed.gitSubdir &&
-    /^[a-f0-9]{40}$/u.test(parsed.gitCommittish)
-  )
-    return { kind: "git", commit: parsed.gitCommittish };
   throw new Error(
-    "JSON quality requires one exact npm version or full producer Git commit.",
+    "JSON quality requires one exact registry version of its published package.",
   );
-}
-
-/** npm may serialize the same hosted Git origin using a different transport. */
-function sameProducerGitSource(resolved, commit) {
-  const source = gitRepository + commit;
-  return new Set([
-    source,
-    source.replace("git+https://github.com/", "git+ssh://git@github.com/"),
-  ]).has(resolved);
 }
 
 /** Verify installed bytes against npm's independently cached locked payload.
@@ -119,10 +100,8 @@ export async function verifyJsonQualityInstallation({
   )
     throw new Error("JSON tooling manifest and lock identity disagree.");
   if (
-    coordinate.kind === "git"
-      ? !sameProducerGitSource(entry.resolved, coordinate.commit)
-      : entry.version !== coordinate.version ||
-        !entry.resolved?.startsWith("https://registry.npmjs.org/")
+    entry.version !== coordinate.version ||
+    !entry.resolved?.startsWith("https://registry.npmjs.org/")
   )
     throw new Error(
       "JSON tooling resolved source disagrees with its selector.",

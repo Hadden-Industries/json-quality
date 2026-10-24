@@ -29,7 +29,6 @@ const { values } = parseArgs({
     "expected-node": { type: "string" },
     "expected-npm": { type: "string" },
     output: { type: "string" },
-    git: { type: "string" },
     registry: { type: "boolean", default: false },
     layout: { type: "string", default: "root" },
     evidence: { type: "string" },
@@ -239,18 +238,6 @@ try {
       timeout: 120000,
     },
   );
-  if (values.git) {
-    if (values.git !== sourceCommit)
-      throw new Error(
-        "Git qualification must select this exact source commit.",
-      );
-    const { qualifyAcquisition } = await import("./qualify-acquisition.js");
-    await qualifyAcquisition({
-      directory: join(directory, "acquisition"),
-      npm,
-      commit: values.git,
-    });
-  }
   const report = {
     status: "passed",
     sourceCommit: provenance.sourceCommit,
@@ -262,7 +249,8 @@ try {
     architecture: process.arch,
     npm: npmVersion,
     nativeToolchain: toolchain,
-    gitAcquisition: values.git ?? null,
+    packageVersion: provenance.version,
+    installSource: values.registry ? "registry" : "producer-archive",
     qualification: values.registry ? "public registry" : "transported archive",
     layout: values.layout,
     publicExports: 6,

@@ -93,8 +93,6 @@ for (const layout of releaseOutput ? ["root", "isolated"] : ["root"])
       expected,
       "--expected-npm",
       policy.consumerNpm,
-      "--git",
-      identity.sourceCommit,
       "--output",
       releaseOutput
         ? join(releaseOutput, `${layout}-result.json`)

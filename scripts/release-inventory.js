@@ -16,6 +16,7 @@ import {
   packageName,
   readJson,
   regularBytes,
+  releaseArtifactBytes,
   save,
   sha256,
   sha512,
@@ -183,7 +184,7 @@ export function normalizeFileReferences(bom, lock, directory, expectedArchive) {
       assert.equal(archivePath, resolve(expectedArchive.path));
       assert.equal(entry.integrity, expectedArchive.integrity);
       assert.equal(
-        sha512(regularBytes(archivePath)),
+        sha512(releaseArtifactBytes(archivePath)),
         expectedArchive.integrity,
       );
       // npm lock file references are paths after file:, relative to the install root.

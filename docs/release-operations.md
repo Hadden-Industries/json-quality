@@ -9,11 +9,13 @@ The package has one designated tarball.
 The reference Linux producer packs that universal archive with the Git-owned Linux native executable mode.
 Windows recipients qualify the same archive through the existing `--archive` and `--provenance` inputs; a Windows-produced archive that loses POSIX execute permissions is rejected.
 Its local `.provenance.json` records byte identity; authenticated registry provenance comes from native npm verification.
-The current oversized-value source candidate uses package version 2.0.0 and configuration/event/native cohort 2.
+The owner-selected package release candidate is `1.0.0-rc.1`, with configuration/event/native cohort 2.
 Public API/schema exports, executable artifacts, CLI entrypoints and consumer Node floors remain separate compatibility contracts.
 
 The earlier release plan recorded a 1.0.0 selection on 2026-10-18.
-The later accepted oversized-value plan replaces conflicting APIs and requires a new complete consumer cohort; that older selection does not authorize publishing the 2.0.0 candidate.
+The accepted oversized-value plan replaces conflicting APIs and requires a complete consumer cohort.
+The owner's 24 October instruction supersedes the earlier package version selections with `1.0.0-rc.1`, limits registry migration to JSON Quality, and leaves Markdown Quality distribution unchanged.
+Consumer installation requires an exact registry version and its npm-generated lockfile; the Git-source installation promise is retired because a source commit does not identify one cross-host packed archive.
 Current implementation verification follows its task's explicit ordering: consolidate the candidate, resolve external review findings, then perform final security/full verification.
 Source versioning, focused checks and static reviews do not establish release qualification or acceptance.
 

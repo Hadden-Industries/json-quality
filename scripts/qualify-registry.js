@@ -59,7 +59,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     ),
   );
   verifyPublicMetadata(metadata, release);
-  const archive = await registryBytes(metadata.dist.tarball, 20000000);
+  const archive = await registryBytes(
+    metadata.dist.tarball,
+    release.archive.size,
+  );
   verifyArchive(archive, release.archive);
   // Public bytes have been independently acquired; install remains an anonymous registry install.
   const tarball = join(output, release.archive.filename);

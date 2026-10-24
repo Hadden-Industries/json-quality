@@ -4,7 +4,7 @@ JSON Quality checks strict JSON, JSONL and NDJSON through one shared native read
 Small documents and oversized values use the same grammar, Unicode rules, presentation checks and lossless value access.
 An adaptive store starts in memory and can spill once to owned temporary storage.
 
-The current source candidate is version **2.0.0**, contract cohort **2**.
+The owner-selected release candidate is **1.0.0-rc.1**, contract cohort **2**.
 It replaces the previous aggregate APIs and document envelopes.
 Publication, platform qualification, downstream adoption and release acceptance require their own evidence; source implementation alone establishes none of them.
 

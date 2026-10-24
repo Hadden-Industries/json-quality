@@ -17,6 +17,7 @@ import {
   jsonBytes,
   readJson,
   regularBytes,
+  releaseArtifactBytes,
   repository,
   save,
   sha256,
@@ -359,7 +360,10 @@ function archiveAssets(directory, release, scratch) {
   }));
   assert.equal(new Set(assets.map(({ name }) => name)).size, assets.length);
   for (const item of assets)
-    save(join(bundle, item.name), regularBytes(join(directory, item.source)));
+    save(
+      join(bundle, item.name),
+      releaseArtifactBytes(join(directory, item.source)),
+    );
   const assetManifest = jsonBytes({
     schemaVersion: 1,
     manifestSha256: process.env.MANIFEST_SHA,
@@ -452,7 +456,7 @@ export function archive(directory, scratch, env = process.env) {
   ]);
   for (const asset of assets)
     assert.equal(
-      sha256(regularBytes(join(readback, asset.name))),
+      sha256(releaseArtifactBytes(join(readback, asset.name))),
       asset.sha256,
       "Downloaded draft bytes differ",
     );

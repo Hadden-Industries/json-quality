@@ -8,6 +8,7 @@ import {
   rmSync,
   writeFileSync,
   linkSync,
+  truncateSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -35,6 +36,7 @@ import {
   verifyProvenance,
   verifyRun,
   verifyShippedLinks,
+  releaseArtifactBytes,
 } from "../scripts/release-contract.js";
 import {
   journalEffect,
@@ -53,6 +55,7 @@ import {
   readEffectHistory,
   readHistoryCheckpoint,
   sealBundle,
+  evidenceIndex,
   download,
 } from "../scripts/release-provider.js";
 import { verifyCodeql, verifySarif } from "../scripts/release-security.js";
@@ -78,6 +81,7 @@ import {
   admitRestoration,
   verifyBundle,
 } from "../scripts/release-evidence.js";
+import { PACKAGE_VERIFICATION_CAPABILITIES } from "../src/package-payload.js";
 
 const source = "a".repeat(40),
   sha = "b".repeat(64);
@@ -138,6 +142,42 @@ function temp(t) {
   t.after(() => rmSync(path, { recursive: true, force: true }));
   return path;
 }
+
+test("release evidence admits bounded native archives above the metadata limit", (t) => {
+  const directory = temp(t),
+    archive = join(directory, "candidate.tgz");
+  writeFileSync(archive, "");
+  truncateSync(archive, 20000001);
+  const [entry] = evidenceIndex(directory);
+  assert.equal(entry.name, "candidate.tgz");
+  assert.equal(entry.size, 20000001);
+  const release = fixture();
+  release.archive.size = entry.size;
+  release.archive.files[0].size = 37416808;
+  verifyManifest(release);
+  const metadata = join(directory, "unexpected.json");
+  writeFileSync(metadata, "");
+  truncateSync(metadata, entry.size);
+  assert.throws(() => evidenceIndex(directory), /oversized evidence/u);
+  truncateSync(
+    archive,
+    PACKAGE_VERIFICATION_CAPABILITIES.maximumArchiveBytes + 1,
+  );
+  assert.throws(() => releaseArtifactBytes(archive), /oversized evidence/u);
+  release.archive.size =
+    PACKAGE_VERIFICATION_CAPABILITIES.maximumArchiveBytes + 1;
+  assert.throws(() => verifyManifest(release), /package transport capability/u);
+  release.archive.size = entry.size;
+  release.archive.files[0].size =
+    PACKAGE_VERIFICATION_CAPABILITIES.maximumMemberBytes + 1;
+  assert.throws(() => verifyManifest(release), /member exceeds/u);
+  release.archive.files = Array.from({ length: 5 }, (_, index) => ({
+    path: `large-${index}`,
+    size: PACKAGE_VERIFICATION_CAPABILITIES.maximumMemberBytes,
+    sha256: sha,
+  }));
+  assert.throws(() => verifyManifest(release), /expanded bytes exceed/u);
+});
 
 test("native SemVer permits intentional zero-major and prerelease identities without accepting ranges", () => {
   for (const version of ["0.1.0", "0.0.1", "1.2.3-alpha.1"])
@@ -1571,6 +1611,8 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
       layout: "isolated",
       publicExports: 6,
       cliPhysicalFiles: 2,
+      packageVersion: release.version,
+      installSource: "registry",
     };
   verifyReport(report, release, lane, "public registry", "isolated");
   for (const [key, value] of Object.entries({
@@ -1579,6 +1621,8 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
     platform: "linux",
     qualification: "transported archive",
     publicExports: 4,
+    packageVersion: "different-version",
+    installSource: "producer-archive",
   }))
     assert.throws(() =>
       verifyReport(

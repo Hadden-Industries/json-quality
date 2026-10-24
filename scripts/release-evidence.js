@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   readJson,
   regularBytes,
+  releaseArtifactBytes,
   save,
   sha256,
   verifyArchive,
@@ -54,14 +55,17 @@ export function verifyReport(report, release, lane, qualification, layout) {
   assert.equal(report.layout, layout);
   assert.equal(report.publicExports, 6);
   assert.equal(report.cliPhysicalFiles, 2);
-  if (qualification === "transported archive")
-    assert.equal(report.gitAcquisition, release.source.commit);
+  assert.equal(report.packageVersion, release.version);
+  assert.equal(
+    report.installSource,
+    qualification === "public registry" ? "registry" : "producer-archive",
+  );
 }
 function copyEvidence(from, to) {
   mkdirSync(to, { recursive: true });
   for (const entry of readdirSync(from, { withFileTypes: true })) {
     assert.ok(entry.isFile(), "Artifact includes an unexpected nested payload");
-    save(join(to, entry.name), regularBytes(join(from, entry.name)));
+    save(join(to, entry.name), releaseArtifactBytes(join(from, entry.name)));
   }
 }
 export function verifyLane(directory, release, lane, qualification) {
@@ -121,7 +125,7 @@ export function verifyBundle(directory, manifestSha) {
   assert.equal(sha256(bytes), manifestSha);
   const release = verifyManifest(JSON.parse(bytes));
   verifyArchive(
-    regularBytes(join(directory, release.archive.filename)),
+    releaseArtifactBytes(join(directory, release.archive.filename)),
     release.archive,
   );
   const index = readJson(join(directory, "evidence-index.json"));
@@ -133,7 +137,7 @@ export function verifyBundle(directory, manifestSha) {
     const full = resolve(directory, entry.name),
       rel = relative(directory, full);
     assert.ok(rel && !rel.startsWith("..") && !rel.includes(":"));
-    const contents = regularBytes(full);
+    const contents = releaseArtifactBytes(full);
     assert.equal(contents.length, entry.size);
     assert.equal(sha256(contents), entry.sha256);
   }
