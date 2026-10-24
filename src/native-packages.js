@@ -2,7 +2,7 @@
 // One package family; npm owns platform selection and registry acquisition.
 import { createRequire } from "node:module";
 import { dirname, join, sep } from "node:path";
-import { realpath } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import definitions from "../assets/native-packages.json" with { type: "json" };
 import { readPackageMetadata } from "./package-payload.js";
 import { isPathContained } from "./paths.js";
@@ -22,7 +22,7 @@ export function nativePlatformSpec() {
 
 export async function resolveNativePackage(coreRoot) {
   const { platform, spec } = nativePlatformSpec();
-  coreRoot = await realpath(coreRoot);
+  coreRoot = realpathSync(coreRoot);
   const core = await readPackageMetadata(join(coreRoot, "package.json"));
   let metadataPath;
   try {
@@ -35,7 +35,7 @@ export async function resolveNativePackage(coreRoot) {
       { cause },
     );
   }
-  const directory = await realpath(dirname(metadataPath)),
+  const directory = realpathSync(dirname(metadataPath)),
     parts = coreRoot.split(sep),
     index = parts.findIndex((part) =>
       process.platform === "win32"
@@ -45,7 +45,7 @@ export async function resolveNativePackage(coreRoot) {
   if (index >= 0) {
     // Accept native npm's ordinary nested/hoisted graph, excluding higher
     // ancestor and global module paths outside this installation.
-    const boundary = await realpath(parts.slice(0, index + 1).join(sep));
+    const boundary = realpathSync(parts.slice(0, index + 1).join(sep));
     if (!isPathContained(boundary, directory))
       throw new Error(
         "JSON Quality native package resolved outside its installation.",
@@ -55,8 +55,7 @@ export async function resolveNativePackage(coreRoot) {
     if (
       core.optionalDependencies?.[spec.package] !==
         `file:native/prebuilt/${platform}` ||
-      directory !==
-        (await realpath(join(coreRoot, "native", "prebuilt", platform)))
+      directory !== realpathSync(join(coreRoot, "native", "prebuilt", platform))
     )
       throw new Error(
         "JSON Quality native package resolved outside its installation.",
