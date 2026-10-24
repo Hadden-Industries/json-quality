@@ -284,6 +284,16 @@ test("runtime resolution retains native npm's ordinary nested core and hoisted o
   assert.equal(resolved.directory, context.nativeRoot);
 });
 
+test(
+  "producer links retain identity when Windows checkout spelling changes case",
+  { skip: process.platform !== "win32" },
+  async () => {
+    const root = fileURLToPath(new URL("../", import.meta.url));
+    const resolved = await resolveNativePackage(root.toLowerCase());
+    assert.equal(resolved.metadata.name, nativePlatformSpec().spec.package);
+  },
+);
+
 test("a mismatched optional package version cannot load as the selected core's native component", async (t) => {
   const context = await installation(t);
   const metadataPath = join(context.nativeRoot, "package.json"),

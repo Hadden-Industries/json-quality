@@ -55,7 +55,8 @@ export async function resolveNativePackage(coreRoot) {
     if (
       core.optionalDependencies?.[spec.package] !==
         `file:native/prebuilt/${platform}` ||
-      directory !== realpathSync(join(coreRoot, "native", "prebuilt", platform))
+      realpathSync.native(directory) !==
+        realpathSync.native(join(coreRoot, "native", "prebuilt", platform))
     )
       throw new Error(
         "JSON Quality native package resolved outside its installation.",
