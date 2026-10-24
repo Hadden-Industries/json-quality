@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
@@ -78,6 +80,30 @@ test("a native failure aborts active children and refuses a partial success", as
   );
   assert.ok(started <= 6);
   assert.equal(completed, started - 1, "Outstanding children were not awaited");
+});
+test("cache initialization failure starts no native children", async (t) => {
+  const input = fixture(t),
+    createDirectory = fs.mkdirSync;
+  let invoked = 0;
+  const mocked = t.mock.method(fs, "mkdirSync", (path, ...args) => {
+    if (String(path).endsWith(`${process.platform === "win32" ? "\\" : "/"}1`))
+      throw Object.assign(new Error("quota exhausted"), { code: "ENOSPC" });
+    return createDirectory(path, ...args);
+  });
+  syncBuiltinESMExports();
+  try {
+    await assert.rejects(
+      checkAssets(input, async () => {
+        invoked++;
+        return "a".repeat(64);
+      }),
+      /quota exhausted/u,
+    );
+    assert.equal(invoked, 0);
+  } finally {
+    mocked.mock.restore();
+    syncBuiltinESMExports();
+  }
 });
 test("duplicate, traversal and missing asset inputs fail before native invocation", async (t) => {
   const input = fixture(t, 2);

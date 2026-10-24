@@ -97,6 +97,14 @@ export async function checkAssets(input, invoke = verifyOne) {
     result = new Array(input.assets.length);
   // Native gh's TUF updater writes its cache; concurrent updaters must not share it.
   const cacheRoot = mkdtempSync(join(directory, ".gh-verification-"));
+  const caches = Array.from(
+    { length: Math.min(6, input.assets.length) },
+    (_, worker) => {
+      const cacheDirectory = join(cacheRoot, String(worker));
+      mkdirSync(cacheDirectory);
+      return cacheDirectory;
+    },
+  );
   const interrupt = () =>
     controller.abort(new Error("Asset verification interrupted"));
   process.once("SIGINT", interrupt);
@@ -109,38 +117,33 @@ export async function checkAssets(input, invoke = verifyOne) {
     failure;
   try {
     await Promise.all(
-      Array.from(
-        { length: Math.min(6, input.assets.length) },
-        async (_, worker) => {
-          const cacheDirectory = join(cacheRoot, String(worker));
-          mkdirSync(cacheDirectory);
-          while (!controller.signal.aborted && cursor < input.assets.length) {
-            const index = cursor++,
-              asset = input.assets[index];
-            try {
-              const digest = await invoke(
-                [
-                  "release",
-                  "verify-asset",
-                  `v${input.version}`,
-                  join(directory, asset.name),
-                  "--repo",
-                  repository,
-                  "--format",
-                  "json",
-                ],
-                controller.signal,
-                cacheDirectory,
-              );
-              assert.match(digest, /^[a-f0-9]{64}$/u);
-              result[index] = { name: asset.name, nativeOutputSha256: digest };
-            } catch (error) {
-              failure ??= error;
-              controller.abort(error);
-            }
+      caches.map(async (cacheDirectory) => {
+        while (!controller.signal.aborted && cursor < input.assets.length) {
+          const index = cursor++,
+            asset = input.assets[index];
+          try {
+            const digest = await invoke(
+              [
+                "release",
+                "verify-asset",
+                `v${input.version}`,
+                join(directory, asset.name),
+                "--repo",
+                repository,
+                "--format",
+                "json",
+              ],
+              controller.signal,
+              cacheDirectory,
+            );
+            assert.match(digest, /^[a-f0-9]{64}$/u);
+            result[index] = { name: asset.name, nativeOutputSha256: digest };
+          } catch (error) {
+            failure ??= error;
+            controller.abort(error);
           }
-        },
-      ),
+        }
+      }),
     );
     if (failure) throw failure;
     assert.equal(
