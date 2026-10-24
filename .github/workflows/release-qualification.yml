@@ -62,7 +62,7 @@ jobs:
           name: release-security-${{ github.run_attempt }}
           path: ${{ runner.temp }}/security/*.json
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 30
   qualified:
     if: always()
     needs: [resolve, product, security]

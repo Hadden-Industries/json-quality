@@ -94,7 +94,7 @@ jobs:
           name: native-${{ matrix.platform }}-${{ github.run_attempt }}
           path: ${{ steps.build.outputs.artifacts }}/
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 30
       - name: Retain original build diagnostics and source snapshots
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -109,7 +109,7 @@ jobs:
             ${{ runner.temp }}/json-quality-native/producer-*/generated/
             ${{ runner.temp }}/json-quality-native/producer-*/build/CMakeCache.txt
           if-no-files-found: warn
-          retention-days: 90
+          retention-days: ${{ job.status == 'success' && 7 || 14 }}
 
   sanitizers:
     name: Native / address and undefined behavior sanitizers
@@ -182,4 +182,4 @@ jobs:
             ${{ runner.temp }}/json-quality-sanitizers/producer-*/artifacts/build-evidence.json
             ${{ runner.temp }}/json-quality-sanitizers/producer-*/artifacts/component.json
           if-no-files-found: warn
-          retention-days: 90
+          retention-days: ${{ job.status == 'success' && 7 || 14 }}

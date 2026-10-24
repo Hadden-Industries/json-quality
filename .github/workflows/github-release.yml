@@ -64,7 +64,7 @@ jobs:
           name: admitted-archive-${{ github.run_attempt }}
           path: ${{ runner.temp }}/admitted/
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 1
   archive:
     needs: admit
     runs-on: ubuntu-24.04

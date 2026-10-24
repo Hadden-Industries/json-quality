@@ -61,7 +61,7 @@ jobs:
           name: admitted-registry-${{ github.run_attempt }}
           path: ${{ runner.temp }}/admitted/
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 1
   registry:
     needs: admit
     runs-on: ${{ matrix.os }}
@@ -100,7 +100,7 @@ jobs:
           name: registry-${{ matrix.os }}-${{ matrix.node }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/registry/*.json
           if-no-files-found: error
-          retention-days: 90
+          retention-days: ${{ job.status == 'success' && 7 || 14 }}
   security:
     needs: admit
     runs-on: ubuntu-24.04
@@ -127,7 +127,7 @@ jobs:
           name: public-security-${{ github.run_attempt }}
           path: ${{ runner.temp }}/security/*.json
           if-no-files-found: error
-          retention-days: 90
+          retention-days: ${{ job.status == 'success' && 7 || 14 }}
   qualified:
     if: always()
     needs: [admit, registry, security]
