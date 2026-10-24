@@ -690,10 +690,12 @@ test("partial platform staging records its real subject and refuses replay after
   assert.equal(records[2].package, subjects[1].package);
 });
 
-function bundleFixture(directory) {
+function bundleFixture(directory, version = "0.1.0-dev.0") {
   mkdirSync(directory);
-  const release = fixture(),
-    manifest = jsonBytes(release);
+  const release = fixture();
+  release.version = version;
+  for (const entry of release.platformArchives) entry.version = version;
+  const manifest = jsonBytes(release);
   writeFileSync(join(directory, "release-manifest.json"), manifest);
   writeFileSync(join(directory, release.archive.filename), bytes);
   for (const entry of release.platformArchives)
@@ -769,6 +771,131 @@ test("promotion admission acquires original unknown journal independently of its
         RECOVERY_JSON: JSON.stringify({ ...record, journalSha256: sha }),
       },
       () => ({ directory: original }),
+    ),
+  );
+});
+
+test("owner abandonment settles only attempted old-version stages without admitting an incomplete family or replay", (t) => {
+  const root = temp(t),
+    original = join(root, "original"),
+    current = join(root, "current"),
+    old = bundleFixture(original),
+    next = bundleFixture(current, "0.2.0-dev.0"),
+    subject = old.release.platformArchives[0],
+    env = { ...environment(), MANIFEST_SHA: old.digest },
+    journalPath = join(
+      original,
+      effectJournal("stage", { run: "17", attempt: "2" }),
+    );
+  assert.throws(() =>
+    journalEffect(
+      journalPath,
+      { ...old.release, ...subject },
+      `stage:${subject.package}`,
+      () => {
+        throw new Error("lost first platform response");
+      },
+      { env },
+    ),
+  );
+  sealBundle(original, old.digest);
+  const journal = readFileSync(journalPath),
+    record = {
+      schemaVersion: 1,
+      owner: "maksymshostak",
+      phase: "stage",
+      run: "17",
+      attempt: "2",
+      version: old.release.version,
+      manifestSha256: old.digest,
+      journalSha256: sha256(journal),
+      acceptedAt: "2026-10-24T00:00:00Z",
+      rationale:
+        "Owner abandons the incomplete old family after independently observing the approved first native package.",
+      disposition: "abandon-family",
+      stages: [{ package: subject.package, stageId: "actual-first-stage" }],
+    },
+    currentEnv = {
+      MANIFEST_SHA: next.digest,
+      RECOVERY_JSON: JSON.stringify(record),
+    };
+  acquireRecoveryJournal(current, root, currentEnv, () => ({
+    directory: original,
+  }));
+  const reads = [],
+    readers = {
+      provider: () => ({
+        run: { status: "completed", head_sha: env.GITHUB_SHA },
+      }),
+      npmCommand: (args) => {
+        reads.push(args[1]);
+        return JSON.stringify({
+          name: subject.package,
+          version: old.release.version,
+          dist: {
+            integrity: subject.archive.integrity,
+            signatures: [{}],
+            attestations: { url: "https://registry.npmjs.org/attestation" },
+          },
+        });
+      },
+    };
+  const recovery = reconcileObserved(
+    current,
+    join(root, "readback"),
+    currentEnv,
+    readers,
+  );
+  assert.deepEqual(reads, [`${subject.package}@${old.release.version}`]);
+  assert.equal(recovery.stage.observed.state, "abandoned-family-observed");
+  assert.equal(recovery.stage.observed.stages.length, 1);
+  assert.throws(() => readFileSync(join(current, "stage-outcome.json")), {
+    code: "ENOENT",
+  });
+  const prior = providerFixture();
+  prior.run.id = 17;
+  for (const job of prior.jobs.jobs) job.run_id = 17;
+  prior.jobs.jobs[1].steps = [
+    {
+      name: "Apply admitted release effect",
+      started_at: "2026-10-24T00:00:00Z",
+      conclusion: "failure",
+    },
+  ];
+  prior.journal = journal;
+  assert.throws(() =>
+    verifyEffectHistory([prior], { run: "20", attempt: "1" }, next.release),
+  );
+  assert.deepEqual(
+    verifyEffectHistory(
+      [prior],
+      { run: "20", attempt: "1" },
+      next.release,
+      recovery,
+    ),
+    [],
+  );
+  sealBundle(current, next.digest);
+  verifyBundle(current, next.digest);
+  const retained = readFileSync(
+    join(current, "recovery-subjects", old.digest, "release-manifest.json"),
+  );
+  assert.equal(sha256(retained), old.digest);
+  assert.throws(() =>
+    reconcileObserved(
+      current,
+      join(root, "unattempted"),
+      {
+        ...currentEnv,
+        RECOVERY_JSON: JSON.stringify({
+          ...record,
+          stages: [
+            ...record.stages,
+            { package: old.release.package, stageId: "unattempted" },
+          ],
+        }),
+      },
+      readers,
     ),
   );
 });
@@ -1150,7 +1277,7 @@ test("native predecessor download and writer-history acquisition have disjoint f
     { env: { ...environment(), GITHUB_RUN_ATTEMPT: "1" } },
   );
   const journal = readFileSync(journalPath),
-    zip = Buffer.from("opaque native ZIP transport"),
+    zip = Buffer.alloc(33 * 1024 * 1024, 42),
     name = "effect-stage-1";
   const artifact = {
     id: 501,
@@ -1163,8 +1290,14 @@ test("native predecessor download and writer-history acquisition have disjoint f
     pages: () => [artifact],
     api: (path) =>
       path.startsWith("actions/artifacts/") ? artifact : { head_sha: source },
-    gh: (args) => {
-      if (args[0] === "api") return zip;
+    gh: (args, options) => {
+      if (args[0] === "api") {
+        assert.ok(
+          options.maxBuffer >= zip.length,
+          "Admitted family ZIP exceeds legacy32MiB capture",
+        );
+        return zip;
+      }
       const destination = args[args.indexOf("--dir") + 1];
       writeFileSync(join(destination, "stage-17-1.jsonl"), journal);
       return "";

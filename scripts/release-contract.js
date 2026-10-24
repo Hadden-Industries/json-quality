@@ -26,6 +26,9 @@ import { nativePackages } from "../src/native-packages.js";
 
 export const repository = "Hadden-Industries/json-quality";
 export const packageName = "@hadden-industries/json-quality";
+// Three bounded package archives plus retained qualification evidence in one ZIP.
+export const releaseTransportMaximumBytes =
+  packageCapabilities.maximumExpandedBytes;
 const linuxNativeExecutable = "json-quality-native";
 
 /** The Linux package must also be directly runnable by a non-Node host. */

@@ -14,6 +14,7 @@ import {
   effectJournal,
   retainedRecoveries,
   releasePackages,
+  releaseArtifactBytes,
 } from "./release-contract.js";
 import { api, gh, provider, optionalApi } from "./release-provider.js";
 import { npmCommand } from "./qualification-process.js";
@@ -180,44 +181,70 @@ function reconcileOne(
   const observe = readers.provider ?? provider,
     readNpm = readers.npmCommand ?? npmCommand,
     readLatest = readers.optionalApi ?? optionalApi;
-  const release = verifyManifest(
+  const current = verifyManifest(
     readJson(join(directory, "release-manifest.json")),
   );
+  let release = current,
+    manifestSha = env.MANIFEST_SHA;
+  if (record.manifestSha256 !== manifestSha) {
+    assert.equal(record.phase, "stage");
+    assert.equal(
+      record.disposition,
+      "abandon-family",
+      "Cross-version recovery requires explicit owner abandonment",
+    );
+    assert.match(record.manifestSha256, /^[a-f0-9]{64}$/u);
+    const bytes = regularBytes(
+      join(
+        directory,
+        "recovery-subjects",
+        record.manifestSha256,
+        "release-manifest.json",
+      ),
+    );
+    assert.equal(sha256(bytes), record.manifestSha256);
+    release = verifyManifest(JSON.parse(bytes));
+    assert.notEqual(release.version, current.version);
+    manifestSha = record.manifestSha256;
+  }
   const journal = regularBytes(
     join(directory, effectJournal(record.phase, record)),
   );
-  const records = verifyRecoveryRecord(
-    record,
-    release,
-    env.MANIFEST_SHA,
-    journal,
-  );
+  const records = verifyRecoveryRecord(record, release, manifestSha, journal);
   const original = observe(record.run, record.attempt);
   assert.equal(original.run.status, "completed");
   const first = records[0];
   assert.equal(original.run.head_sha, first.controller);
   let observed;
   if (record.phase === "stage") {
-    // Recovery observes all members. It cannot authorize a missing stage effect.
+    // Settle only attempted members. An abandoned family never supplies admission
+    // for its missing members or authority to repeat any request.
     const stages = [];
+    const attempted = records.filter((entry) => entry.state === "intent");
+    assert.equal(
+      new Set(attempted.map((entry) => entry.package)).size,
+      attempted.length,
+    );
     assert.equal(
       record.stages?.length,
-      3,
-      "Owner must identify every native stage",
+      attempted.length,
+      "Owner must identify exactly the attempted native stages",
     );
-    for (const subject of releasePackages(release)) {
+    if (attempted.length !== 3)
+      assert.equal(
+        record.disposition,
+        "abandon-family",
+        "A partial family requires explicit owner abandonment",
+      );
+    for (const intent of attempted) {
+      const subject = releasePackages(release).find(
+        (entry) => entry.package === intent.package,
+      );
       const selected = record.stages.filter(
         (entry) => entry.package === subject.package,
       );
       assert.equal(selected.length, 1);
       assert.match(selected[0].stageId, /^[^\x00-\x1f]{1,256}$/u);
-      assert.ok(
-        records.some(
-          (intent) =>
-            intent.state === "intent" && intent.package === subject.package,
-        ),
-        "Recovery cannot stage a missing family member",
-      );
       const metadata = JSON.parse(
         readNpm([
           "view",
@@ -240,8 +267,21 @@ function reconcileOne(
         state: "public-observed-awaiting-qualification",
       });
     }
-    assert.equal(new Set(stages.map((entry) => entry.stageId)).size, 3);
+    assert.equal(
+      new Set(stages.map((entry) => entry.stageId)).size,
+      stages.length,
+    );
     observed = { stages };
+    if (record.disposition === "abandon-family")
+      return {
+        record,
+        observed: { ...observed, state: "abandoned-family-observed" },
+        priorLabels: {},
+      };
+    assert.deepEqual(
+      stages.map((entry) => entry.package),
+      releasePackages(release).map((entry) => entry.package),
+    );
     const context = readJson(join(directory, "context.json"));
     context.stage = {
       run: String(record.run),
@@ -294,7 +334,7 @@ function reconcileOne(
         scratch,
       ]);
       assert.equal(
-        sha256(regularBytes(join(scratch, asset.name))),
+        sha256(releaseArtifactBytes(join(scratch, asset.name))),
         asset.sha256,
       );
       gh([

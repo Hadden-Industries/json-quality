@@ -4,4 +4,7 @@
 * text=auto eol=lf
 # Producer payloads and finite historical oracles retain their exact identified bytes.
 native/prebuilt/** -text
+# Publisher-owned license copies follow the root license's canonical text bytes.
+native/prebuilt/linux-x64/LICENSE text eol=lf
+native/prebuilt/win32-x64/LICENSE text eol=lf
 tests/oracles/finite-v1/** -text

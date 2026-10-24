@@ -107,8 +107,8 @@ Admission independently reads the completed native run, every job, artifact dige
 Missing, duplicate, skipped, expired or substituted inputs stop the workflow.
 The final staging job repeats admission under `npm-publication` and is the only staging job with npm OIDC authority.
 
-The exact tarball is passed to `npm stage publish` with lifecycle scripts disabled, public access, explicit `pilot`, and provenance.
-A durable request intent precedes the single native request.
+Each exact tarball is passed to `npm stage publish` with lifecycle scripts disabled, public access, explicit `pilot`, and provenance.
+A durable request intent precedes each native request, staging the platforms before the core.
 Success is `staged-awaiting-owner`; it is not public availability.
 The effect artifact retains the manifest, source, evidence, native response, original journal and stage identity.
 
@@ -186,6 +186,12 @@ Stage continuation names all three owner-inspected stages in `stages`, each with
 Every stage effect records its actual package identity, integrity and independent response before the next package is attempted.
 Platforms stage before core; all three owner approvals precede registry qualification.
 An incomplete family cannot be reported as a successful release or automatically completed by replaying requests.
+If an early stage loses its response, the owner can explicitly choose `disposition: "abandon-family"` and name exactly the attempted stages.
+Readback must independently observe their matching public versions and integrity; an unapproved unknown stage remains blocked.
+The abandoned family supplies no registry admission or new stage request.
+To proceed, select and qualify a new version, then pass the old family's original manifest, run, journal digest and abandonment decision in `recovery_json`.
+Admission acquires and retains the old subject and journals separately, settles only observed effects, and preserves the new candidate identity.
+The original version cannot advance or be staged again.
 If npm has already reached the target but a GitHub label request is unknown, the owner may explicitly select `githubAction: "repair-current-label"` and `expectedGithubLatest` (including null).
 Fresh native readback must observe the exact prior GitHub label and npm target.
 This authorizes only a separate guarded GitHub label repair; it neither certifies the old request absent nor replays npm.

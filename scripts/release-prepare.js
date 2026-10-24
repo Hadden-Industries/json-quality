@@ -16,7 +16,6 @@ import {
   verifyShippedLinks,
   validVersion,
   manualControl,
-  assertNativeExecutableModes,
 } from "./release-contract.js";
 import { nativePackages } from "../src/native-packages.js";
 import { npmCommand } from "./qualification-process.js";
@@ -54,8 +53,6 @@ export async function freezeRelease(directory, matrix, version) {
     assert.ok(spec);
     for (const key of ["os", "cpu", "libc"])
       assert.deepEqual(metadata[key], spec[key]);
-    if (entry.platform === "linux-x64")
-      assertNativeExecutableModes(inventory.files);
     verifyArchive(bytes, {
       size: bytes.length,
       sha256: entry.sha256,

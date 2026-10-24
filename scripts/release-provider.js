@@ -17,6 +17,7 @@ import {
   readJson,
   verifyRun,
   retainedRecoveries,
+  releaseTransportMaximumBytes,
 } from "./release-contract.js";
 
 export const gh = (args, options) => native("gh", args, options);
@@ -92,7 +93,11 @@ export function download(runId, attempt, name, root, readers = {}) {
   assert.equal(artifact.workflow_run.head_sha, run.head_sha);
   const zip = invoke(
     ["api", `repos/${repository}/actions/artifacts/${id(artifact.id)}/zip`],
-    { encoding: null, maxBuffer: 32 * 1024 * 1024 },
+    { encoding: null, maxBuffer: releaseTransportMaximumBytes },
+  );
+  assert.ok(
+    zip.length <= releaseTransportMaximumBytes,
+    "Release artifact transport exceeds bound",
   );
   assert.equal(
     `sha256:${sha256(zip)}`,

@@ -32,6 +32,7 @@ Markdown Quality packages, archives, selectors and release state are excluded.
   Both the Node addon and framed standalone executable remain in each native package, with unchanged binary identities, notices and native cohort.
   Each archive has its own integrity, staged approval and registry provenance; the release manifest and journals conserve all three identities.
   A partial family is incomplete; recovery observes original effects and never replays an unknown request.
+  Explicit owner abandonment may settle only attempted, independently observed stages and admit a separately selected new version, retaining the original subject and journals without treating missing members as published.
 
 ## Vertical slices and proof
 

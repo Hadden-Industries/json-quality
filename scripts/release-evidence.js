@@ -210,6 +210,15 @@ export function refreshAdmission(
   mkdirSync(recoveryRoot, { recursive: true });
   const recovery = reconcileObserved(directory, recoveryRoot, env);
   if (recovery) sealBundle(directory, env.MANIFEST_SHA);
+  assert.ok(
+    !recovery?.entries.some(
+      ({ record }) =>
+        record.phase === "stage" &&
+        record.disposition === "abandon-family" &&
+        record.version === release.version,
+    ),
+    "An abandoned package version cannot advance; select and qualify a new version",
+  );
   const context = readJson(join(directory, "context.json"));
   const qualified = provider(
     context.qualification.run,
@@ -355,17 +364,50 @@ export function acquireRecoveryJournal(
     `effect-${record.phase}-${record.attempt}`,
     acquisition,
   );
-  const release = verifyBundle(original.directory, env.MANIFEST_SHA);
+  assert.match(record.manifestSha256, /^[a-f0-9]{64}$/u);
+  const release = verifyBundle(original.directory, record.manifestSha256);
   const current = verifyBundle(directory, env.MANIFEST_SHA);
-  assert.deepEqual(release, current);
+  if (record.manifestSha256 !== env.MANIFEST_SHA) {
+    assert.equal(record.phase, "stage");
+    assert.equal(record.disposition, "abandon-family");
+    assert.notEqual(
+      release.version,
+      current.version,
+      "An abandoned version cannot be staged again",
+    );
+  } else assert.deepEqual(release, current);
   const journal = regularBytes(join(original.directory, name));
-  verifyRecoveryRecord(record, release, env.MANIFEST_SHA, journal);
+  verifyRecoveryRecord(record, release, record.manifestSha256, journal);
+  const retained = retainedRecoveries(original.directory);
+  for (const item of [record, ...retained]) {
+    assert.match(item.manifestSha256, /^[a-f0-9]{64}$/u);
+    if (item.manifestSha256 === env.MANIFEST_SHA) continue;
+    assert.equal(item.phase, "stage");
+    assert.equal(item.disposition, "abandon-family");
+    const bytes = regularBytes(
+      item.manifestSha256 === record.manifestSha256
+        ? join(original.directory, "release-manifest.json")
+        : join(
+            original.directory,
+            "recovery-subjects",
+            item.manifestSha256,
+            "release-manifest.json",
+          ),
+    );
+    assert.equal(sha256(bytes), item.manifestSha256);
+    const parent = join(directory, "recovery-subjects", item.manifestSha256);
+    mkdirSync(parent, { recursive: true });
+    const target = join(parent, "release-manifest.json");
+    if (existsSync(target))
+      assert.equal(sha256(regularBytes(target)), item.manifestSha256);
+    else save(target, bytes);
+  }
   for (const entry of readdirSync(original.directory, {
     withFileTypes: true,
   })) {
     if (
       !entry.isFile() ||
-      !/^promote-[1-9]\d*-[1-9]\d*\.jsonl$/u.test(entry.name)
+      !/^(?:stage|promote)-[1-9]\d*-[1-9]\d*\.jsonl$/u.test(entry.name)
     )
       continue;
     const bytes = regularBytes(join(original.directory, entry.name)),
@@ -375,8 +417,7 @@ export function acquireRecoveryJournal(
     else save(path, bytes);
   }
   if (!existsSync(join(directory, name))) save(join(directory, name), journal);
-  for (const retained of retainedRecoveries(original.directory))
-    retainRecovery(directory, retained);
+  for (const item of retained) retainRecovery(directory, item);
   sealBundle(directory, env.MANIFEST_SHA);
 }
 export function assembleQualification(
