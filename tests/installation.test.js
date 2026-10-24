@@ -9,9 +9,10 @@ import {
   readFileSync,
   copyFileSync,
   rmSync,
+  renameSync,
 } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { temporaryDirectory } from "./temporary-directory.js";
 import { createRequire } from "node:module";
 import { gzipSync } from "node:zlib";
@@ -21,7 +22,11 @@ import {
   verifyJsonQualityInstallation,
 } from "../src/installation.js";
 import { readPackReport } from "../scripts/pack.js";
-import { nativePackages, nativePlatformSpec } from "../src/native-packages.js";
+import {
+  nativePackages,
+  nativePlatformSpec,
+  resolveNativePackage,
+} from "../src/native-packages.js";
 
 const name = "@hadden-industries/json-quality";
 const git = "git+https://github.com/Hadden-Industries/json-quality.git#";
@@ -246,6 +251,37 @@ test("omitting the optional package fails explicitly without an acquisition fall
     verifyJsonQualityInstallation(context),
     /matching optional JSON Quality platform package/u,
   );
+});
+
+test("runtime resolution refuses a same-version native package from an ancestor installation", async (t) => {
+  const context = await installation(t),
+    ancestor = join(
+      context.toolingRoot,
+      "..",
+      "node_modules",
+      nativePlatformSpec().spec.package,
+    );
+  mkdirSync(dirname(ancestor), { recursive: true });
+  renameSync(context.nativeRoot, ancestor);
+  await assert.rejects(
+    resolveNativePackage(context.installedRoot),
+    /outside its installation/u,
+  );
+});
+
+test("runtime resolution retains native npm's ordinary nested core and hoisted optional package", async (t) => {
+  const context = await installation(t),
+    nested = join(
+      context.toolingRoot,
+      "node_modules",
+      "parent",
+      "node_modules",
+      name,
+    );
+  mkdirSync(dirname(nested), { recursive: true });
+  renameSync(context.installedRoot, nested);
+  const resolved = await resolveNativePackage(nested);
+  assert.equal(resolved.directory, context.nativeRoot);
 });
 
 test("a mismatched optional package version cannot load as the selected core's native component", async (t) => {

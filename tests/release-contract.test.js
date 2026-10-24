@@ -899,6 +899,95 @@ test("owner abandonment settles only attempted old-version stages without admitt
     ),
   );
 });
+
+test("recovery conserves completed sibling stage IDs while admitting owner-observed unknown IDs", (t) => {
+  const root = temp(t),
+    directory = join(root, "family"),
+    { release, digest } = bundleFixture(directory),
+    [first, second] = release.platformArchives,
+    env = { ...environment(), MANIFEST_SHA: digest },
+    path = join(directory, effectJournal("stage", { run: "17", attempt: "2" }));
+  journalEffect(
+    path,
+    { ...release, ...first },
+    `stage:${first.package}`,
+    () => ({ stageId: "native-completed-first" }),
+    { env },
+  );
+  assert.throws(() =>
+    journalEffect(
+      path,
+      { ...release, ...second },
+      `stage:${second.package}`,
+      () => {
+        throw new Error("lost second platform response");
+      },
+      { env },
+    ),
+  );
+  const record = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    phase: "stage",
+    run: "17",
+    attempt: "2",
+    version: release.version,
+    manifestSha256: digest,
+    journalSha256: sha256(readFileSync(path)),
+    acceptedAt: "2026-10-24T00:00:00Z",
+    rationale:
+      "Owner independently observed both public stages and abandons this incomplete family.",
+    disposition: "abandon-family",
+    stages: [
+      { package: first.package, stageId: "incorrect-first-id" },
+      { package: second.package, stageId: "owner-observed-second" },
+    ],
+  };
+  let reads = 0;
+  const readers = {
+    provider: () => ({
+      run: { status: "completed", head_sha: env.GITHUB_SHA },
+    }),
+    npmCommand: (args) => {
+      reads++;
+      const subject = release.platformArchives.find(
+        (entry) => `${entry.package}@${release.version}` === args[1],
+      );
+      return JSON.stringify({
+        name: subject.package,
+        version: release.version,
+        dist: {
+          integrity: subject.archive.integrity,
+          signatures: [{}],
+          attestations: { url: "https://registry.npmjs.org/attestation" },
+        },
+      });
+    },
+  };
+  assert.throws(
+    () =>
+      reconcileObserved(
+        directory,
+        join(root, "wrong"),
+        { MANIFEST_SHA: digest, RECOVERY_JSON: JSON.stringify(record) },
+        readers,
+      ),
+    /contradicts the original completed outcome/u,
+  );
+  assert.equal(reads, 0);
+  record.stages[0].stageId = "native-completed-first";
+  const recovery = reconcileObserved(
+    directory,
+    join(root, "right"),
+    { MANIFEST_SHA: digest, RECOVERY_JSON: JSON.stringify(record) },
+    readers,
+  );
+  assert.deepEqual(
+    recovery.stage.observed.stages.map((entry) => entry.stageId),
+    ["native-completed-first", "owner-observed-second"],
+  );
+  assert.equal(reads, 2);
+});
 test("post-publication restoration decisions are admitted from exact owner input without changing immutable assets", (t) => {
   const directory = join(temp(t), "admitted"),
     { release, digest } = bundleFixture(directory);

@@ -1,8 +1,12 @@
 # Native protocol, cohort 2
 
-The packaged `native/prebuilt/PLATFORM/json-quality-native` executable (`.exe` on Windows) exposes the same core used by Node-API.
+Each platform package supplies the standalone executable and Node addon from the same core.
+`@hadden-industries/json-quality-linux-x64` contains `json-quality-native`; `@hadden-industries/json-quality-win32-x64` contains `json-quality-native.exe`.
+Both packages expose the executable through `./executable` and retain their component/build manifests and notices.
+The JavaScript core declares these packages as exact-version optional dependencies; keep optional dependencies enabled so native npm installs the matching payload.
+An omitted matching dependency fails explicitly, including when an unrelated ancestor or global installation has a same-version native package.
 Qualified hosts launch the verified package-relative executable, rather than resolving a command from `PATH`.
-Universal archives must retain the Linux executable's POSIX execute bit; the reference Linux producer packs its Git-owned executable mode, and package qualification rejects an archive that loses it.
+The Linux platform archive must retain its executable's POSIX execute bit; package qualification rejects an archive that loses it.
 A non-Node host needs the matching verified platform payload and its own process supervision; it does not need Node, a compiler, global ICU or an additional JSON parser for source data.
 Python hosts can use standard-library process and binary-I/O facilities.
 Actual HISEW integration remains a separately governed consumer change.

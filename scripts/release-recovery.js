@@ -245,6 +245,13 @@ function reconcileOne(
       );
       assert.equal(selected.length, 1);
       assert.match(selected[0].stageId, /^[^\x00-\x1f]{1,256}$/u);
+      const outcome = records[records.indexOf(intent) + 1];
+      if (outcome?.state === "completed")
+        assert.equal(
+          selected[0].stageId,
+          outcome.result.stageId,
+          "Owner stage identity contradicts the original completed outcome",
+        );
       const metadata = JSON.parse(
         readNpm([
           "view",

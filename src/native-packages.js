@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // One package family; npm owns platform selection and registry acquisition.
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { dirname, join, sep } from "node:path";
+import { realpath } from "node:fs/promises";
 import definitions from "../assets/native-packages.json" with { type: "json" };
 import { readPackageMetadata } from "./package-payload.js";
+import { isPathContained } from "./paths.js";
 
 export const nativePackages = definitions;
 
@@ -20,6 +22,7 @@ export function nativePlatformSpec() {
 
 export async function resolveNativePackage(coreRoot) {
   const { platform, spec } = nativePlatformSpec();
+  coreRoot = await realpath(coreRoot);
   const core = await readPackageMetadata(join(coreRoot, "package.json"));
   let metadataPath;
   try {
@@ -32,6 +35,33 @@ export async function resolveNativePackage(coreRoot) {
       { cause },
     );
   }
+  const directory = await realpath(dirname(metadataPath)),
+    parts = coreRoot.split(sep),
+    index = parts.findIndex((part) =>
+      process.platform === "win32"
+        ? part.toLowerCase() === "node_modules"
+        : part === "node_modules",
+    );
+  if (index >= 0) {
+    // Accept native npm's ordinary nested/hoisted graph, excluding higher
+    // ancestor and global module paths outside this installation.
+    const boundary = await realpath(parts.slice(0, index + 1).join(sep));
+    if (!isPathContained(boundary, directory))
+      throw new Error(
+        "JSON Quality native package resolved outside its installation.",
+      );
+  } else {
+    // The producer's explicit checked-in development links have one target.
+    if (
+      core.optionalDependencies?.[spec.package] !==
+        `file:native/prebuilt/${platform}` ||
+      directory !==
+        (await realpath(join(coreRoot, "native", "prebuilt", platform)))
+    )
+      throw new Error(
+        "JSON Quality native package resolved outside its installation.",
+      );
+  }
   const metadata = await readPackageMetadata(metadataPath);
   if (metadata.name !== spec.package || metadata.version !== core.version)
     throw new Error(
@@ -42,6 +72,6 @@ export async function resolveNativePackage(coreRoot) {
     spec,
     metadata,
     metadataPath,
-    directory: dirname(metadataPath),
+    directory,
   };
 }
