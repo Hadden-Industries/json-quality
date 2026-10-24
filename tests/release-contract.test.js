@@ -66,6 +66,7 @@ import {
   normalizeFileReferences,
   verifySbom,
   installedInventory,
+  installProductionRecipient,
   stageSourceNativePackages,
 } from "../scripts/release-inventory.js";
 import {
@@ -1889,6 +1890,76 @@ test("registry metadata and bounded transport reject substituted bytes, redirect
     registryBytes("https://registry.npmjs.org/a", 2, fetcher),
   );
   await assert.rejects(registryBytes("https://attacker.test/a", 100, fetcher));
+});
+
+test("recipient production SBOM conserves a dependency shared with development tools and the original lock", async (t) => {
+  const directory = temp(t),
+    npm = process.env.npm_execpath,
+    tar = createRequire(npm)("tar"),
+    env = isolatedNpmEnvironment(directory);
+  const pack = (name, dependencies = {}) => {
+    const path = join(directory, name),
+      archive = join(directory, `${name}.tgz`);
+    mkdirSync(path);
+    writeFileSync(
+      join(path, "package.json"),
+      jsonBytes({ name, version: "1.0.0", license: "MIT", dependencies }),
+    );
+    tar.c(
+      { sync: true, gzip: true, cwd: path, prefix: "package/", file: archive },
+      ["package.json"],
+    );
+    return `file:${archive.replaceAll("\\", "/")}`;
+  };
+  const shared = pack("shared-production-dependency"),
+    production = pack("production-fixture", {
+      "shared-production-dependency": shared,
+    }),
+    development = pack("development-fixture", {
+      "shared-production-dependency": shared,
+    }),
+    metadata = {
+      name: "recipient-fixture",
+      version: "1.0.0",
+      license: "MIT",
+      dependencies: { "production-fixture": production },
+      devDependencies: { "development-fixture": development },
+      scripts: { postinstall: "exit 99" },
+    };
+  writeFileSync(join(directory, "package.json"), jsonBytes(metadata));
+  const run = (args) =>
+    native(process.execPath, [npm, ...args, "--ignore-scripts", "--offline"], {
+      cwd: directory,
+      env,
+    });
+  run(["install", "--no-audit", "--no-fund"]);
+  const original = readFileSync(join(directory, "package-lock.json")),
+    before = await installedInventory(directory, npm);
+  assert.ok(
+    before.some((entry) => entry.name === "shared-production-dependency"),
+  );
+  assert.ok(
+    !JSON.parse(original).packages["node_modules/shared-production-dependency"]
+      .dev,
+  );
+  installProductionRecipient(directory, npm, directory);
+  const inventory = await installedInventory(directory, npm),
+    bom = JSON.parse(run(["sbom", "--omit=dev", "--sbom-format=cyclonedx"]));
+  assert.deepEqual(
+    readFileSync(join(directory, "package-lock.json")),
+    original,
+  );
+  assert.ok(
+    inventory.some((entry) => entry.name === "shared-production-dependency"),
+  );
+  assert.ok(!inventory.some((entry) => entry.name === "development-fixture"));
+  assert.equal(
+    JSON.parse(readFileSync(join(directory, "package.json"))).dependencies[
+      "production-fixture"
+    ],
+    production,
+  );
+  verifySbom(bom, JSON.parse(original), directory, inventory);
 });
 
 test("native source inventory conserves the selected optional platform while the lock records both platforms", async (t) => {

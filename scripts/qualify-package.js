@@ -210,33 +210,6 @@ try {
         throw new Error(`Installed payload differs: ${member.path}`);
     }
   }
-  if (values.evidence) {
-    await recipientEvidence({
-      directory: consumer,
-      npm,
-      output: values.evidence,
-      layout: values.layout,
-      signatures: values.signatures,
-      isolationRoot: directory,
-      publication: values.publication
-        ? JSON.parse(readFileSync(values.publication))
-        : undefined,
-      expectedArchive: [
-        {
-          path: archive,
-          name: provenance.name,
-          version: provenance.version,
-          integrity: provenance.integrity,
-        },
-        {
-          path: nativeArchive,
-          name: platformArchive.name,
-          version: platformArchive.version,
-          integrity: platformArchive.integrity,
-        },
-      ],
-    });
-  }
   execFileSync("git", ["init", "-q", fixture], { windowsHide: true });
   writeFileSync(
     join(fixture, ".json-quality.json"),
@@ -310,6 +283,33 @@ try {
       timeout: 120000,
     },
   );
+  if (values.evidence) {
+    await recipientEvidence({
+      directory: consumer,
+      npm,
+      output: values.evidence,
+      layout: values.layout,
+      signatures: values.signatures,
+      isolationRoot: directory,
+      publication: values.publication
+        ? JSON.parse(readFileSync(values.publication))
+        : undefined,
+      expectedArchive: [
+        {
+          path: archive,
+          name: provenance.name,
+          version: provenance.version,
+          integrity: provenance.integrity,
+        },
+        {
+          path: nativeArchive,
+          name: platformArchive.name,
+          version: platformArchive.version,
+          integrity: platformArchive.integrity,
+        },
+      ],
+    });
+  }
   const report = {
     status: "passed",
     sourceCommit: provenance.sourceCommit,

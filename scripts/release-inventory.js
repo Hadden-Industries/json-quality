@@ -18,6 +18,7 @@ import { native, npmCommand, budgets } from "./qualification-process.js";
 import {
   packageName,
   readJson,
+  jsonBytes,
   regularBytes,
   releaseArtifactBytes,
   save,
@@ -260,6 +261,37 @@ export function acquireValidator(root) {
   );
   return path;
 }
+/** Reuse the frozen recipient lock after its mixed-development probes finish. */
+export function installProductionRecipient(directory, npm, isolationRoot) {
+  const lock = regularBytes(join(directory, "package-lock.json")),
+    metadata = readJson(join(directory, "package.json"));
+  // npm's .dev SBOM selector also excludes shared prod/dev dependencies.
+  // Generate native evidence from a real production install instead of
+  // repairing or filtering an incomplete native SBOM.
+  delete metadata.devDependencies;
+  delete metadata.scripts;
+  writeFileSync(join(directory, "package.json"), jsonBytes(metadata));
+  native(
+    process.execPath,
+    [
+      npm,
+      "ci",
+      "--omit=dev",
+      "--offline",
+      "--engine-strict",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+    ],
+    {
+      cwd: directory,
+      env: isolatedNpmEnvironment(isolationRoot),
+      timeout: budgets.install,
+      phase: "recipient-production-install",
+    },
+  );
+  assert.deepEqual(regularBytes(join(directory, "package-lock.json")), lock);
+}
 export async function recipientEvidence({
   directory,
   npm,
@@ -271,6 +303,11 @@ export async function recipientEvidence({
   expectedArchive,
 }) {
   mkdirSync(output, { recursive: true });
+  save(
+    join(output, `${layout}-recipient-package.json`),
+    regularBytes(join(directory, "package.json")),
+  );
+  installProductionRecipient(directory, npm, isolationRoot);
   const env = isolatedNpmEnvironment(isolationRoot),
     command = (args, phase) =>
       native(
