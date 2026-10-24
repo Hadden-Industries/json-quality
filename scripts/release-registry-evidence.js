@@ -50,6 +50,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       ),
       "publication.json",
       ...["root", "isolated"].flatMap((layout) => [
+        `${layout}-recipient-package.json`,
         `${layout}-lock.json`,
         `${layout}-dependencies.json`,
         `${layout}-audit.json`,
