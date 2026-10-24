@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   jsonBytes,
   readJson,
+  npmViewObject,
   regularBytes,
   repository,
   save,
@@ -252,7 +253,7 @@ function reconcileOne(
           outcome.result.stageId,
           "Owner stage identity contradicts the original completed outcome",
         );
-      const metadata = JSON.parse(
+      const metadata = npmViewObject(
         readNpm([
           "view",
           `${subject.package}@${release.version}`,
@@ -382,7 +383,7 @@ function reconcileOne(
     });
     observed = { immutableRelease: live.id, assets: intent.assets };
   } else if (observeCurrent) {
-    const tags = JSON.parse(
+    const tags = npmViewObject(
       readNpm([
         "view",
         release.package,

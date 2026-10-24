@@ -77,6 +77,18 @@ export function releaseArtifactBytes(path) {
   );
 }
 export const readJson = (path) => JSON.parse(regularBytes(path));
+/** npm 12 wraps view results in an array; admit exactly one selected object. */
+export function npmViewObject(raw) {
+  const result = JSON.parse(raw);
+  if (Array.isArray(result))
+    assert.equal(result.length, 1, "Expected exactly one npm view result");
+  const value = Array.isArray(result) ? result[0] : result;
+  assert.ok(
+    value && typeof value === "object" && !Array.isArray(value),
+    "Expected an npm view object",
+  );
+  return value;
+}
 export function retainedRecoveries(directory) {
   const path = join(directory, "recovery-records.json");
   const records = existsSync(path) ? readJson(path) : [];

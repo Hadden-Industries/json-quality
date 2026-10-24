@@ -16,6 +16,7 @@ import {
   isPrerelease,
   jsonBytes,
   readJson,
+  npmViewObject,
   regularBytes,
   releaseArtifactBytes,
   repository,
@@ -201,7 +202,7 @@ export function stage(directory, scratch, env = process.env) {
   const isolation = npmEnvironment(scratch);
   // Preflight the entire family before the first privileged effect.
   for (const subject of releasePackages(release)) {
-    const metadata = JSON.parse(
+    const metadata = npmViewObject(
       npmCommand(
         [
           "view",
@@ -540,7 +541,7 @@ export function archive(directory, scratch, env = process.env) {
     assets,
   });
   if (isPrerelease(release.version)) {
-    const tags = JSON.parse(
+    const tags = npmViewObject(
       npmCommand(
         [
           "view",
@@ -610,7 +611,7 @@ export function promote(directory, scratch, env = process.env) {
   assert.equal(acceptance.reviewSha256, env.REVIEW_SHA);
   const isolation = npmEnvironment(scratch);
   const tags = () =>
-    JSON.parse(
+    npmViewObject(
       npmCommand(
         [
           "view",
@@ -665,7 +666,7 @@ export function promote(directory, scratch, env = process.env) {
       "--format",
       "json",
     ]);
-    const metadata = JSON.parse(
+    const metadata = npmViewObject(
       npmCommand(["view", `${release.package}@${target}`, "--json"], {
         env: isolation,
       }),

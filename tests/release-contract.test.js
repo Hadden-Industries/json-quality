@@ -29,6 +29,7 @@ import {
   validVersion,
   effectJournal,
   jsonBytes,
+  npmViewObject,
   retainedRecoveries,
   verifyArchive,
   verifyDecision,
@@ -92,6 +93,29 @@ import { nativePackages } from "../src/native-packages.js";
 const source = "a".repeat(40),
   sha = "b".repeat(64);
 const bytes = Buffer.from("independent tarball bytes");
+test("npm view admits a single npm 12 result and rejects ambiguous or scalar data", () => {
+  const metadata = {
+    name: "@hadden-industries/json-quality",
+    version: "1.0.0-rc.1",
+    dist: { integrity: "sha512-example" },
+  };
+  for (const value of [metadata, { pilot: "1.0.0-rc.1" }]) {
+    assert.deepEqual(npmViewObject(JSON.stringify([value])), value);
+    assert.deepEqual(npmViewObject(JSON.stringify(value)), value);
+  }
+  for (const value of [
+    [],
+    [metadata, metadata],
+    [null],
+    [[metadata]],
+    null,
+    "metadata",
+    1,
+    true,
+  ])
+    assert.throws(() => npmViewObject(JSON.stringify(value)));
+  assert.throws(() => npmViewObject("not JSON"));
+});
 const policy = JSON.parse(
   readFileSync(new URL("../assets/node-support.json", import.meta.url)),
 );
