@@ -19,10 +19,12 @@ import { verifyArchive, archiveInventory, sha256 } from "./release-contract.js";
 import {
   recipientEvidence,
   isolatedNpmEnvironment,
+  installedInventory,
 } from "./release-inventory.js";
 import {
   nativePlatformSpec,
   resolveNativePackage,
+  nativePackages,
 } from "../src/native-packages.js";
 
 const { values } = parseArgs({
@@ -105,6 +107,31 @@ try {
     sha256: platformArchive.sha256,
     integrity: platformArchive.integrity,
   });
+  const transportedPlatforms = {};
+  if (!values.registry) {
+    for (const entry of provenance.platformPackages) {
+      const spec = nativePackages[entry.platform];
+      if (
+        !spec ||
+        spec.package !== entry.name ||
+        entry.version !== provenance.version
+      )
+        throw new Error("Invalid transported platform identity");
+      const path = join(dirname(archive), entry.archive),
+        bytes = readFileSync(path);
+      verifyArchive(bytes, {
+        size: bytes.length,
+        sha256: entry.sha256,
+        integrity: entry.integrity,
+      });
+      transportedPlatforms[entry.name] = `file:${path}`;
+    }
+    if (
+      Object.keys(transportedPlatforms).length !==
+      Object.keys(nativePackages).length
+    )
+      throw new Error("Incomplete transported platform family");
+  }
   mkdirSync(consumer, { recursive: true });
   mkdirSync(fixture);
   writeFileSync(
@@ -124,9 +151,7 @@ try {
         ...(!values.registry
           ? {
               overrides: {
-                [provenance.name]: {
-                  [platformArchive.name]: `file:${nativeArchive}`,
-                },
+                [provenance.name]: transportedPlatforms,
               },
             }
           : {}),
@@ -163,6 +188,17 @@ try {
   const selectedNative = await resolveNativePackage(coreRoot);
   if (selectedNative.metadata.name !== platformArchive.name)
     throw new Error("Installed optional package differs from its platform");
+  const installedPlatforms = (await installedInventory(consumer, npm)).filter(
+    (entry) =>
+      Object.values(nativePackages).some((spec) => spec.package === entry.name),
+  );
+  if (
+    installedPlatforms.length !== 1 ||
+    installedPlatforms[0].name !== platformArchive.name
+  )
+    throw new Error(
+      "Recipient installed an unexpected optional platform payload",
+    );
   for (const [path, installedRoot] of [
     [archive, coreRoot],
     [nativeArchive, selectedNative.directory],
