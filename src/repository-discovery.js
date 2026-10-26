@@ -19,7 +19,8 @@ import {
   isPathContained,
 } from "./paths.js";
 
-const pathDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+const pathDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }),
+  EMPTY_BUFFER = Buffer.alloc(0);
 
 /** Raw Git reads use the selected checkout, without inherited Git directory,
  * replacement, configuration injection or network/lazy-fetch redirection.
@@ -58,7 +59,7 @@ export async function* gitRecords(executable, root, args, capacities, signal) {
   let bytes = 0n,
     failure,
     stderr = "",
-    pending = Buffer.alloc(0),
+    pending = EMPTY_BUFFER,
     timer;
   const fail = (error) => {
     failure ??= error;
@@ -109,7 +110,7 @@ export async function* gitRecords(executable, root, args, capacities, signal) {
           pending = Buffer.from(entry);
           break;
         }
-        pending = Buffer.alloc(0);
+        pending = EMPTY_BUFFER;
         if (!entry.length) throw new Error("Empty Git path record.");
         signal?.throwIfAborted();
         if (failure) throw failure;

@@ -64,6 +64,9 @@
   "scripts": {
     "graph:dependencies": "node scripts/dependency-graph.js",
     "check:focused": "node --test tests/contracts.test.js tests/identity.test.js tests/markdown-quality.test.js",
+    "bench:check": "node scripts/bench-orchestration.js --workload check --files 30",
+    "bench:format": "node scripts/bench-orchestration.js --workload format --files 50 --assert-batching",
+    "check:perf": "npm run bench:check && npm run bench:format",
     "test": "node --test --test-concurrency=1 tests/*.test.js tests/native/*.test.mjs",
     "check:affected": "node scripts/affected-tests.js",
     "check:full": "npm run check:node && npm run check:resources && npm run check:architecture && npm run check:release && npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",

@@ -53,3 +53,85 @@ test("native-tool timeout and active cancellation settle their owned child", asy
     clearTimeout(timer);
   }
 });
+
+test("bounded capture joins fragmented binary stdout and counts stderr before retaining", async () => {
+  const input = Buffer.from([0, 0xff, 0xc3, 0xa9, 0, 1]);
+  const result = await runBoundedTool(
+    process.execPath,
+    [
+      "-e",
+      "process.stdin.on('data', b => { for (const byte of b) process.stdout.write(Buffer.from([byte])); });",
+    ],
+    { ...options, input, captureOutput: true },
+  );
+  assert.equal(result.code, 0);
+  assert.deepEqual(result.stdout, input);
+  const ordinary = await runBoundedTool(
+    process.execPath,
+    ["-e", "process.stdin.resume();process.exitCode=1;"],
+    { ...options, acceptedExitCodes: [0, 1] },
+  );
+  assert.deepEqual(ordinary, { code: 1, stdout: undefined });
+  await assert.rejects(
+    runBoundedTool(
+      process.execPath,
+      [
+        "-e",
+        "process.stdout.write('12345678');process.stderr.write('12345678');",
+      ],
+      { ...options, maximumOutputBytes: 15, captureOutput: true },
+    ),
+    /output capacity/,
+  );
+  await assert.rejects(
+    runBoundedTool(process.execPath, ["-e", "process.exit(128);"], options),
+    /exit 128/,
+  );
+});
+
+test("capture refuses spawn failure, cancellation before spawn and broken input", async () => {
+  await assert.rejects(
+    runBoundedTool("json-quality-nonexistent-tool", [], options),
+    /ENOENT/,
+  );
+  const controller = new AbortController();
+  controller.abort(new Error("before spawn"));
+  await assert.rejects(
+    runBoundedTool(process.execPath, [], {
+      ...options,
+      signal: controller.signal,
+    }),
+    /before spawn/,
+  );
+  await assert.rejects(
+    runBoundedTool(
+      process.execPath,
+      ["-e", "process.stdin.destroy();process.exit(0);"],
+      { ...options, input: Buffer.alloc(2097152), captureOutput: true },
+    ),
+    /EPIPE|EOF|ECONNRESET|write/,
+  );
+});
+
+test(
+  "a child that ignores cooperative termination still settles after its deadline",
+  {
+    skip:
+      process.platform === "win32"
+        ? "Windows terminates the owned process directly; POSIX exercises signal escalation."
+        : false,
+  },
+  async () => {
+    await assert.rejects(
+      runBoundedTool(
+        process.execPath,
+        [
+          "-e",
+          "process.on('SIGTERM',()=>{});process.stdin.resume();setInterval(()=>{},1000);",
+        ],
+        { ...options, timeout: 500, captureOutput: true },
+      ),
+      /time capacity/,
+    );
+  },
+);

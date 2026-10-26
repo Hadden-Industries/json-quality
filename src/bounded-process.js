@@ -5,7 +5,16 @@ import { spawn } from "node:child_process";
 export async function runBoundedTool(
   executable,
   args,
-  { input, signal, timeout, maximumOutputBytes, acceptedExitCodes = [0], cwd },
+  {
+    input,
+    signal,
+    timeout,
+    maximumOutputBytes,
+    acceptedExitCodes = [0],
+    cwd,
+    captureOutput = false,
+    env,
+  },
 ) {
   signal?.throwIfAborted();
   if (
@@ -17,14 +26,20 @@ export async function runBoundedTool(
     throw new TypeError("Expected finite native-tool working controls.");
   const child = spawn(executable, args, {
     cwd,
+    env,
     windowsHide: true,
     stdio: ["pipe", "pipe", "pipe"],
   });
   let failure,
-    outputBytes = 0;
+    outputBytes = 0,
+    termination;
+  const stdoutChunks = captureOutput ? [] : null;
   const stop = (error) => {
       failure ??= error;
+      if (stdoutChunks) stdoutChunks.length = 0;
       child.kill();
+      // A POSIX child may ignore SIGTERM; settle its pipes before returning.
+      termination ??= setTimeout(() => child.kill("SIGKILL"), 1000);
     },
     abort = () => stop(signal.reason ?? new Error("Native tool cancelled.")),
     timer = setTimeout(
@@ -38,25 +53,33 @@ export async function runBoundedTool(
       child.once("error", (error) => {
         failure ??= error;
       });
-      child.stdin.on("error", (error) => {
-        failure ??= error;
-      });
+      child.stdin.on("error", stop);
       for (const output of [child.stdout, child.stderr])
         output.on("error", stop).on("data", (chunk) => {
+          if (failure) return;
           outputBytes += chunk.length;
-          if (outputBytes > maximumOutputBytes)
-            stop(new Error("Native tool output capacity exceeded."));
+          if (outputBytes > maximumOutputBytes) {
+            const error = new Error("Native tool output capacity exceeded.");
+            error.code = "native-tool-output-capacity";
+            stop(error);
+          } else if (captureOutput && output === child.stdout)
+            stdoutChunks.push(chunk);
         });
       child.once("close", (code) => {
         if (failure) reject(failure);
         else if (!acceptedExitCodes.includes(code))
           reject(new Error(`Native tool failed with exit ${code}.`));
-        else resolve(code);
+        else
+          resolve({
+            code,
+            stdout: captureOutput ? Buffer.concat(stdoutChunks) : undefined,
+          });
       });
       child.stdin.end(input);
     });
   } finally {
     clearTimeout(timer);
+    clearTimeout(termination);
     signal?.removeEventListener("abort", abort);
   }
 }

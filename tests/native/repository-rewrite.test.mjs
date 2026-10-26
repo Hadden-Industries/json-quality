@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
+import { subscribe, unsubscribe } from "node:diagnostics_channel";
 import { createRepositoryExecution } from "../../src/repository-execution.js";
 import { rewriteRepository } from "../../src/repository-rewrite.js";
 import { createRepositorySession } from "../../src/session-surface.js";
@@ -54,6 +55,58 @@ async function fixture(documents, run, executionOptions = {}) {
     await rm(root, { recursive: true, force: true });
   }
 }
+
+test("no-op repository formatting streams multiple ignore batches without per-file children", async () => {
+  const documents = Object.fromEntries(
+    Array.from({ length: 257 }, (_, index) => [`file-${index}.json`, "{}\n"]),
+  );
+  await fixture(documents, async (root, execution) => {
+    let ignoreChildren = 0,
+      terminal;
+    const observe = ({ process: child }) =>
+      child.once("spawn", () => {
+        if (child.spawnargs.includes("check-ignore")) ignoreChildren++;
+      });
+    subscribe("child_process", observe);
+    try {
+      for await (const event of rewriteRepository(
+        execution,
+        { root },
+        "format",
+      ))
+        terminal = event;
+      assert.equal(terminal.type, "write-terminal", terminal.message);
+      assert.equal(terminal.selected, "258");
+      assert.equal(terminal.written, "0");
+      assert.equal(ignoreChildren, 2);
+    } finally {
+      unsubscribe("child_process", observe);
+    }
+  });
+});
+
+test("an ignore-rule change after preflight refuses the pending physical write", async () => {
+  await fixture(
+    { "a.json": '{"value":1}', ".gitignore": "" },
+    async (root, execution) => {
+      let terminal;
+      for await (const event of rewriteRepository(
+        execution,
+        { root },
+        "format",
+        { files: ["a.json"] },
+      )) {
+        if (event.type === "write-preflight")
+          await writeFile(join(root, ".gitignore"), "a.json\n");
+        terminal = event;
+      }
+      assert.equal(terminal.type, "write-failure");
+      assert.match(terminal.message, /Write permission changed/);
+      assert.equal(terminal.written, "0");
+      assert.equal(await readFile(join(root, "a.json"), "utf8"), '{"value":1}');
+    },
+  );
+});
 
 test("repository formatting admits all peers before replacing multiple sources", async () => {
   await fixture(
