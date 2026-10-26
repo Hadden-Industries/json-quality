@@ -111,12 +111,22 @@ async function withGitIgnoreReservation(execution, operation) {
       BigInt(execution.controlStateBytes) + BigInt(limits.reservationBytes),
     ),
   });
+  let operationFailed = false;
   try {
     return await operation(limits);
+  } catch (error) {
+    operationFailed = true;
+    throw error;
   } finally {
-    await execution.core.command("resize-control-state", {
-      byteLength: execution.controlStateBytes,
-    });
+    try {
+      await execution.core.command("resize-control-state", {
+        byteLength: execution.controlStateBytes,
+      });
+    } catch (error) {
+      // A refused native selection may cancel the core. Preserve that primary
+      // refusal; the session owner still closes its resources after failure.
+      if (!operationFailed) throw error;
+    }
   }
 }
 
