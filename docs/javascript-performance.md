@@ -36,7 +36,8 @@ node scripts/bench-orchestration.js --workload check --files 30 --records 50000 
 Use `--baseline /absolute/path/to/plain-baseline-clone` for alternating paired baseline/candidate runs.
 Install that clone's exact locked dependencies first; its optional native package must resolve inside that installation.
 The harness never resets or rewrites either source checkout.
-Only its owned synthetic temporary repository is written, then removed after success or failure.
+It writes an owned synthetic temporary repository, then removes it after success or failure.
+An explicit `--output` also writes the selected report file, including failed attempts.
 The source identity is checked before and after sampling; changing measured inputs invalidates the comparison.
 Use one benchmark process at a time and preserve the complete JSON output, including failed attempts.
 

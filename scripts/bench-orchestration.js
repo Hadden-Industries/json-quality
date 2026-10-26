@@ -66,6 +66,8 @@ async function sourceIdentity(source) {
       "schemas",
       "package.json",
       "assets/native-packages.json",
+      "scripts/bench-orchestration.js",
+      "scripts/performance-probe.js",
     ],
     { encoding: "utf8", windowsHide: true },
   )

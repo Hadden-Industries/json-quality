@@ -44,31 +44,32 @@ let session,
   terminal,
   managedPeakBytes = 0n,
   scratchPeakBytes = 0n;
+function recordEvent(event) {
+  const phase = (phases[event.type] ??= {
+    count: 0,
+    firstMs: performance.now() - began,
+  });
+  phase.count++;
+  phase.lastMs = performance.now() - began;
+  if (event.managedPeakBytes)
+    managedPeakBytes =
+      BigInt(event.managedPeakBytes) > managedPeakBytes
+        ? BigInt(event.managedPeakBytes)
+        : managedPeakBytes;
+  if (event.scratchPeakBytes)
+    scratchPeakBytes =
+      BigInt(event.scratchPeakBytes) > scratchPeakBytes
+        ? BigInt(event.scratchPeakBytes)
+        : scratchPeakBytes;
+  terminal = event;
+  sample();
+}
 try {
   const { openJsonRepositorySession } = await import(
     pathToFileURL(join(sourceRoot, "src/index.js"))
   );
   session = await openJsonRepositorySession({ root });
-  for await (const event of session.events()) {
-    const phase = (phases[event.type] ??= {
-      count: 0,
-      firstMs: performance.now() - began,
-    });
-    phase.count++;
-    phase.lastMs = performance.now() - began;
-    if (event.managedPeakBytes)
-      managedPeakBytes =
-        BigInt(event.managedPeakBytes) > managedPeakBytes
-          ? BigInt(event.managedPeakBytes)
-          : managedPeakBytes;
-    if (event.scratchPeakBytes)
-      scratchPeakBytes =
-        BigInt(event.scratchPeakBytes) > scratchPeakBytes
-          ? BigInt(event.scratchPeakBytes)
-          : scratchPeakBytes;
-    terminal = event;
-    sample();
-  }
+  for await (const event of session.events()) recordEvent(event);
   if (
     terminal?.type !== "execution-terminal" ||
     !terminal.sourceObservationsComplete
@@ -79,16 +80,8 @@ try {
     for await (const event of session.rewrite(
       operation,
       files ? { files } : {},
-    )) {
-      const phase = (phases[event.type] ??= {
-        count: 0,
-        firstMs: performance.now() - began,
-      });
-      phase.count++;
-      phase.lastMs = performance.now() - began;
-      terminal = event;
-      sample();
-    }
+    ))
+      recordEvent(event);
     if (terminal?.type !== "write-terminal" || !terminal.complete)
       throw new Error(terminal?.message ?? "Incomplete benchmark rewrite.");
   } else if (!terminal.contractSatisfied)
