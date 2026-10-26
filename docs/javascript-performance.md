@@ -39,12 +39,16 @@ The harness never resets or rewrites either source checkout.
 It writes an owned synthetic temporary repository, then removes it after success or failure.
 An explicit `--output` also writes the selected report file, including failed attempts.
 The source identity is checked before and after sampling; changing measured inputs invalidates the comparison.
+Git commands use the product's sanitized environment, and fixture commits disable hooks.
+The identity includes the lockfile and measurement scripts; each sample records the loaded native identity, which must remain stable per variant.
 Use one benchmark process at a time and preserve the complete JSON output, including failed attempts.
 
 The workload recipe specifies JSON count, changed-file count and additional tracked non-JSON records.
 One policy JSON file is additional to `--files`.
+The maximum is 49,999 documents plus that policy, within the default 50,000-file admission.
 Each variant gets one warmup, followed by all retained repetitions, with alternating order.
 Reports distinguish process wall time, session duration, event-phase observations, real child counts, sampled parent RSS/V8 memory and native managed/scratch peaks.
+Census and rewrite events have separate phase buckets; failed reports retain the available recipe, environment, identities and raw samples.
 Node's native diagnostics channel observes actual children; imported ESM process functions are not replaced.
 Child RSS, exact syscall counts, energy state and background-load isolation are not measured.
 The probe exercises installed repository sessions; CLI serialization is covered separately by functional qualification.
@@ -54,5 +58,6 @@ Median, sampled p95 and range are descriptive; a five-sample p95 does not establ
 The structural gate immediately checks the exact expected ignore-child count for the fixed short-path no-op fixture.
 It does not impose a universal three-child ceiling or remove effect-time freshness queries.
 CI retains separate Windows/Linux runtime-lane reports using the existing runtime matrix and dispatch semantics.
+Performance reports use separate artifacts so archive and release-evidence layouts keep their existing roots.
 
 The [implementation plan](plans/2026-10-26-javascript-performance-implementation-plan.md) preserves the original audits and the safety conditions for omitted or optional experiments.

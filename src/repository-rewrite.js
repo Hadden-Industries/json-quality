@@ -104,47 +104,57 @@ async function policyAllowsWrite(root, member, execution) {
   return true;
 }
 
-/** Keep only one byte/count-bounded path batch; native state owns the complete
- * candidate inventory. Selection finishes before transformation or file effects.
- */
-async function selectWritablePaths(root, execution, selected, gitExecutable) {
-  const limits = gitIgnoreBatchLimits(execution.numericResources),
-    core = execution.core;
-  await core.command("resize-control-state", {
+async function withGitIgnoreReservation(execution, operation) {
+  const limits = gitIgnoreBatchLimits(execution.numericResources);
+  await execution.core.command("resize-control-state", {
     byteLength: String(
       BigInt(execution.controlStateBytes) + BigInt(limits.reservationBytes),
     ),
   });
-  let paths = [],
-    bytes = 0;
-  const flush = async () => {
-    const ignored = await ignoredGitPaths(
-      root,
-      paths,
-      execution,
-      gitExecutable,
-    );
-    for (const path of paths) {
-      if (ignored.has(path)) {
-        if (selected)
-          throw new Error(`Protected or undiscovered write source: ${path}`);
-      } else await core.command("rewrite-select", { path });
-    }
-    paths = [];
-    bytes = 0;
-  };
-  async function* members() {
-    if (selected) {
-      for (const path of selected) {
-        const member = (await core.command("census-get", { path })).result
-          .member;
-        if (!member)
-          throw new Error(`Protected or undiscovered write source: ${path}`);
-        yield member;
-      }
-    } else yield* repositoryMembers(core, execution.signal);
-  }
   try {
+    return await operation(limits);
+  } finally {
+    await execution.core.command("resize-control-state", {
+      byteLength: execution.controlStateBytes,
+    });
+  }
+}
+
+/** Keep only one byte/count-bounded path batch; native state owns the complete
+ * candidate inventory. Selection finishes before transformation or file effects.
+ */
+async function selectWritablePaths(root, execution, selected, gitExecutable) {
+  return withGitIgnoreReservation(execution, async (limits) => {
+    const core = execution.core;
+    let paths = [],
+      bytes = 0;
+    const flush = async () => {
+      const ignored = await ignoredGitPaths(
+        root,
+        paths,
+        execution,
+        gitExecutable,
+      );
+      for (const path of paths) {
+        if (ignored.has(path)) {
+          if (selected)
+            throw new Error(`Protected or undiscovered write source: ${path}`);
+        } else await core.command("rewrite-select", { path });
+      }
+      paths = [];
+      bytes = 0;
+    };
+    async function* members() {
+      if (selected) {
+        for (const path of selected) {
+          const member = (await core.command("census-get", { path })).result
+            .member;
+          if (!member)
+            throw new Error(`Protected or undiscovered write source: ${path}`);
+          yield member;
+        }
+      } else yield* repositoryMembers(core, execution.signal);
+    }
     for await (const member of members()) {
       execution.signal?.throwIfAborted();
       if (!(await policyAllowsWrite(root, member, execution))) {
@@ -166,12 +176,7 @@ async function selectWritablePaths(root, execution, selected, gitExecutable) {
       bytes += size;
     }
     if (paths.length) await flush();
-  } finally {
-    paths = [];
-    await core.command("resize-control-state", {
-      byteLength: execution.controlStateBytes,
-    });
-  }
+  });
 }
 
 async function* sourceBytes(core, source, signal) {
@@ -420,14 +425,7 @@ export async function* rewriteRepository(
           await core.command("census-get", { path: candidate.path })
         ).result.member;
         await fresh(root, execution, gitExecutable, afterWrites);
-        const limits = gitIgnoreBatchLimits(execution.numericResources);
-        await core.command("resize-control-state", {
-          byteLength: String(
-            BigInt(execution.controlStateBytes) +
-              BigInt(limits.reservationBytes),
-          ),
-        });
-        try {
+        await withGitIgnoreReservation(execution, async () => {
           if (
             !(await policyAllowsWrite(root, member, execution)) ||
             (
@@ -440,11 +438,7 @@ export async function* rewriteRepository(
             ).has(member.path)
           )
             throw new Error(`Write permission changed: ${member.path}`);
-        } finally {
-          await core.command("resize-control-state", {
-            byteLength: execution.controlStateBytes,
-          });
-        }
+        });
         uncertainPath = member.path;
         const committed = await replaceObservedSource({
           root,

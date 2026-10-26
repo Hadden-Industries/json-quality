@@ -6,7 +6,9 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { cpus, freemem, totalmem, tmpdir, release } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "node:util";
+import { isDeepStrictEqual, parseArgs } from "node:util";
+import { gitReadEnvironment } from "../src/repository-discovery.js";
+import { resolveExecutionResources } from "../src/execution-resources.js";
 
 const project = dirname(dirname(fileURLToPath(import.meta.url))),
   { values } = parseArgs({
@@ -24,12 +26,13 @@ const project = dirname(dirname(fileURLToPath(import.meta.url))),
   files = Number(values.files),
   changed = Number(values.changed),
   records = Number(values.records),
-  repetitions = Number(values.repetitions);
+  repetitions = Number(values.repetitions),
+  maximumDocuments = resolveExecutionResources().admission.maxFiles - 1;
 if (
   !["check", "format", "normalize"].includes(values.workload) ||
   ![files, changed, records, repetitions].every(Number.isSafeInteger) ||
   files < 0 ||
-  files > 50000 ||
+  files > maximumDocuments ||
   changed < 0 ||
   changed > files ||
   records < 0 ||
@@ -37,19 +40,39 @@ if (
   repetitions < 1 ||
   repetitions > 100
 )
-  throw new TypeError("Invalid bounded benchmark workload.");
+  throw new TypeError(
+    `Invalid bounded benchmark workload (0..${maximumDocuments} JSON documents plus one policy).`,
+  );
 if (values.workload === "normalize" && files === 0)
   throw new TypeError("Normalization benchmark requires a physical file.");
 const scratch = await mkdtemp(join(tmpdir(), "json-quality-benchmark-")),
   root = join(scratch, "fixture"),
   document = (index, dirty) =>
     dirty ? `{"value":${index}}` : `{\n  "value": ${index}\n}\n`,
-  samples = [];
+  samples = [],
+  identities = [],
+  workload = {
+    operation: values.workload,
+    files,
+    changed,
+    nonJsonRecords: records,
+    repetitions,
+    warmups: 1,
+  };
+let environment;
+const reportContext = () => ({
+  schemaVersion: 1,
+  workload,
+  environment,
+  identities,
+  samples,
+});
 const git = (...args) =>
   execFileSync("git", ["-C", root, ...args], {
     windowsHide: true,
     timeout: 30000,
     stdio: "pipe",
+    env: gitReadEnvironment(),
   });
 async function sourceIdentity(source) {
   const paths = execFileSync(
@@ -58,6 +81,7 @@ async function sourceIdentity(source) {
       "-C",
       source,
       "ls-files",
+      "-z",
       "--cached",
       "--others",
       "--exclude-standard",
@@ -65,15 +89,17 @@ async function sourceIdentity(source) {
       "src",
       "schemas",
       "package.json",
+      "package-lock.json",
       "assets/native-packages.json",
       "scripts/bench-orchestration.js",
       "scripts/performance-probe.js",
     ],
-    { encoding: "utf8", windowsHide: true },
+    { encoding: "utf8", windowsHide: true, env: gitReadEnvironment() },
   )
-    .trim()
-    .split("\n")
+    .split("\0")
+    .filter(Boolean)
     .sort();
+  if (!paths.length) throw new Error("Empty benchmark source inventory.");
   const hash = createHash("sha256");
   for (const path of paths) {
     const bytes = await readFile(join(source, path));
@@ -89,10 +115,31 @@ async function sourceIdentity(source) {
     head: execFileSync("git", ["-C", source, "rev-parse", "HEAD"], {
       encoding: "utf8",
       windowsHide: true,
+      env: gitReadEnvironment(),
     }).trim(),
   };
 }
 try {
+  environment = {
+    node: process.version,
+    v8: process.versions.v8,
+    platform: process.platform,
+    arch: process.arch,
+    os: release(),
+    cpu: cpus()[0]?.model,
+    cores: cpus().length,
+    totalMemoryBytes: totalmem(),
+    freeMemoryBytes: freemem(),
+    git: execFileSync("git", ["--version"], {
+      encoding: "utf8",
+      windowsHide: true,
+      env: gitReadEnvironment(),
+    }).trim(),
+    loadConditions:
+      "uncontrolled local background load; warm native acquisition",
+    memoryScope:
+      "sampled parent RSS/heap/external plus event native peaks; child RSS is not included",
+  };
   await mkdir(root);
   git("init", "--quiet", "--template=");
   git("config", "core.autocrlf", "false");
@@ -137,6 +184,8 @@ try {
   git("add", ".");
   git(
     "-c",
+    "core.hooksPath=",
+    "-c",
     "user.name=Benchmark",
     "-c",
     "user.email=benchmark@example.invalid",
@@ -152,12 +201,12 @@ try {
         ["candidate", project],
       ]
     : [["candidate", project]];
-  const identities = await Promise.all(
-    variants.map(async ([variant, source]) => ({
+  workload.fixtureSha256 = fixtureHash.digest("hex");
+  for (const [variant, source] of variants)
+    identities.push({
       variant,
       ...(await sourceIdentity(source)),
-    })),
-  );
+    });
   for (let repetition = -1; repetition < repetitions; repetition++) {
     for (const [variant, source] of repetition % 2
       ? [...variants].reverse()
@@ -187,6 +236,7 @@ try {
       if (child.error || child.status !== 0)
         throw new Error(child.error?.message ?? child.stderr);
       const result = JSON.parse(child.stdout),
+        identity = identities.find((entry) => entry.variant === variant),
         counts = Object.fromEntries(
           ["git-ignore", "git-census", "prettier-debug", "other"].map(
             (role) => [
@@ -195,6 +245,14 @@ try {
             ],
           ),
         );
+      if (!result.identity?.coreSourceInputsSha256)
+        throw new Error("Missing benchmark native identity.");
+      if (
+        identity.nativeIdentity &&
+        !isDeepStrictEqual(identity.nativeIdentity, result.identity)
+      )
+        throw new Error("Benchmark native identity changed during sampling.");
+      identity.nativeIdentity ??= result.identity;
       if (repetition >= 0)
         samples.push({
           variant,
@@ -233,38 +291,8 @@ try {
     }),
   );
   const report = {
-    schemaVersion: 1,
-    workload: {
-      operation: values.workload,
-      files,
-      changed,
-      nonJsonRecords: records,
-      repetitions,
-      warmups: 1,
-      fixtureSha256: fixtureHash.digest("hex"),
-    },
-    environment: {
-      node: process.version,
-      v8: process.versions.v8,
-      platform: process.platform,
-      arch: process.arch,
-      os: release(),
-      cpu: cpus()[0]?.model,
-      cores: cpus().length,
-      totalMemoryBytes: totalmem(),
-      freeMemoryBytes: freemem(),
-      git: execFileSync("git", ["--version"], {
-        encoding: "utf8",
-        windowsHide: true,
-      }).trim(),
-      loadConditions:
-        "uncontrolled local background load; warm native acquisition",
-      memoryScope:
-        "sampled parent RSS/heap/external plus event native peaks; child RSS is not included",
-    },
-    identities,
+    ...reportContext(),
     summaries,
-    samples,
     timingGate: "diagnostic-only; no calibrated platform budget accepted",
   };
   for (const [variant, source] of variants)
@@ -295,16 +323,8 @@ try {
       resolve(values.output),
       JSON.stringify(
         {
-          schemaVersion: 1,
+          ...reportContext(),
           status: "failed",
-          workload: {
-            operation: values.workload,
-            files,
-            changed,
-            records,
-            repetitions,
-          },
-          samples,
           error: String(error.stack ?? error),
         },
         null,
