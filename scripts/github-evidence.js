@@ -96,7 +96,7 @@ export function createRepositoryReader({
           {
             redirect: "manual",
             cache: "no-store",
-            signal: AbortSignal.timeout(Math.min(40000, remaining)),
+            signal: AbortSignal.timeout(remaining),
             headers: {
               Accept: accept,
               Authorization: `Bearer ${token}`,
@@ -121,7 +121,7 @@ export function createRepositoryReader({
           response = await fetchImpl(location, {
             redirect: "error",
             cache: "no-store",
-            signal: AbortSignal.timeout(Math.min(40000, end - now())),
+            signal: AbortSignal.timeout(end - now()),
           });
         }
         if (!response.ok)
