@@ -68,6 +68,13 @@ The operator route reads back each change, never automatically retries a setting
 It disables CodeQL default setup before using the explicit advanced workflow; the two modes cannot run concurrently.
 The local implementation does not activate these settings or establish the draft-PR process proof.
 
+### Operator cutover
+
+After publishing the reviewed source, explicitly dispatch **Main qualification** on `main` with `gh workflow run main-qualification.yml --ref main`.
+Prepare a draft runbook PR from the same source and deliberately mark it ready for review to establish the native `CI / acceptance` context.
+The bootstrap prerequisite establishes that the check is selectable; a failed or incomplete check is never evidence that the candidate passed.
+Return to clean signed published `main`, run `node scripts/github-governance.js --apply`, then use `--check` to verify the complete settings readback.
+
 After an ordinary merge, `main-qualification.yml` performs lightweight image/input/provenance admission.
 The proof must bind the same tree, parents, workflow, dependency selectors/locks, generated declarations, JSON policy/schema/tool/native inputs, resolved runtimes and runner images.
 Equal-input JSON is eligible for `REUSED` with the rest of the complete qualification.
