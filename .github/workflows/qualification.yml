@@ -130,10 +130,11 @@ jobs:
       - name: Retain only the compact proof needed by acceptance
         if: inputs.emit-proof
         timeout-minutes: 5
-        shell: bash
-        env:
-          EVIDENCE_PATH: ${{ steps.receipt.outputs.path }}
-        run: '"$JSON_QUALITY_PRODUCER_NODE" scripts/upload-evidence.js upload "$EVIDENCE_PATH" 1'
+        uses: ./.github/actions/upload-evidence
+        with:
+          mode: upload
+          path: ${{ steps.receipt.outputs.path }}
+          retention-days: 1
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         if: inputs.release-mode && success()
