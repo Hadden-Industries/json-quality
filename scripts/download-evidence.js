@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRepositoryReader } from "./github-evidence.js";
 import { native, budgets } from "./qualification-process.js";
+import { artifactLimits } from "./artifact-policy.js";
 
 export async function downloadEvidence({
   id,
@@ -16,29 +17,41 @@ export async function downloadEvidence({
   repositoryId,
   headRepositoryId = repositoryId,
   headSha,
-  maximum = 536870912,
+  maximum = artifactLimits.payloadBytes,
 }) {
   assert.ok(Number.isSafeInteger(id) && id > 0);
+  const admit = (metadata) => {
+    assert.equal(metadata.id, id);
+    assert.equal(metadata.expired, false);
+    assert.match(metadata.digest, /^sha256:[a-f0-9]{64}$/u);
+    assert.equal(metadata.workflow_run.id, runId);
+    assert.equal(metadata.workflow_run.repository_id, repositoryId);
+    assert.equal(metadata.workflow_run.head_repository_id, headRepositoryId);
+    assert.equal(metadata.workflow_run.head_sha, headSha);
+    assert.ok(
+      metadata.size_in_bytes > 0 &&
+        metadata.size_in_bytes <= maximum + artifactLimits.envelopeBytes,
+    );
+  };
   const metadata = await read(`/actions/artifacts/${id}`);
-  assert.equal(metadata.id, id);
-  assert.equal(metadata.expired, false);
-  assert.match(metadata.digest, /^sha256:[a-f0-9]{64}$/u);
-  assert.equal(metadata.workflow_run.id, runId);
-  assert.equal(metadata.workflow_run.repository_id, repositoryId);
-  assert.equal(metadata.workflow_run.head_repository_id, headRepositoryId);
-  assert.equal(metadata.workflow_run.head_sha, headSha);
-  assert.ok(
-    metadata.size_in_bytes > 0 && metadata.size_in_bytes <= maximum + 1048576,
-  );
+  admit(metadata);
+  const size = metadata.size_in_bytes,
+    digest = metadata.digest;
   const bytes = await read(`/actions/artifacts/${id}/zip`, {
     raw: true,
-    maximumBytes: maximum + 1048576,
+    maximumBytes: maximum + artifactLimits.envelopeBytes,
   });
-  assert.equal(bytes.length, metadata.size_in_bytes);
+  assert.equal(bytes.length, size);
   assert.equal(
     `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
-    metadata.digest,
+    digest,
   );
+  // Finish the shared network lookup before the separate extraction phase.
+  // Provider conflict/expiry must fail before any payload is materialized.
+  const retained = await read(`/actions/artifacts/${id}`);
+  admit(retained);
+  assert.equal(retained.digest, digest);
+  assert.equal(retained.size_in_bytes, size);
   const scratch = mkdtempSync(
       join(process.env.RUNNER_TEMP, "artifact-download-"),
     ),
@@ -55,9 +68,6 @@ export async function downloadEvidence({
     ],
     { timeout: budgets.collection, phase: "artifact-extract" },
   );
-  const retained = await read(`/actions/artifacts/${id}`);
-  assert.equal(retained.expired, false);
-  assert.equal(retained.digest, metadata.digest);
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const pull =

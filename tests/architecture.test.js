@@ -77,6 +77,13 @@ test("architecture rejects a real runtime cycle with native path evidence", asyn
   );
 });
 
+test("architecture includes CI action entry scripts in native syntax admission", async (t) => {
+  const { root } = fixture(t, {
+    ".github/actions/probe/action.mjs": "export const = ;\n",
+  });
+  await assert.rejects(checkArchitecture(root), /syntax/u);
+});
+
 for (const [rule, files, metadata] of [
   ["unresolved", { "src/value.js": 'import "./missing.js";\n' }],
   [

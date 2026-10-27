@@ -88,7 +88,7 @@
     "check:perf": "npm run bench:check && npm run bench:format",
     "test": "node --test --test-concurrency=1 tests/*.test.js tests/native/*.test.mjs",
     "check:affected": "node scripts/affected-tests.js",
-    "check:full": "npm run check:node && npm run check:resources && npm run check:architecture && npm run check:schemas && npm run check:types && npm run check:types:generated && npm run check:release && npm run check:package && npm run check:security && npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
+    "check:full": "npm run check:node && npm run check:ci && npm run check:resources && npm run check:architecture && npm run check:schemas && npm run check:types && npm run check:types:generated && npm run check:release && npm run check:package && npm run check:security && npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
     "check:schemas": "node scripts/check-schemas.js",
     "check:types": "tsc -p tsconfig.json --noEmit",
     "build:types": "node scripts/build-types.js",
@@ -116,7 +116,7 @@
     "release:collect": "node scripts/release-registry-evidence.js",
     "pack:archive": "node scripts/pack.js",
     "test:node-policy": "node --test tests/node-support.test.js",
-    "lint": "eslint src scripts tests eslint.config.js",
+    "lint": "eslint src scripts tests .github/actions eslint.config.js",
     "prettier": "prettier --ignore-unknown . --ignore-path .gitignore --ignore-path .prettierignore",
     "format:code": "npm run prettier -- --write",
     "format:code:check": "npm run prettier -- --check",
@@ -136,7 +136,8 @@
     "qualify:package": "node scripts/qualify-package.js",
     "test:native": "node --test --test-concurrency=1 tests/native/*.test.mjs",
     "native:build": "node scripts/build-native.js",
-    "native:stage": "python native/stage.py"
+    "native:stage": "python native/stage.py",
+    "check:ci": "node scripts/check-workflows.js"
   },
   "publishConfig": {
     "access": "public"

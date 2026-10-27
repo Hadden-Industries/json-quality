@@ -8,6 +8,7 @@ import {
   readFileSync,
   rmSync,
   readdirSync,
+  existsSync,
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -195,6 +196,23 @@ test("download digest mismatch stops before extraction and valid bytes are consu
   await assert.rejects(downloadEvidence(input));
   assert.equal(downloads, 1);
   metadata.digest = digest;
+  let observations = 0;
+  const expiredDestination = join(temp, "expired");
+  await assert.rejects(
+    downloadEvidence({
+      ...input,
+      destination: expiredDestination,
+      read: async (path) =>
+        path.endsWith("/zip")
+          ? bytes
+          : { ...metadata, expired: ++observations > 1 },
+    }),
+  );
+  assert.equal(
+    existsSync(expiredDestination),
+    false,
+    "Expired metadata must fail before materialization",
+  );
   await downloadEvidence(input);
   assert.equal(downloads, 2);
   assert.equal(readFileSync(join(temp, "out/proof.json"), "utf8"), "proof");
