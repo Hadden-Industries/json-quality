@@ -62,6 +62,8 @@ Their head repository is authenticated separately from the base repository; they
 `.github/governance.json` records the reviewed cutover settings, including the active strict main ruleset with no bypass, the expected Actions App, read-only tokens and external-contributor approval.
 `node scripts/github-governance.js` inspects the live settings without changing them; `--check` fails on drift.
 After the source has been published and the native PR acceptance check has existed, a separately authorized operator can use `--apply` on clean signed published `main`.
+Bootstrap authenticates the exact Actions job/check, its App and the reviewed CI workflow bytes at the check's integration commit.
+The initial check may have failed while advanced CodeQL conflicts with default setup; selecting it as required still blocks merging until it succeeds after cutover.
 The operator route reads back each change, never automatically retries a settings mutation and preserves unrelated rulesets.
 It disables CodeQL default setup before using the explicit advanced workflow; the two modes cannot run concurrently.
 The local implementation does not activate these settings or establish the draft-PR process proof.

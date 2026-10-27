@@ -190,12 +190,11 @@ test("producer npm setup admits resource overrides before dependencies are insta
   cpSync(new URL("../schemas/", import.meta.url), join(root, "schemas"), {
     recursive: true,
   });
-  writeFileSync(
-    join(root, "scripts/qualification-process.js"),
-    readFileSync(
-      new URL("../scripts/qualification-process.js", import.meta.url),
-    ),
-  );
+  for (const name of ["qualification-process.js", "qualification-budgets.js"])
+    writeFileSync(
+      join(root, "scripts", name),
+      readFileSync(new URL(`../scripts/${name}`, import.meta.url)),
+    );
   writeFileSync(
     join(root, "assets/node-support.json"),
     readFileSync(new URL("../assets/node-support.json", import.meta.url)),

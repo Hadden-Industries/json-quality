@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inspectGovernance, governance } from "../scripts/github-governance.js";
+import {
+  inspectGovernance,
+  observeAcceptanceCheck,
+  governance,
+} from "../scripts/github-governance.js";
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 
@@ -34,6 +38,115 @@ test("governance drift identifies missing protection and expected native check s
   responses["/rulesets?per_page=100"] = [];
   assert.deepEqual((await inspectGovernance(read)).differences, ["ruleset"]);
 });
+function bootstrapFixture() {
+  const workflowSha = "a".repeat(40),
+    integrationSha = "b".repeat(40);
+  const responses = {
+    "/actions/workflows/ci.yml/runs?event=pull_request&per_page=100": {
+      workflow_runs: [
+        {
+          id: 10,
+          check_suite_id: 20,
+          event: "pull_request",
+          path: ".github/workflows/ci.yml",
+          head_sha: "c".repeat(40),
+          conclusion: "failure",
+          repository: { full_name: governance.repository },
+          head_repository: { full_name: governance.repository },
+        },
+      ],
+    },
+    "/actions/runs/10/jobs?filter=latest&per_page=100": {
+      total_count: 1,
+      jobs: [
+        {
+          run_id: 10,
+          name: "CI / acceptance",
+          conclusion: "failure",
+          check_run_url: `https://api.github.com/repos/${governance.repository}/check-runs/30`,
+        },
+      ],
+    },
+    "/check-runs/30": {
+      id: 30,
+      name: "CI / acceptance",
+      head_sha: integrationSha,
+      conclusion: "failure",
+      app: { id: governance.actionsAppId },
+      check_suite: { id: 20 },
+    },
+    [`/contents/.github/workflows/ci.yml?ref=${integrationSha}`]: {
+      sha: workflowSha,
+    },
+  };
+  return {
+    workflowSha,
+    responses,
+    read: async (path) => {
+      if (!Object.hasOwn(responses, path))
+        throw new Error(`Unexpected read: ${path}`);
+      return responses[path];
+    },
+  };
+}
+
+test("failed native acceptance can bootstrap protection without admitting a failed merge", async () => {
+  const fixture = bootstrapFixture();
+  assert.deepEqual(
+    await observeAcceptanceCheck(fixture.read, fixture.workflowSha),
+    { runId: 10, checkId: 30 },
+  );
+  const checks = governance.ruleset.rules.find(
+    (rule) => rule.type === "required_status_checks",
+  ).parameters;
+  assert.equal(checks.strict_required_status_checks_policy, true);
+  assert.deepEqual(checks.required_status_checks, [
+    { context: "CI / acceptance", integration_id: governance.actionsAppId },
+  ]);
+});
+
+test("check bootstrap refuses foreign producers, changed workflows and incomplete inventory", async (t) => {
+  for (const [name, change] of [
+    ["foreign App", (r) => (r["/check-runs/30"].app.id = 1)],
+    ["foreign suite", (r) => (r["/check-runs/30"].check_suite.id = 1)],
+    ["wrong check name", (r) => (r["/check-runs/30"].name = "other")],
+    [
+      "changed workflow",
+      (r) =>
+        (r[`/contents/.github/workflows/ci.yml?ref=${"b".repeat(40)}`].sha =
+          "d".repeat(40)),
+    ],
+    [
+      "fork source",
+      (r) =>
+        (r[
+          "/actions/workflows/ci.yml/runs?event=pull_request&per_page=100"
+        ].workflow_runs[0].head_repository.full_name = "elsewhere/fork"),
+    ],
+    [
+      "truncated jobs",
+      (r) =>
+        (r["/actions/runs/10/jobs?filter=latest&per_page=100"].total_count = 2),
+    ],
+    [
+      "foreign check URL",
+      (r) =>
+        (r[
+          "/actions/runs/10/jobs?filter=latest&per_page=100"
+        ].jobs[0].check_run_url =
+          "https://api.github.com/repos/elsewhere/fork/check-runs/30"),
+    ],
+  ])
+    await t.test(name, async () => {
+      const fixture = bootstrapFixture();
+      change(fixture.responses);
+      await assert.rejects(
+        observeAcceptanceCheck(fixture.read, fixture.workflowSha),
+        { code: "ERR_ASSERTION" },
+      );
+    });
+});
+
 test("deliberate triggers and skip-resistant acceptance remain explicit", () => {
   const read = (name) =>
     parse(

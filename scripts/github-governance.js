@@ -87,6 +87,60 @@ export async function inspectGovernance(read) {
   };
 }
 
+/** Existence selects a required check; its eventual result still gates merging. */
+export async function observeAcceptanceCheck(read, publishedWorkflowSha) {
+  assert.match(publishedWorkflowSha, /^[a-f0-9]{40}$/u);
+  const runs = await read(
+    "/actions/workflows/ci.yml/runs?event=pull_request&per_page=100",
+  );
+  assert.ok(Array.isArray(runs.workflow_runs));
+  for (const run of runs.workflow_runs.slice(0, 10)) {
+    if (
+      run.event !== "pull_request" ||
+      run.path !== ".github/workflows/ci.yml" ||
+      run.repository?.full_name !== governance.repository ||
+      run.head_repository?.full_name !== governance.repository
+    )
+      continue;
+    assert.ok(Number.isSafeInteger(run.id) && run.id > 0);
+    assert.ok(
+      Number.isSafeInteger(run.check_suite_id) && run.check_suite_id > 0,
+    );
+    const jobs = await read(
+      `/actions/runs/${run.id}/jobs?filter=latest&per_page=100`,
+    );
+    assert.equal(jobs.total_count, jobs.jobs.length);
+    const acceptance = jobs.jobs.filter(
+      (job) => job.name === "CI / acceptance",
+    );
+    assert.ok(acceptance.length <= 1, "Ambiguous native acceptance check");
+    if (!acceptance.length) continue;
+    const job = acceptance[0];
+    assert.equal(job.run_id, run.id);
+    const prefix = `https://api.github.com/repos/${governance.repository}`;
+    assert.ok(job.check_run_url?.startsWith(`${prefix}/check-runs/`));
+    const path = job.check_run_url.slice(prefix.length);
+    assert.match(path, /^\/check-runs\/[1-9]\d*$/u);
+    const check = await read(path);
+    assert.equal(String(check.id), path.split("/").at(-1));
+    if (
+      check.name !== job.name ||
+      check.app?.id !== governance.actionsAppId ||
+      check.check_suite?.id !== run.check_suite_id
+    )
+      continue;
+    assert.match(check.head_sha, /^[a-f0-9]{40}$/u);
+    if (
+      (await read(`/contents/.github/workflows/ci.yml?ref=${check.head_sha}`))
+        .sha === publishedWorkflowSha
+    )
+      return { runId: run.id, checkId: check.id };
+  }
+  assert.fail(
+    "A native Actions acceptance check from the reviewed CI workflow must exist before activation",
+  );
+}
+
 async function activate(read, write) {
   const git = (...args) =>
     execFileSync("git", args, {
@@ -111,42 +165,9 @@ async function activate(read, write) {
     (await read(`/contents/.github/governance.json?ref=${head}`)).sha,
     git("rev-parse", `${head}:.github/governance.json`),
   );
-  const runs = await read(
-    "/actions/workflows/ci.yml/runs?event=pull_request&status=success&per_page=100",
-  );
-  assert.ok(
-    runs.workflow_runs.length,
-    "Run the deliberate PR gate once before selecting its check",
-  );
-  let observed = false;
-  for (const run of runs.workflow_runs.slice(0, 10)) {
-    const jobs = await read(
-      `/actions/runs/${run.id}/jobs?filter=latest&per_page=100`,
-    );
-    assert.equal(jobs.total_count, jobs.jobs.length);
-    if (
-      !jobs.jobs.some(
-        (job) => job.name === "CI / acceptance" && job.conclusion === "success",
-      )
-    )
-      continue;
-    const checks = await read(
-      `/commits/${run.head_sha}/check-runs?check_name=CI%20%2F%20acceptance&per_page=100`,
-    );
-    if (
-      checks.check_runs.some(
-        (check) =>
-          check.app?.id === governance.actionsAppId &&
-          check.conclusion === "success",
-      )
-    ) {
-      observed = true;
-      break;
-    }
-  }
-  assert.ok(
-    observed,
-    "A successful native Actions acceptance check must exist before activation",
+  await observeAcceptanceCheck(
+    read,
+    git("rev-parse", `${head}:.github/workflows/ci.yml`),
   );
   const before = await inspectGovernance(read);
   const settings = [
