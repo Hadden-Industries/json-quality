@@ -60,17 +60,18 @@ function context() {
 }
 const hash = (bytes) =>
   `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
-const output = (values, summary) => {
-  if (process.env.GITHUB_OUTPUT)
-    for (const [key, value] of Object.entries(values)) {
-      assert.match(key, /^[a-z_]+$/u);
-      assert.ok(!/[\r\n]/u.test(String(value)));
-      appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
-    }
+export function publishCiResult(values, summary, environment = process.env) {
+  const entries = Object.entries(values).map(([key, value]) => {
+    assert.match(key, /^[A-Za-z_][A-Za-z0-9_-]*$/u);
+    assert.ok(!/[\r\n]/u.test(String(value)));
+    return `${key}=${value}\n`;
+  });
+  if (environment.GITHUB_OUTPUT)
+    appendFileSync(environment.GITHUB_OUTPUT, entries.join(""));
   console.log(JSON.stringify({ ...values, summary }));
-  if (process.env.GITHUB_STEP_SUMMARY)
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + "\n");
-};
+  if (environment.GITHUB_STEP_SUMMARY)
+    appendFileSync(environment.GITHUB_STEP_SUMMARY, summary + "\n");
+}
 function reader() {
   const request = createRepositoryReader({
     repository,
@@ -119,6 +120,55 @@ function newestRecords(records, key) {
       assert.deepEqual(value, prior, "Conflicting compact receipts");
   }
   return [...groups.values()];
+}
+export async function observeQualification({
+  ctx,
+  read,
+  resolveMatrix = resolveQualificationMatrix,
+  environment = process.env,
+  now = Date.now,
+}) {
+  let result, summary;
+  try {
+    const selection = await selectProof({ ctx, read, now: now() });
+    const receipt = await readRawProof(selection.artifact, read);
+    const matrix = await resolveMatrix();
+    matrixLanes(matrix);
+    const inventory = await artifacts(read, ctx.runId, ctx.repositoryId);
+    const hosts = [];
+    for (const artifact of inventory.filter((value) =>
+      /^ci-host-[a-z0-9.-]+-\d+-\d+\.json$/u.test(value.name),
+    )) {
+      const host = await readRawProof(artifact, read);
+      assert.equal(host.runId, ctx.runId);
+      assert.equal(host.runAttempt, ctx.runAttempt);
+      assert.equal(host.repositoryId, ctx.repositoryId);
+      assert.equal(host.commit, ctx.sha);
+      hosts.push(host);
+    }
+    result = await verifyProof({
+      ctx,
+      matrix,
+      hosts,
+      selection,
+      receipt,
+      read,
+      now: now(),
+    });
+    summary =
+      "REUSED: the qualified PR tree, JSON/policy/schema/native/generated inputs, runtime matrix and supported platform contracts match this merge; original runner images remain recorded.";
+  } catch (error) {
+    const reason = String(error.message)
+      .split("\n")[0]
+      .replace(/[^a-zA-Z0-9 .,():_-]/gu, "")
+      .slice(0, 180);
+    result = { mode: "FULL_REQUIRED" };
+    summary = `FULL_REQUIRED: ${reason}. Explicitly dispatch main qualification; no full suite was launched.`;
+  }
+  // Publication errors fail the job; they cannot invalidate verified evidence
+  // or turn a partially published success into a qualification miss.
+  publishCiResult(result, summary, environment);
+  return result;
 }
 async function main(mode) {
   const ctx = context();
@@ -175,7 +225,7 @@ async function main(mode) {
       `ci-lane-${record.lane.os}-${record.lane.node}-${ctx.runId}-${ctx.runAttempt}.json`,
     );
     writeFileSync(path, JSON.stringify(record) + "\n", { flag: "wx" });
-    output(
+    publishCiResult(
       { path },
       "Packed consumer receipt recorded after all lane assertions.",
     );
@@ -186,7 +236,7 @@ async function main(mode) {
     if (ctx.eventName === "workflow_dispatch") {
       assert.equal(process.env.GITHUB_REF, "refs/heads/main");
       requireResults(JSON.parse(process.env.NEEDS_JSON));
-      output(
+      publishCiResult(
         { mode: "FULL" },
         "FULL: explicit main qualification and all mandatory predecessor graphs succeeded. This record cannot seed PR-result reuse.",
       );
@@ -212,7 +262,7 @@ async function main(mode) {
       read,
     });
     if (ctx.event.pull_request.head.repo.id !== ctx.repositoryId) {
-      output(
+      publishCiResult(
         { mode: "FULL", reuse: "INELIGIBLE_FORK" },
         "FULL: approved fork PR qualification and its complete native inventory succeeded. Same-repository main reuse is ineligible; no unused reuse artifact was uploaded.",
       );
@@ -223,52 +273,14 @@ async function main(mode) {
       `ci-proof-${ctx.runId}-${ctx.runAttempt}.json`,
     );
     writeFileSync(path, JSON.stringify(receipt) + "\n", { flag: "wx" });
-    output(
+    publishCiResult(
       { path, mode: "FULL" },
       "FULL: every mandatory predecessor, frozen runtime lane and original producing attempt was admitted.",
     );
     return;
   }
   if (mode === "observe") {
-    try {
-      const selection = await selectProof({ ctx, read });
-      const receipt = await readRawProof(selection.artifact, read);
-      const matrix = await resolveQualificationMatrix();
-      matrixLanes(matrix);
-      const inventory = await artifacts(read, ctx.runId, ctx.repositoryId);
-      const hosts = [];
-      for (const artifact of inventory.filter((value) =>
-        /^ci-host-[a-z0-9.-]+-\d+-\d+\.json$/u.test(value.name),
-      )) {
-        const host = await readRawProof(artifact, read);
-        assert.equal(host.runId, ctx.runId);
-        assert.equal(host.runAttempt, ctx.runAttempt);
-        assert.equal(host.repositoryId, ctx.repositoryId);
-        assert.equal(host.commit, ctx.sha);
-        hosts.push(host);
-      }
-      const result = await verifyProof({
-        ctx,
-        matrix,
-        hosts,
-        selection,
-        receipt,
-        read,
-      });
-      output(
-        result,
-        "REUSED: the qualified PR tree, JSON/policy/schema/native/generated inputs, runtime matrix and supported platform contracts match this merge; original runner images remain recorded.",
-      );
-    } catch (error) {
-      const reason = String(error.message)
-        .split("\n")[0]
-        .replace(/[^a-zA-Z0-9 .,():_-]/gu, "")
-        .slice(0, 180);
-      output(
-        { mode: "FULL_REQUIRED" },
-        `FULL_REQUIRED: ${reason}. Explicitly dispatch main qualification; no full suite was launched.`,
-      );
-    }
+    await observeQualification({ ctx, read });
     return;
   }
   throw new Error("Expected lane, record or observe");
