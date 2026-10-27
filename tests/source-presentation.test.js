@@ -12,7 +12,7 @@ const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 async function fixture(t, bytes = Buffer.from(' { "n": 1 }\r\n')) {
   const root = temporaryRepository(t, "json-quality-source-presentation-"),
     policy = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       defaults: {
         formatContract: "prettier-json",
         allowFormatWrites: true,

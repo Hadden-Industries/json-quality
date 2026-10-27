@@ -141,7 +141,7 @@ export async function* gitBlob(
     hash = createHash("sha1").update(`blob ${member.byteLength}\0`);
   let length = 0n,
     failure,
-    stderrBytes = 0,
+    stderrBytes = 0n,
     timer;
   const fail = (/** @type {*} */ error) => {
       failure ??= error;
@@ -149,8 +149,12 @@ export async function* gitBlob(
     },
     abort = () => fail(signal.reason ?? new Error("Git blob cancelled."));
   child.stderr.on("data", (part) => {
-    stderrBytes += part.length;
-    if (stderrBytes > 4096) fail(new Error("git-blob-stderr-capacity"));
+    stderrBytes += BigInt(part.length);
+    if (
+      capacities.maxGitOutputBytes !== null &&
+      stderrBytes > BigInt(capacities.maxGitOutputBytes)
+    )
+      fail(new Error("git-blob-stderr-capacity"));
   });
   child.stderr.on("error", fail);
   if (capacities.maxGitTimeMs !== null) {

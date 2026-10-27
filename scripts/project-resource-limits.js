@@ -14,42 +14,50 @@ export function projectResourceLimits({ write = false } = {}) {
   );
   const path = new URL("../src/acquire.js", import.meta.url);
   const source = readFileSync(path, "utf8").replaceAll("\r\n", "\n");
-  const definition = schema.$defs.capacityLimits;
-  if (
-    definition.type !== "object" ||
-    definition.additionalProperties !== false ||
-    Object.keys(definition).some(
-      (key) => !["type", "additionalProperties", "properties"].includes(key),
-    )
-  )
-    throw new Error(
-      "Cold resource validation requires a closed object schema.",
-    );
-  const values = Object.entries(definition.properties)
-    .map(([name, rule]) => {
-      if (
-        !/^[a-z][A-Za-z0-9]*$/u.test(name) ||
-        rule.type !== "integer" ||
-        rule.minimum !== 1 ||
-        rule.maximum !== Number.MAX_SAFE_INTEGER ||
-        Object.keys(rule).some(
-          (key) => !["type", "minimum", "maximum", "default"].includes(key),
-        ) ||
-        !Number.isSafeInteger(rule.default) ||
-        rule.default < 1
+  let projected = source;
+  for (const [definitionName, markerName, exportName] of [
+    ["capacityLimits", "RESOURCE", "ACQUISITION_RESOURCE_DEFAULTS"],
+    ["verificationControls", "VERIFICATION", "VERIFICATION_RESOURCE_DEFAULTS"],
+  ]) {
+    const definition = schema.$defs[definitionName];
+    if (
+      definition.type !== "object" ||
+      definition.additionalProperties !== false ||
+      Object.keys(definition).some(
+        (key) => !["type", "additionalProperties", "properties"].includes(key),
       )
-        throw new Error(
-          "Cold resource validation requires positive safe integers, matching defaults and literal property names.",
-        );
-      return `  ${name}: ${rule.default},`;
-    })
-    .join("\n");
-  const block = `// BEGIN GENERATED RESOURCE DEFAULTS\nexport const ACQUISITION_RESOURCE_DEFAULTS = Object.freeze({\n${values}\n});\n// END GENERATED RESOURCE DEFAULTS`;
-  const marker =
-    /\/\/ BEGIN GENERATED RESOURCE DEFAULTS[\s\S]*?\/\/ END GENERATED RESOURCE DEFAULTS/gu;
-  if ([...source.matchAll(marker)].length !== 1)
-    throw new Error("Missing or duplicated resource projection marker.");
-  const projected = source.replace(marker, block);
+    )
+      throw new Error(
+        "Cold resource validation requires a closed object schema.",
+      );
+    const values = Object.entries(definition.properties)
+      .map(([name, rule]) => {
+        if (
+          !/^[a-z][A-Za-z0-9]*$/u.test(name) ||
+          !isDeepStrictEqual(rule.type, ["integer", "null"]) ||
+          rule.minimum !== 1 ||
+          rule.maximum !== Number.MAX_SAFE_INTEGER ||
+          Object.keys(rule).some(
+            (key) => !["type", "minimum", "maximum", "default"].includes(key),
+          ) ||
+          !Number.isSafeInteger(rule.default) ||
+          rule.default < 1
+        )
+          throw new Error(
+            "Cold resource validation requires positive safe integers, matching defaults and literal property names.",
+          );
+        return `  ${name}: ${rule.default},`;
+      })
+      .join("\n");
+    const block = `// BEGIN GENERATED ${markerName} DEFAULTS\nexport const ${exportName} = Object.freeze({\n${values}\n});\n// END GENERATED ${markerName} DEFAULTS`;
+    const marker = new RegExp(
+      `// BEGIN GENERATED ${markerName} DEFAULTS[\\s\\S]*?// END GENERATED ${markerName} DEFAULTS`,
+      "gu",
+    );
+    if ([...source.matchAll(marker)].length !== 1)
+      throw new Error("Missing or duplicated resource projection marker.");
+    projected = projected.replace(marker, block);
+  }
   if (projected !== source) {
     if (!write)
       throw new Error(
@@ -75,7 +83,7 @@ export function projectResourceLimits({ write = false } = {}) {
         properties: Object.fromEntries(
           names.map((name) => [
             name,
-            wireName === "admission"
+            schema.$defs[definitionName].properties[name].type.includes("null")
               ? { anyOf: [integer, { type: "null" }] }
               : integer,
           ]),
@@ -90,7 +98,10 @@ export function projectResourceLimits({ write = false } = {}) {
     }
   }
   if (write) writeFileSync(eventsPath, JSON.stringify(events, null, 2) + "\n");
-  return { defaults: values.split("\n").length, synchronized: true };
+  return {
+    defaults: Object.keys(schema.$defs.capacityLimits.properties).length,
+    synchronized: true,
+  };
 }
 
 if (

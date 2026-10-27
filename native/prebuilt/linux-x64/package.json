@@ -1,6 +1,6 @@
 {
   "name": "@hadden-industries/json-quality-linux-x64",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc.2",
   "description": "Verified linux-x64 native component for JSON Quality",
   "license": "AGPL-3.0-only",
   "os": [

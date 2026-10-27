@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { admitJsonPolicy } from "./configuration.js";
 import { NativeSession } from "./native-session.js";
 import { createValueSession } from "./value-session.js";
+import { createExecutionDeadline } from "./execution-deadline.js";
 import {
   observeRepositorySource,
   identifyRepositorySource,
@@ -80,10 +81,13 @@ export async function bootstrapJsonPolicySource(
       join(temporaryDirectory, "json-quality-policy-" + randomUUID()),
     ),
     session = createValueSession(core);
+  let deadline;
   try {
-    const configured = (await core.configure(resources)).result.resources,
-      deadline = AbortSignal.timeout(Number(configured.runtime.maxCheckTimeMs)),
-      operationSignal = signal ? AbortSignal.any([signal, deadline]) : deadline,
+    const configured = (await core.configure(resources)).result.resources;
+    deadline = createExecutionDeadline(configured.runtime.maxCheckTimeMs, [
+      signal,
+    ]);
+    const operationSignal = deadline.signal,
       { member, open } = await identify({
         signal: operationSignal,
         maximumBytes: configured.admission.maxPolicyBytes,
@@ -136,6 +140,7 @@ export async function bootstrapJsonPolicySource(
       observation: member,
     };
   } finally {
+    deadline?.dispose();
     await session.close();
   }
 }

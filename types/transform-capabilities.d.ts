@@ -1,11 +1,18 @@
-export declare const JSON_TRANSFORM_CAPABILITIES: Readonly<{
-  maximumSourceBytes: 2097152;
-  maximumOutputBytes: 2097152;
-  maximumNormalizationChanges: 4096;
-}>;
+export declare const JSON_TRANSFORM_CAPABILITIES: {
+  readonly [
+    K in keyof Required<
+      import("../types/schemas/configuration.js").TransformControls
+    >
+  ]: number;
+};
+export declare function transformResources(
+  /** @type {*} */ policy: any,
+  /** @type {*} */ invocation: any,
+): any;
 /** Refuse before a UTF-8 body copy or formatter/parser is created. */
 export declare function admitTransformSource(
   /** @type {*} */ text: any,
+  /** @type {*} */ controls?: any,
 ): number;
 /** Reserve writer-owned UTF-16 text, UTF-8 copies and bounded patch metadata before
  * either grows. At most one change can occupy four original source bytes; the
@@ -15,6 +22,7 @@ export declare function admitTransformSource(
  */
 export declare function transformWorkspaceReservation(
   /** @type {*} */ sourceBytes: any,
+  /** @type {*} */ controls?: any,
 ): number;
 /** Formatter text/AST/output work and the separately owned debug-check worker
  * share this one reservation. Process runtime/RSS is measured independently.
@@ -22,6 +30,7 @@ export declare function transformWorkspaceReservation(
 export declare function formatWorkspaceReservation(
   /** @type {*} */ sourceBytes: any,
   indexedValues?: number,
+  /** @type {*} */ controls?: any,
 ): number;
 /** Internal materialized transform lease within an existing execution. The
  * caller retains the working reservation until it has stored/consumed the

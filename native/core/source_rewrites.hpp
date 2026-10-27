@@ -115,8 +115,8 @@ struct SourceRewrites {
     }
     if (physical) {
       std::uint64_t cursor = source;
-      for (unsigned depth = 0; cursor != parent; ++depth) {
-        require(depth < 4096, "rewrite-transform-depth");
+      while (cursor != parent) {
+        store.checkCancellation();
         Statement ancestor(*store.database,
                            "SELECT parent_source,encoding FROM source_captures WHERE source=?");
         ancestor.integer(1, cursor);

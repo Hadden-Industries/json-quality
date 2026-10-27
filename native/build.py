@@ -168,10 +168,10 @@ def project_resources(destination):
             + " = {{"
         )
         for name, rule in values.items():
-            if (
-                not re.fullmatch(r"[a-z][A-Za-z0-9]*", name)
-                or rule["type"] != "integer"
-            ):
+            if not re.fullmatch(r"[a-z][A-Za-z0-9]*", name) or rule["type"] != [
+                "integer",
+                "null",
+            ]:
                 raise ValueError("Unsupported resource schema projection")
             numbers = [rule[key] for key in ("default", "minimum", "maximum")]
             if any(

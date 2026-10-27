@@ -17,4 +17,5 @@ export declare function ignoredGitPaths(
   /** @type {*} */ paths: any,
   /** @type {*} */ execution: any,
   /** @type {*} */ gitExecutable: any,
+  /** @type {*} */ reservationBytes?: any,
 ): Promise<any>;

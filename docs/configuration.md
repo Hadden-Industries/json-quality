@@ -16,9 +16,9 @@ All three public contract schemas declare JSON Schema **2020-12**, use `$defs`, 
 
 | Package export           | Logical identifier                                                            |
 | ------------------------ | ----------------------------------------------------------------------------- |
-| `configuration-schema`   | `https://github.com/Hadden-Industries/json-quality/schema/configuration/v2`   |
-| `source-contract-schema` | `https://github.com/Hadden-Industries/json-quality/schema/source-contract/v2` |
-| `event-schema`           | `https://github.com/Hadden-Industries/json-quality/schema/event/v2`           |
+| `configuration-schema`   | `https://github.com/Hadden-Industries/json-quality/schema/configuration/v3`   |
+| `source-contract-schema` | `https://github.com/Hadden-Industries/json-quality/schema/source-contract/v3` |
+| `event-schema`           | `https://github.com/Hadden-Industries/json-quality/schema/event/v3`           |
 
 These are stable logical identities, not HTTP download endpoints.
 Retrieve the actual files through package exports and register them locally; no GitHub Pages service or network schema fetch is required.
@@ -40,4 +40,7 @@ TypeScript describes accepted shapes; runtime admission remains mandatory.
 
 `contract-cohort` is a version inventory, not another public document schema.
 The retired v1 result/document-request/document-response schemas are not exports.
-The dialect/identifier migration preserves cohort-2 wire data; breaking configuration/event/native changes require a new corresponding `schemaVersion`/cohort and documented migration independently of package SemVer.
+Cohort 3 adds nullable quotas and boolean runtime selection, and removes the unused `maxConcurrency` field.
+Use policy `schemaVersion: 3` with the matching rebuilt platform packages; configuration, event and protocol cohorts move together.
+Producer and verification quota definitions support their operation-specific API options; they are not repository-policy fields.
+`transformControls` can configure repository rewrites, with explicit invocation fields taking precedence.

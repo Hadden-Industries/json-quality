@@ -59,10 +59,16 @@ async function repository(options = {}, operation, files) {
   }
 }
 try {
-  assert.equal(configuration.properties.schemaVersion.const, 2);
-  assert.equal(eventContract.properties.schemaVersion.const, 2);
+  assert.equal(
+    configuration.properties.schemaVersion.const,
+    cohort.configurationSchemaVersion,
+  );
+  assert.equal(
+    eventContract.properties.schemaVersion.const,
+    cohort.eventSchemaVersion,
+  );
   assert.equal(sourceContract.additionalProperties, false);
-  assert.equal(cohort.eventSchemaVersion, 2);
+  assert.equal(cohort.eventSchemaVersion, 3);
   for (const name of [
     "runJsonQuality",
     "checkJsonDocument",

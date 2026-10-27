@@ -137,8 +137,6 @@ inline std::optional<Value> lookupPointerChild(Streams &streams, const Value &va
 inline std::optional<Value> resolveValuePointer(Streams &streams, std::uint64_t rootValue,
                                                 const json::string &pointer) {
   auto decoded = decodePointer(pointer);
-  if (!decoded.withinDepth)
-    return {};
   Value value = valueDescriptor(streams, rootValue);
   for (const auto &part : decoded.segments) {
     Sha256 hash;

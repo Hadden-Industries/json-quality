@@ -29,6 +29,10 @@ Package-private source paths are not supported exports.
 Session options include `capacityLimits`, `runtimeControls`, `temporaryDirectory` and `signal`.
 Repository options additionally select trusted providers, required outputs, `gitExecutable`, retention and correlation settings.
 Writer options accept a closed `contract` for normalization, empty keys, protected NFC values, write permission and owner/reason.
+They also accept `transformControls` and, for `formatJsonValue`, `producerControls`.
+Installation verification accepts `verificationControls`; each profile permits `false` for unlimited quotas and per-field numeric/null overrides.
+The exported `*_CAPABILITIES` objects describe defaults, rather than immutable upper bounds.
+Ordinary unlimited reads select both `capacityLimits: false` and `runtimeControls: false`; explicit numeric fields remain enforceable.
 Use the exported `SessionOptions`, `RepositoryOptions`, `WriterOptions`, `JsonQualityPolicy`, `JsonSourceContract`, `JsonQualityEvent`, `SourceReference` and `ValueReference` types.
 See [resource controls](resource-limits.md) for authoritative names, numeric ranges and ownership.
 

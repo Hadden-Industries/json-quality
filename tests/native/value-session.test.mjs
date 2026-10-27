@@ -335,7 +335,7 @@ test("bounded policy materialization runs complete Ajv admission before explicit
     await core.configure();
     const source = await checked(
         session,
-        '{"schemaVersion":2,"defaults":{"formatContract":"prettier-json","allowFormatWrites":true,"normalization":"NFC"},"exceptions":[]}',
+        '{"schemaVersion":3,"defaults":{"formatContract":"prettier-json","allowFormatWrites":true,"normalization":"NFC"},"exceptions":[]}',
       ),
       value = await session.select(source),
       lease = await session.materializeControl(value, "1024", admitJsonPolicy);
@@ -347,7 +347,7 @@ test("bounded policy materialization runs complete Ajv admission before explicit
     await next.command("adopt-control-state", {
       byteLength: owned.managedReservationBytes,
     });
-    assert.equal(owned.value.schemaVersion, 2);
+    assert.equal(owned.value.schemaVersion, 3);
     await next.capture([Buffer.from("0")], contract);
     for await (const event of next.events())
       if (event.type === "terminal")

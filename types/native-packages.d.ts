@@ -21,6 +21,8 @@ export declare function nativePlatformSpec(): {
 };
 export declare function resolveNativePackage(
   /** @type {*} */ coreRoot: any,
+  /** @type {*} */ verificationControls?: any,
+  /** @type {*} */ signal?: any,
 ): Promise<{
   platform: string;
   spec: {

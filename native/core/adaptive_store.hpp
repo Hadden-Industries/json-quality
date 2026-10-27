@@ -295,14 +295,14 @@ struct Store {
   static constexpr std::uint64_t reserve = 8 * 1024 * 1024, transitionReserve = 1024 * 1024;
   Store(std::uint64_t identity, std::uint64_t memoryTarget, std::uint64_t segment,
         std::uint64_t quota, fs::path root, std::string injected = {},
-        SqliteMemoryOwner *account = nullptr)
-      : owner(identity), target(memoryTarget), segmentSize(segment), temporaryLimit(quota),
-        scratch(ownedScratchPath(pathFromUtf8(pathToUtf8(root)))), fault(std::move(injected)),
-        memory(memoryTarget, account), quota(quota),
+        SqliteMemoryOwner *account = nullptr, std::uint64_t workingTarget = 0)
+      : owner(identity), target(workingTarget ? workingTarget : memoryTarget), segmentSize(segment),
+        temporaryLimit(quota), scratch(ownedScratchPath(pathFromUtf8(pathToUtf8(root)))),
+        fault(std::move(injected)), memory(memoryTarget, account), quota(quota),
         quotaVfs(this->quota, pathToUtf8(scratch).size()), database(std::make_unique<Database>()) {
     memory.value->fixed.store(reserve);
     SqliteOwnerScope memoryScope(memory.value);
-    require(target >= 16 * 1024 * 1024, "minimum-target");
+    require(target > 0, "minimum-target");
     database->open(":memory:", quotaVfs.name.c_str(), memory.value);
     installMetadataTemplate(*database);
     database->execute("BEGIN IMMEDIATE;");
@@ -460,7 +460,7 @@ struct Store {
       }
       observe();
       checkScratch();
-      require(managed() <= target, "managed-target");
+      require(managed() <= memory.value->limit, "managed-target");
       return {owner, begin, std::uint64_t(bytes.size())};
     } catch (...) {
       state = State::aborted;

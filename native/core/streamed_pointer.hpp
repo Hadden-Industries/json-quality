@@ -16,10 +16,7 @@ inline std::optional<Value> resolveStreamedPointer(Streams &streams, std::uint64
   if (byte < 0)
     return value;
   require(byte == '/', "pointer-contract");
-  unsigned depth = 0;
   while (true) {
-    if (++depth > 4096)
-      value.reset();
     auto part = streams.create();
     Sha256 hash;
     std::array<unsigned char, 65536> buffer{};

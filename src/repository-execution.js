@@ -4,6 +4,10 @@ import { randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
 import { bootstrapJsonPolicy } from "./policy-bootstrap.js";
 import { resolveExecutionResources } from "./execution-resources.js";
+import {
+  createExecutionDeadline,
+  remainingDuration,
+} from "./execution-deadline.js";
 import { jsonContract } from "./configuration.js";
 import { sourcePresentationContract } from "./source-presentation.js";
 import { NativeSession } from "./native-session.js";
@@ -43,16 +47,13 @@ export async function createRepositoryExecution(
       signal,
     }),
     selected = resolveExecutionResources(admitted.policy, invocation),
-    remaining = Math.floor(
-      selected.runtime.maxCheckTimeMs - (performance.now() - began),
-    );
-  if (remaining < 1) throw new Error("execution-time-capacity");
-  const deadline = AbortSignal.timeout(remaining),
-    operationSignal = signal ? AbortSignal.any([signal, deadline]) : deadline,
-    core = new NativeSession(
+    remaining = remainingDuration(selected.runtime.maxCheckTimeMs, began);
+  const core = new NativeSession(
       component,
       join(temporaryDirectory, "json-quality-execution-" + randomUUID()),
     ),
+    deadline = createExecutionDeadline(remaining, [signal]),
+    operationSignal = deadline.signal,
     context = { policy: admitted.policy, sourcePresentationMatches: new Set() };
   const abort = () => core.cancel();
   operationSignal.addEventListener("abort", abort, { once: true });
@@ -60,7 +61,7 @@ export async function createRepositoryExecution(
     operationSignal.throwIfAborted();
     await core.configure({
       ...selected.native,
-      maxCheckTimeMs: String(remaining),
+      maxCheckTimeMs: remaining === null ? null : String(remaining),
     });
     await core.command("adopt-control-state", {
       byteLength: admitted.controlStateReservationBytes,
@@ -159,6 +160,7 @@ export async function createRepositoryExecution(
       core,
       contractFor,
       policyObservation: admitted.observation,
+      policyTransformControls: admitted.policy.transformControls,
       controlStateBytes: admitted.controlStateReservationBytes,
       numericResources: {
         admission: selected.admission,
@@ -172,6 +174,7 @@ export async function createRepositoryExecution(
         try {
           await core.close();
         } finally {
+          deadline.dispose();
           supplied.length = 0;
           nativeProviders = {};
           logicalProviders = [];
@@ -215,6 +218,7 @@ export async function createRepositoryExecution(
       },
     };
   } catch (error) {
+    deadline.dispose();
     operationSignal.removeEventListener("abort", abort);
     await core.close();
     throw error;

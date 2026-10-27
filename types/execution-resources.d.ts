@@ -1,5 +1,6 @@
-/** Preserve policy/invocation admission precedence, with finite runtime controls
- * resolved independently. Admission bypass removes only input/count ceilings.
+/** Resolve independently selected quotas without adding hidden finite ceilings.
+ * An invocation object overrides only its named controls; true selects the
+ * configured/default profile and false removes every quota in that group.
  * Internal wire metadata uses decimal strings/null and never JavaScript Infinity.
  */
 export declare function resolveExecutionResources(

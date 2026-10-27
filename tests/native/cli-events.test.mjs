@@ -99,7 +99,7 @@ test("CLI formats through the installed fixed component with a final write termi
       join(root, ".json-quality.json"),
       JSON.stringify(
         {
-          schemaVersion: 2,
+          schemaVersion: 3,
           defaults: {
             formatContract: "prettier-json",
             normalization: "NFC",

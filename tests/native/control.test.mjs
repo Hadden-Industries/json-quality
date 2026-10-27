@@ -18,8 +18,12 @@ test("control admission bounds escaped UTF-8 bytes before encoding", () => {
     /control-envelope-size/,
   );
   assert.throws(
-    () => encodeNativeControl({ text: "x".repeat(8 * 1024 * 1024) }),
+    () => encodeNativeControl({ text: "x".repeat(8 * 1024 * 1024) }, 1048576),
     /control-envelope-size/,
+  );
+  assert.equal(
+    encodeNativeControl({ text: "x".repeat(1048577) }).length,
+    1048588,
   );
 });
 

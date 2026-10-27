@@ -26,6 +26,39 @@ test("producer serialization preserves platform JSON data before shared presenta
   assert.deepEqual(JSON.parse(formatted), value);
 });
 
+test("producer quotas are caller-owned and preserve plain JSON validation", () => {
+  let value = 0;
+  for (let depth = 0; depth < 40; depth++) value = [value];
+  assert.throws(() => serializeProducerJson(value), /producer-depth-capacity/);
+  assert.equal(
+    serializeProducerJson(value, false),
+    "[".repeat(40) + "0" + "]".repeat(40),
+  );
+  assert.throws(
+    () => serializeProducerJson(value, { maximumDepth: 1 }),
+    /producer-depth-capacity/,
+  );
+  assert.throws(
+    () => serializeProducerJson({ value: undefined }, false),
+    /JSON producer data/,
+  );
+});
+
+test("a caller can format beyond the default transform byte quota", async () => {
+  const text = '"' + "x".repeat(2097153) + '"';
+  await assert.rejects(formatJsonSource(text), /transform-source-capacity/);
+  const formatted = await formatJsonSource(text, {
+    capacityLimits: false,
+    runtimeControls: false,
+    transformControls: false,
+  });
+  assert.equal(formatted, text + "\n");
+  await assert.rejects(
+    formatJsonSource(text, { transformControls: { maximumSourceBytes: 1024 } }),
+    /transform-source-capacity/,
+  );
+});
+
 test("producer admission never evaluates accessors or accepts lossy native conversions", () => {
   let evaluated = false;
   const accessor = {

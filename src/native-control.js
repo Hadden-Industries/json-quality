@@ -7,17 +7,23 @@
  * owns the input objects; this boundary bounds its additional transport copies.
  * Accessors, custom serialization and cyclic data are not a control contract.
  */
-export function encodeNativeControl(/** @type {*} */ input, maximum = 1048576) {
+export function encodeNativeControl(
+  /** @type {*} */ input,
+  /** @type {number | null} */ maximum = null,
+) {
+  const ceiling = maximum === null ? Infinity : maximum;
+  if (maximum !== null && (!Number.isSafeInteger(maximum) || maximum < 1))
+    throw new TypeError("Invalid control byte quota.");
   let bytes = 0;
   const ancestors = new Set();
   const add = (/** @type {*} */ amount) => {
     bytes += amount;
-    if (bytes > maximum) throw new Error("control-envelope-size");
+    if (bytes > ceiling) throw new Error("control-envelope-size");
   };
   const string = (/** @type {*} */ value) => {
     add(2);
     // Each code unit costs at least one output byte. Reject giants before scan.
-    if (value.length > maximum - bytes)
+    if (value.length > ceiling - bytes)
       throw new Error("control-envelope-size");
     for (let index = 0; index < value.length; index++) {
       const code = value.charCodeAt(index);
@@ -49,7 +55,7 @@ export function encodeNativeControl(/** @type {*} */ input, maximum = 1048576) {
     if (typeof value === "boolean") return add(value ? 4 : 5);
     if (typeof value === "number" && Number.isFinite(value))
       return add(JSON.stringify(value).length);
-    if (typeof value !== "object" || depth > 32 || ancestors.has(value))
+    if (typeof value !== "object" || ancestors.has(value))
       throw new TypeError("native-control-data");
     const array = Array.isArray(value);
     if (array && Object.getPrototypeOf(value) !== Array.prototype)
@@ -66,7 +72,7 @@ export function encodeNativeControl(/** @type {*} */ input, maximum = 1048576) {
     add(2);
     let count = 0;
     if (array) {
-      if (value.length > maximum - bytes)
+      if (value.length > ceiling - bytes)
         throw new Error("control-envelope-size");
       for (let index = 0; index < value.length; index++) {
         const descriptor = Object.getOwnPropertyDescriptor(

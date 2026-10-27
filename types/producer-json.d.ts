@@ -1,7 +1,5 @@
 export declare const JSON_PRODUCER_CAPABILITIES: Readonly<{
-  maximumDepth: 32;
-  maximumMembers: 65536;
-  maximumEncodedBytes: 2097152;
+  maximumEncodedBytes: number;
 }>;
 /** Admit plain JSON data without evaluating accessors/custom serialization or
  * accepting native JSON.stringify's lossy unsupported-value conversions. Input
@@ -10,4 +8,6 @@ export declare const JSON_PRODUCER_CAPABILITIES: Readonly<{
  */
 export declare function serializeProducerJson(
   /** @type {*} */ value: any,
+  /** @type {*} */ producerControls: any,
+  /** @type {*} */ transformControls?: any,
 ): string;

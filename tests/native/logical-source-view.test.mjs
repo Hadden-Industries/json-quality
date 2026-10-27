@@ -17,7 +17,7 @@ test("a trusted logical factory reads captured metadata through one ledger and l
       join(root, ".json-quality.json"),
       JSON.stringify(
         {
-          schemaVersion: 2,
+          schemaVersion: 3,
           defaults: {
             formatContract: "prettier-json",
             normalization: "NFC",

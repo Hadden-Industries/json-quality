@@ -6,6 +6,12 @@
  * @typedef {import("./api-types.js").SessionOptions} SessionOptions
  * @typedef {import("./api-types.js").RepositoryOptions} RepositoryOptions
  * @typedef {import("./api-types.js").WriterOptions} WriterOptions
+ * @typedef {import("./api-types.js").CapacityLimits} CapacityLimits
+ * @typedef {import("./api-types.js").RuntimeControls} RuntimeControls
+ * @typedef {import("./api-types.js").TransformControls} TransformControls
+ * @typedef {import("./api-types.js").ProducerControls} ProducerControls
+ * @typedef {import("./api-types.js").VerificationControls} VerificationControls
+ * @typedef {import("./api-types.js").InstallationOptions} InstallationOptions
  * @typedef {import("./api-types.js").JsonSourceSession} JsonSourceSession
  * @typedef {import("./api-types.js").JsonRepositorySession} JsonRepositorySession
  * @typedef {import("./api-types.js").SourceReference} SourceReference

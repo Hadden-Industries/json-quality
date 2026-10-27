@@ -3,10 +3,14 @@
 // This finite convenience is never used by scalable source checking.
 import { encodeNativeControl } from "./native-control.js";
 import { JSON_TRANSFORM_CAPABILITIES } from "./transform-capabilities.js";
+import {
+  resourceDefaults,
+  resolveResourceProfile,
+  exceedsQuota,
+} from "./resource-profile.js";
 
 export const JSON_PRODUCER_CAPABILITIES = Object.freeze({
-  maximumDepth: 32,
-  maximumMembers: 65536,
+  ...resourceDefaults("producerControls"),
   maximumEncodedBytes: JSON_TRANSFORM_CAPABILITIES.maximumSourceBytes,
 });
 
@@ -15,18 +19,31 @@ export const JSON_PRODUCER_CAPABILITIES = Object.freeze({
  * objects and reflection metadata belong to the producer; this helper does not
  * promise scalable traversal of a pre-existing JavaScript object graph.
  */
-export function serializeProducerJson(/** @type {*} */ value) {
+export function serializeProducerJson(
+  /** @type {*} */ value,
+  /** @type {*} */ producerControls,
+  /** @type {*} */ transformControls = JSON_TRANSFORM_CAPABILITIES,
+) {
+  const selected = resolveResourceProfile(
+      resourceDefaults("producerControls"),
+      undefined,
+      producerControls,
+    ),
+    capabilities = {
+      ...selected,
+      maximumEncodedBytes: transformControls.maximumSourceBytes,
+    };
   const ancestors = new Set();
   let members = 0;
   const inspect = (/** @type {*} */ item, /** @type {*} */ depth) => {
-    if (++members > JSON_PRODUCER_CAPABILITIES.maximumMembers)
+    if (exceedsQuota(++members, capabilities.maximumMembers))
       throw new Error("producer-member-capacity");
-    if (depth > JSON_PRODUCER_CAPABILITIES.maximumDepth)
+    if (exceedsQuota(depth, capabilities.maximumDepth))
       throw new Error("producer-depth-capacity");
     if (item === null || typeof item === "boolean") return;
     if (typeof item === "string") {
       if (!item.isWellFormed()) throw new TypeError("producer-string-encoding");
-      if (item.length > JSON_PRODUCER_CAPABILITIES.maximumEncodedBytes)
+      if (exceedsQuota(item.length, capabilities.maximumEncodedBytes))
         throw new Error("producer-byte-capacity");
       return;
     }
@@ -48,13 +65,14 @@ export function serializeProducerJson(/** @type {*} */ value) {
       throw new TypeError("Expected plain JSON producer data.");
     if (
       array &&
-      item.length > JSON_PRODUCER_CAPABILITIES.maximumMembers - members
+      capabilities.maximumMembers !== null &&
+      item.length > capabilities.maximumMembers - members
     )
       throw new Error("producer-member-capacity");
     const keys = Reflect.ownKeys(item);
     if (
-      keys.length >
-      JSON_PRODUCER_CAPABILITIES.maximumMembers - members + (array ? 1 : 0)
+      capabilities.maximumMembers !== null &&
+      keys.length > capabilities.maximumMembers - members + (array ? 1 : 0)
     )
       throw new Error("producer-member-capacity");
     if (array && keys.length !== item.length + 1)
@@ -80,8 +98,7 @@ export function serializeProducerJson(/** @type {*} */ value) {
     ancestors.delete(item);
   };
   inspect(value, 0);
-  return encodeNativeControl(
-    value,
-    JSON_PRODUCER_CAPABILITIES.maximumEncodedBytes,
-  ).toString("utf8");
+  return encodeNativeControl(value, capabilities.maximumEncodedBytes).toString(
+    "utf8",
+  );
 }

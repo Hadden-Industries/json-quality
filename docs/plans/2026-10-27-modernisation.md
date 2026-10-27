@@ -249,6 +249,50 @@ GitHub documents that native Actions job checks from a `workflow_dispatch` run d
 This event restriction does not apply to checks created independently by a GitHub App; this plan uses native Actions checks and the owner-controlled trust boundary described below.
 [GitHub required-check semantics](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks).
 
+## Accepted follow-up: caller-owned resource overrides
+
+The owner's subsequent instruction accepts the ordinary-read requirements in `json-quality-unlimited-ordinary-read-request-DRAFT.md` and clarifies that consumers must be able to override every resource quota.
+Its earlier draft-only status does not restrict this implementation authorization.
+Continue the existing task and R2 execution; the record below extends the accepted scope without replacing its risk route or approvals.
+
+The previous implementation deliberately kept working controls finite while bypassing admission ceilings.
+That distinction left package-imposed depth, scratch and elapsed-time ceilings in an ordinary read and does not satisfy the clarified requirement.
+The corrective design retains the maintained native parser, adaptive store and real component producer, with configuration schema annotations as the resource authority.
+It adds explicit `null` quota selection throughout the existing API, policy, CLI, environment and native-protocol surfaces; numeric selections remain enforceable.
+Existing default selections remain available to other consumers.
+No enormous finite override stands in for an unlimited selection.
+
+| Requirement | Observable acceptance                                                                                                                                                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| REQ-001     | An ordinary read can disable every package-imposed aggregate byte, count, depth, scratch, work and elapsed-time quota. A valid document with 4,097 nested containers completes without a 4,096-specific refusal.                                       |
+| REQ-002     | A caller can select individual numeric or unlimited controls. Explicit numeric budgets, including a 1 KiB source-byte negative control, remain attributable and cannot be overridden by an unlimited selection elsewhere.                              |
+| REQ-003     | Finite working buffers, streaming backpressure and cooperative cancellation remain effective. A working-memory target or transport buffer cannot silently become an aggregate document, depth, spill-volume or elapsed-time quota.                     |
+| REQ-004     | Strict syntax/encoding, identity, complete EOF/diagnostics, final outcomes and cleanup reporting remain mandatory. Genuine allocation, native, filesystem and representation failures remain failures with honest evidence.                            |
+| REQ-005     | The same public contract reaches JavaScript, CLI/environment and direct standalone Python consumption, with schema/type/cohort agreement and rebuilt Windows/Linux component manifests and hashes.                                                     |
+| REQ-006     | Deliver source through the normal owner-approved PR route. HISEW adoption, installation and a new formal release candidate remain separate decisions. Do not message lane H or lane R without the owner's explicit confirmation after the patch lands. |
+
+The schema and generated native controls retain one authority; public resolution and the cold bootstrap must project that contract rather than maintain separate bounds.
+Native quota admission must distinguish an unlimited value from arithmetic overflow and genuine representation limits.
+The streaming parser, pointer traversal, scratch accounting, native operation deadline, JavaScript abort/deadline composition and output settlement require a connected audit; changing only the schema or the quoted parser check is insufficient.
+Materializing transformations and package verification remain separate capabilities with their own explicit contracts; that separation must not create an exception to caller override of package-owned resource quotas.
+The implementation uses configuration/event/native/component cohort 3 and prepares the unpublished source version `1.0.0-rc.2`, keeping older binaries from admitting the changed controls.
+It removes the unused fixed `maxConcurrency` setting, retains serialized session operations, and supports caller parallelism through independent sessions.
+Separate `transformControls`, `producerControls` and `verificationControls` expose the existing operation defaults with numeric/null/false overrides; only transform controls are repository-policy fields.
+
+| Slice     | Requirements and proof                                                                                                                                                                                                                                                    | Delivery implication                                                                                                                          |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| SLICE-001 | REQ-001/002/004: carry unlimited and explicit numeric selections through the maintained source-session path; demonstrate depth beyond 4,096 and an enforced numeric negative control with focused native/API tests.                                                       | Preserve real parser and quota failures; rebuild affected components through the existing producer.                                           |
+| SLICE-002 | REQ-001/002/003/004: propagate the same controls through repository/Git/logical reads, policy bootstrap, CLI/environment, pointer access and output settlement; test cancellation during incremental reading, finite-buffer consumption and truthful incomplete delivery. | Keep one policy authority and preserve the existing ownership/cancellation boundary.                                                          |
+| SLICE-003 | REQ-005/006: qualify the admitted packaged executable from direct Python as well as JavaScript, verify exact Windows/Linux identities and manifests, then run affected and required final qualification on the consolidated candidate.                                    | Retain the original failures and scoped proof; normal PR merge remains the owner's decision, with no implicit release or consumer activation. |
+
+Use the existing native dependency selection and producer workflow; this is a repair of the maintained capability, not selection of a private consumer parser or Node bridge.
+First discriminate whether the existing parser and indexed paths accept deeper structures once their policy ceilings are removed.
+If a genuine implementation/representation boundary prevents the required case, investigate it before claiming an unlimited contract or choosing an alternative.
+Keep cancellation and explicit-budget controls as negative oracles; neither a truncated traversal nor a missing terminal can satisfy the acceptance criteria.
+Reuse unaffected identity/protocol evidence, consolidate changes before ordinary review, and keep follow-up review/checks scoped to repairs.
+The prior AGY campaign's formal HISEW admission gap remains recorded; do not manufacture review or verification receipts.
+Abort publication on mixed component identities or failed integrity checks; restore the preceding coherent source/native tuple or forward-fix it through the same producer before delivery.
+
 Therefore **“Ready for review” becomes the manual Run CI button for merge acceptance**.
 
 Any separately retained diagnostic dispatch must remain explicitly non-gating.

@@ -14,7 +14,12 @@ import {
   acquisitionCleanupOptions,
   nativeQualityCachePath,
 } from "../src/acquire.js";
-import { RESOURCE_OPTIONS, resourceCliLimits } from "../src/commands.js";
+import {
+  RESOURCE_OPTIONS,
+  RUNTIME_OPTIONS,
+  resourceCliLimits,
+  resourceCliControls,
+} from "../src/commands.js";
 import { projectResourceLimits } from "../scripts/project-resource-limits.js";
 import {
   openJsonSourceSession,
@@ -26,6 +31,50 @@ import {
 const DEFAULT_LIMITS = resolveExecutionResources().admission;
 const admission = (policy = {}, capacityLimits) =>
   resolveExecutionResources(policy, { capacityLimits }).admission;
+
+test("unlimited resources remove every selected quota while preserving explicit caller budgets", () => {
+  const policy = { capacityLimits: false, runtimeControls: false };
+  const unlimited = resolveExecutionResources(policy);
+  assert.ok(
+    Object.values(unlimited.admission).every((value) => value === null),
+  );
+  assert.ok(Object.values(unlimited.runtime).every((value) => value === null));
+  assert.ok(Object.values(unlimited.native).every((value) => value === null));
+  const selected = resolveExecutionResources(policy, {
+    capacityLimits: { maxFileBytes: 1024 },
+    runtimeControls: { maxCheckTimeMs: 1000 },
+  });
+  assert.equal(selected.admission.maxFileBytes, 1024);
+  assert.equal(selected.admission.maxTotalBytes, null);
+  assert.equal(selected.runtime.maxCheckTimeMs, 1000);
+  assert.equal(selected.runtime.maxTemporaryBytes, null);
+  assert.equal(selected.native.maxFileBytes, "1024");
+  assert.equal(selected.native.maxNestingDepth, null);
+});
+
+test("individual null controls and finite overrides do not inherit former runtime ceilings", () => {
+  const selected = resolveExecutionResources(
+    {},
+    {
+      capacityLimits: { maxFileBytes: null },
+      runtimeControls: {
+        maxNestingDepth: 4097,
+        maxCheckTimeMs: 172800000,
+        maxTemporaryBytes: null,
+        managedMemoryTargetBytes: null,
+      },
+    },
+  );
+  assert.equal(selected.admission.maxFileBytes, null);
+  assert.equal(selected.runtime.maxNestingDepth, 4097);
+  assert.equal(selected.runtime.maxCheckTimeMs, 172800000);
+  assert.equal(selected.native.managedMemoryTargetBytes, null);
+  assert.ok(
+    Object.values(resolveExecutionResources().runtime).every(
+      (value) => value > 0,
+    ),
+  );
+});
 
 test("removed broad limits option cannot silently fall back to default capacities", async () => {
   await assert.rejects(
@@ -108,7 +157,7 @@ test("cold acquisition and installed operations share canonical defaults and unl
   assert.equal(DEFAULT_LIMITS.maxRequestBytes, 48 * 1024 * 1024);
 });
 
-test("common CLI capacityLimits merge caller JSON with explicit flags and reject mixed bypasses", () => {
+test("CLI controls preserve explicit budgets beside unlimited selections", () => {
   const values = (args) =>
     parseArgs({ args, options: RESOURCE_OPTIONS, allowNegative: true }).values;
   assert.deepEqual(
@@ -127,26 +176,63 @@ test("common CLI capacityLimits merge caller JSON with explicit flags and reject
     ),
     { maxFiles: 5 },
   );
-  assert.throws(() =>
+  assert.deepEqual(
     resourceCliLimits(
       values(["--no-capacity-limits", "--max-files", "5"]),
       "true",
     ),
+    { ...admission({}, false), maxFiles: 5 },
   );
   assert.equal(resourceCliLimits({}, "false"), false);
-  assert.throws(() => resourceCliLimits({ "max-files": "2" }, "false"));
+  assert.deepEqual(resourceCliLimits({ "max-files": "2" }, "false"), {
+    ...admission({}, false),
+    maxFiles: 2,
+  });
   assert.throws(() => resourceCliLimits({}, '{"maxFileBytes":0}'));
+  const allValues = (args) =>
+    parseArgs({
+      args,
+      options: { ...RESOURCE_OPTIONS, ...RUNTIME_OPTIONS },
+      allowNegative: true,
+    }).values;
+  const selected = resolveExecutionResources(
+    {},
+    resourceCliControls(
+      allValues([
+        "--no-capacity-limits",
+        "--max-file-bytes",
+        "1024",
+        "--max-check-time-ms",
+        "1000",
+        "--max-nesting-depth",
+        "null",
+      ]),
+      "false",
+    ),
+  );
+  assert.equal(selected.admission.maxFileBytes, 1024);
+  assert.equal(selected.admission.maxTotalBytes, null);
+  assert.equal(selected.runtime.maxCheckTimeMs, 1000);
+  assert.equal(selected.runtime.maxNestingDepth, null);
+  assert.equal(selected.runtime.maxTemporaryBytes, null);
+  const unlimited = resolveExecutionResources(
+    {},
+    resourceCliControls(
+      allValues(["--no-capacity-limits", "--no-runtime-controls"]),
+    ),
+  );
+  assert.ok(Object.values(unlimited.native).every((value) => value === null));
 });
 
-test("canonical positive boolean and finite override objects re-enable policy-disabled capacities", () => {
+test("positive boolean re-enables defaults while override objects amend only named capacities", () => {
   const disabled = { capacityLimits: false };
   assert.ok(
     Object.values(admission(disabled)).every((value) => value === null),
   );
   assert.deepEqual(admission(disabled, true), DEFAULT_LIMITS);
-  assert.deepEqual(admission(disabled, {}), DEFAULT_LIMITS);
+  assert.deepEqual(admission(disabled, {}), admission({}, false));
   assert.deepEqual(admission(disabled, { maxFiles: 7 }), {
-    ...DEFAULT_LIMITS,
+    ...admission({}, false),
     maxFiles: 7,
   });
   assert.equal(

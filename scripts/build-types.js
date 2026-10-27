@@ -2,6 +2,7 @@
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
+  copyFileSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -10,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compile } from "json-schema-to-typescript";
 import { format } from "prettier";
@@ -72,11 +73,17 @@ export async function generateSchemaTypes(destination) {
 
 export async function buildTypes({ check = false } = {}) {
   const committed = join(root, "types");
-  const target = check
-    ? mkdtempSync(join(tmpdir(), "json-quality-types-"))
-    : committed;
+  // The native compiler can memory-map imported committed declarations. Emit
+  // elsewhere, then promote after it exits; never truncate its mapped inputs.
+  const target = mkdtempSync(join(tmpdir(), "json-quality-types-"));
   try {
     await generateSchemaTypes(join(target, "schemas"));
+    if (!check)
+      for (const name of publicSchemaNames)
+        copyFileSync(
+          join(target, "schemas", name + ".d.ts"),
+          join(committed, "schemas", name + ".d.ts"),
+        );
     // Source JSDoc imports the committed schema views; always check them first.
     if (check)
       for (const name of publicSchemaNames) {
@@ -126,10 +133,15 @@ export async function buildTypes({ check = false } = {}) {
           )
         )
           throw new Error(`Generated declarations drifted: ${path}`);
+    } else {
+      for (const path of inventory(target)) {
+        mkdirSync(dirname(join(committed, path)), { recursive: true });
+        copyFileSync(join(target, path), join(committed, path));
+      }
     }
     return { declarations: inventory(target).length };
   } finally {
-    if (check && resolve(target).startsWith(resolve(tmpdir()) + sep))
+    if (resolve(target).startsWith(resolve(tmpdir()) + sep))
       rmSync(target, { recursive: true, force: true });
   }
 }

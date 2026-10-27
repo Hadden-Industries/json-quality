@@ -11,7 +11,7 @@ Install a published version with npm:
 npm install --save-dev --save-exact @hadden-industries/json-quality
 ```
 
-These examples describe contract cohort **2**, currently selected as development candidate **1.0.0-rc.1**.
+These examples describe contract cohort **3**, prepared as unpublished development candidate **1.0.0-rc.2**.
 Publication and installed qualification remain separate release gates; the source checkout does not establish registry availability.
 
 Create `.json-quality.json`:

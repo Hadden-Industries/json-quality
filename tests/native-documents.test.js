@@ -38,7 +38,7 @@ function suppliedStreams(supplied) {
 function fixture(t, archive = false) {
   const root = temporaryRepository(t, "json-quality-native-"),
     policy = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       defaults: {
         formatContract: "prettier-json",
         allowFormatWrites: true,

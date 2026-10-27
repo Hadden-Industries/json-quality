@@ -4,5 +4,5 @@
  */
 export declare function encodeNativeControl(
   /** @type {*} */ input: any,
-  maximum?: number,
+  /** @type {number | null} */ maximum?: number | null,
 ): Buffer<ArrayBuffer>;

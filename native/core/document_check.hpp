@@ -2,6 +2,7 @@
 // Shared parser/checker seam. Boost is the only document grammar authority.
 // Semantic events are provisional until the exact source terminal is observed.
 #pragma once
+#include "control_memory.hpp"
 #include "decimal_admission.hpp"
 #include "event_log.hpp"
 #include "index_digest.hpp"
@@ -124,7 +125,8 @@ struct Checker {
   Stream source;
   SpanObserver observer;
   json::object contract;
-  std::vector<Frame> stack;
+  ControlBytesResource frameMemory;
+  std::pmr::vector<Frame> stack;
   std::unique_ptr<boost::json::basic_parser<Handler>> parser;
   std::uint64_t inputOffset = 0, nextValue = 1, eventCount = 0, nextEvent = 1, findings = 0,
                 record = 0, maxDiagnostics;
@@ -151,7 +153,8 @@ struct Checker {
   Checker(Streams &s, Stream bytes, json::object policy, bool values = false,
           std::uint64_t recordNumber = 0, bool utf8Admitted = false, bool retained = false)
       : streams(s), source(bytes), observer(s, bytes), contract(std::move(policy)),
-        record(recordNumber), maxDiagnostics(s.maxDiagnostics), events(s), rootValue(s.nextValueId),
+        frameMemory(s.store.memory.value), stack(&frameMemory), record(recordNumber),
+        maxDiagnostics(s.maxDiagnostics), events(s), rootValue(s.nextValueId),
         sourceUtf8Admitted(utf8Admitted), includeValueEvents(values) {
     retainTree = values || retained || contract.if_contains("allowEmptyKeys") ||
                  contract.if_contains("preserveNfcValues");
@@ -187,10 +190,12 @@ struct Checker {
     boost::json::parse_options options;
     options.max_depth = streams.maxNestingDepth;
     options.numbers = json::number_precision::none;
-    require(options.max_depth > 0 && options.max_depth <= 4096, "nesting-depth-configuration");
+    require(options.max_depth > 0, "nesting-depth-configuration");
     parser = std::make_unique<json::basic_parser<Handler>>(options);
     parser->handler().checker = this;
-    stack.reserve((std::min)(std::size_t(options.max_depth), std::size_t(4096)));
+    // Initial allocation only; stack growth follows the selected allocation
+    // quota or genuine allocator failure, never a fixed total-depth ceiling.
+    stack.reserve((std::min)(std::size_t(options.max_depth), std::size_t(128)));
   }
   void event(json::object object) { events.append(std::move(object)); }
   void finding(const Value &value, const char *rule, const char *message,
@@ -278,8 +283,6 @@ struct Checker {
   Value descriptor(std::uint64_t id) { return valueDescriptor(streams, id); }
   bool pointerMatches(Value value, const json::string &pointer) {
     auto decoded = decodePointer(pointer);
-    if (!decoded.withinDepth)
-      return false;
     const auto &parts = decoded.segments;
     std::size_t index = parts.size();
     while (value.parent) {

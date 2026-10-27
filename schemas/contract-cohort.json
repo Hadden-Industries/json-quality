@@ -1,8 +1,8 @@
 {
-  "cohortVersion": 2,
-  "configurationSchemaVersion": 2,
-  "eventSchemaVersion": 2,
-  "nativeProtocolVersion": 2,
-  "componentSchemaVersion": 2,
+  "cohortVersion": 3,
+  "configurationSchemaVersion": 3,
+  "eventSchemaVersion": 3,
+  "nativeProtocolVersion": 3,
+  "componentSchemaVersion": 3,
   "nodeApiVersion": 9
 }

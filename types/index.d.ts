@@ -4,6 +4,13 @@ export type JsonQualityEvent = import("./api-types.js").JsonQualityEvent;
 export type SessionOptions = import("./api-types.js").SessionOptions;
 export type RepositoryOptions = import("./api-types.js").RepositoryOptions;
 export type WriterOptions = import("./api-types.js").WriterOptions;
+export type CapacityLimits = import("./api-types.js").CapacityLimits;
+export type RuntimeControls = import("./api-types.js").RuntimeControls;
+export type TransformControls = import("./api-types.js").TransformControls;
+export type ProducerControls = import("./api-types.js").ProducerControls;
+export type VerificationControls =
+  import("./api-types.js").VerificationControls;
+export type InstallationOptions = import("./api-types.js").InstallationOptions;
 export type JsonSourceSession = import("./api-types.js").JsonSourceSession;
 export type JsonRepositorySession =
   import("./api-types.js").JsonRepositorySession;
@@ -16,6 +23,12 @@ export type ValueReference = import("./api-types.js").ValueReference;
  * @typedef {import("./api-types.js").SessionOptions} SessionOptions
  * @typedef {import("./api-types.js").RepositoryOptions} RepositoryOptions
  * @typedef {import("./api-types.js").WriterOptions} WriterOptions
+ * @typedef {import("./api-types.js").CapacityLimits} CapacityLimits
+ * @typedef {import("./api-types.js").RuntimeControls} RuntimeControls
+ * @typedef {import("./api-types.js").TransformControls} TransformControls
+ * @typedef {import("./api-types.js").ProducerControls} ProducerControls
+ * @typedef {import("./api-types.js").VerificationControls} VerificationControls
+ * @typedef {import("./api-types.js").InstallationOptions} InstallationOptions
  * @typedef {import("./api-types.js").JsonSourceSession} JsonSourceSession
  * @typedef {import("./api-types.js").JsonRepositorySession} JsonRepositorySession
  * @typedef {import("./api-types.js").SourceReference} SourceReference

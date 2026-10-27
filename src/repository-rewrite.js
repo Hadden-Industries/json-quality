@@ -16,18 +16,25 @@ import { formatSource } from "./native-formatting.js";
 import { normalizeSource } from "./native-normalization.js";
 import { replaceObservedSource } from "./guarded-replacement.js";
 import {
-  JSON_TRANSFORM_CAPABILITIES,
+  transformResources,
   transformWorkspaceReservation,
 } from "./transform-capabilities.js";
 import { jsonSourceFormat, isJsonLinesPath } from "./json-paths.js";
+import { exceedsQuota } from "./resource-profile.js";
 
-function selection(/** @type {*} */ operation, /** @type {*} */ options) {
+function selection(
+  /** @type {*} */ operation,
+  /** @type {*} */ options,
+  /** @type {*} */ controls,
+) {
   if (
     !["format", "normalize"].includes(operation) ||
     !options ||
     typeof options !== "object" ||
     Array.isArray(options) ||
-    Object.keys(options).some((key) => key !== "files")
+    Object.keys(options).some(
+      (key) => !["files", "transformControls"].includes(key),
+    )
   )
     throw new TypeError(
       "Expected an explicit format/normalize operation and optional files.",
@@ -40,8 +47,11 @@ function selection(/** @type {*} */ operation, /** @type {*} */ options) {
       "Normalization requires explicit physical source paths.",
     );
   if (options.files === undefined) return null;
-  if (!Array.isArray(options.files) || options.files.length > 4096)
-    throw new TypeError("At most 4096 explicit write paths are supported.");
+  if (
+    !Array.isArray(options.files) ||
+    exceedsQuota(options.files.length, controls.maximumWritePaths)
+  )
+    throw new TypeError("Explicit write-path quota exceeded.");
   const files = JSON.parse(
       encodeNativeControl({ files: options.files }).toString(),
     ).files,
@@ -160,6 +170,7 @@ async function selectWritablePaths(
           paths,
           execution,
           gitExecutable,
+          limits.reservationBytes,
         );
         for (const path of paths) {
           if (ignored.has(path)) {
@@ -195,11 +206,10 @@ async function selectWritablePaths(
           continue;
         }
         const size = Buffer.byteLength(member.path) + 1;
-        if (size > limits.maximumInputBytes)
-          throw new Error("git-ignore-input-capacity");
         if (
-          paths.length === limits.maximumPaths ||
-          bytes + size > limits.maximumInputBytes
+          paths.length &&
+          (paths.length === limits.maximumPaths ||
+            bytes + size > limits.maximumInputBytes)
         )
           await flush();
         paths.push(member.path);
@@ -231,14 +241,21 @@ async function* sourceBytes(
   }
 }
 
-async function sourceText(/** @type {*} */ execution, /** @type {*} */ member) {
+async function sourceText(
+  /** @type {*} */ execution,
+  /** @type {*} */ member,
+  /** @type {*} */ controls,
+) {
   const length = BigInt(member.byteLength);
-  if (length > BigInt(JSON_TRANSFORM_CAPABILITIES.maximumSourceBytes))
+  if (
+    controls.maximumSourceBytes !== null &&
+    length > BigInt(controls.maximumSourceBytes)
+  )
     throw new Error("transform-source-capacity");
   await execution.core.command("resize-control-state", {
     byteLength: String(
       BigInt(execution.controlStateBytes) +
-        BigInt(transformWorkspaceReservation(Number(length))),
+        BigInt(transformWorkspaceReservation(Number(length), controls)),
     ),
   });
   const bytes = Buffer.alloc(Number(length));
@@ -322,7 +339,11 @@ export async function* rewriteRepository(
   /** @type {*} */ operation,
   /** @type {*} */ options = {},
 ) {
-  const selected = selection(operation, options),
+  const controls = transformResources(
+      execution.policyTransformControls,
+      options.transformControls,
+    ),
+    selected = selection(operation, options, controls),
     core = execution.core;
   let written = 0n,
     uncertainPath = null,
@@ -339,14 +360,11 @@ export async function* rewriteRepository(
         contract = execution.contractFor(member.path, {
           tracked: member.provider === "git",
         }),
-        capacityLimits = Object.values(
-          execution.numericResources.admission,
-        ).some((value) => value === null)
-          ? false
-          : execution.numericResources.admission;
+        capacityLimits = execution.numericResources.admission;
       let /** @type {string | undefined} */ text = await sourceText(
           execution,
           member,
+          controls,
         ),
         /** @type {ReturnType<typeof import("./transform-capabilities.js").retainedTransformResult> | undefined} */ transformed =
           await (operation === "format" ? formatSource : normalizeSource)(
@@ -357,6 +375,7 @@ export async function* rewriteRepository(
               controlStateBytes: execution.controlStateBytes,
               capacityLimits,
               runtimeControls: execution.numericResources.runtime,
+              transformControls: controls,
               signal: execution.signal,
               allowEmptyKeys: contract.allowEmptyKeys,
               normalization: contract.normalization,
@@ -373,6 +392,7 @@ export async function* rewriteRepository(
                 Buffer.byteLength(text),
                 Buffer.byteLength(transformed.text),
               ),
+              controls,
             ),
           ),
         heldReservation = BigInt(
@@ -470,20 +490,24 @@ export async function* rewriteRepository(
           await core.command("census-get", { path: candidate.path })
         ).result.member;
         await fresh(root, execution, gitExecutable, afterWrites);
-        await withGitIgnoreReservation(execution, async () => {
-          if (
-            !(await policyAllowsWrite(root, member, execution)) ||
-            (
-              await ignoredGitPaths(
-                root,
-                [member.path],
-                execution,
-                gitExecutable,
-              )
-            ).has(member.path)
-          )
-            throw new Error(`Write permission changed: ${member.path}`);
-        });
+        await withGitIgnoreReservation(
+          execution,
+          async (/** @type {*} */ limits) => {
+            if (
+              !(await policyAllowsWrite(root, member, execution)) ||
+              (
+                await ignoredGitPaths(
+                  root,
+                  [member.path],
+                  execution,
+                  gitExecutable,
+                  limits.reservationBytes,
+                )
+              ).has(member.path)
+            )
+              throw new Error(`Write permission changed: ${member.path}`);
+          },
+        );
         uncertainPath = member.path;
         const committed = await replaceObservedSource({
           root,
@@ -491,6 +515,7 @@ export async function* rewriteRepository(
           candidate,
           chunks: sourceBytes(core, candidate.source, execution.signal),
           signal: execution.signal,
+          transformControls: controls,
         });
         await core.command("rewrite-written", {
           path: member.path,

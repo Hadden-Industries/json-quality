@@ -13,7 +13,7 @@ test("maintained consumer corpus exercises the current public cohort before tran
     join(root, ".json-quality.json"),
     JSON.stringify(
       {
-        schemaVersion: 2,
+        schemaVersion: 3,
         defaults: {
           formatContract: "prettier-json",
           allowFormatWrites: true,

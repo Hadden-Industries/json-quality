@@ -1,4 +1,4 @@
-# Native protocol, cohort 2
+# Native protocol, cohort 3
 
 Each platform package supplies the standalone executable and Node addon from the same core.
 `@hadden-industries/json-quality-linux-x64` contains `json-quality-native`; `@hadden-industries/json-quality-win32-x64` contains `json-quality-native.exe`.
@@ -12,7 +12,7 @@ Python hosts can use standard-library process and binary-I/O facilities.
 Actual HISEW integration remains a separately governed consumer change.
 
 Before launch, admit the closed component/build manifests and actual artifact hashes against the intended package/source cohort.
-The hello must match protocol 2, the admitted core source identity, ICU 79.1, Unicode 18.0 and SQLite 3.54.1.
+The hello must match protocol 3, the admitted core source identity, ICU 79.1, Unicode 18.0 and SQLite 3.54.1.
 Do not accept a caller-selected executable or a different platform as fallback.
 An absent packaged artifact is unavailable, not a qualified alternative.
 
@@ -24,7 +24,8 @@ Small checks need not create spill files.
 Never reuse another session's scratch directory.
 
 Standard input/output are binary. Each frame consists of one ASCII kind byte, a four-byte **little-endian unsigned** body length, then that many body bytes. A frame body is at most 65,536 bytes. Reads must accumulate exact headers/bodies; a short OS read is not a complete frame.
-Pipe output must be consumed with backpressure and finite host deadlines.
+Pipe output must be consumed with backpressure and cooperative cancellation.
+Hosts may select per-I/O supervision budgets independently of total operation time; an unlimited ordinary read must not acquire an implicit aggregate deadline.
 
 | Kind | Direction    | Meaning                                                             |
 | ---- | ------------ | ------------------------------------------------------------------- |
@@ -48,7 +49,7 @@ Every request must include:
 
 ```json
 {
-  "protocolVersion": 2,
+  "protocolVersion": 3,
   "owner": "OWNER_FROM_THE_VERIFIED_HELLO",
   "requestId": "1",
   "command": "configure"
@@ -61,9 +62,10 @@ Native `requestId` is a strictly increasing canonical positive decimal sequence 
 Native IDs belong to that live session and must not be persisted as transferable capabilities.
 
 1. Send `configure` before opening sources.
-   Admission/runtime names come from the configuration schema; native integer controls are decimal strings, and bypassed admission is `null`.
+   Admission/runtime names come from the configuration schema; native integer controls are decimal strings, and an unlimited quota is `null`.
    Omission selects schema-projected defaults.
-   Runtime controls remain finite.
+   Every admission and runtime quota can be `null`, including total scratch, parser depth and elapsed time.
+   Set all these fields to `null` for ordinary unlimited reads; an explicit numeric field remains binding.
 2. Send `begin-source` with the closed selected `contract`, optional exact `identity`, `retainValues` and `includeValueEvents`.
    Admit its `source-ready` acknowledgement before pulling a producer.
 3. Stream every input byte through `B` frames and send one empty `F`.

@@ -8,10 +8,11 @@ import {
   createTransformValueSession,
 } from "./value-session.js";
 import { resolveExecutionResources } from "./execution-resources.js";
+import { remainingDuration } from "./execution-deadline.js";
 import { encodeNativeControl } from "./native-control.js";
 import {
   admitTransformSource,
-  JSON_TRANSFORM_CAPABILITIES,
+  transformResources,
   transformWorkspaceReservation,
   retainedTransformResult,
 } from "./transform-capabilities.js";
@@ -40,13 +41,15 @@ export async function normalizeSource(
     preserveNfcValues,
     capacityLimits,
     runtimeControls,
+    transformControls,
     signal,
     core: executionCore,
     parentSource,
     controlStateBytes = "0",
   } = {},
 ) {
-  const sourceBytes = admitTransformSource(text);
+  const controls = transformResources(undefined, transformControls),
+    sourceBytes = admitTransformSource(text, controls);
   if (normalization !== "NFC" || preserveNfcValues?.length)
     throw new Error("Preserved JSON string identity cannot be normalized.");
   const began = performance.now(),
@@ -86,7 +89,7 @@ export async function normalizeSource(
       {
         byteLength: String(
           BigInt(controlStateBytes) +
-            BigInt(transformWorkspaceReservation(sourceBytes)),
+            BigInt(transformWorkspaceReservation(sourceBytes, controls)),
         ),
       },
     );
@@ -108,23 +111,28 @@ export async function normalizeSource(
             : "Cannot normalize invalid or unsafe JSON source.",
         );
       if (
-        patches.length >=
-        JSON_TRANSFORM_CAPABILITIES.maximumNormalizationChanges
+        controls.maximumNormalizationChanges !== null &&
+        patches.length >= controls.maximumNormalizationChanges
       )
         throw new Error("transform-change-capacity");
       const description = await values.describe(event.value),
         lease = await values.materialize(
           event.value,
           "nfc-utf8",
-          String(JSON_TRANSFORM_CAPABILITIES.maximumOutputBytes),
+          controls.maximumOutputBytes === null
+            ? String(description.nfcByteLength)
+            : String(controls.maximumOutputBytes),
         );
       try {
         const replacement = encodeNativeControl(
           new TextDecoder("utf-8", { fatal: true }).decode(lease.bytes),
-          JSON_TRANSFORM_CAPABILITIES.maximumOutputBytes,
+          controls.maximumOutputBytes,
         );
         patchBytes += replacement.length;
-        if (patchBytes > JSON_TRANSFORM_CAPABILITIES.maximumOutputBytes)
+        if (
+          controls.maximumOutputBytes !== null &&
+          patchBytes > controls.maximumOutputBytes
+        )
           throw new Error("transform-output-capacity");
         patches.push({
           offset: Number(description.sourceByteOffset),
@@ -150,7 +158,10 @@ export async function normalizeSource(
           (sum, patch) => sum + patch.bytes.length - patch.length,
           0,
         );
-      if (size > JSON_TRANSFORM_CAPABILITIES.maximumOutputBytes)
+      if (
+        controls.maximumOutputBytes !== null &&
+        size > controls.maximumOutputBytes
+      )
         throw new Error("transform-output-capacity");
       output = Buffer.alloc(size);
       let sourceOffset = 0,
@@ -183,8 +194,7 @@ export async function normalizeSource(
         throw new Error("normalization-postcondition");
     }
     signal?.throwIfAborted();
-    if (performance.now() - began > selected.runtime.maxCheckTimeMs)
-      throw new Error("execution-time-capacity");
+    remainingDuration(selected.runtime.maxCheckTimeMs, began);
     const outputText = output.toString("utf8");
     if (executionCore) {
       return retainedTransformResult(outputText, latestCapture, () =>

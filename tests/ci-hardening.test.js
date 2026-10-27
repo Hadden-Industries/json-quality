@@ -4,6 +4,7 @@ import test from "node:test";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { artifactLimits } from "../scripts/artifact-policy.js";
+import { budgets } from "../scripts/qualification-budgets.js";
 import {
   createRepositoryReader,
   retryDelay,
@@ -109,6 +110,70 @@ test("large admitted downloads retain independent metadata readback and cumulati
     bounded("/actions/artifacts/2/zip", { raw: true }),
     /budget exhausted/u,
   );
+});
+
+test("slow artifact bodies use the remaining shared read budget across redirects", async (t) => {
+  let time = 0,
+    requests = 0;
+  const timers = [];
+  t.mock.method(AbortSignal, "timeout", (milliseconds) => {
+    const controller = new AbortController();
+    timers.push({ at: time + milliseconds, controller });
+    return controller.signal;
+  });
+  const advance = (milliseconds) => {
+    time += milliseconds;
+    for (const timer of timers)
+      if (time >= timer.at)
+        timer.controller.abort(
+          new DOMException("fixture timeout", "TimeoutError"),
+        );
+  };
+  const read = createRepositoryReader({
+    repository: "Hadden-Industries/json-quality",
+    token: "fixture",
+    now: () => time,
+    fetchImpl: async (url, options) => {
+      requests++;
+      const target = new URL(url);
+      if (target.hostname === "api.github.com") {
+        advance(
+          target.pathname.endsWith("/zip")
+            ? budgets.read / 8
+            : budgets.read / 2,
+        );
+        options.signal.throwIfAborted();
+        return new Response(null, {
+          status: 302,
+          headers: { location: "https://fixture.blob.core.windows.net/proof" },
+        });
+      }
+      assert.equal(options.headers, undefined);
+      return new Response(
+        new ReadableStream({
+          pull(controller) {
+            advance(budgets.read / 2);
+            try {
+              options.signal.throwIfAborted();
+              controller.enqueue(Buffer.from("proof"));
+              controller.close();
+            } catch (error) {
+              controller.error(error);
+            }
+          },
+        }),
+      );
+    },
+    sleep: async (milliseconds) => advance(milliseconds),
+    random: () => 0,
+  });
+  assert.equal(
+    (await read("/actions/artifacts/1/zip", { raw: true })).toString(),
+    "proof",
+  );
+  assert.equal(requests, 2, "A valid slow body must not require another GET");
+  assert.equal(time, (budgets.read * 5) / 8);
+  await assert.rejects(read("/actions/artifacts/1"), /budget exhausted/);
 });
 test("malformed, permanent and exhausted evidence never becomes retry-until-valid", async () => {
   for (const response of [

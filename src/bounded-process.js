@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // One owned native-tool process, bounded diagnostics and cooperative cancellation.
 import { spawn } from "node:child_process";
+import { createExecutionDeadline } from "./execution-deadline.js";
 
 export async function runBoundedTool(
   /** @type {*} */ executable,
@@ -18,12 +19,11 @@ export async function runBoundedTool(
 ) {
   signal?.throwIfAborted();
   if (
-    !Number.isSafeInteger(timeout) ||
-    timeout < 1 ||
-    !Number.isSafeInteger(maximumOutputBytes) ||
-    maximumOutputBytes < 1
+    (timeout !== null && (!Number.isSafeInteger(timeout) || timeout < 1)) ||
+    (maximumOutputBytes !== null &&
+      (!Number.isSafeInteger(maximumOutputBytes) || maximumOutputBytes < 1))
   )
-    throw new TypeError("Expected finite native-tool working controls.");
+    throw new TypeError("Expected positive native-tool quotas or null.");
   const child = spawn(executable, args, {
     cwd,
     env,
@@ -31,7 +31,7 @@ export async function runBoundedTool(
     stdio: ["pipe", "pipe", "pipe"],
   });
   let /** @type {any} */ failure,
-    outputBytes = 0,
+    outputBytes = 0n,
     termination;
   const /** @type {Buffer[] | null} */ stdoutChunks = captureOutput ? [] : null;
   const stop = (/** @type {*} */ error) => {
@@ -41,13 +41,17 @@ export async function runBoundedTool(
       // A POSIX child may ignore SIGTERM; settle its pipes before returning.
       termination ??= setTimeout(() => child.kill("SIGKILL"), 1000);
     },
-    abort = () => stop(signal.reason ?? new Error("Native tool cancelled.")),
-    timer = setTimeout(
-      () => stop(new Error("Native tool time capacity exceeded.")),
-      timeout,
-    );
-  signal?.addEventListener("abort", abort, { once: true });
-  if (signal?.aborted) abort();
+    deadline = createExecutionDeadline(timeout, [signal]),
+    abort = () =>
+      stop(
+        signal?.aborted
+          ? (signal.reason ?? new Error("Native tool cancelled."))
+          : new Error("Native tool time capacity exceeded.", {
+              cause: deadline.signal.reason,
+            }),
+      );
+  deadline.signal.addEventListener("abort", abort, { once: true });
+  if (deadline.signal.aborted) abort();
   try {
     return await new Promise((resolve, reject) => {
       child.once("error", (error) => {
@@ -57,8 +61,11 @@ export async function runBoundedTool(
       for (const output of [child.stdout, child.stderr])
         output.on("error", stop).on("data", (chunk) => {
           if (failure) return;
-          outputBytes += chunk.length;
-          if (outputBytes > maximumOutputBytes) {
+          outputBytes += BigInt(chunk.length);
+          if (
+            maximumOutputBytes !== null &&
+            outputBytes > BigInt(maximumOutputBytes)
+          ) {
             const /** @type {NodeJS.ErrnoException} */ error = new Error(
                 "Native tool output capacity exceeded.",
               );
@@ -68,22 +75,26 @@ export async function runBoundedTool(
             stdoutChunks.push(chunk);
         });
       child.once("close", (code) => {
-        if (failure) reject(failure);
-        else if (!acceptedExitCodes.includes(code))
-          reject(new Error(`Native tool failed with exit ${code}.`));
-        else
-          resolve({
-            code,
-            stdout: captureOutput
-              ? Buffer.concat(/** @type {Buffer[]} */ (stdoutChunks))
-              : undefined,
-          });
+        try {
+          if (failure) reject(failure);
+          else if (!acceptedExitCodes.includes(code))
+            reject(new Error(`Native tool failed with exit ${code}.`));
+          else
+            resolve({
+              code,
+              stdout: captureOutput
+                ? Buffer.concat(/** @type {Buffer[]} */ (stdoutChunks))
+                : undefined,
+            });
+        } catch (error) {
+          reject(error);
+        }
       });
       child.stdin.end(input);
     });
   } finally {
-    clearTimeout(timer);
+    deadline.dispose();
     clearTimeout(termination);
-    signal?.removeEventListener("abort", abort);
+    deadline.signal.removeEventListener("abort", abort);
   }
 }

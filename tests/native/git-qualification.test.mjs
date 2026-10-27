@@ -12,7 +12,7 @@ import { qualifyJsonConsumer } from "../../src/qualification.js";
 import { validateJsonQualityEvent } from "../../src/events.js";
 
 const policy = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   defaults: {
     formatContract: "prettier-json",
     allowFormatWrites: true,

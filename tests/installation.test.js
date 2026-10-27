@@ -229,6 +229,66 @@ test("native packed fixture validates cached bytes independently of installed fi
   );
 });
 
+test("verification quotas can be removed individually and together without weakening integrity", async (t) => {
+  const context = await installation(t);
+  await assert.rejects(
+    verifyJsonQualityInstallation({
+      ...context,
+      verificationControls: { maximumArchiveBytes: 1 },
+    }),
+    /archive byte limit/,
+  );
+  assert.equal(
+    (
+      await verifyJsonQualityInstallation({
+        ...context,
+        verificationControls: { maximumArchiveBytes: null },
+      })
+    ).files,
+    5,
+  );
+  assert.equal(
+    (
+      await verifyJsonQualityInstallation({
+        ...context,
+        capacityLimits: false,
+        verificationControls: false,
+      })
+    ).files,
+    5,
+  );
+  writeFileSync(join(context.installedRoot, "index.js"), "changed\n");
+  await assert.rejects(
+    verifyJsonQualityInstallation({
+      ...context,
+      capacityLimits: false,
+      verificationControls: false,
+    }),
+    /payload differs/,
+  );
+});
+
+test("unlimited verification reads metadata past the former fixed allocation", async (t) => {
+  const context = await installation(t),
+    path = join(context.toolingRoot, "package.json"),
+    manifest = JSON.parse(readFileSync(path));
+  manifest.padding = "x".repeat(1048577);
+  writeFileSync(path, JSON.stringify(manifest));
+  await assert.rejects(
+    verifyJsonQualityInstallation(context),
+    /metadata resource limit/,
+  );
+  assert.equal(
+    (
+      await verifyJsonQualityInstallation({
+        ...context,
+        verificationControls: false,
+      })
+    ).files,
+    5,
+  );
+});
+
 test("the selected optional package has independent locked archive and installed-byte proof", async (t) => {
   const context = await installation(t);
   const result = await verifyJsonQualityInstallation(context);

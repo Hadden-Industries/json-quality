@@ -9,6 +9,48 @@ import { promisify } from "node:util";
 import test from "node:test";
 import { installedNativeComponent } from "../../src/installed-component.js";
 
+test("direct Python ordinary reads admit unlimited quotas and depth beyond 4096", async () => {
+  const component = await installedNativeComponent();
+  const { stdout: selectedPython } = await promisify(execFile)(
+    process.platform === "win32" ? "python" : "python3",
+    ["-c", "import sys; print(sys.executable)"],
+    { timeout: budgets.read, windowsHide: true },
+  );
+  const { stdout, stderr } = await promisify(execFile)(
+    selectedPython.trim(),
+    [
+      fileURLToPath(new URL("./stdio_probe.py", import.meta.url)),
+      join(
+        component.directory,
+        `json-quality-native${process.platform === "win32" ? ".exe" : ""}`,
+      ),
+      join(component.directory, "component.json"),
+      tmpdir(),
+      String(process.pid),
+      "ordinary",
+    ],
+    { timeout: budgets.read, windowsHide: true, maxBuffer: 65536 },
+  );
+  assert.equal(stderr, "");
+  const report = JSON.parse(stdout);
+  assert.equal(
+    report.sourceInputsSha256,
+    component.manifest.sourceInputsSha256,
+  );
+  assert.equal(
+    report.executableSha256,
+    component.manifest.artifacts[
+      process.platform === "win32"
+        ? "json-quality-native.exe"
+        : "json-quality-native"
+    ].sha256,
+  );
+  assert.equal(report.ordinary.depth, 4097);
+  assert.equal(report.ordinary.contractSatisfied, true);
+  assert.equal(report.ordinary.returncode, 0);
+  console.log(JSON.stringify(report));
+});
+
 test(
   "a standard-library Python host qualifies the packaged non-Node executable, real spill and malformed transport",
   { timeout: 300000 },

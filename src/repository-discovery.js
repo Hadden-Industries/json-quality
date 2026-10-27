@@ -116,8 +116,6 @@ export async function* gitRecords(
         const end = chunk.indexOf(0, offset),
           stop = end < 0 ? chunk.length : end,
           part = chunk.subarray(offset, stop);
-        if (pending.length + part.length > 65536)
-          throw new Error("git-path-fragment-capacity");
         const entry = pending.length ? Buffer.concat([pending, part]) : part;
         if (end < 0) {
           pending = Buffer.from(entry);
