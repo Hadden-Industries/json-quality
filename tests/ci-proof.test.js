@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createHash } from "node:crypto";
+import {
+  observeQualification,
+  publishCiResult,
+} from "../scripts/ci-command.js";
 import {
   createReceipt,
   selectProof,
@@ -233,6 +241,58 @@ async function proof(f) {
     now: f.now,
   };
 }
+async function observation(f) {
+  const { receipt } = await proof(f),
+    bodies = new Map();
+  function artifact(id, name, record, workflow_run) {
+    // json-identity-contract: bytes; owner: Actions artifact fixture; reason: Provider metadata authenticates the exact serialized response bytes consumed by readRawProof.
+    const bytes = Buffer.from(JSON.stringify(record));
+    bodies.set(`/actions/artifacts/${id}/zip`, bytes);
+    return {
+      id,
+      name,
+      expired: false,
+      digest: "sha256:" + createHash("sha256").update(bytes).digest("hex"),
+      size_in_bytes: bytes.length,
+      workflow_run,
+    };
+  }
+  Object.assign(
+    f.artifact,
+    artifact(f.artifact.id, f.artifact.name, receipt, f.artifact.workflow_run),
+  );
+  const hosts = f.hosts.map((host, index) =>
+    artifact(
+      600 + index,
+      `ci-host-${host.lane}-72-1.json`,
+      {
+        ...host,
+        schemaVersion: 1,
+        runId: 72,
+        runAttempt: 1,
+        repositoryId: 11,
+        commit: f.main.sha,
+      },
+      {
+        id: 72,
+        repository_id: 11,
+        head_repository_id: 11,
+        head_sha: f.main.sha,
+      },
+    ),
+  );
+  return {
+    ctx: f.main,
+    now: () => f.now,
+    resolveMatrix: async () => f.matrix,
+    read: async (path) => {
+      if (bodies.has(path)) return bodies.get(path);
+      if (path === "/actions/runs/72/artifacts?per_page=100")
+        return { total_count: hosts.length, artifacts: hosts };
+      return f.read(path);
+    },
+  };
+}
 test("approved fork PRs can pass complete acceptance but cannot seed main reuse", async () => {
   const f = fixture(1, true);
   const receipt = await createReceipt({
@@ -266,6 +326,138 @@ test("normal equal-tree merge reuses complete JSON and package qualification", a
   assert.equal(result.mode, "REUSED");
   assert.equal(result.json, "REUSED");
   assert.equal(result.sourceRun, 71);
+});
+
+test("verified reuse publishes its complete camelCase provenance to Actions files", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "json-ci-output-"));
+  try {
+    const result = await verifyProof(await proof(fixture())),
+      environment = {
+        GITHUB_OUTPUT: join(directory, "output"),
+        GITHUB_STEP_SUMMARY: join(directory, "summary"),
+      };
+    publishCiResult(
+      result,
+      "Qualified original PR evidence reused.",
+      environment,
+    );
+    assert.deepEqual(
+      Object.fromEntries(
+        (await readFile(environment.GITHUB_OUTPUT, "utf8"))
+          .trimEnd()
+          .split("\n")
+          .map((line) => {
+            const separator = line.indexOf("=");
+            return [line.slice(0, separator), line.slice(separator + 1)];
+          }),
+      ),
+      Object.fromEntries(
+        Object.entries(result).map(([key, value]) => [key, String(value)]),
+      ),
+    );
+    assert.equal(
+      await readFile(environment.GITHUB_STEP_SUMMARY, "utf8"),
+      "Qualified original PR evidence reused.\n",
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("invalid Actions output is refused before any partial result is published", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "json-ci-invalid-output-"));
+  try {
+    const environment = {
+      GITHUB_OUTPUT: join(directory, "output"),
+      GITHUB_STEP_SUMMARY: join(directory, "summary"),
+    };
+    for (const invalid of [
+      { mode: "REUSED", "bad\nkey": "value" },
+      { mode: "REUSED", sourceRun: "71\nmode=FULL_REQUIRED" },
+    ]) {
+      await writeFile(environment.GITHUB_OUTPUT, "existing=value\n");
+      await writeFile(environment.GITHUB_STEP_SUMMARY, "Existing summary.\n");
+      assert.throws(() => publishCiResult(invalid, "Unexpected", environment));
+      assert.equal(
+        await readFile(environment.GITHUB_OUTPUT, "utf8"),
+        "existing=value\n",
+      );
+      assert.equal(
+        await readFile(environment.GITHUB_STEP_SUMMARY, "utf8"),
+        "Existing summary.\n",
+      );
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("observer publishes verified reuse and never downgrades a publication failure", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "json-ci-observer-"));
+  try {
+    const input = await observation(fixture()),
+      environment = {
+        GITHUB_OUTPUT: join(directory, "output"),
+        GITHUB_STEP_SUMMARY: join(directory, "summary"),
+      };
+    assert.equal(
+      (await observeQualification({ ...input, environment })).mode,
+      "REUSED",
+    );
+    assert.match(
+      await readFile(environment.GITHUB_OUTPUT, "utf8"),
+      /sourceRun=71\n/u,
+    );
+    assert.match(
+      await readFile(environment.GITHUB_STEP_SUMMARY, "utf8"),
+      /^REUSED:/u,
+    );
+    const failedOutput = join(directory, "failed-output");
+    await assert.rejects(
+      observeQualification({
+        ...input,
+        environment: {
+          GITHUB_OUTPUT: failedOutput,
+          GITHUB_STEP_SUMMARY: directory,
+        },
+      }),
+      (error) => ["EISDIR", "EACCES", "EPERM"].includes(error.code),
+    );
+    const published = await readFile(failedOutput, "utf8");
+    assert.match(published, /^mode=REUSED\n/u);
+    assert.doesNotMatch(published, /FULL_REQUIRED/u);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("observer still reports a genuine evidence lookup failure as FULL_REQUIRED", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "json-ci-missing-proof-"));
+  try {
+    const input = await observation(fixture()),
+      environment = {
+        GITHUB_OUTPUT: join(directory, "output"),
+        GITHUB_STEP_SUMMARY: join(directory, "summary"),
+      };
+    const result = await observeQualification({
+      ...input,
+      environment,
+      read: async () => {
+        throw new Error("Evidence lookup unavailable.");
+      },
+    });
+    assert.equal(result.mode, "FULL_REQUIRED");
+    assert.equal(
+      await readFile(environment.GITHUB_OUTPUT, "utf8"),
+      "mode=FULL_REQUIRED\n",
+    );
+    assert.match(
+      await readFile(environment.GITHUB_STEP_SUMMARY, "utf8"),
+      /Evidence lookup unavailable/u,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("mixed hosted image builds reuse the same qualified platform and preserve their provenance", async () => {
