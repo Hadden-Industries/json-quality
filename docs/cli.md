@@ -18,26 +18,27 @@ npm exec -- json-quality --help
 | `normalize` | Repository `rewrite("normalize", {files})` | Nonempty explicit physical selection; admitted NFC repair with collision checks                         |
 
 Use `check` for a read-only formatting check.
-Cohort 2 does not expose a `--check` modifier, `--files` JSON argument, aggregate-document envelope or alternate parser.
+Cohort 3 does not expose a `--check` modifier, `--files` JSON argument, aggregate-document envelope or alternate parser.
 Literal paths after `--` are paths, not globs.
 Only write verbs accept them; normalization requires at least one.
 Protected/native/logical/JSONL source writes remain with their owning producers.
 
-| Option                                                                          | Meaning                                                                    |
-| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `--root PATH`                                                                   | Repository root; not valid for raw `source`                                |
-| `--json`                                                                        | Versioned NDJSON events instead of human presentation                      |
-| `--contract JSON`                                                               | Closed source contract for `source` only                                   |
-| `--request-id ID`                                                               | Bounded well-formed correlation ID                                         |
-| `--help`, `-h`                                                                  | Current command/options help                                               |
-| `--capacity-limits`, `--no-capacity-limits`                                     | Enable or bypass admission ceilings; finite runtime controls remain active |
-| `--max-file-bytes`, `--max-total-bytes`, and other admission flags              | Positive integer overrides projected from the configuration schema         |
-| `--max-check-time-ms`, `--managed-memory-target-bytes`, and other runtime flags | Positive finite runtime controls projected from the same schema            |
+| Option                                                                          | Meaning                                                                              |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `--root PATH`                                                                   | Repository root; not valid for raw `source`                                          |
+| `--json`                                                                        | Versioned NDJSON events instead of human presentation                                |
+| `--contract JSON`                                                               | Closed source contract for `source` only                                             |
+| `--request-id ID`                                                               | Bounded well-formed correlation ID                                                   |
+| `--help`, `-h`                                                                  | Current command/options help                                                         |
+| `--capacity-limits`, `--no-capacity-limits`                                     | Select configured/default admission quotas or disable the admission group            |
+| `--runtime-controls`, `--no-runtime-controls`                                   | Select configured/default runtime quotas or disable the runtime group                |
+| `--max-file-bytes`, `--max-total-bytes`, and other admission flags              | Positive integer or literal `null` overrides projected from the configuration schema |
+| `--max-check-time-ms`, `--managed-memory-target-bytes`, and other runtime flags | Positive integer or literal `null` overrides projected from the same schema          |
 
 `--help` and [resource controls](resource-limits.md) list every generated resource flag.
 The API uses camelCase control names; CLI flags project them to kebab-case.
-`JSON_QUALITY_CAPACITY_LIMITS` accepts the same JSON boolean/object admission setting.
-`JSON_QUALITY_RUNTIME_CONTROLS` accepts a runtime-control object.
+`JSON_QUALITY_CAPACITY_LIMITS` and `JSON_QUALITY_RUNTIME_CONTROLS` each accept `true`, `false` or a typed override object.
+Select both groups as `false` for ordinary unlimited reads; a scalar flag alongside a disabled group re-enables only that quota.
 Invalid combinations or unknown options fail closed.
 
 ## Delivery and exit status
