@@ -7,7 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { nodeSupport } from "./node-matrix.js";
 import { validateFrozenMatrix } from "./release-contract.js";
 import { sameJobExecution } from "./github-job-execution.js";
-import { pythonVersion } from "./ci-host.js";
+import { assertHostedPlatform } from "./ci-host.js";
 import { budgets } from "./qualification-budgets.js";
 
 export const repository = "Hadden-Industries/json-quality";
@@ -278,13 +278,7 @@ function lanes(records, ctx, matrix) {
     );
     assert.equal(record.host.node, lane.node);
     assert.equal(record.host.npm, nodeSupport.consumerNpm);
-    assert.equal(record.host.architecture, "X64");
-    assert.equal(record.host.python, pythonVersion);
-    assert.equal(
-      record.host.os,
-      lane.os.startsWith("windows") ? "Windows" : "Linux",
-    );
-    assert.ok(record.host.image && record.host.imageVersion);
+    assertHostedPlatform(record.host, lane.os);
     assert.match(record.consumer.archiveSha256, /^[a-f0-9]{64}$/u);
     assert.equal(record.consumer.publicExports, 6);
     assert.equal(record.consumer.cliPhysicalFiles, 2);
@@ -556,15 +550,18 @@ export async function verifyProof({
     await verifyProducingAttempt(latest, execution.runAttempt, run, read);
   }
   assert.equal(hosts.length, matrix.os.length);
+  for (const lane of matrix.os) {
+    const matches = hosts.filter((host) => host.lane === lane);
+    assert.equal(
+      matches.length,
+      1,
+      "Missing or duplicate hosted platform probe",
+    );
+    assertHostedPlatform(matches[0], lane);
+  }
+  // Each original lane already met the same platform/runtime contract above.
+  // A newly allocated observer need not share its incidental image build.
   for (const record of records) {
-    const matches = hosts.filter((host) => host.lane === record.lane.os);
-    assert.equal(matches.length, 1);
-    for (const key of ["os", "architecture", "image", "imageVersion", "python"])
-      assert.equal(
-        record.host[key],
-        matches[0][key],
-        "Hosted image or transport tool changed",
-      );
     await verifyProducingAttempt(
       jobs.find(
         (job) =>

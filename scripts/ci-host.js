@@ -9,6 +9,35 @@ export const pythonVersion = readFileSync(
   new URL("../.python-version", import.meta.url),
   "utf8",
 ).trim();
+
+// Adapter from the frozen workflow platform labels to GitHub image families.
+// Build numbers and Windows tool-image variants remain execution provenance.
+const platforms = {
+  "ubuntu-24.04": { os: "Linux", image: /^ubuntu24$/u },
+  "windows-2025": { os: "Windows", image: /^win25(?:-[a-zA-Z0-9]+)*$/u },
+};
+export function assertHostedPlatform(host, lane) {
+  const platform = platforms[lane];
+  assert.ok(platform, "Unsupported hosted platform");
+  assert.equal(
+    host?.os,
+    platform.os,
+    "Hosted OS differs from the qualified platform",
+  );
+  assert.equal(host.architecture, "X64", "Hosted architecture changed");
+  assert.equal(host.python, pythonVersion, "Selected transport Python changed");
+  assert.ok(
+    typeof host.image === "string" &&
+      host.image.length <= 80 &&
+      platform.image.test(host.image),
+    "Hosted image family differs from the qualified platform",
+  );
+  assert.ok(
+    typeof host.imageVersion === "string" &&
+      /^\d{8}\.\d+(?:\.\d+)?$/u.test(host.imageVersion),
+    "Missing or invalid hosted image provenance",
+  );
+}
 export function hostIdentity(environment = process.env) {
   const python = execFileSync(
     process.platform === "win32" ? "python" : "python3",
@@ -17,11 +46,6 @@ export function hostIdentity(environment = process.env) {
   )
     .trim()
     .replace(/^Python /u, "");
-  assert.equal(
-    python,
-    pythonVersion,
-    "Transport Python differs from the frozen producer policy",
-  );
   const host = {
     os: environment.RUNNER_OS,
     architecture: environment.RUNNER_ARCH,
@@ -29,11 +53,7 @@ export function hostIdentity(environment = process.env) {
     imageVersion: environment.ImageVersion,
     python,
   };
-  assert.ok(
-    ["Windows", "Linux"].includes(host.os) && host.architecture === "X64",
-  );
-  assert.match(host.image, /^[a-zA-Z0-9-]{1,80}$/u);
-  assert.match(host.imageVersion, /^\d{8}\.\d+(?:\.\d+)?$/u);
+  assertHostedPlatform(host, environment.CI_OS);
   return host;
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

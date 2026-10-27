@@ -557,6 +557,11 @@ That is an intended behaviour and work-in-progress reference, not evidence that 
 
 Use one compact, versioned `receipt.json` for cross-run reuse, retained for 30 days, following Markdown Quality.
 Include the complete expected/observed inventory and concrete lane environments as well as source, policy, workflow, artifact and original-producing identities.
+The owner accepted an input-based environment policy on 27 October 2026: retain each job's actual image build as provenance, while comparing supported OS family/architecture and selected runtime/tool inputs.
+Mixed image builds within the supported Ubuntu 24.04 or Windows Server 2025 x64 contract are eligible; `ImageVersion` equality is not required across lanes or against a later observer.
+PR receipt admission and main observation share the same platform validator; unsupported platforms, changed selected Node/npm/Python inputs and missing provenance still refuse acceptance or reuse.
+Native production remains bound to its original execution, source and artifact identities; the observer does not claim a fresh build with its installed compiler.
+An incidental hosted image rollout alone must not request full qualification; existing explicit execution, complete-inventory and release freshness boundaries remain in force.
 Do not make reuse depend accidentally on the existing one-day candidate archive: retain a consumed dependency for the proof window, or admit the recorded package result independently of retaining its archive, as the existing package-reuse design allows.
 Logs remain diagnostics and are never parsed as authoritative admission evidence.
 
