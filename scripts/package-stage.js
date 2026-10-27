@@ -10,7 +10,7 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { nativePackages } from "../src/native-packages.js";
 import { PACKAGE_VERIFICATION_CAPABILITIES as bounds } from "../src/package-payload.js";
 import { isPathContained } from "../src/paths.js";
@@ -37,7 +37,9 @@ export function stageCore(root, destination) {
   for (const path of metadata.files) inspect(join(root, path));
   mkdirSync(destination);
   for (const path of metadata.files)
-    cpSync(join(root, path), join(destination, path), {
+    // A trailing directory separator makes Linux cp create the target as its
+    // own parent before errorOnExist is checked. Copy canonical directory paths.
+    cpSync(resolve(root, path), resolve(destination, path), {
       recursive: true,
       force: false,
       errorOnExist: true,
