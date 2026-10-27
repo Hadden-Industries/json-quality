@@ -11,6 +11,9 @@ import {
 } from "../scripts/ci-proof.js";
 import { nodeSupport } from "../scripts/node-matrix.js";
 import { pythonVersion } from "../scripts/ci-host.js";
+import { budgets } from "../scripts/qualification-budgets.js";
+
+const noWait = async () => {};
 
 const sha = (character) => character.repeat(40);
 function fixture(attempt = 1, fork = false) {
@@ -28,9 +31,10 @@ function fixture(attempt = 1, fork = false) {
   };
   const pr = {
     number: 17,
+    state: "closed",
     merged: true,
     merged_at: new Date(now - 100).toISOString(),
-    merge_commit_sha: sha("6"),
+    // API 2026-03-10 omits merge_commit_sha from both PR responses.
     base: { ref: "main", sha: sha("3"), repo },
     head: {
       sha: sha("4"),
@@ -212,6 +216,7 @@ async function proof(f) {
     needs: f.needs,
     read: f.read,
     now: f.now - 1000,
+    sleep: noWait,
   });
   const selection = await selectProof({
     ctx: f.main,
@@ -237,6 +242,7 @@ test("approved fork PRs can pass complete acceptance but cannot seed main reuse"
     needs: f.needs,
     read: f.read,
     now: f.now - 1000,
+    sleep: noWait,
   });
   assert.equal(receipt.mode, "FULL");
   assert.equal(receipt.lanes.length, 8);
@@ -250,6 +256,7 @@ test("approved fork PRs can pass complete acceptance but cannot seed main reuse"
       needs: f.needs,
       read: f.read,
       now: f.now,
+      sleep: noWait,
     }),
   );
 });
@@ -259,6 +266,156 @@ test("normal equal-tree merge reuses complete JSON and package qualification", a
   assert.equal(result.mode, "REUSED");
   assert.equal(result.json, "REUSED");
   assert.equal(result.sourceRun, 71);
+});
+test("receipt waits finitely for expected pending and copied native job registrations", async () => {
+  const f = fixture(),
+    waits = [];
+  let observations = 0;
+  const read = async (path, options) => {
+    const value = await f.read(path);
+    if (path === "/actions/runs/71/jobs?filter=latest&per_page=100")
+      observations++;
+    else if (
+      path === "/actions/runs/71/attempts/1/jobs?per_page=100" &&
+      observations < 3
+    )
+      assert.equal(options?.refresh, true);
+    else return value;
+    if (observations >= 3) return value;
+    const jobs = value.jobs
+      .slice(observations === 1 ? 1 : 0)
+      .map((job) =>
+        job.name === "Dependencies"
+          ? { ...job, status: "in_progress", conclusion: null }
+          : job,
+      );
+    return { total_count: jobs.length, jobs };
+  };
+  const receipt = await createReceipt({
+    ctx: f.ctx,
+    matrix: f.matrix,
+    records: f.records,
+    needs: f.needs,
+    read,
+    now: f.now,
+    sleep: async (milliseconds) => {
+      waits.push(milliseconds);
+    },
+  });
+  assert.equal(receipt.mode, "FULL");
+  assert.equal(observations, 3);
+  assert.deepEqual(waits, [budgets.read / 4, budgets.read / 4]);
+  assert.ok(receipt.executions.every((value) => value.runAttempt === 1));
+});
+test("receipt registration recovery never retries invalid evidence and never admits incomplete jobs", async () => {
+  for (const mutate of [
+    (jobs) => {
+      jobs[0].head_sha = sha("a");
+    },
+    (jobs) => {
+      jobs[0].conclusion = "failure";
+    },
+    (jobs) => {
+      jobs.push({ ...jobs[0] });
+    },
+    (jobs) => {
+      jobs[0].name = "Unexpected";
+    },
+  ]) {
+    const f = fixture(),
+      waits = [];
+    await assert.rejects(
+      createReceipt({
+        ctx: f.ctx,
+        matrix: f.matrix,
+        records: f.records,
+        needs: f.needs,
+        now: f.now,
+        sleep: async (milliseconds) => {
+          waits.push(milliseconds);
+        },
+        read: async (path) => {
+          const value = await f.read(path);
+          if (!path.includes("/jobs?")) return value;
+          const jobs = structuredClone(value.jobs);
+          mutate(jobs);
+          return { total_count: jobs.length, jobs };
+        },
+      }),
+    );
+    assert.deepEqual(waits, []);
+  }
+  const f = fixture(),
+    waits = [];
+  f.jobs.pop();
+  await assert.rejects(
+    createReceipt({
+      ctx: f.ctx,
+      matrix: f.matrix,
+      records: f.records,
+      needs: f.needs,
+      read: f.read,
+      now: f.now,
+      sleep: async (milliseconds) => {
+        waits.push(milliseconds);
+      },
+    }),
+    /registration/u,
+  );
+  assert.deepEqual(waits, [budgets.read / 4, budgets.read / 4]);
+});
+test("merged PR discovery binds the current API response to both parents and its repository", async () => {
+  for (const mutate of [
+    (f) => {
+      f.pr.state = "open";
+    },
+    (f) => {
+      f.pr.merged_at = null;
+    },
+    (f) => {
+      f.pr.merged = false;
+    },
+    (f) => {
+      f.pr.base.sha = sha("a");
+    },
+    (f) => {
+      f.pr.head.sha = sha("b");
+    },
+    (f) => {
+      f.pr.base.ref = "other";
+    },
+    (f) => {
+      f.pr.base.repo = { ...f.pr.base.repo, id: 12 };
+    },
+    (f) => {
+      f.pr.head.repo = { ...f.pr.head.repo, full_name: "other/json-quality" };
+    },
+  ]) {
+    const f = fixture();
+    mutate(f);
+    await assert.rejects(
+      selectProof({ ctx: f.main, read: f.read, now: f.now }),
+    );
+  }
+  const f = fixture();
+  for (const associated of [[], [f.pr, { ...f.pr, number: 18 }]]) {
+    await assert.rejects(
+      selectProof({
+        ctx: f.main,
+        now: f.now,
+        read: (path) =>
+          path.startsWith("/commits/") ? associated : f.read(path),
+      }),
+    );
+  }
+  await assert.rejects(
+    selectProof({
+      ctx: f.main,
+      now: f.now,
+      read: (path) =>
+        path === "/pulls/17" ? { ...f.pr, number: 18 } : f.read(path),
+    }),
+  );
 });
 test("partial rerun retains every mandatory job's authenticated original producer", async () => {
   const input = await proof(fixture(2));
@@ -332,6 +489,7 @@ test("missing, skipped, failed and foreign native results cannot seed reuse proo
         needs: f.needs,
         read: f.read,
         now: f.now,
+        sleep: noWait,
       }),
     );
   }
