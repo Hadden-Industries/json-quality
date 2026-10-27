@@ -21,7 +21,7 @@ export async function registryBytes(url, maximum, fetcher = fetch) {
   assert.ok(!location.username && !location.password);
   const response = await fetcher(location, {
     redirect: "error",
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(budgets.registry),
   });
   assert.equal(response.status, 200, "Public version unavailable");
   const chunks = [];

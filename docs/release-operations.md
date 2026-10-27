@@ -235,7 +235,7 @@ Failed or incomplete continuations cannot settle historical unknown effects.
 
 Execution budgets are shared by purpose: install/ci has twenty minutes, a Node suite thirty minutes, hosted qualification jobs two hours, bounded evidence reads two minutes, collection fifteen minutes and registry availability thirty minutes.
 The JSON check has ten minutes inside a fifteen-minute step; uploads share four minutes inside a five-minute step.
-`scripts/qualification-process.js` owns these profiles; product resource limits and deliberate timeout tests retain their separate contracts.
+`scripts/qualification-budgets.js` owns these profiles and `scripts/qualification-process.js` re-exports them for native command callers; product resource limits and deliberate timeout tests retain their separate contracts.
 Local HISEW supervision uses its registered profile.
 Structured phase diagnostics include successful timings and native failure output without environment/credential dumps.
 

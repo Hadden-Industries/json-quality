@@ -5,20 +5,8 @@ import { performance } from "node:perf_hooks";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { acquisitionResourceLimits } from "../src/acquire.js";
-
-export const budgets = Object.freeze({
-  install: 1200000,
-  suite: 1800000,
-  job: 7200000,
-  read: 120000,
-  pack: 120000,
-  check: 600000,
-  checkStep: 900000,
-  upload: 240000,
-  uploadStep: 300000,
-  collection: 900000,
-  registry: 1800000,
-});
+export { budgets } from "./qualification-budgets.js";
+import { budgets } from "./qualification-budgets.js";
 
 export function native(
   executable,

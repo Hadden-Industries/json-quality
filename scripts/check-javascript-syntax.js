@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { spawnSync } from "node:child_process";
+import { budgets } from "./qualification-budgets.js";
 
 /** Native syntax admission shared by graph consumers; callers own their file census. */
 export function assertJavaScriptSyntax(paths) {
@@ -7,7 +8,7 @@ export function assertJavaScriptSyntax(paths) {
     const checked = spawnSync(process.execPath, ["--check", path], {
       windowsHide: true,
       encoding: "utf8",
-      timeout: 10000,
+      timeout: budgets.read,
     });
     if (checked.error || checked.status !== 0)
       throw new Error(

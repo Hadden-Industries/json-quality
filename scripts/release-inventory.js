@@ -46,7 +46,7 @@ export function isolatedNpmEnvironment(root, env = process.env) {
     NPM_CONFIG_IGNORE_SCRIPTS: "true",
     NPM_CONFIG_REGISTRY: "https://registry.npmjs.org/",
     NPM_CONFIG_FETCH_RETRIES: "2",
-    NPM_CONFIG_FETCH_TIMEOUT: "60000",
+    NPM_CONFIG_FETCH_TIMEOUT: String(budgets.read),
   };
 }
 export function verifyAudit(audit) {

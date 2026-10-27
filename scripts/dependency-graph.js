@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "./qualification-budgets.js";
 /** Native import views and declared process relations, without executing tests. */
 import { createHash } from "node:crypto";
 import {
@@ -49,7 +50,7 @@ export function graphSourceIdentity(repository = root) {
       cwd: repository,
       windowsHide: true,
       maxBuffer: 8 * 1024 * 1024,
-      timeout: 30000,
+      timeout: budgets.read,
     },
   )
     .toString("utf8")

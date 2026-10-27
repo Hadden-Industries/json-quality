@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runNpmPack } from "./pack.js";
 import { assertJavaScriptSyntax } from "./check-javascript-syntax.js";
+import { budgets } from "./qualification-budgets.js";
 
 const self = fileURLToPath(import.meta.url);
 const repository = fileURLToPath(new URL("../", import.meta.url));
@@ -73,7 +74,7 @@ export function analyzeDependencyGraph(root = repository) {
       cwd: root,
       encoding: "utf8",
       windowsHide: true,
-      timeout: 30000,
+      timeout: budgets.read,
       maxBuffer: 8 * 1024 * 1024,
     }),
   );

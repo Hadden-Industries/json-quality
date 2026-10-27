@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { native } from "./qualification-process.js";
+import { native, budgets } from "./qualification-process.js";
 import {
   jsonBytes,
   repository,
@@ -13,7 +13,7 @@ import {
   validVersion,
 } from "./release-contract.js";
 
-const batchMs = 540000,
+const batchMs = budgets.collection,
   outputLimit = 1048576;
 
 function verifyOne(args, signal, cacheDirectory) {
@@ -23,7 +23,7 @@ function verifyOne(args, signal, cacheDirectory) {
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
       signal,
-      timeout: 120000,
+      timeout: budgets.read,
       killSignal: "SIGKILL",
       env: { ...process.env, XDG_CACHE_HOME: cacheDirectory },
     });

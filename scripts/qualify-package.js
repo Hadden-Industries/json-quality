@@ -14,7 +14,7 @@ import { createHash } from "node:crypto";
 import { parseArgs } from "node:util";
 import { packCandidate } from "./pack.js";
 import { assertNativeNpmRuntime } from "./consumer-toolchain.js";
-import { native } from "./qualification-process.js";
+import { native, budgets } from "./qualification-process.js";
 import { qualifyPublicApi } from "./qualify-api.js";
 import { nodeSupport } from "./node-matrix.js";
 import { verifyArchive, archiveInventory, sha256 } from "./release-contract.js";
@@ -177,7 +177,7 @@ try {
     {
       cwd: consumer,
       windowsHide: true,
-      timeout: 300000,
+      timeout: budgets.install,
       env: isolatedNpmEnvironment(directory),
       phase: `${values.layout}-recipient-install`,
     },
@@ -257,7 +257,7 @@ try {
     {
       cwd: consumer,
       windowsHide: true,
-      timeout: 120000,
+      timeout: budgets.suite,
     },
   );
   const lock = JSON.parse(readFileSync(join(consumer, "package-lock.json")));
@@ -282,7 +282,7 @@ try {
     {
       cwd: consumer,
       windowsHide: true,
-      timeout: 300000,
+      timeout: budgets.install,
       env: isolatedNpmEnvironment(directory),
       phase: `${values.layout}-offline-reinstall`,
     },
@@ -293,7 +293,7 @@ try {
     {
       cwd: consumer,
       windowsHide: true,
-      timeout: 120000,
+      timeout: budgets.suite,
     },
   );
   if (values.evidence) {

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "./qualification-budgets.js";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   lstatSync,
@@ -25,7 +26,7 @@ const isTest = (path) => /^tests\/.*\.test\.(?:js|mjs)$/u.test(path);
 const git = (root, args) =>
   execFileSync("git", ["-C", root, ...args], {
     windowsHide: true,
-    timeout: 30000,
+    timeout: budgets.read,
     maxBuffer: 16 * 1024 * 1024,
   });
 const paths = (bytes) => bytes.toString("utf8").split("\0").filter(Boolean);
@@ -104,7 +105,7 @@ function graphFromSnapshot(files, directory) {
     cwd: directory,
     encoding: "utf8",
     windowsHide: true,
-    timeout: 30000,
+    timeout: budgets.read,
     maxBuffer: 8 * 1024 * 1024,
   });
   if (result.error || result.status !== 0)
@@ -306,7 +307,7 @@ export function runShadow(root, plan) {
         env,
         encoding: "utf8",
         windowsHide: true,
-        timeout: 1800000,
+        timeout: budgets.suite,
         maxBuffer: 16 * 1024 * 1024,
       },
     );

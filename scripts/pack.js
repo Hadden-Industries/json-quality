@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "./qualification-budgets.js";
 import { execFileSync } from "node:child_process";
 import {
   readFileSync,
@@ -62,7 +63,7 @@ export function runNpmPack(root, { npm, destination }) {
         cwd: root,
         encoding: "utf8",
         windowsHide: true,
-        timeout: 120000,
+        timeout: budgets.pack,
         maxBuffer: 8 * 1024 * 1024,
       },
     ),
