@@ -28,9 +28,10 @@ function fixture(attempt = 1, fork = false) {
   };
   const pr = {
     number: 17,
+    state: "closed",
     merged: true,
     merged_at: new Date(now - 100).toISOString(),
-    merge_commit_sha: sha("6"),
+    // API 2026-03-10 omits merge_commit_sha from both PR responses.
     base: { ref: "main", sha: sha("3"), repo },
     head: {
       sha: sha("4"),
@@ -259,6 +260,59 @@ test("normal equal-tree merge reuses complete JSON and package qualification", a
   assert.equal(result.mode, "REUSED");
   assert.equal(result.json, "REUSED");
   assert.equal(result.sourceRun, 71);
+});
+test("merged PR discovery binds the current API response to both parents and its repository", async () => {
+  for (const mutate of [
+    (f) => {
+      f.pr.state = "open";
+    },
+    (f) => {
+      f.pr.merged_at = null;
+    },
+    (f) => {
+      f.pr.merged = false;
+    },
+    (f) => {
+      f.pr.base.sha = sha("a");
+    },
+    (f) => {
+      f.pr.head.sha = sha("b");
+    },
+    (f) => {
+      f.pr.base.ref = "other";
+    },
+    (f) => {
+      f.pr.base.repo = { ...f.pr.base.repo, id: 12 };
+    },
+    (f) => {
+      f.pr.head.repo = { ...f.pr.head.repo, full_name: "other/json-quality" };
+    },
+  ]) {
+    const f = fixture();
+    mutate(f);
+    await assert.rejects(
+      selectProof({ ctx: f.main, read: f.read, now: f.now }),
+    );
+  }
+  const f = fixture();
+  for (const associated of [[], [f.pr, { ...f.pr, number: 18 }]]) {
+    await assert.rejects(
+      selectProof({
+        ctx: f.main,
+        now: f.now,
+        read: (path) =>
+          path.startsWith("/commits/") ? associated : f.read(path),
+      }),
+    );
+  }
+  await assert.rejects(
+    selectProof({
+      ctx: f.main,
+      now: f.now,
+      read: (path) =>
+        path === "/pulls/17" ? { ...f.pr, number: 18 } : f.read(path),
+    }),
+  );
 });
 test("partial rerun retains every mandatory job's authenticated original producer", async () => {
   const input = await proof(fixture(2));

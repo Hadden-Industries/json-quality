@@ -358,14 +358,28 @@ export async function selectProof({ ctx, read, now = Date.now() }) {
   assert.equal(ctx.snapshot.parents[0], ctx.event.before);
   const candidates = await read(`/commits/${ctx.sha}/pulls?per_page=100`);
   assert.ok(Array.isArray(candidates) && candidates.length < 100);
+  // API 2026-03-10 omits merge_commit_sha. Like OwlAPI, bind the exact
+  // commit's associated merged PR to both Git parents and repository IDs.
   const matching = candidates.filter(
-    (pr) => pr.merged_at && pr.merge_commit_sha === ctx.sha,
+    (pr) =>
+      pr.merged_at &&
+      pr.state === "closed" &&
+      pr.base?.ref === "main" &&
+      pr.base.sha === ctx.snapshot.parents[0] &&
+      pr.head?.sha === ctx.snapshot.parents[1] &&
+      [pr.base, pr.head].every(
+        (side) =>
+          side.repo?.id === ctx.repositoryId &&
+          side.repo.full_name === repository,
+      ),
   );
   assert.equal(matching.length, 1, "No unique ordinary merged PR");
   const pr = await read(`/pulls/${matching[0].number}`);
   pull(pr, ctx);
+  assert.equal(pr.number, matching[0].number);
+  assert.equal(pr.state, "closed");
+  assert.ok(pr.merged_at);
   assert.equal(pr.merged, true);
-  assert.equal(pr.merge_commit_sha, ctx.sha);
   const runs = await read(
     `/actions/workflows/ci.yml/runs?event=pull_request&head_sha=${pr.head.sha}&per_page=100`,
   );
