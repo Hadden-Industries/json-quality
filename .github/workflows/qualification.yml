@@ -66,6 +66,7 @@ jobs:
           npm run release:prepare -- "${{ runner.temp }}/json-quality-archive"
           npm run release:inventory -- . "${{ runner.temp }}/json-quality-archive"
       - uses: ./.github/actions/upload-evidence
+        timeout-minutes: 5
         id: archive
         if: success()
         with:
@@ -94,6 +95,7 @@ jobs:
           npm run ci:producer-toolchain
           npm run ci:consumer-npm -- "${{ runner.temp }}/consumer-npm"
       - uses: ./.github/actions/download-evidence
+        timeout-minutes: 15
         with:
           artifact-id: ${{ needs.producer.outputs.archive-id }}
           path: ${{ runner.temp }}/json-quality-archive/
@@ -133,6 +135,7 @@ jobs:
           EVIDENCE_PATH: ${{ steps.receipt.outputs.path }}
         run: '"$JSON_QUALITY_PRODUCER_NODE" scripts/upload-evidence.js upload "$EVIDENCE_PATH" 1'
       - uses: ./.github/actions/upload-evidence
+        timeout-minutes: 5
         if: inputs.release-mode && success()
         with:
           name: "consumer-${{ matrix.os }}-${{ matrix.node }}-${{ github.run_attempt }}"

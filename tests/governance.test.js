@@ -6,8 +6,56 @@ import {
   observeAcceptanceCheck,
   governance,
 } from "../scripts/github-governance.js";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { parse } from "yaml";
+import { budgets } from "../scripts/qualification-budgets.js";
+
+test("evidence actions use supported caller deadlines aligned with shared budgets", () => {
+  const actions = new Map([
+    ["upload-evidence", budgets.uploadStep],
+    ["download-evidence", budgets.collection],
+  ]);
+  for (const name of actions.keys()) {
+    const action = parse(
+      readFileSync(
+        new URL(`../.github/actions/${name}/action.yml`, import.meta.url),
+        "utf8",
+      ),
+    );
+    for (const step of action.runs.steps)
+      assert.equal(
+        Object.hasOwn(step, "timeout-minutes"),
+        false,
+        `${name}: composite step timeouts are unsupported`,
+      );
+  }
+  const directory = new URL("../.github/workflows/", import.meta.url);
+  let callers = 0;
+  for (const name of readdirSync(directory).filter((name) =>
+    name.endsWith(".yml"),
+  )) {
+    const workflow = parse(readFileSync(new URL(name, directory), "utf8"));
+    for (const job of Object.values(workflow.jobs))
+      for (const step of job.steps ?? []) {
+        if (step.uses?.startsWith("./.github/actions/"))
+          assert.ok(
+            existsSync(
+              new URL(`../${step.uses.slice(2)}/action.yml`, import.meta.url),
+            ),
+            `${name}: unresolved local action ${step.uses}`,
+          );
+        const action = step.uses?.replace("./.github/actions/", "");
+        if (!actions.has(action)) continue;
+        callers++;
+        assert.equal(
+          step["timeout-minutes"] * 60000,
+          actions.get(action),
+          `${name}: ${action} deadline drift`,
+        );
+      }
+  }
+  assert.ok(callers > 0);
+});
 
 test("governance drift identifies missing protection and expected native check source", async () => {
   const desired = structuredClone(governance);

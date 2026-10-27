@@ -11,7 +11,6 @@ runs:
   using: composite
   steps:
     - shell: bash
-      timeout-minutes: 15
       env:
         ARTIFACT_ID: ${{ inputs.artifact-id }}
         ARTIFACT_DESTINATION: ${{ inputs.path }}
