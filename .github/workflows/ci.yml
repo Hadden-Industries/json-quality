@@ -94,6 +94,8 @@ jobs:
       - name: Preserve compact independently checked PR proof
         if: github.event_name == 'pull_request' && steps.proof.outputs.path != ''
         timeout-minutes: 5
-        env:
-          EVIDENCE_PATH: ${{ steps.proof.outputs.path }}
-        run: node scripts/upload-evidence.js upload "$EVIDENCE_PATH" 30
+        uses: ./.github/actions/upload-evidence
+        with:
+          mode: upload
+          path: ${{ steps.proof.outputs.path }}
+          retention-days: 30

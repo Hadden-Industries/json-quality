@@ -2,8 +2,10 @@ name: Upload admitted evidence
 description: Bounded SDK transport and reconciliation of a named-consumer bundle
 inputs:
   name:
-    required: true
-    description: Stable original-attempt artifact name
+    description: Stable original-attempt name for a directory bundle
+  mode:
+    default: bundle
+    description: Bundle a directory or upload one compact proof file
   path:
     required: true
     description: Explicit owned directory of admitted product/evidence bytes
@@ -12,15 +14,7 @@ inputs:
     description: Consumer-specific retention
 outputs:
   artifact-id:
-    value: ${{ steps.upload.outputs.artifact-id }}
     description: Immutable admitted artifact ID
 runs:
-  using: composite
-  steps:
-    - id: upload
-      shell: bash
-      env:
-        EVIDENCE_ROOT: ${{ inputs.path }}
-        EVIDENCE_NAME: ${{ inputs.name }}
-        EVIDENCE_RETENTION: ${{ inputs.retention-days }}
-      run: node scripts/upload-evidence.js bundle "$EVIDENCE_ROOT" "$EVIDENCE_RETENTION" "$EVIDENCE_NAME"
+  using: node24
+  main: action.mjs

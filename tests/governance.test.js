@@ -9,6 +9,8 @@ import {
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { parse } from "yaml";
 import { budgets } from "../scripts/qualification-budgets.js";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 test("evidence actions use supported caller deadlines aligned with shared budgets", () => {
   const actions = new Map([
@@ -22,7 +24,7 @@ test("evidence actions use supported caller deadlines aligned with shared budget
         "utf8",
       ),
     );
-    for (const step of action.runs.steps)
+    for (const step of action.runs.steps ?? [])
       assert.equal(
         Object.hasOwn(step, "timeout-minutes"),
         false,
@@ -55,6 +57,68 @@ test("evidence actions use supported caller deadlines aligned with shared budget
       }
   }
   assert.ok(callers > 0);
+});
+
+test("SDK uploads run in a native JavaScript action with runner artifact credentials", () => {
+  const action = parse(
+    readFileSync(
+      new URL("../.github/actions/upload-evidence/action.yml", import.meta.url),
+      "utf8",
+    ),
+  );
+  assert.equal(action.runs.using, "node24");
+  assert.ok(
+    existsSync(
+      new URL(
+        `../.github/actions/upload-evidence/${action.runs.main}`,
+        import.meta.url,
+      ),
+    ),
+  );
+  const directory = new URL("../.github/workflows/", import.meta.url);
+  for (const name of readdirSync(directory).filter((name) =>
+    name.endsWith(".yml"),
+  )) {
+    const workflow = parse(readFileSync(new URL(name, directory), "utf8"));
+    for (const job of Object.values(workflow.jobs))
+      for (const step of job.steps ?? [])
+        assert.ok(
+          !/scripts\/(?:upload-evidence\.js|ci-command\.js upload)/u.test(
+            step.run ?? "",
+          ),
+          `${name}: SDK upload from a shell lacks artifact credentials`,
+        );
+  }
+});
+
+test("upload entry refuses missing artifact credentials before starting transport", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      fileURLToPath(
+        new URL(
+          "../.github/actions/upload-evidence/action.mjs",
+          import.meta.url,
+        ),
+      ),
+    ],
+    {
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: budgets.read,
+      env: {
+        ...process.env,
+        ACTIONS_RUNTIME_TOKEN: "",
+        ACTIONS_RESULTS_URL: "",
+      },
+    },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /Artifact uploads require the native JavaScript action runtime/u,
+  );
+  assert.equal(result.stdout, "");
 });
 
 test("governance drift identifies missing protection and expected native check source", async () => {
