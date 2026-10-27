@@ -3,10 +3,12 @@
 // attempts follow OwlAPI's authenticated execution-identity correction.
 import assert from "node:assert/strict";
 import { isDeepStrictEqual } from "node:util";
+import { setTimeout as delay } from "node:timers/promises";
 import { nodeSupport } from "./node-matrix.js";
 import { validateFrozenMatrix } from "./release-contract.js";
 import { sameJobExecution } from "./github-job-execution.js";
 import { pythonVersion } from "./ci-host.js";
+import { budgets } from "./qualification-budgets.js";
 
 export const repository = "Hadden-Industries/json-quality";
 export const workflow = ".github/workflows/ci.yml";
@@ -90,23 +92,30 @@ function runIdentity(
   assert.equal(run.event, "pull_request");
   assert.equal(run.path, workflow);
 }
-function inventory(value, run, matrix, complete = true) {
+function inventory(value, run, matrix, complete = true, registering = false) {
   assert.ok(Array.isArray(value.jobs));
   assert.equal(
     value.total_count,
     value.jobs.length,
     "Incomplete provider job pagination",
   );
-  equal(
-    value.jobs.map((job) => job.name).sort(),
-    jobNames(matrix).sort(),
-    "Missing, extra or duplicated source jobs",
+  const expected = jobNames(matrix),
+    names = value.jobs.map((job) => job.name);
+  assert.equal(new Set(names).size, names.length, "Duplicated source jobs");
+  assert.ok(
+    names.every((name) => expected.includes(name)),
+    "Extra source jobs",
   );
+  if (!registering) equal(names.sort(), expected.sort(), "Missing source jobs");
   for (const job of value.jobs) {
     assert.ok(positive(job.id));
     assert.equal(job.run_id, run.id);
     assert.equal(job.head_sha, run.head_sha);
     if (!complete && job.name === acceptance) continue;
+    if (registering && ["queued", "in_progress"].includes(job.status)) {
+      assert.equal(job.conclusion, null);
+      continue;
+    }
     assert.equal(job.status, "completed");
     assert.equal(
       job.conclusion,
@@ -115,6 +124,46 @@ function inventory(value, run, matrix, complete = true) {
     );
   }
   return value.jobs;
+}
+/** Native needs are already successful; wait only for their API registration. */
+async function receiptJobs(run, matrix, read, sleep) {
+  const latestPath = `/actions/runs/${run.id}/jobs?filter=latest&per_page=100`;
+  const attemptPath = `/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs?per_page=100`;
+  const expected = jobNames(matrix).length;
+  for (let observation = 0; observation < 3; observation++) {
+    const latest = inventory(await read(latestPath), run, matrix, false, true);
+    const attempt = inventory(
+      await read(attemptPath, { refresh: true }),
+      run,
+      matrix,
+      false,
+      true,
+    );
+    assert.ok(attempt.every((job) => job.run_attempt === run.run_attempt));
+    const settled = (jobs) =>
+      jobs.length === expected &&
+      jobs.every(
+        (job) => job.name === acceptance || job.status === "completed",
+      );
+    if (settled(latest) && settled(attempt)) return latest;
+    assert.ok(
+      observation < 2,
+      "Native job registration did not settle within its observation bound",
+    );
+    const delayMs = budgets.read / 4;
+    console.error(
+      JSON.stringify({
+        phase: "native-job-registration",
+        state: "pending",
+        observation: observation + 1,
+        latestJobs: latest.length,
+        attemptJobs: attempt.length,
+        expectedJobs: expected,
+        delayMs,
+      }),
+    );
+    await sleep(delayMs);
+  }
 }
 export async function verifyProducingAttempt(job, attempt, run, read) {
   assert.ok(positive(attempt) && attempt <= run.run_attempt);
@@ -290,6 +339,7 @@ export async function createReceipt({
   needs,
   read,
   now = Date.now(),
+  sleep = delay,
 }) {
   context(ctx);
   assert.equal(ctx.eventName, "pull_request");
@@ -299,14 +349,9 @@ export async function createReceipt({
   runIdentity(run, ctx, ctx.event.pull_request.head.repo);
   assert.equal(run.run_attempt, ctx.runAttempt);
   assert.equal(run.head_sha, ctx.event.pull_request.head.sha);
-  const jobs = inventory(
-    await read(`/actions/runs/${run.id}/jobs?filter=latest&per_page=100`),
-    run,
-    matrix,
-    false,
-  );
   const executed = lanes(records, ctx, matrix);
   assert.equal(executed[0].transport.workflow_run.head_sha, run.head_sha);
+  const jobs = await receiptJobs(run, matrix, read, sleep);
   const executions = [];
   for (const job of jobs.filter((value) => value.name !== acceptance))
     executions.push(await originalExecution(job, run, read));

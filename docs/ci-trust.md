@@ -89,6 +89,9 @@ Partial reruns authenticate each retained job's original producing attempt by na
 Mutable job/check IDs and copied attempt labels are not producer identity.
 The latest complete required inventory and the original execution must agree.
 An ambiguous lineage remains unavailable.
+After all native workflow predecessors report success, acceptance allows three observations for their job inventory to finish registering, with pauses derived from the shared two-minute lookup budget.
+Only missing expected entries or pending jobs with no conclusion can settle this way; failed, foreign, duplicated or malformed evidence refuses immediately.
+Both the latest projection and the current attempt must become complete before original producing-attempt admission, and no product job is rerun by this wait.
 
 ## Recovery and retention
 

@@ -79,6 +79,7 @@ function reader() {
   const historical = new Map();
   return (path, options) => {
     if (!/\/attempts\/\d+\/jobs\?/u.test(path)) return request(path, options);
+    if (options?.refresh) historical.delete(path);
     if (!historical.has(path)) historical.set(path, request(path, options));
     return historical.get(path);
   };
