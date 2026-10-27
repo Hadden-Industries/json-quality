@@ -74,6 +74,8 @@ After publishing the reviewed source, explicitly dispatch **Main qualification**
 Prepare a draft runbook PR from the same source and deliberately mark it ready for review to establish the native `CI / acceptance` context.
 The bootstrap prerequisite establishes that the check is selectable; a failed or incomplete check is never evidence that the candidate passed.
 Return to clean signed published `main`, run `node scripts/github-governance.js --apply`, then use `--check` to verify the complete settings readback.
+After the default-setup cutover, explicitly rerun infrastructure-failed CodeQL jobs for the same candidate.
+Source repairs require a new candidate and a new ready-for-review checkpoint; never replay publication effects to recover missing qualification.
 
 After an ordinary merge, `main-qualification.yml` performs lightweight image/input/provenance admission.
 The proof must bind the same tree, parents, workflow, dependency selectors/locks, generated declarations, JSON policy/schema/tool/native inputs, resolved runtimes and runner images.
