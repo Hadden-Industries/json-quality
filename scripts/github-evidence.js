@@ -54,12 +54,14 @@ export function createRepositoryReader({
   now = Date.now,
   sleep = delay,
   random = Math.random,
-  deadline = now() + budgets.read,
+  budgetMs = budgets.read,
+  deadline = now() + budgetMs,
   accept = "application/vnd.github+json",
   maximumDownloadBytes = artifactLimits.collectionBytes,
 } = {}) {
   assert.match(repository, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u);
   assert.ok(token, "Read-only GitHub token unavailable");
+  assert.ok([budgets.read, budgets.collection].includes(budgetMs));
   assert.ok(
     Number.isSafeInteger(maximumDownloadBytes) && maximumDownloadBytes > 0,
   );
@@ -67,7 +69,7 @@ export function createRepositoryReader({
     maximumDownloadBytes,
     artifactLimits.collectionBytes,
   );
-  const end = Math.min(deadline, now() + budgets.read);
+  const end = Math.min(deadline, now() + budgetMs);
   let requests = 0,
     bytesRead = 0,
     metadataBytesRead = 0,
@@ -187,6 +189,9 @@ export function createRepositoryReader({
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
+    const budgetMs = process.argv.includes("--binary")
+      ? budgets.collection
+      : budgets.read;
     const read = createRepositoryReader({
       repository:
         process.env.GITHUB_REPOSITORY ?? "Hadden-Industries/json-quality",
@@ -194,7 +199,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       accept: process.argv.includes("--sarif")
         ? "application/sarif+json"
         : "application/vnd.github+json",
-      deadline: Date.now() + budgets.read - 2000,
+      budgetMs,
+      deadline: Date.now() + budgetMs - 2000,
     });
     const path = process.argv[2];
     if (process.argv[3] === "--paginate") {

@@ -28,13 +28,13 @@ import {
   verifyRun,
   effectJournal,
   releasePackages,
+  releaseNpmTag,
 } from "./release-contract.js";
 import { refreshAdmission, verifyBundle } from "./release-evidence.js";
 import {
   api,
   currentMain,
   decisionAsset,
-  evidenceIndex,
   gh,
   optionalApi,
   signedTag,
@@ -46,6 +46,7 @@ import { isolatedNpmEnvironment, verifyAudit } from "./release-inventory.js";
 import { qualifySecurity } from "./release-security.js";
 import { native, npmCommand } from "./qualification-process.js";
 import { verifyNativeAssets } from "./release-asset-verification.js";
+import { bundleReleaseAssets } from "./release-assets.js";
 
 export function journalEffect(
   path,
@@ -202,6 +203,7 @@ export function stage(directory, scratch, env = process.env) {
     historyRoot: scratch,
   });
   const isolation = npmEnvironment(scratch);
+  const review = readJson(join(directory, "release-review.json"));
   // Preflight the entire family before the first privileged effect.
   for (const subject of releasePackages(release)) {
     const metadata = npmViewObject(
@@ -242,17 +244,7 @@ export function stage(directory, scratch, env = process.env) {
       () => {
         currentMain(env);
         const response = npmCommand(
-          [
-            "stage",
-            "publish",
-            resolve(directory, subject.archive.filename),
-            "--ignore-scripts",
-            "--access=public",
-            "--tag=pilot",
-            "--provenance",
-            "--json",
-            "--registry=https://registry.npmjs.org/",
-          ],
+          stagePublishArguments(directory, subject, review),
           { env: isolation, phase: "npm-stage" },
         );
         save(
@@ -295,6 +287,19 @@ export function stage(directory, scratch, env = process.env) {
     journalSha256: sha256(regularBytes(journal)),
   });
   return { state: "completed", result };
+}
+export function stagePublishArguments(directory, subject, review) {
+  return [
+    "stage",
+    "publish",
+    resolve(directory, subject.archive.filename),
+    "--ignore-scripts",
+    "--access=public",
+    `--tag=${releaseNpmTag(review)}`,
+    "--provenance",
+    "--json",
+    "--registry=https://registry.npmjs.org/",
+  ];
 }
 function githubRelease(release) {
   return api(`releases/tags/v${release.version}`);
@@ -355,9 +360,7 @@ export function verifyGithubPromotionState(actual, expected, target, recovery) {
   );
   return authorized;
 }
-function archiveAssets(directory, release, scratch) {
-  const bundle = join(scratch, "assets");
-  mkdirSync(bundle);
+function archiveAssets(directory, release, scratch, manifestSha256) {
   // This exact source archive supplies complete corresponding source and notices.
   const source = join(directory, "source.tar.gz");
   native("git", [
@@ -373,33 +376,7 @@ function archiveAssets(directory, release, scratch) {
         encoding: null,
       }),
     );
-  const members = evidenceIndex(directory).filter(
-    ({ name }) => name !== "evidence-index.json",
-  );
-  const assets = members.map((entry) => ({
-    ...entry,
-    source: entry.name,
-    name: entry.name.replaceAll("/", "--"),
-  }));
-  assert.equal(new Set(assets.map(({ name }) => name)).size, assets.length);
-  for (const item of assets)
-    save(
-      join(bundle, item.name),
-      releaseArtifactBytes(join(directory, item.source)),
-    );
-  const assetManifest = jsonBytes({
-    schemaVersion: 1,
-    manifestSha256: process.env.MANIFEST_SHA,
-    source: release.source.commit,
-    assets,
-  });
-  save(join(bundle, "release-assets.json"), assetManifest);
-  assets.push({
-    name: "release-assets.json",
-    size: assetManifest.length,
-    sha256: sha256(assetManifest),
-  });
-  return { bundle, assets };
+  return bundleReleaseAssets(directory, release, scratch, manifestSha256);
 }
 export function archive(directory, scratch, env = process.env) {
   const { release, context, recovery } = refreshAdmission(
@@ -435,7 +412,13 @@ export function archive(directory, scratch, env = process.env) {
     );
     assert.ok(recovery.archive.observed.immutableRelease);
     recordNoRequest(directory, "archive", env);
-    completePrerelease(directory, scratch, release, env, recovery.archive);
+    completeSelectedAvailability(
+      directory,
+      scratch,
+      release,
+      env,
+      recovery.archive,
+    );
     return;
   }
   assert.ok(
@@ -487,7 +470,12 @@ export function archive(directory, scratch, env = process.env) {
   const draft = findDraft(release);
   assert.equal(draft.draft, true);
   assert.equal(draft.tag_name, `v${release.version}`);
-  const { bundle, assets } = archiveAssets(directory, release, scratch);
+  const { bundle, assets } = archiveAssets(
+    directory,
+    release,
+    scratch,
+    env.MANIFEST_SHA,
+  );
   save(join(directory, "archive-assets-intent.json"), {
     schemaVersion: 1,
     manifestSha256: env.MANIFEST_SHA,
@@ -597,7 +585,7 @@ export function archive(directory, scratch, env = process.env) {
     release: githubRelease(release),
     assets,
   });
-  completePrerelease(directory, scratch, release, env);
+  completeSelectedAvailability(directory, scratch, release, env);
 }
 export function recordNoRequest(directory, phase, env) {
   const origin = { run: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT };
@@ -621,35 +609,60 @@ export function recordNoRequest(directory, phase, env) {
   if (existsSync(path)) assert.deepEqual(readJson(path), marker);
   else save(path, marker);
 }
-function completePrerelease(directory, scratch, release, env, recovery = null) {
-  if (isPrerelease(release.version)) {
-    const tags = npmViewObject(
-      npmCommand(
-        [
-          "view",
-          release.package,
-          "dist-tags",
-          "--json",
-          "--registry=https://registry.npmjs.org/",
-        ],
-        { env: isolatedNpmEnvironment(scratch) },
-      ),
-    );
+function completeSelectedAvailability(
+  directory,
+  scratch,
+  release,
+  env,
+  recovery = null,
+) {
+  const prerelease = isPrerelease(release.version);
+  const npmTag = releaseNpmTag(
+    readJson(join(directory, "release-review.json")),
+  );
+  if (prerelease || npmTag === "latest") {
+    const packages = releasePackages(release).map((subject) => {
+      const tags = npmViewObject(
+        npmCommand(
+          [
+            "view",
+            subject.package,
+            "dist-tags",
+            "--json",
+            "--registry=https://registry.npmjs.org/",
+          ],
+          { env: isolatedNpmEnvironment(scratch) },
+        ),
+      );
+      assert.equal(
+        tags[npmTag],
+        release.version,
+        "Owner-selected npm availability changed",
+      );
+      return { package: subject.package, tags };
+    });
+    const tags = packages.find(
+      (subject) => subject.package === release.package,
+    ).tags;
     const live = githubRelease(release);
-    assert.equal(tags.pilot, release.version);
-    assert.equal(live.prerelease, true);
-    assert.notEqual(
-      optionalApi("releases/latest")?.tag_name,
-      `v${release.version}`,
-    );
+    assert.equal(live.prerelease, prerelease);
+    if (prerelease)
+      assert.notEqual(
+        optionalApi("releases/latest")?.tag_name,
+        `v${release.version}`,
+      );
     save(join(directory, "completion.json"), {
       schemaVersion: 1,
       manifestSha256: env.MANIFEST_SHA,
       source: release.source.commit,
       version: release.version,
       npm: tags,
+      npmTag,
+      packages,
       github: live,
-      state: "completed-prerelease",
+      state: prerelease
+        ? "completed-prerelease"
+        : "completed-owner-selected-npm",
       ...(recovery ? { recovery } : {}),
       observedAt: new Date().toISOString(),
     });

@@ -78,6 +78,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const read = createRepositoryReader({
     repository: process.env.GITHUB_REPOSITORY,
     token: process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN,
+    budgetMs: budgets.collection,
   });
   await downloadEvidence({
     id: Number(process.argv[2]),

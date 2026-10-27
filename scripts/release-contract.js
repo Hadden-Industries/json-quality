@@ -125,6 +125,15 @@ export function validVersion(version) {
 }
 export const isPrerelease = (version) =>
   createRequire(npmCli())("semver").prerelease(validVersion(version)) !== null;
+/** The digest-bound owner review selects availability independently of SemVer. */
+export function releaseNpmTag(review) {
+  const tag = Object.hasOwn(review, "npmTag") ? review.npmTag : "pilot";
+  assert.ok(
+    ["pilot", "latest"].includes(tag),
+    "Unsupported owner-selected npm tag",
+  );
+  return tag;
+}
 export function safeMember(path) {
   assert.ok(
     typeof path === "string" &&
@@ -589,9 +598,10 @@ export function verifyDecision(bytes, digest, release, manifestSha, phase) {
       assert.ok(!url.username && !url.password);
     }
   }
-  if (phase === "review")
+  if (phase === "review") {
+    releaseNpmTag(record);
     assert.equal(record.decisions.security.independent, true);
-  else {
+  } else {
     assert.match(record.reviewSha256, /^[a-f0-9]{64}$/u);
     assert.match(String(record.registryRun), /^[1-9]\d{0,15}$/u);
     assert.match(String(record.registryAttempt), /^[1-9]\d{0,15}$/u);

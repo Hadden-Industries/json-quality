@@ -17,6 +17,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { downloadEvidence } from "../scripts/download-evidence.js";
 import { budgets } from "../scripts/qualification-process.js";
+import { sourceInventoryWorkspace } from "../scripts/release-inventory.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const python = process.platform === "win32" ? "python" : "python3";
@@ -106,6 +107,29 @@ test("artifact pack is deterministic and refuses diagnostic log copies", (t) => 
       .status,
     0,
   );
+});
+test("release inventory scratch never enters its admitted evidence transport", (t) => {
+  const temp = temporary(t),
+    output = join(temp, "evidence");
+  mkdirSync(output);
+  const workspace = sourceInventoryWorkspace(output, temp);
+  mkdirSync(join(workspace, "source-install", "node_modules"), {
+    recursive: true,
+  });
+  mkdirSync(join(workspace, "logs"), { recursive: true });
+  writeFileSync(
+    join(workspace, "source-install", "node_modules", "package.json"),
+    "{}",
+  );
+  writeFileSync(join(workspace, "logs", "npm.log"), "diagnostic");
+  writeFileSync(join(output, "source-audit.json"), "{}");
+  const result = command([
+    "scripts/pack-artifact.py",
+    output,
+    join(temp, "proof.zip"),
+    "1024",
+  ]);
+  assert.equal(result.status, 0, result.stderr);
 });
 test("native payload transport preserves safe executable permissions", (t) => {
   const temp = temporary(t),
