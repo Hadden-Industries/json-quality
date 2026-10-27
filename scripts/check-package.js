@@ -73,7 +73,7 @@ export async function checkPackage(
   );
   for (const { path } of files)
     assert.ok(
-      !/^(?:tests|scripts|tooling|\.git|node_modules|docs\/plans|native\/prebuilt)(?:\/|$)|(?:^|\/)(?:\.env(?:\..*)?|\.npmrc|[^/]*\.log)$/u.test(
+      !/^(?:tests|scripts|tooling|\.git|node_modules|docs\/plans|native)(?:\/|$)|(?:^|\/)(?:\.env(?:\..*)?|\.npmrc|[^/]*\.log)$/u.test(
         path,
       ),
       `Forbidden package member: ${path}`,

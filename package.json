@@ -77,7 +77,6 @@
     "docs/markdown-quality.md",
     "docs/release-operations.md",
     "docs/rules/",
-    "native/README.md",
     "examples/"
   ],
   "types": "./types/index.d.ts",
