@@ -15,6 +15,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { native, budgets } from "./qualification-process.js";
 import { transientReadError } from "./github-evidence.js";
+import { artifactLimits } from "./artifact-policy.js";
 
 const digest = (bytes) =>
   `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
@@ -134,7 +135,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
   } else {
     assert.ok(["upload", "bundle"].includes(mode));
-    const maximum = mode === "bundle" ? 536870912 : 2 * 1024 * 1024;
+    const maximum =
+      mode === "bundle"
+        ? artifactLimits.payloadBytes
+        : artifactLimits.proofBytes;
     if (mode === "bundle") {
       const name = process.argv[5];
       assert.match(name, /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,200}$/u);
@@ -157,7 +161,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     assert.ok(
       stat.isFile() &&
         !stat.isSymbolicLink() &&
-        stat.size <= (mode === "bundle" ? maximum + 1048576 : maximum),
+        stat.size <=
+          (mode === "bundle"
+            ? maximum + artifactLimits.envelopeBytes
+            : maximum),
       "Evidence must be a bounded regular file",
     );
     const bytes = readFileSync(pathOrName),

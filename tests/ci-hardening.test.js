@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createServer } from "node:http";
+import { once } from "node:events";
+import { artifactLimits } from "../scripts/artifact-policy.js";
 import {
   createRepositoryReader,
   retryDelay,
@@ -24,6 +27,48 @@ function reader(fetchImpl, limit = 120000) {
     },
   });
 }
+
+test("real fetch admits only the validated artifact redirect without forwarding credentials", async (t) => {
+  const requests = [];
+  const server = createServer((request, response) => {
+    requests.push({
+      path: request.url,
+      authorization: request.headers.authorization,
+    });
+    if (request.url === "/redirect") {
+      response.writeHead(302, {
+        location:
+          "https://fixture.blob.core.windows.net/proof?signature=fixture",
+      });
+      response.end();
+    } else response.end("proof");
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const read = reader((url, options) => {
+    const target = new URL(url);
+    return fetch(
+      new URL(
+        target.hostname === "api.github.com" ? "/redirect" : "/payload",
+        origin,
+      ),
+      options,
+    );
+  });
+  assert.equal(
+    (await read("/actions/artifacts/1/zip", { raw: true })).toString(),
+    "proof",
+  );
+  assert.deepEqual(requests, [
+    { path: "/redirect", authorization: "Bearer fixture" },
+    { path: "/payload", authorization: undefined },
+  ]);
+});
 test("evidence GET retries classified transient responses within one finite budget", async () => {
   let calls = 0;
   const read = reader(async () => {
@@ -35,6 +80,35 @@ test("evidence GET retries classified transient responses within one finite budg
   });
   assert.deepEqual(await read("/actions/runs/1"), { immutable: "source" });
   assert.equal(calls, 3);
+});
+
+test("large admitted downloads retain independent metadata readback and cumulative byte limits", async () => {
+  let calls = 0;
+  const payload = Buffer.alloc(artifactLimits.metadataBytes + 1);
+  const read = reader(async () =>
+    ++calls === 1 ? new Response(payload) : Response.json({ retained: true }),
+  );
+  assert.equal(
+    (
+      await read("/actions/artifacts/1/zip", {
+        raw: true,
+        maximumBytes: payload.length,
+      })
+    ).length,
+    payload.length,
+  );
+  assert.deepEqual(await read("/actions/artifacts/1"), { retained: true });
+  const bounded = createRepositoryReader({
+    repository: "Hadden-Industries/json-quality",
+    token: "fixture",
+    maximumDownloadBytes: 8,
+    fetchImpl: async () => new Response("12345"),
+  });
+  await bounded("/actions/artifacts/1/zip", { raw: true });
+  await assert.rejects(
+    bounded("/actions/artifacts/2/zip", { raw: true }),
+    /budget exhausted/u,
+  );
 });
 test("malformed, permanent and exhausted evidence never becomes retry-until-valid", async () => {
   for (const response of [

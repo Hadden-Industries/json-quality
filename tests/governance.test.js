@@ -6,89 +6,132 @@ import {
   observeAcceptanceCheck,
   governance,
 } from "../scripts/github-governance.js";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { parse } from "yaml";
+import { readFileSync } from "node:fs";
+import { parse, stringify } from "yaml";
+import { checkWorkflows } from "../scripts/check-workflows.js";
 import { budgets } from "../scripts/qualification-budgets.js";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-test("evidence actions use supported caller deadlines aligned with shared budgets", () => {
-  const actions = new Map([
-    ["upload-evidence", budgets.uploadStep],
-    ["download-evidence", budgets.collection],
-  ]);
-  for (const name of actions.keys()) {
-    const action = parse(
-      readFileSync(
-        new URL(`../.github/actions/${name}/action.yml`, import.meta.url),
-        "utf8",
-      ),
-    );
-    for (const step of action.runs.steps ?? [])
-      assert.equal(
-        Object.hasOwn(step, "timeout-minutes"),
-        false,
-        `${name}: composite step timeouts are unsupported`,
-      );
-  }
-  const directory = new URL("../.github/workflows/", import.meta.url);
-  let callers = 0;
-  for (const name of readdirSync(directory).filter((name) =>
-    name.endsWith(".yml"),
-  )) {
-    const workflow = parse(readFileSync(new URL(name, directory), "utf8"));
-    for (const job of Object.values(workflow.jobs))
-      for (const step of job.steps ?? []) {
-        if (step.uses?.startsWith("./.github/actions/"))
-          assert.ok(
-            existsSync(
-              new URL(`../${step.uses.slice(2)}/action.yml`, import.meta.url),
-            ),
-            `${name}: unresolved local action ${step.uses}`,
-          );
-        const action = step.uses?.replace("./.github/actions/", "");
-        if (!actions.has(action)) continue;
-        callers++;
-        assert.equal(
-          step["timeout-minutes"] * 60000,
-          actions.get(action),
-          `${name}: ${action} deadline drift`,
-        );
-      }
-  }
-  assert.ok(callers > 0);
+test("complete workflow contracts cover every local action and transfer caller", () => {
+  const summary = checkWorkflows();
+  assert.ok(
+    summary.workflows > 0 &&
+      summary.localActions > 0 &&
+      summary.transferCallers > 0,
+  );
 });
 
-test("SDK uploads run in a native JavaScript action with runner artifact credentials", () => {
-  const action = parse(
-    readFileSync(
-      new URL("../.github/actions/upload-evidence/action.yml", import.meta.url),
-      "utf8",
-    ),
+test("workflow contracts reject broken metadata, callers and shared deadline drift", async (t) => {
+  const upload = ".github/actions/upload-evidence/action.yml";
+  const download = ".github/actions/download-evidence/action.yml";
+  const ci = ".github/workflows/ci.yml";
+  const qualification = ".github/workflows/qualification.yml";
+  const transfer = (data) =>
+    data.jobs.producer.steps.find(
+      (step) => step.uses === "./.github/actions/upload-evidence",
+    );
+  for (const [name, path, change, expected] of [
+    [
+      "composite timeout",
+      download,
+      (data) => {
+        data.runs.steps[0]["timeout-minutes"] = 5;
+      },
+      /composite-step timeout/u,
+    ],
+    [
+      "shell credential boundary",
+      upload,
+      (data) => {
+        data.runs = { using: "composite", steps: [] };
+      },
+      /native action credentials/u,
+    ],
+    [
+      "missing native entry",
+      upload,
+      (data) => {
+        data.runs.main = "missing.mjs";
+      },
+      /missing native entry/u,
+    ],
+    [
+      "missing input",
+      qualification,
+      (data) => {
+        delete transfer(data).with.path;
+      },
+      /missing required input path/u,
+    ],
+    [
+      "undeclared input",
+      qualification,
+      (data) => {
+        transfer(data).with.unknown = "value";
+      },
+      /undeclared input unknown/u,
+    ],
+    [
+      "deadline drift",
+      qualification,
+      (data) => {
+        transfer(data)["timeout-minutes"] = 1;
+      },
+      /deadline drift/u,
+    ],
+    [
+      "unknown action",
+      qualification,
+      (data) => {
+        transfer(data).uses = "./.github/actions/missing";
+      },
+      /unresolved local action/u,
+    ],
+    [
+      "unknown reusable workflow",
+      ci,
+      (data) => {
+        data.jobs.product.uses = "./.github/workflows/missing.yml";
+      },
+      /unknown reusable workflow/u,
+    ],
+    [
+      "mutable external action",
+      ci,
+      (data) => {
+        data.jobs.policy.steps[0].uses = "actions/checkout@v7";
+      },
+      /full reviewed SHA/u,
+    ],
+    [
+      "direct shell SDK",
+      ci,
+      (data) => {
+        data.jobs.acceptance.steps.push({
+          run: "node scripts/upload-evidence.js upload proof.json 30",
+        });
+      },
+      /shell SDK upload/u,
+    ],
+  ])
+    await t.test(name, () => {
+      const data = parse(
+        readFileSync(new URL("../" + path, import.meta.url), "utf8"),
+      );
+      change(data);
+      assert.throws(
+        () => checkWorkflows({ overrides: { [path]: stringify(data) } }),
+        expected,
+      );
+    });
+  const duplicate =
+    readFileSync(new URL("../" + ci, import.meta.url), "utf8") +
+    "\nname: duplicate\n";
+  assert.throws(
+    () => checkWorkflows({ overrides: { [ci]: duplicate } }),
+    /invalid YAML/u,
   );
-  assert.equal(action.runs.using, "node24");
-  assert.ok(
-    existsSync(
-      new URL(
-        `../.github/actions/upload-evidence/${action.runs.main}`,
-        import.meta.url,
-      ),
-    ),
-  );
-  const directory = new URL("../.github/workflows/", import.meta.url);
-  for (const name of readdirSync(directory).filter((name) =>
-    name.endsWith(".yml"),
-  )) {
-    const workflow = parse(readFileSync(new URL(name, directory), "utf8"));
-    for (const job of Object.values(workflow.jobs))
-      for (const step of job.steps ?? [])
-        assert.ok(
-          !/scripts\/(?:upload-evidence\.js|ci-command\.js upload)/u.test(
-            step.run ?? "",
-          ),
-          `${name}: SDK upload from a shell lacks artifact credentials`,
-        );
-  }
 });
 
 test("upload entry refuses missing artifact credentials before starting transport", () => {
@@ -268,6 +311,9 @@ test("deliberate triggers and skip-resistant acceptance remain explicit", () => 
       ),
     );
   const ci = read("ci.yml");
+  assert.ok(
+    ci.jobs.policy.steps.some((step) => step.run === "npm run check:ci"),
+  );
   assert.deepEqual(ci.on.pull_request, {
     branches: ["main"],
     types: ["ready_for_review"],

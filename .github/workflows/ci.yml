@@ -22,6 +22,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-producer
+      - name: Check complete workflow and action contracts before fan-out
+        run: npm run check:ci
       - name: Admit the deliberate request and exact checkout
         env:
           EVENT: ${{ github.event_name }}

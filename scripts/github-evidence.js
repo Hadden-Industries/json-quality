@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { budgets } from "./qualification-process.js";
+import { artifactLimits } from "./artifact-policy.js";
 
 const transientCodes = new Set([
   "ECONNRESET",
@@ -55,17 +56,30 @@ export function createRepositoryReader({
   random = Math.random,
   deadline = now() + budgets.read,
   accept = "application/vnd.github+json",
+  maximumDownloadBytes = artifactLimits.collectionBytes,
 } = {}) {
   assert.match(repository, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u);
   assert.ok(token, "Read-only GitHub token unavailable");
+  assert.ok(
+    Number.isSafeInteger(maximumDownloadBytes) && maximumDownloadBytes > 0,
+  );
+  const downloadLimit = Math.min(
+    maximumDownloadBytes,
+    artifactLimits.collectionBytes,
+  );
   const end = Math.min(deadline, now() + budgets.read);
   let requests = 0,
-    bytesRead = 0;
+    bytesRead = 0,
+    metadataBytesRead = 0,
+    downloadBytesRead = 0;
   const limit = () =>
     Object.assign(new Error("GitHub evidence lookup budget exhausted"), {
       code: "LOOKUP_LIMIT_EXCEEDED",
     });
-  return async (path, { raw = false, maximumBytes = 2 * 1024 * 1024 } = {}) => {
+  return async (
+    path,
+    { raw = false, maximumBytes = artifactLimits.proofBytes } = {},
+  ) => {
     assert.ok(
       path === "" || /^\/[A-Za-z0-9_./?=&%-]+$/u.test(path),
       "Invalid repository evidence path",
@@ -80,7 +94,7 @@ export function createRepositoryReader({
         response = await fetchImpl(
           `https://api.github.com/repos/${repository}${path}`,
           {
-            redirect: "error",
+            redirect: "manual",
             cache: "no-store",
             signal: AbortSignal.timeout(Math.min(40000, remaining)),
             headers: {
@@ -126,9 +140,12 @@ export function createRepositoryReader({
         for await (const chunk of response.body) {
           size += chunk.byteLength;
           bytesRead += chunk.byteLength;
+          if (raw) downloadBytesRead += chunk.byteLength;
+          else metadataBytesRead += chunk.byteLength;
           if (
             size > maximumBytes ||
-            bytesRead > Math.max(16 * 1024 * 1024, maximumBytes) ||
+            metadataBytesRead > artifactLimits.metadataBytes ||
+            downloadBytesRead > downloadLimit ||
             now() >= end
           )
             throw limit();
@@ -156,6 +173,8 @@ export function createRepositoryReader({
           attempt: attempt + 1,
           requests,
           bytesRead,
+          metadataBytesRead,
+          downloadBytesRead,
           delayMs: Math.ceil(wait),
           remainingMs: end - now(),
         }),
@@ -197,12 +216,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       }
     } else if (process.argv.includes("--binary")) {
       const maximumBytes = Number(
-        process.env.JSON_QUALITY_ARTIFACT_MAXIMUM_BYTES ?? 2 * 1024 * 1024,
+        process.env.JSON_QUALITY_ARTIFACT_MAXIMUM_BYTES ??
+          artifactLimits.proofBytes,
       );
       assert.ok(
         Number.isSafeInteger(maximumBytes) &&
           maximumBytes > 0 &&
-          maximumBytes <= 1024 * 1024 * 1024,
+          maximumBytes <= artifactLimits.collectionBytes,
       );
       process.stdout.write(await read(path, { raw: true, maximumBytes }));
     } else console.log(JSON.stringify(await read(path)));

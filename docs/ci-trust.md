@@ -92,6 +92,18 @@ An ambiguous lineage remains unavailable.
 
 ## Recovery and retention
 
+`npm run check:ci` checks the complete local workflow/action graph before the candidate policy job starts expensive fan-out.
+The same owner, `scripts/check-workflows.js`, follows [OwlAPI's workflow governance](https://github.com/Hadden-Industries/owlapi/blob/36e28374447d94d9734960aaed6d3ab4be52ca17/scripts/workflow-governance.mjs): it validates YAML, native action entries, required/declared inputs, immutable external action references and transfer deadlines against the shared budget module.
+Mutation tests cover broken callers and metadata across dormant release paths as well as normal CI; native Node action entry points participate in JavaScript lint and native architecture/syntax admission.
+
+Artifact uploads use the native Node action handler, following OwlAPI's maintained transport boundary, so the SDK receives runner credentials without shell exports.
+Proof selection, byte transfer and receipt admission remain separate operations, as in [WebVOWL's verified-reuse driver](https://github.com/Hadden-Industries/webvowl/blob/7a298176a9cb7fff31c89069a63d6746bf9bf23a/util/ciEvidenceCommand.mjs).
+Downloaded bytes must satisfy the admitted provider identity, exact size and digest before bounded extraction or receipt parsing; only allowlisted signed-storage redirects are followed, without forwarding the GitHub credential.
+Native job logs include the qualification mode and its explanation; diagnostic log copies are not uploaded.
+`scripts/artifact-policy.js` separates compact proof, payload/envelope, cumulative download and metadata byte budgets.
+Failed transfer bytes retain their cumulative charge; a large admitted payload does not consume the subsequent metadata-read allowance.
+Provider identity, digest and expiry are rechecked before materialization, keeping the network lookup separate from the bounded extraction phase.
+
 GET recovery allows at most three attempts within a shared two-minute lookup budget, with finite requests and bytes.
 Only classified transport errors, transient HTTP statuses and confirmed rate limits recover; malformed JSON, schema, digest or provenance failures do not.
 Server retry hints are minimum waits, and an over-budget wait stops admission.

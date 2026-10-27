@@ -22,7 +22,8 @@ import {
 } from "./ci-proof.js";
 import { resolveQualificationMatrix } from "./node-matrix.js";
 import { hostIdentity } from "./ci-host.js";
-import { native, budgets } from "./qualification-process.js";
+import { budgets } from "./qualification-process.js";
+import { artifactLimits } from "./artifact-policy.js";
 
 export function gitSnapshot(directory = process.cwd()) {
   const git = (...args) =>
@@ -66,7 +67,7 @@ const output = (values, summary) => {
       assert.ok(!/[\r\n]/u.test(String(value)));
       appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
     }
-  console.log(JSON.stringify(values));
+  console.log(JSON.stringify({ ...values, summary }));
   if (process.env.GITHUB_STEP_SUMMARY)
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + "\n");
 };
@@ -96,10 +97,12 @@ export async function readRawProof(artifact, read) {
   assert.equal(artifact.expired, false);
   assert.match(artifact.digest, /^sha256:[a-f0-9]{64}$/u);
   assert.ok(
-    artifact.size_in_bytes > 0 && artifact.size_in_bytes <= 2 * 1024 * 1024,
+    artifact.size_in_bytes > 0 &&
+      artifact.size_in_bytes <= artifactLimits.proofBytes,
   );
   const bytes = await read(`/actions/artifacts/${artifact.id}/zip`, {
     raw: true,
+    maximumBytes: artifactLimits.proofBytes,
   });
   assert.equal(bytes.length, artifact.size_in_bytes);
   assert.equal(hash(bytes), artifact.digest, "Artifact digest mismatch");
@@ -267,24 +270,7 @@ async function main(mode) {
     }
     return;
   }
-  if (mode === "upload") {
-    native(
-      process.env.JSON_QUALITY_PRODUCER_NODE ?? process.execPath,
-      [
-        fileURLToPath(new URL("./upload-evidence.js", import.meta.url)),
-        "upload",
-        process.argv[3],
-        process.argv[4] ?? "30",
-      ],
-      {
-        timeout: budgets.upload,
-        stdio: "inherit",
-        phase: "compact-evidence-upload",
-      },
-    );
-    return;
-  }
-  throw new Error("Expected lane, record, observe or upload");
+  throw new Error("Expected lane, record or observe");
 }
 if (process.argv[1] === fileURLToPath(import.meta.url))
   await main(process.argv[2]);
