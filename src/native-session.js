@@ -5,7 +5,10 @@ import { encodeNativeControl } from "./native-control.js";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 
 /** Encode one bounded wire frame, without accepting payload data as control. */
-export function nativeFrame(kind, body = Buffer.alloc(0)) {
+export function nativeFrame(
+  /** @type {*} */ kind,
+  /** @type {Buffer<ArrayBufferLike>} */ body = Buffer.alloc(0),
+) {
   if (!Buffer.isBuffer(body) || body.length > 65536)
     throw new Error("native-frame-capacity");
   const result = Buffer.allocUnsafe(5 + body.length);
@@ -16,10 +19,10 @@ export function nativeFrame(kind, body = Buffer.alloc(0)) {
 }
 
 /** Decode at most two complete bounded response frames from a native exchange. */
-export function decodeNativeFrames(bytes) {
+export function decodeNativeFrames(/** @type {*} */ bytes) {
   if (!Buffer.isBuffer(bytes) || bytes.length > 131082)
     throw new Error("native-response-capacity");
-  const result = [];
+  const /** @type {any[]} */ result = [];
   for (let offset = 0; offset < bytes.length;) {
     if (result.length >= 2 || offset + 5 > bytes.length)
       throw new Error("native-response-boundary");
@@ -50,11 +53,11 @@ export class NativeSession {
   #handle;
   #owner;
   #sequence = 0n;
-  #pending;
-  #closing;
+  /** @type {*} */ #pending;
+  /** @type {*} */ #closing;
   #closed = false;
   #released = false;
-  constructor(component, scratch) {
+  constructor(/** @type {*} */ component, /** @type {*} */ scratch) {
     this.#binding = component.binding;
     this.#handle = this.#binding.create(scratch);
     try {
@@ -79,6 +82,10 @@ export class NativeSession {
       throw error;
     }
   }
+  /** @template T
+   * @param {() => T | Promise<T>} operation
+   * @returns {Promise<T>}
+   */
   #exclusive(operation) {
     if (this.#closed || this.#closing)
       return Promise.reject(new Error("closed-session"));
@@ -90,7 +97,7 @@ export class NativeSession {
       if (this.#pending === pending) this.#pending = undefined;
     });
   }
-  async #command(command, fields) {
+  async #command(/** @type {*} */ command, /** @type {*} */ fields) {
     for (const key of ["protocolVersion", "owner", "requestId", "command"])
       if (Object.hasOwn(fields, key))
         throw new TypeError("reserved-native-envelope-field");
@@ -113,26 +120,27 @@ export class NativeSession {
           ),
         ),
       );
+    if (!frames) throw new Error("native-response-boundary");
     const result = frames.find(({ kind }) => kind === "J")?.value;
     if (result?.requestId !== requestId)
       throw new Error("native-response-request");
     if (result.type === "request-refused") {
-      const error = new Error(result.code);
+      const /** @type {NodeJS.ErrnoException} */ error = new Error(result.code);
       error.code = result.code;
       throw error;
     }
     return { result, data: frames.find(({ kind }) => kind === "D")?.value };
   }
-  command(command, fields = {}) {
+  command(/** @type {*} */ command, /** @type {*} */ fields = {}) {
     return this.#exclusive(() => this.#command(command, fields));
   }
-  configure(resources = {}) {
+  configure(/** @type {*} */ resources = {}) {
     return this.command("configure", resources);
   }
   capture(
-    input,
-    contract = {},
-    {
+    /** @type {*} */ input,
+    /** @type {*} */ contract = {},
+    /** @type {*} */ {
       includeValueEvents = false,
       retainValues = includeValueEvents,
       identity,
@@ -152,7 +160,7 @@ export class NativeSession {
           sourceKind,
         },
       );
-      let pending = [],
+      let /** @type {any[]} */ pending = [],
         pendingBytes = 0;
       const flush = async (finish = false) => {
         if (finish) pending.push(nativeFrame("F"));
@@ -211,7 +219,12 @@ export class NativeSession {
       }
     }
   }
-  read(value, representation, offset = "0", maximum = "65536") {
+  read(
+    /** @type {*} */ value,
+    /** @type {*} */ representation,
+    offset = "0",
+    maximum = "65536",
+  ) {
     return this.command("read-value", {
       value,
       representation,

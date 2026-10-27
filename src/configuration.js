@@ -2,7 +2,7 @@
 // Typed policy admission and sparse contract resolution. Parsing belongs to the
 // shared reader; Ajv owns the complete closed control schema.
 import configurationSchema from "../schemas/configuration.schema.json" with { type: "json" };
-import Ajv from "ajv";
+import { Ajv2020 as Ajv } from "ajv/dist/2020.js";
 import { isDeepStrictEqual } from "node:util";
 import { posix } from "node:path";
 import {
@@ -11,11 +11,15 @@ import {
 } from "./json-paths.js";
 
 // Closed local schema: no remote references, defaults or coercion.
+/** @type {import("ajv").ValidateFunction<import("./api-types.js").JsonQualityPolicy>} */
 const validatePolicy = new Ajv({ strict: true, allErrors: true }).compile(
   configurationSchema,
 );
 
-// Input is already strictly parsed or caller-owned typed control data.
+/** Input is already strictly parsed or caller-owned typed control data.
+ * @param {unknown} policy
+ * @returns {import("./api-types.js").JsonQualityPolicy}
+ */
 export function admitJsonPolicy(policy) {
   if (!validatePolicy(policy))
     throw new Error(
@@ -74,26 +78,42 @@ export function admitJsonPolicy(policy) {
   return policy;
 }
 
-function assertPolicyPatterns(patterns) {
+function assertPolicyPatterns(/** @type {*} */ patterns) {
   for (const pattern of patterns)
     if (
       pattern.startsWith("/") ||
       pattern.includes("\\") ||
       pattern.includes(":") ||
-      pattern.split("/").some((part) => part === ".." || part === "." || !part)
+      pattern
+        .split("/")
+        .some((/** @type {*} */ part) => part === ".." || part === "." || !part)
     )
       throw new Error(`Unsafe JSON exception pattern: ${pattern}`);
 }
 
-/** Sparse exceptions amend mandatory defaults; contradictory overlaps fail closed. */
+/** Sparse exceptions amend mandatory defaults; contradictory overlaps fail closed.
+ * @param {string} path
+ * @param {import("./api-types.js").JsonQualityPolicy} policy
+ * @param {{tracked?: boolean}} [options]
+ * @returns {import("./api-types.js").JsonContract}
+ */
 export function jsonContract(path, policy, { tracked = false } = {}) {
-  const contract = { path, ...policy.defaults, exclude: false, exceptions: [] };
+  const /** @type {any} */ contract = {
+      path,
+      ...policy.defaults,
+      exclude: false,
+      exceptions: [],
+    };
   const explicit = new Map();
   for (const rule of policy.exceptions) {
-    if (!rule.paths.some((pattern) => posix.matchesGlob(path, pattern)))
+    if (
+      !rule.paths.some((/** @type {*} */ pattern) =>
+        posix.matchesGlob(path, pattern),
+      )
+    )
       continue;
     contract.exceptions.push({ owner: rule.owner, reason: rule.reason });
-    for (const key of [
+    for (const key of /** @type {const} */ ([
       "formatContract",
       "allowFormatWrites",
       "exclude",
@@ -101,7 +121,7 @@ export function jsonContract(path, policy, { tracked = false } = {}) {
       "preserveNfcValues",
       "allowEmptyKeys",
       "expected",
-    ]) {
+    ])) {
       if (rule[key] === undefined) continue;
       const value =
         key === "allowEmptyKeys" ? [...rule[key]].sort() : rule[key];
@@ -133,14 +153,14 @@ export function jsonContract(path, policy, { tracked = false } = {}) {
 }
 
 const validateNfcValues = new Ajv({ strict: true }).compile({
-  ...configurationSchema.definitions.nfcValues,
-  definitions: configurationSchema.definitions,
+  ...configurationSchema.$defs.nfcValues,
+  $defs: configurationSchema.$defs,
 });
 
 /** Narrow value preservation is independently pinned, owner-attributed and
  * write-protected. It cannot coexist with whole-file or expected-negative waivers.
  */
-export function assertNfcPreservationContract(contract) {
+export function assertNfcPreservationContract(/** @type {*} */ contract) {
   if (!contract.preserveNfcValues) return;
   if (
     !validateNfcValues(contract.preserveNfcValues) ||
@@ -150,7 +170,7 @@ export function assertNfcPreservationContract(contract) {
     !(
       (contract.owner?.trim() && contract.reason?.trim()) ||
       contract.exceptions?.some(
-        (entry) => entry.owner?.trim() && entry.reason?.trim(),
+        (/** @type {*} */ entry) => entry.owner?.trim() && entry.reason?.trim(),
       )
     )
   )

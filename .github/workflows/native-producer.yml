@@ -1,0 +1,137 @@
+name: Native producer
+
+on:
+  workflow_call:
+    inputs:
+      run_checks:
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  component:
+    name: Native / ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            platform: win32-x64
+          - os: ubuntu-24.04
+            platform: linux-x64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-producer
+      - name: Build the exact native and control sources
+        id: build
+        run: |
+          cmake --version > "$RUNNER_TEMP/native-toolchain.txt"
+          python --version >> "$RUNNER_TEMP/native-toolchain.txt"
+          mkdir "$RUNNER_TEMP/json-quality-native"
+          python native/build.py --workspace "$RUNNER_TEMP/json-quality-native" --jobs 2 > "$RUNNER_TEMP/native-result.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          root = Path(os.environ['RUNNER_TEMP']) / 'json-quality-native'
+          result = json.loads((root.parent / 'native-result.json').read_text(encoding='utf-8'))
+          artifacts = Path(result['artifacts'])
+          assert result['state'] == 'built'
+          assert artifacts.name == 'artifacts' and artifacts.parent.parent == root
+          assert re.fullmatch(r'producer-[a-f0-9]{32}', artifacts.parent.name)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              print('artifacts=' + artifacts.as_posix(), file=output)
+          PY
+      - name: Stage the verified component through its owner
+        if: inputs.run_checks
+        env:
+          NATIVE_ARTIFACTS: ${{ steps.build.outputs.artifacts }}
+        run: python native/stage.py --artifacts "$NATIVE_ARTIFACTS" --replace
+      - name: Qualify both bindings and public installed resolution
+        if: inputs.run_checks
+        env:
+          JSON_QUALITY_NATIVE_TEST_ARTIFACTS: ${{ steps.build.outputs.artifacts }}
+        run: npm run test:native
+      - name: Identify production-only evidence
+        if: ${{ !inputs.run_checks }}
+        run: echo 'Production only. Native tests, installed qualification, rights acceptance and final review remain pending.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain exact native payload, rights and source identities
+        if: success()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: "native-${{ matrix.platform }}-${{ github.run_attempt }}"
+          path: "${{ steps.build.outputs.artifacts }}"
+          retention-days: 30
+      - name: Write producer diagnostics to native job logs
+        if: always()
+        run: python scripts/log-native-diagnostics.py "$RUNNER_TEMP/json-quality-native"
+
+  sanitizers:
+    name: Native / address and undefined behavior sanitizers
+    if: inputs.run_checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      - name: Build a separate instrumented component for verification
+        env:
+          CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+          CXXFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+          LDFLAGS: -fsanitize=address,undefined
+        run: |
+          cmake --version > "$RUNNER_TEMP/native-sanitizer-toolchain.txt"
+          python --version >> "$RUNNER_TEMP/native-sanitizer-toolchain.txt"
+          mkdir "$RUNNER_TEMP/json-quality-sanitizers"
+          python native/build.py --workspace "$RUNNER_TEMP/json-quality-sanitizers" --jobs 2 > "$RUNNER_TEMP/native-sanitizer-result.json"
+      - name: Check real spill, references, transport faults and cleanup under instrumentation
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:strict_string_checks=1:log_path=${{ runner.temp }}/native-sanitizer-asan
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          import sys
+          root = Path(os.environ['RUNNER_TEMP'])
+          result = json.loads((root / 'native-sanitizer-result.json').read_text(encoding='utf-8'))
+          artifacts = Path(result['artifacts'])
+          assert result['state'] == 'built' and result['platform'] == 'linux-x64'
+          assert artifacts.name == 'artifacts' and artifacts.parent.parent == root / 'json-quality-sanitizers'
+          assert re.fullmatch(r'producer-[a-f0-9]{32}', artifacts.parent.name)
+          executable = artifacts / 'json-quality-native'
+          dynamic = subprocess.run(['readelf', '--dynamic', str(executable)], check=True, capture_output=True, text=True, timeout=10).stdout
+          assert 'libasan.so' in dynamic and 'libubsan.so' in dynamic
+          (root / 'native-sanitizer-dynamic.txt').write_text(dynamic, encoding='utf-8')
+          sys.path.insert(0, str(Path('tests/native').resolve()))
+          from stdio_probe import Host
+          manifest = json.loads((artifacts / 'component.json').read_text(encoding='utf-8'))
+          for _ in range(32):
+              Host(executable, root, manifest).close()
+          (root / 'native-sanitizer-startup.json').write_text(json.dumps({'launches': 32, 'sourceInputsSha256': manifest['sourceInputsSha256']}), encoding='utf-8')
+          with (root / 'native-sanitizer-protocol.json').open('x', encoding='utf-8') as output:
+              subprocess.run([sys.executable, 'tests/native/stdio_probe.py', str(executable), str(artifacts / 'component.json'), str(root), str(os.getpid())], check=True, stdout=output, timeout=300)
+          PY
+      - name: Write sanitizer diagnostics to native job logs
+        if: always()
+        run: python scripts/log-native-diagnostics.py "$RUNNER_TEMP/json-quality-sanitizers" "$RUNNER_TEMP"

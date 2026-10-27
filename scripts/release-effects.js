@@ -120,6 +120,7 @@ export function verifyStageResponse(response, release) {
   assert.equal(stage.integrity, release.archive.integrity);
   assert.ok(
     typeof stage.stageId === "string" &&
+      // eslint-disable-next-line no-control-regex -- Reject provider identifier controls.
       /^[^\x00-\x1f]{1,256}$/u.test(stage.stageId),
   );
   return { stageId: stage.stageId, state: "staged-awaiting-owner" };
@@ -441,6 +442,47 @@ export function archive(directory, scratch, env = process.env) {
     !context.archive,
     "An archived release requires read-only reconciliation",
   );
+  assert.ok(
+    env.JSON_QUALITY_BUILD_ATTESTATION,
+    "Native build attestation bundle is required before immutable archival",
+  );
+  const attestation = regularBytes(env.JSON_QUALITY_BUILD_ATTESTATION);
+  save(join(directory, "build-attestation.jsonl"), attestation);
+  const verified = [];
+  for (const file of [
+    ...releasePackages(release).map((subject) => subject.archive.filename),
+    "release-manifest.json",
+  ]) {
+    const result = JSON.parse(
+      gh([
+        "attestation",
+        "verify",
+        join(directory, file),
+        "--bundle",
+        env.JSON_QUALITY_BUILD_ATTESTATION,
+        "--repo",
+        repository,
+        "--signer-workflow",
+        `${repository}/.github/workflows/github-release.yml`,
+        "--signer-digest",
+        env.GITHUB_SHA,
+        "--source-digest",
+        env.GITHUB_SHA,
+        "--format",
+        "json",
+      ]),
+    );
+    assert.ok(
+      Array.isArray(result) && result.length > 0,
+      "Native attestation verification returned no verified bundle",
+    );
+    verified.push({ file, verification: result });
+  }
+  save(join(directory, "build-attestation-verification.json"), {
+    schemaVersion: 1,
+    controller: env.GITHUB_SHA,
+    subjects: verified,
+  });
   verifyArchiveSettings(decision);
   const draft = findDraft(release);
   assert.equal(draft.draft, true);

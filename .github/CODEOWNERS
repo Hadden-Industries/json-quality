@@ -1,0 +1,10 @@
+# Review routing; the sole maintainer retains the merge decision.
+/.github/ @MaksymShostak
+/package.json @MaksymShostak
+/package-lock.json @MaksymShostak
+/assets/ @MaksymShostak
+/scripts/ @MaksymShostak
+/schemas/ @MaksymShostak
+/tests/ @MaksymShostak
+/native/ @MaksymShostak
+/SECURITY.md @MaksymShostak

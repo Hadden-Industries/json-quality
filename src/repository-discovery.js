@@ -4,6 +4,13 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstatSync, realpathSync } from "node:fs";
 import { opendir } from "node:fs/promises";
+
+// Node supports raw filename buffers; its Dir overload currently omits this
+// encoding. Keep fatal UTF-8 admission instead of accepting replacement names.
+const openByteDirectory =
+  /** @type {(path: string, options: {bufferSize: number, encoding: "buffer"}) => Promise<{read: () => Promise<import("node:fs").Dirent<Buffer> | null>, close: () => Promise<void>}>} */ (
+    /** @type {unknown} */ (opendir)
+  );
 import { isAbsolute, resolve, posix } from "node:path";
 import { sourceObservation } from "./source-observation.js";
 import { observeRegularFile } from "./regular-file-observation.js";
@@ -43,7 +50,13 @@ export function gitReadEnvironment() {
  * Stdout and stderr share the declared Git-output ceiling. Every exit, error,
  * timeout or interrupted consumer settles the owned process before returning.
  */
-export async function* gitRecords(executable, root, args, capacities, signal) {
+export async function* gitRecords(
+  /** @type {*} */ executable,
+  /** @type {*} */ root,
+  /** @type {*} */ args,
+  /** @type {*} */ capacities,
+  /** @type {*} */ signal,
+) {
   signal?.throwIfAborted();
   const child = spawn(executable, ["-C", root, ...args], {
     cwd: root,
@@ -61,11 +74,11 @@ export async function* gitRecords(executable, root, args, capacities, signal) {
     stderr = "",
     pending = EMPTY_BUFFER,
     timer;
-  const fail = (error) => {
+  const fail = (/** @type {*} */ error) => {
     failure ??= error;
     child.kill();
   };
-  const admit = (size) => {
+  const admit = (/** @type {*} */ size) => {
     bytes += BigInt(size);
     if (
       capacities.maxGitOutputBytes !== null &&
@@ -132,19 +145,19 @@ export async function* gitRecords(executable, root, args, capacities, signal) {
 }
 
 /** Unsupported JSON dialects are obligations that fail admission, not filters. */
-function assertQualified(path) {
+function assertQualified(/** @type {*} */ path) {
   assertRepositoryPath(path);
   if (!isStrictJsonPath(path) && !isJsonLinesPath(path))
     throw new Error(`Unqualified JSON dialect: ${path}`);
 }
 
 /** Directory membership observations exclude access times changed by reading. */
-function directoryObservation(stat) {
+function directoryObservation(/** @type {*} */ stat) {
   return [stat.dev, stat.ino, stat.mtimeNs, stat.ctimeNs, stat.mode].join(":");
 }
 
 /** Bind tool authority and the canonical root before either enumeration. */
-function repositoryRoot(root, gitExecutable) {
+function repositoryRoot(/** @type {*} */ root, /** @type {*} */ gitExecutable) {
   root = realpathSync(resolve(root));
   assertRegularDirectory(root, "");
   if (
@@ -163,19 +176,21 @@ function repositoryRoot(root, gitExecutable) {
  * The trusted caller supplies policy matching and a configured native session.
  * Provider inventory closure does not assert that any source has been checked.
  */
-export async function discoverRepositorySources({
-  root,
-  session,
-  contractFor,
-  capacities,
-  gitExecutable,
-  requiredOutputs = [],
-  signal,
-}) {
+export async function discoverRepositorySources(
+  /** @type {*} */ {
+    root,
+    session,
+    contractFor,
+    capacities,
+    gitExecutable,
+    requiredOutputs = [],
+    signal,
+  },
+) {
   if (typeof contractFor !== "function")
     throw new TypeError("Trusted policy matcher required.");
   root = repositoryRoot(root, gitExecutable);
-  const command = (name, fields = {}) => {
+  const command = (/** @type {*} */ name, /** @type {*} */ fields = {}) => {
     signal?.throwIfAborted();
     return session.command(name, fields);
   };
@@ -219,7 +234,10 @@ export async function discoverRepositorySources({
     if (directory === null) break;
     const absolute = assertRegularDirectory(root, directory),
       before = lstatSync(absolute, { bigint: true }),
-      handle = await opendir(absolute, { bufferSize: 16, encoding: "buffer" });
+      handle = await openByteDirectory(absolute, {
+        bufferSize: 16,
+        encoding: "buffer",
+      });
     try {
       while (true) {
         const entry = await handle.read();
@@ -291,24 +309,20 @@ export async function discoverRepositorySources({
  * The repository execution owner must finish this and source byte rechecks
  * before publishing overall success; census membership alone is insufficient.
  */
-export async function recheckRepositoryDiscovery({
-  root,
-  session,
-  capacities,
-  gitExecutable,
-  signal,
-}) {
+export async function recheckRepositoryDiscovery(
+  /** @type {*} */ { root, session, capacities, gitExecutable, signal },
+) {
   root = repositoryRoot(root, gitExecutable);
   await recheckGitInventory(root, session, capacities, gitExecutable, signal);
   let after = null;
   while (true) {
     signal?.throwIfAborted();
-    const { directory } = (
-      await session.command("census-next-closed-directory", {
-        provider: "tree",
-        after,
-      })
-    ).result;
+    const /** @type {{directory: any}} */ { directory } = (
+        await session.command("census-next-closed-directory", {
+          provider: "tree",
+          after,
+        })
+      ).result;
     if (!directory) break;
     const absolute = assertRegularDirectory(root, directory.path);
     if (
@@ -321,11 +335,11 @@ export async function recheckRepositoryDiscovery({
 }
 
 async function recheckGitInventory(
-  root,
-  session,
-  capacities,
-  gitExecutable,
-  signal,
+  /** @type {*} */ root,
+  /** @type {*} */ session,
+  /** @type {*} */ capacities,
+  /** @type {*} */ gitExecutable,
+  /** @type {*} */ signal,
 ) {
   const hash = createHash("sha256");
   for await (const entry of gitRecords(
@@ -348,25 +362,27 @@ async function recheckGitInventory(
  * every relevant child against the independently closed census. New JSON or
  * unexcluded directories refuse completion; peer bytes are rehashed separately.
  */
-export async function recheckRepositoryWriteDiscovery({
-  root,
-  session,
-  capacities,
-  gitExecutable,
-  signal,
-  contractFor,
-}) {
+export async function recheckRepositoryWriteDiscovery(
+  /** @type {*} */ {
+    root,
+    session,
+    capacities,
+    gitExecutable,
+    signal,
+    contractFor,
+  },
+) {
   root = repositoryRoot(root, gitExecutable);
   await recheckGitInventory(root, session, capacities, gitExecutable, signal);
   let after = null;
   while (true) {
     signal?.throwIfAborted();
-    const { directory } = (
-      await session.command("census-next-closed-directory", {
-        provider: "tree",
-        after,
-      })
-    ).result;
+    const /** @type {{directory: any}} */ { directory } = (
+        await session.command("census-next-closed-directory", {
+          provider: "tree",
+          after,
+        })
+      ).result;
     if (!directory) break;
     const absolute = assertRegularDirectory(root, directory.path);
     const before = lstatSync(absolute, { bigint: true });
@@ -377,7 +393,7 @@ export async function recheckRepositoryWriteDiscovery({
       throw new Error(
         `Directory object changed after discovery: ${directory.path}`,
       );
-    const handle = await opendir(absolute, {
+    const handle = await openByteDirectory(absolute, {
       bufferSize: 16,
       encoding: "buffer",
     });

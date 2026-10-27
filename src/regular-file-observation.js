@@ -9,7 +9,7 @@ import { constants, lstatSync, openSync, fstatSync, closeSync } from "node:fs";
  * Path lstat still rejects symlinks and brackets each open with stable metadata.
  * Callers own containment, expected hashes and the observation's later recheck.
  */
-export function observeRegularFile(path) {
+export function observeRegularFile(/** @type {*} */ path) {
   const before = lstatSync(path, { bigint: true });
   if (!before.isFile() || before.isSymbolicLink())
     throw new Error("Expected regular file observation.");
@@ -22,7 +22,14 @@ export function observeRegularFile(path) {
       after = lstatSync(path, { bigint: true });
     if (!opened.isFile() || !after.isFile() || after.isSymbolicLink())
       throw new Error("Regular file changed during observation.");
-    for (const field of ["ino", "size", "mode", "nlink", "mtimeNs", "ctimeNs"])
+    for (const field of /** @type {const} */ ([
+      "ino",
+      "size",
+      "mode",
+      "nlink",
+      "mtimeNs",
+      "ctimeNs",
+    ]))
       if (before[field] !== opened[field] || before[field] !== after[field])
         throw new Error("Regular file changed during observation.");
     if (

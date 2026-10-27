@@ -1,8 +1,9 @@
 # Deliberate releases
 
 The release interface is five manually dispatched GitHub Actions workflows in `Hadden-Industries/json-quality`.
-Ordinary product CI stays manual.
-Automatic CodeQL remains independent.
+PR product acceptance is deliberately triggered by Ready for review; the owner chooses when to merge.
+The main observer automatically performs only equal-input reuse admission; `FULL_REQUIRED` waits for an explicit main-qualification dispatch.
+CodeQL participates in PR acceptance and also has weekly/manual default-branch scans.
 A source push, dependency update, or tag cannot stage or publish a package.
 
 The release has three designated tarballs: `@hadden-industries/json-quality`, `@hadden-industries/json-quality-linux-x64`, and `@hadden-industries/json-quality-win32-x64`.
@@ -55,8 +56,8 @@ The first live journey needs these remaining decisions and observations:
 Retain the original settings and read back every applied change.
 Readback on 2026-10-18 confirms Actions defaults are read-only with PR approvals disabled, immutable releases are enabled, and all three named release environments exist with exactly one `main` branch policy.
 The table retains the historical pre-implementation observations; npm account, package and publisher cutover remain unverified.
-Preserve the sole-maintainer direct-main model.
-No mandatory PR, second maintainer, Actions dependency lockfile, or preview lockfile policy is introduced.
+The modernisation replaces direct-main development with a protected PR path and native `CI / acceptance` from the Actions App.
+The sole maintainer retains the deliberate merge decision; no second required reviewer, separate reporting App, Actions dependency lockfile or preview lockfile is introduced.
 
 Use the current native [npm trust interface](https://docs.npmjs.com/cli/v12/commands/npm-trust/) and read its actual flags before configuring connections.
 The package must exist, the owner needs write access and 2FA, and a newly created connection has a limited first-use window.
@@ -210,17 +211,21 @@ Reconciliation reads the original intent's `before` value instead of relabelling
 
 Promotion recovery acquires the selected original promotion journal from its verified `effect-promote-ATTEMPT` artifact before reconciliation, preserving the archival predecessor and original journal bytes.
 
+Every release-effect admission requires an owner-admitted signed history baseline, including an explicitly empty first baseline.
 Before the 90-day Actions retention window expires, export complete writer history with `node scripts/release-provider.js history OUTPUT SCRATCH [PRIOR_CHECKPOINT_JSON]`.
 Keep `OUTPUT` as `release-history.json` in an owner-controlled commit, and create an owner-signed annotated tag named `release-history-IDENTIFIER` for that commit.
 This is a separate owner-operated retention action; the exporter performs reads only and preserves unresolved outcomes without certifying them.
-A renewed export uses the previous checkpoint reference to read expired original artifacts.
+A renewed version-2 export retains original provider run/job inventories, journals, no-request markers and settlements, including failed or unresolved attempts.
+It unions the prior checkpoint with native enumeration so expired or deleted runs cannot disappear from admission history.
+Version-1 checkpoints remain usable while their provider runs are still available; they cannot reconstruct missing provider inventories.
 The current digest-bound `release-review.json` must explicitly admit the reference:
 
 ```json
 {"historyCheckpoint":{"tag":"release-history-20261018","tagSha":"<exact annotated-tag SHA>","sha256":"<release-history.json SHA256>"}}
 ```
 
-Admission verifies the signed tag and exact file bytes, still enumerates every native writer/run/attempt/job, and uses only a matching original journal or no-request marker when its Actions artifact is missing or expired.
+Admission verifies the signed tag and exact file bytes, enumerates every available native writer/run/attempt/job, and retains checkpoint-only original attempts after provider expiry.
+It uses only a matching original journal or no-request marker when an operational artifact is missing or expired.
 Missing attempts, changed controllers and unknown effects remain blockers.
 Readback uses bounded native raw contents transport, including checkpoints larger than 1 MB.
 Retain or renew checkpoints while their original artifacts remain available; missing original bytes cannot be reconstructed from a green run or public state.
@@ -228,29 +233,36 @@ Completed native writer continuations retain their exact owner recovery records 
 Checkpoint renewal preserves those settlements; later versions accept them only with a fresh successful complete continuation graph and matching original journal/run/attempt/manifest/version.
 Failed or incomplete continuations cannot settle historical unknown effects.
 
-Execution budgets are distinct: each install/ci has five minutes, a Node suite has thirty minutes, hosted qualification jobs have forty-five minutes, and fast identity/read operations retain their own finite bounds.
+Execution budgets are shared by purpose: install/ci has twenty minutes, a Node suite thirty minutes, hosted qualification jobs two hours, bounded evidence reads two minutes, collection fifteen minutes and registry availability thirty minutes.
+The JSON check has ten minutes inside a fifteen-minute step; uploads share four minutes inside a five-minute step.
+`scripts/qualification-process.js` owns these profiles; product resource limits and deliberate timeout tests retain their separate contracts.
 Local HISEW supervision uses its registered profile.
 Structured phase diagnostics include successful timings and native failure output without environment/credential dumps.
 
-For diagnosis, use the existing manual `ci.yml` optional `diagnostic_os` and `diagnostic_node` inputs for one supported frozen lane.
+For diagnosis, inspect native job logs and reproduce the affected frozen runtime lane with `scripts/qualify-runtime.js` and its documented archive/environment inputs.
 Inspect existing runs, form a specific hypothesis, and select a bounded experiment before dispatch.
-That CI run cannot satisfy release admission.
+An isolated diagnostic run cannot satisfy release admission.
 Do not repeatedly launch a full matrix until a failure disappears.
 
 Hosted retention follows the artifact's purpose:
 
 - Same-run admission bundles and ordinary producer transport: 1 day.
-- Routine reports: 7 days; failed-job diagnostics: 14 days where specified by the workflow.
-- Release qualification inputs and native payloads: 30 days.
+- Compact PR proof, release qualification inputs and native payloads: 30 days.
 - Final effect journals and public-registry evidence bundles: 90 days.
 
-The shared JSON workflow defaults to 7 days and preserves explicit caller overrides, including `0` for the repository default.
+Ordinary test/npm output and failure diagnostics remain native Actions logs, with no uploaded log copies.
+The shared JSON workflow streams NDJSON into the job log and creates no report artifact.
+GitHub's repository retention setting governs logs and provider records together; it does not provide a separate per-workflow log-retention control.
+The repository default remains 90 days to preserve one-shot recovery records; the named artifact classes use shorter explicit retention.
 Same-run transfer expiration also bounds any environment approval wait; if approval exceeds that window, dispatch fresh admission.
 Disposable dependency installs, validator executables, caches and fixture directories stay outside uploads.
 Release archives retain the evidence that must survive hosted expiration.
+The archival workflow creates GitHub build attestations for all three tarballs and the release manifest, then uses native `gh attestation verify` against the exact repository, signer workflow, controller digest and subject bytes.
+The bundle and native verification results accompany the immutable release assets.
+Read-only recovery of an already archived release does not create another attestation.
 Native npm SBOMs keep their emitted schema version; source production inventories come from a clean production-only manifest against the unchanged source lock.
 Every installed location and graph edge is retained separately so native component coalescing cannot hide a difference.
 Only the exact native file distribution URI can receive a recorded representation repair; original SBOM bytes and native validation are retained.
 
 Implementation, local assurance, source delivery, remote configuration, complete hosted qualification, public release, immutable archival, promotion and owner operational acceptance are separate reported states.
-See the [accepted implementation plan](plans/2026-10-18-release-publishing-assurance-implementation-plan.md) for the complete acceptance and recovery gates.
+See the [accepted implementation plan](https://github.com/Hadden-Industries/json-quality/blob/main/docs/plans/2026-10-18-release-publishing-assurance-implementation-plan.md) for the complete acceptance and recovery gates.

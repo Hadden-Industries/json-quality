@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "../../scripts/qualification-process.js";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { isAbsolute, join } from "node:path";
@@ -18,7 +19,7 @@ test(
     const { stdout: selectedPython } = await promisify(execFile)(
       process.platform === "win32" ? "python" : "python3",
       ["-c", "import sys; print(sys.executable)"],
-      { timeout: 10000, windowsHide: true, maxBuffer: 4096 },
+      { timeout: budgets.read, windowsHide: true, maxBuffer: 4096 },
     );
     const python = selectedPython.trim();
     assert.ok(isAbsolute(python));

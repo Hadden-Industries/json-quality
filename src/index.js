@@ -1,4 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+/**
+ * @typedef {import("./api-types.js").JsonQualityPolicy} JsonQualityPolicy
+ * @typedef {import("./api-types.js").JsonSourceContract} JsonSourceContract
+ * @typedef {import("./api-types.js").JsonQualityEvent} JsonQualityEvent
+ * @typedef {import("./api-types.js").SessionOptions} SessionOptions
+ * @typedef {import("./api-types.js").RepositoryOptions} RepositoryOptions
+ * @typedef {import("./api-types.js").WriterOptions} WriterOptions
+ * @typedef {import("./api-types.js").JsonSourceSession} JsonSourceSession
+ * @typedef {import("./api-types.js").JsonRepositorySession} JsonRepositorySession
+ * @typedef {import("./api-types.js").SourceReference} SourceReference
+ * @typedef {import("./api-types.js").ValueReference} ValueReference
+ */
 export {
   openJsonSourceSession,
   openJsonRepositorySession,

@@ -16,7 +16,12 @@ import {
   verifyLane,
   verifySecurity,
 } from "./release-evidence.js";
-import { download, sealBundle } from "./release-provider.js";
+import {
+  download,
+  sealBundle,
+  provider,
+  producingAttempt,
+} from "./release-provider.js";
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   assert.equal(process.argv.length, 4);
@@ -31,11 +36,22 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const originalJournal = sha256(
     regularBytes(join(directory, effectJournal("stage", context.stage))),
   );
-  for (const lane of lanes(release.matrix)) {
-    const { directory: from, identity } = download(
+  const observed = provider(
       process.env.GITHUB_RUN_ID,
       process.env.GITHUB_RUN_ATTEMPT,
-      `registry-${lane.os}-${lane.node}-${process.env.GITHUB_RUN_ATTEMPT}`,
+    ),
+    producerCache = new Map();
+  for (const lane of lanes(release.matrix)) {
+    const original = producingAttempt(
+      observed,
+      `registry (${lane.os}, ${lane.node})`,
+      provider,
+      producerCache,
+    );
+    const { directory: from, identity } = download(
+      process.env.GITHUB_RUN_ID,
+      original,
+      `registry-${lane.os}-${lane.node}-${original}`,
       scratch,
     );
     verifyLane(from, release, lane, "public registry");
@@ -64,10 +80,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     for (const name of names) copyFileSync(join(from, name), join(to, name), 1);
     context.artifacts.push(identity);
   }
+  const originalSecurity = producingAttempt(
+    observed,
+    "security",
+    provider,
+    producerCache,
+  );
   const security = download(
     process.env.GITHUB_RUN_ID,
-    process.env.GITHUB_RUN_ATTEMPT,
-    `public-security-${process.env.GITHUB_RUN_ATTEMPT}`,
+    originalSecurity,
+    `public-security-${originalSecurity}`,
     scratch,
   );
   const bytes = regularBytes(join(security.directory, "security.json"));
@@ -76,7 +98,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     release,
     process.env.MANIFEST_SHA,
     process.env.GITHUB_RUN_ID,
-    process.env.GITHUB_RUN_ATTEMPT,
+    originalSecurity,
   );
   save(join(directory, "public-security.json"), bytes);
   context.registry = {

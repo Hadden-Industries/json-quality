@@ -274,6 +274,7 @@ function reconcileOne(
         (entry) => entry.package === subject.package,
       );
       assert.equal(selected.length, 1);
+      // eslint-disable-next-line no-control-regex -- Reject provider identifier controls.
       assert.match(selected[0].stageId, /^[^\x00-\x1f]{1,256}$/u);
       const outcome = records[records.indexOf(intent) + 1];
       if (outcome?.state === "completed")

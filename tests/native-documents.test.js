@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "../scripts/qualification-process.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -294,7 +295,7 @@ test("standalone CLI cannot silently omit a configured native owner", (t) => {
         f.root,
         "--json",
       ],
-      { encoding: "utf8", windowsHide: true, timeout: 15000 },
+      { encoding: "utf8", windowsHide: true, timeout: budgets.read },
     );
   assert.equal(response.status, 2);
   const events = response.stdout

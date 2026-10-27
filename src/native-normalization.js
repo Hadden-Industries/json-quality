@@ -20,9 +20,19 @@ import {
  * is written. Only string/key literal spans change; native collisions, unsafe
  * values and grammar failures prevent output. There is no giant write fallback.
  */
+/** @overload
+ * @param {string} text
+ * @param {{core: unknown, [key: string]: unknown}} options
+ * @returns {Promise<ReturnType<typeof retainedTransformResult>>}
+ */
+/** @overload
+ * @param {string} text
+ * @param {{core?: undefined, [key: string]: unknown}} options
+ * @returns {Promise<string>}
+ */
 export async function normalizeSource(
-  text,
-  {
+  /** @type {*} */ text,
+  /** @type {*} */ {
     component,
     temporaryDirectory,
     allowEmptyKeys,
@@ -53,12 +63,12 @@ export async function normalizeSource(
     values = executionCore
       ? createTransformValueSession(core, {
           parentSource,
-          onCapture: (capture) => {
+          onCapture: (/** @type {*} */ capture) => {
             latestCapture = capture;
           },
         })
       : createValueSession(core),
-    patches = [];
+    /** @type {any[]} */ patches = [];
   let bytes,
     original,
     patchBytes = 0,

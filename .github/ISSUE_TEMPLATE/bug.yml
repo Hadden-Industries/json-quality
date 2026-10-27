@@ -31,6 +31,6 @@ body:
     id: result
     attributes:
       label: Expected and actual behavior
-      description: Include exit codes and complete terminal evidence; identify check, source, format or normalize.
+      description: Include exit codes and complete terminal evidence; identify check, source, format or normalize. For CI include the run URL, attempt, native companion and effective capacity/runtime settings; keep diagnostics in native logs.
     validations:
       required: true

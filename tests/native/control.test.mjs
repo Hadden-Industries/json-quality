@@ -27,7 +27,7 @@ test("control admission refuses executable accessors and custom serializers", ()
   const getter = Object.defineProperty({}, "value", {
       enumerable: true,
       get() {
-        assert.fail("Control getter executed.");
+        return assert.fail("Control getter executed.");
       },
     }),
     serializer = Object.defineProperty({}, "toJSON", {

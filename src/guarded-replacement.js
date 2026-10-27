@@ -19,13 +19,9 @@ import { JSON_TRANSFORM_CAPABILITIES } from "./transform-capabilities.js";
  * are preserved; batches have no atomicity guarantee. Hostile concurrent path
  * replacement outside these observations is outside the supported guarantee.
  */
-export async function replaceObservedSource({
-  root,
-  member,
-  candidate,
-  chunks,
-  signal,
-}) {
+export async function replaceObservedSource(
+  /** @type {*} */ { root, member, candidate, chunks, signal },
+) {
   if (
     !candidate ||
     typeof candidate.byteLength !== "string" ||
@@ -128,7 +124,7 @@ export async function replaceObservedSource({
     primary = error;
     throw error;
   } finally {
-    const cleanupErrors = [];
+    const /** @type {any[]} */ cleanupErrors = [];
     try {
       await descriptor?.close();
     } catch (cleanup) {
@@ -141,6 +137,8 @@ export async function replaceObservedSource({
         cleanupErrors.push(cleanup);
       }
     if (cleanupErrors.length)
+      // Cleanup failure must block success; the primary failure is preserved.
+      // eslint-disable-next-line no-unsafe-finally
       throw new AggregateError(
         primary ? [primary, ...cleanupErrors] : cleanupErrors,
         `Replacement cleanup failed; inspect owned stage ${stage}.`,

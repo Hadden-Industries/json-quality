@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Resolve public numeric controls once; native wire integers are canonical text.
-import Ajv from "ajv";
+import { Ajv2020 as Ajv } from "ajv/dist/2020.js";
 import schema from "../schemas/configuration.schema.json" with { type: "json" };
 
 // Capture private schema-derived views before any external schema customization.
-const definitions = structuredClone(schema.definitions),
+const definitions = structuredClone(schema.$defs),
   ajv = new Ajv({ strict: true }),
   validateAdmission = ajv.compile(definitions.capacityLimits),
   validateRuntime = ajv.compile(definitions.runtimeControls),
-  defaults = (definition) =>
+  defaults = (/** @type {*} */ definition) =>
     Object.fromEntries(
       Object.entries(definition.properties).map(([name, spec]) => [
         name,
@@ -18,7 +18,7 @@ const definitions = structuredClone(schema.definitions),
   admissionDefaults = Object.freeze(defaults(definitions.capacityLimits)),
   runtimeDefaults = Object.freeze(defaults(definitions.runtimeControls));
 
-function validate(settings) {
+function validate(/** @type {*} */ settings) {
   if (
     settings.capacityLimits !== undefined &&
     typeof settings.capacityLimits !== "boolean" &&
@@ -36,7 +36,10 @@ function validate(settings) {
  * resolved independently. Admission bypass removes only input/count ceilings.
  * Internal wire metadata uses decimal strings/null and never JavaScript Infinity.
  */
-export function resolveExecutionResources(policy = {}, invocation = {}) {
+export function resolveExecutionResources(
+  /** @type {*} */ policy = {},
+  /** @type {*} */ invocation = {},
+) {
   if (
     !invocation ||
     typeof invocation !== "object" ||
@@ -70,7 +73,7 @@ export function resolveExecutionResources(policy = {}, invocation = {}) {
       ...policy.runtimeControls,
       ...invocation.runtimeControls,
     },
-    wire = (values) =>
+    wire = (/** @type {*} */ values) =>
       Object.fromEntries(
         Object.entries(values).map(([name, value]) => [
           name,

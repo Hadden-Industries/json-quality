@@ -194,6 +194,7 @@ test("close aborts and settles a cooperative source before releasing its session
     }),
     iterator = session.check(
       {
+        // eslint-disable-next-line require-yield -- Cancellation fixture deliberately emits nothing.
         async *open({ signal }) {
           try {
             announce();

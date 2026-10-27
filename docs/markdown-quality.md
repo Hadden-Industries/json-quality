@@ -58,7 +58,7 @@ Upgrading requires new archives from clean source, new provenance, a refreshed l
 
 ## Qualification and recovery
 
-The [adoption plan](plans/2026-10-18-markdown-quality-adoption.md) records the prior plans, pushed fixes and scope decisions.
+The [adoption plan](https://github.com/Hadden-Industries/json-quality/blob/main/docs/plans/2026-10-18-markdown-quality-adoption.md) records the prior plans, pushed fixes and scope decisions.
 Current local checks exercise the installed checker, selection, explicit-file forwarding, excluded logical bytes, missing non-Markdown link targets, no-write behavior and source isolation.
 They do not establish the producer's separate six-sample trusted Windows/Linux qualification or hosted acceptance.
 The existing CI remains manually dispatched and this change does not run it remotely.

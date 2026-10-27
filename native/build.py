@@ -140,8 +140,8 @@ def project_resources(destination):
     (destination / "source_contract_enums.hpp").write_text(
         "\n".join(enum_lines) + "\n", encoding="utf-8"
     )
-    capacity = schema["definitions"]["capacityLimits"]["properties"]
-    runtime = schema["definitions"]["runtimeControls"]["properties"]
+    capacity = schema["$defs"]["capacityLimits"]["properties"]
+    runtime = schema["$defs"]["runtimeControls"]["properties"]
     lines = [
         "// Generated from configuration.schema.json by the verified producer builder.",
         "#pragma once",

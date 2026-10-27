@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "defaults": {
+    "formatContract": "prettier-json",
+    "allowFormatWrites": true,
+    "normalization": "NFC"
+  },
+  "exceptions": [
+    {
+      "paths": [
+        ".git/**",
+        "**/node_modules/**"
+      ],
+      "exclude": true,
+      "owner": "Git and npm",
+      "reason": "External metadata and installed dependencies."
+    }
+  ]
+}

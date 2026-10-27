@@ -15,7 +15,12 @@ import {
   JSON_TRANSFORM_CAPABILITIES,
 } from "./transform-capabilities.js";
 
-async function checked(core, bytes, contract, transformOf) {
+async function checked(
+  /** @type {*} */ core,
+  /** @type {*} */ bytes,
+  /** @type {*} */ contract,
+  /** @type {*} */ transformOf,
+) {
   const source = await core.capture([bytes], contract, {
     retainValues: true,
     transformOf,
@@ -32,9 +37,19 @@ async function checked(core, bytes, contract, transformOf) {
  * admitted before body copies; a large or complex source may exceed its working
  * allowance even when a scalable read/check succeeds. It never writes a file.
  */
+/** @overload
+ * @param {string} text
+ * @param {{core: unknown, [key: string]: unknown}} options
+ * @returns {Promise<ReturnType<typeof retainedTransformResult>>}
+ */
+/** @overload
+ * @param {string} text
+ * @param {{core?: undefined, [key: string]: unknown}} options
+ * @returns {Promise<string>}
+ */
 export async function formatSource(
-  text,
-  {
+  /** @type {*} */ text,
+  /** @type {*} */ {
     component,
     temporaryDirectory,
     allowEmptyKeys,
@@ -99,7 +114,10 @@ export async function formatSource(
       byteLength: String(BigInt(controlStateBytes) + BigInt(workspace)),
     });
     operationSignal.throwIfAborted();
-    const output = await prettier.format(text, { ...formatOptions });
+    const output = await prettier.format(
+      text,
+      /** @type {import("prettier").Options} */ ({ ...formatOptions }),
+    );
     operationSignal.throwIfAborted();
     if (
       Buffer.byteLength(output) > JSON_TRANSFORM_CAPABILITIES.maximumOutputBytes

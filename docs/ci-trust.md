@@ -42,4 +42,63 @@ Exact expected negatives can satisfy their pinned contracts while intrinsic `qua
 The API takes `{ trustedRoot, candidateRoot, trustedSha, candidateSha, capacityLimits, runtimeControls, temporaryDirectory, signal, requestId }`.
 Consume the iterator to completion or cancel/return it. CLI resource/runtime flags share the ordinary vocabulary and environment contracts in the [resource guide](resource-limits.md).
 
-The reusable workflow retains read-only repository permissions and no publication/OIDC authority. Its `capacity-limits`, job timeout and artifact-retention inputs govern separate boundaries. Hosted checkout/acquisition and native platform availability still need real workflow evidence; a local source-only pass does not establish a clean transported package, consumer adoption or release approval.
+The reusable workflow retains read-only repository permissions and no publication/OIDC authority.
+Its admission setting, finite runtime controls, 15-minute check step and enclosing job deadline govern separate boundaries.
+The event stream remains in native job logs; it is not copied into an Actions diagnostic artifact.
+Hosted checkout/acquisition and native platform availability need their own workflow evidence; a local source-only pass does not establish a clean transported package, consumer adoption or release approval.
+
+## Deliberate repository acceptance
+
+The PR wrapper runs only for `pull_request: ready_for_review` into `main`.
+Feature pushes and `synchronize` do not launch full qualification.
+The source/base head must match the checked-out integration and frozen matrix.
+Required `CI / acceptance` admits product/native/dependency/CodeQL results and every packed-consumer receipt; skipped, incomplete, foreign or failed mandatory jobs remain blocking.
+The owner reviews changes to workflow code, tests and trust policy, then deliberately chooses whether to merge.
+CODEOWNERS routes that review without requiring an additional maintainer or reporting App.
+The native Actions App restriction authenticates the check source; it does not prove that candidate-edited workflow code reports honestly.
+Approved fork PRs execute the same mandatory qualification and complete inventory admission.
+Their head repository is authenticated separately from the base repository; they do not upload an unused main-reuse proof, and the main observer still requires a same-repository merge.
+
+`.github/governance.json` records the reviewed cutover settings, including the active strict main ruleset with no bypass, the expected Actions App, read-only tokens and external-contributor approval.
+`node scripts/github-governance.js` inspects the live settings without changing them; `--check` fails on drift.
+After the source has been published and the native PR acceptance check has existed, a separately authorized operator can use `--apply` on clean signed published `main`.
+The operator route reads back each change, never automatically retries a settings mutation and preserves unrelated rulesets.
+It disables CodeQL default setup before using the explicit advanced workflow; the two modes cannot run concurrently.
+The local implementation does not activate these settings or establish the draft-PR process proof.
+
+After an ordinary merge, `main-qualification.yml` performs lightweight image/input/provenance admission.
+The proof must bind the same tree, parents, workflow, dependency selectors/locks, generated declarations, JSON policy/schema/tool/native inputs, resolved runtimes and runner images.
+Equal-input JSON is eligible for `REUSED` with the rest of the complete qualification.
+Missing, expired, conflicted or changed proof yields `FULL_REQUIRED`; no full suite is launched automatically.
+The owner explicitly dispatches **Main qualification** on `main` for fresh `FULL` assurance.
+That dispatch cannot create PR acceptance or a reusable PR proof.
+Release qualification still creates a fresh commit-bound candidate and does not reuse a PR tarball as a main release.
+
+Partial reruns authenticate each retained job's original producing attempt by name, run, head SHA, runner and start/completion times.
+Mutable job/check IDs and copied attempt labels are not producer identity.
+The latest complete required inventory and the original execution must agree.
+An ambiguous lineage remains unavailable.
+
+## Recovery and retention
+
+GET recovery allows at most three attempts within a shared two-minute lookup budget, with finite requests and bytes.
+Only classified transport errors, transient HTTP statuses and confirmed rate limits recover; malformed JSON, schema, digest or provenance failures do not.
+Server retry hints are minimum waits, and an over-budget wait stops admission.
+Uploads use a four-minute upload/reconciliation budget inside a five-minute step.
+A lost acknowledgement is reconciled by exact bytes/digest/size; only confirmed absence permits a fresh name, while unknown or conflicting lookup stops recovery.
+Publication writes are one-shot and retain their separate release journal/reconciliation rules.
+
+| Retained material                                           | Named consumer                                           | Normal retention                                                                      |
+| ----------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Qualified producer archive, including measurement data      | Frozen runtime consumers; deliberate release preparation | 1 day for same-run transfer; 30 days for release input                                |
+| Compact lane proof with all performance samples             | Acceptance collector                                     | 1 day                                                                                 |
+| Compact `FULL` PR proof                                     | Main equal-input observer                                | 30 days                                                                               |
+| Lightweight host record                                     | Main observer in the same run                            | 1 day                                                                                 |
+| Native component payload and original rights/build identity | Explicit component staging/package assembly              | 30 days                                                                               |
+| Release consumer/security evidence                          | Deliberate release admission                             | 30 days                                                                               |
+| Admitted next-step bundle                                   | Exactly the next release writer                          | 1 day                                                                                 |
+| Effect journals and recovery records                        | One-shot release reconciliation                          | 90 days operationally; required release proof is preserved with the immutable release |
+
+Compiler, sanitizer and other diagnostics stay in native stdout/stderr and summaries under repository run retention.
+They are not copied into `.log`/diagnostic artifacts.
+Preserved release proof must retain independent provider/run/job identities and checkpoints for the lifetime of the immutable release; expired operational metadata is not independent proof.

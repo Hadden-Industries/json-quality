@@ -10,19 +10,19 @@ export const STRICT_JSON_GLOBS = STRICT_JSON_EXTENSIONS.map(
 );
 
 /** Discovery detects unsupported dialects; qualification remains strict. */
-export function isStrictJsonPath(path) {
+export function isStrictJsonPath(/** @type {*} */ path) {
   return STRICT_JSON_EXTENSIONS.some((extension) =>
     path.endsWith(`.${extension}`),
   );
 }
 
 /** JSONL uses strict JSON grammar at each physical record boundary. */
-export function isJsonLinesPath(path) {
+export function isJsonLinesPath(/** @type {*} */ path) {
   return path.endsWith(".jsonl") || path.endsWith(".ndjson");
 }
 
 /** A checked source's literal identity selects its grammar/framing contract. */
-export function jsonSourceFormat(path) {
+export function jsonSourceFormat(/** @type {*} */ path) {
   if (isStrictJsonPath(path)) return "json";
   if (isJsonLinesPath(path)) return "jsonl";
   throw new TypeError(`Unsupported JSON source dialect: ${path}`);
@@ -35,7 +35,10 @@ export function jsonSourceFormat(path) {
  * existing package inventories do. This does not discover ordinary map files.
  * A recognizable unsupported JSON suffix cannot disguise itself as opaque data.
  */
-export function nativeJsonSourceFormat(path, identity) {
+export function nativeJsonSourceFormat(
+  /** @type {*} */ path,
+  /** @type {*} */ identity,
+) {
   if (
     identity?.kind === "native" &&
     identity.origin?.kind === "archive-member" &&
@@ -53,7 +56,7 @@ export function nativeJsonSourceFormat(path, identity) {
 
 /** Policy resolution and direct JSONL analysis enforce the same framing presentation. */
 export function jsonLinesPresentationContract(
-  path,
+  /** @type {*} */ path,
   formatContract = "producer-json-compact-body",
 ) {
   if (

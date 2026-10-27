@@ -6,15 +6,17 @@ import { jsonSourceFormat } from "./json-paths.js";
 /** Stream an independent logical inventory; exact pointer selection and payload
  * decoding belong to the native checker, without a JS container/body copy.
  */
-export async function* checkLogicalProvider({
-  session,
-  inventory,
-  definition,
-  contractFor,
-  signal,
-  retainValues = false,
-  retainValuesFor = () => false,
-}) {
+export async function* checkLogicalProvider(
+  /** @type {*} */ {
+    session,
+    inventory,
+    definition,
+    contractFor,
+    signal,
+    retainValues = false,
+    retainValuesFor = () => false,
+  },
+) {
   requireAsyncStream(inventory, "Logical inventory");
   if (typeof contractFor !== "function")
     throw new TypeError("Trusted policy matcher required.");

@@ -46,7 +46,7 @@ const sourceOptions = [
     "materializeControl",
   ];
 
-function admitOptions(options, names) {
+function admitOptions(/** @type {*} */ options, /** @type {*} */ names) {
   if (
     !options ||
     typeof options !== "object" ||
@@ -73,14 +73,14 @@ function admitOptions(options, names) {
   )
     throw new TypeError("Temporary directory must be absolute.");
 }
-async function temporaryRoot(options) {
+async function temporaryRoot(/** @type {*} */ options) {
   const directory = await realpath(options.temporaryDirectory ?? tmpdir());
   if (!(await lstat(directory)).isDirectory())
     throw new TypeError("Expected temporary directory.");
   return directory;
 }
 
-function correlate(requestId = randomUUID(), resources) {
+function correlate(requestId = randomUUID(), /** @type {*} */ resources) {
   if (typeof requestId !== "string" || !requestId || !requestId.isWellFormed())
     throw new TypeError("Expected a nonempty well-formed requestId string.");
   encodeNativeControl({ requestId });
@@ -102,14 +102,22 @@ function correlate(requestId = randomUUID(), resources) {
  * with the supplied signal; no arbitrary consumer code is force-terminated.
  */
 function surface(
-  values,
-  component,
-  context,
-  { resources, check, events, rewrite, close, signal, requestId },
+  /** @type {*} */ values,
+  /** @type {*} */ component,
+  /** @type {*} */ context,
+  /** @type {*} */ {
+    resources,
+    check,
+    events,
+    rewrite,
+    close,
+    signal,
+    requestId,
+  },
 ) {
-  let active,
+  let /** @type {any} */ active,
     closed = false,
-    closing,
+    /** @type {any} */ closing,
     eventsClaimed = false,
     rewriteClaimed = false,
     rewriteFactory = rewrite,
@@ -122,10 +130,12 @@ function surface(
       context.abort(reason);
       values.cancel();
     },
-    track = (factory, correlation) => {
+    track = (/** @type {*} */ factory, /** @type {*} */ correlation) => {
       if (closed) throw new Error("closed-session");
       if (active) throw new Error("session-not-ready");
-      const iterator = (async function* () {
+      /** @type {AsyncGenerator<import("./api-types.js").JsonQualityEvent> | undefined} */
+      let iterator = undefined;
+      iterator = (async function* () {
         try {
           for await (const event of factory())
             yield Object.freeze(
@@ -143,7 +153,11 @@ function surface(
       return iterator;
     };
   if (check)
-    facade.check = (source, contract = {}, options = {}) => {
+    facade.check = (
+      /** @type {*} */ source,
+      /** @type {*} */ contract = {},
+      /** @type {*} */ options = {},
+    ) => {
       if (
         !source ||
         typeof source !== "object" ||
@@ -220,7 +234,7 @@ function surface(
       );
     };
   if (rewrite)
-    facade.rewrite = (operation, options) => {
+    facade.rewrite = (/** @type {*} */ operation, /** @type {*} */ options) => {
       if (closed) throw new Error("closed-session");
       if (rewriteClaimed)
         throw new Error("repository-rewrite-already-consumed");
@@ -237,7 +251,7 @@ function surface(
     if (closing) return closing;
     closed = true;
     const attempt = Promise.resolve().then(async () => {
-      const failures = [];
+      const /** @type {any[]} */ failures = [];
       cancel();
       try {
         if (active) await active.return();
@@ -284,7 +298,10 @@ function surface(
 }
 
 /** Private seam used by installed resolution and exact-artifact qualification. */
-export async function createSourceSession(component, options = {}) {
+export async function createSourceSession(
+  /** @type {*} */ component,
+  /** @type {*} */ options = {},
+) {
   admitOptions(options, sourceOptions);
   const selected = resolveExecutionResources(
       {},
@@ -331,7 +348,10 @@ export async function createSourceSession(component, options = {}) {
 /** Private repository seam; native provider code is injected by the trusted
  * caller and never selected from a module/executable path in policy data.
  */
-export async function createRepositorySession(component, options = {}) {
+export async function createRepositorySession(
+  /** @type {*} */ component,
+  /** @type {*} */ options = {},
+) {
   admitOptions(options, repositoryOptions);
   const root = await realpath(resolve(options.root ?? process.cwd())),
     directory = await temporaryRoot(options);
@@ -367,7 +387,10 @@ export async function createRepositorySession(component, options = {}) {
           yield event;
         }
       },
-      rewrite: (operation, rewriteOptions) => {
+      rewrite: (
+        /** @type {*} */ operation,
+        /** @type {*} */ rewriteOptions,
+      ) => {
         if (!checked)
           throw new Error("repository-check-required-before-rewrite");
         if (options.retainValues === false)

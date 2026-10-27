@@ -3,7 +3,7 @@ import { lstatSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
 
 /** Lexical containment includes equality; callers own filesystem admission. */
-export function isPathContained(root, path) {
+export function isPathContained(/** @type {*} */ root, /** @type {*} */ path) {
   const contained = relative(root, path);
   return (
     !isAbsolute(contained) &&
@@ -13,10 +13,12 @@ export function isPathContained(root, path) {
 }
 
 /** File identities are canonical repository-relative paths, never tool globs. */
-export function assertRepositoryPath(path) {
+export function assertRepositoryPath(/** @type {*} */ path) {
   if (
     typeof path !== "string" ||
     isAbsolute(path) ||
+    // Reject control characters in untrusted path identities.
+    // eslint-disable-next-line no-control-regex
     /[\\:\0-\x1f\x7f]/u.test(path) ||
     path.split("/").some((part) => !part || part === "." || part === "..")
   )
@@ -24,12 +26,19 @@ export function assertRepositoryPath(path) {
 }
 
 /** Admit regular files through regular ancestors and verify real containment. */
-export function assertRegularSource(root, path, mode) {
+export function assertRegularSource(
+  /** @type {*} */ root,
+  /** @type {*} */ path,
+  /** @type {*} */ mode = undefined,
+) {
   return assertRegularPath(root, path, false, mode);
 }
 
 /** Admit one traversed directory through regular ancestors inside the root. */
-export function assertRegularDirectory(root, path) {
+export function assertRegularDirectory(
+  /** @type {*} */ root,
+  /** @type {*} */ path,
+) {
   if (path === "") {
     const stat = lstatSync(root);
     if (stat.isSymbolicLink() || !stat.isDirectory())
@@ -40,7 +49,12 @@ export function assertRegularDirectory(root, path) {
 }
 
 /** Share containment and ancestor admission for read-only source discovery. */
-function assertRegularPath(root, path, directory, mode) {
+function assertRegularPath(
+  /** @type {*} */ root,
+  /** @type {*} */ path,
+  /** @type {*} */ directory,
+  /** @type {*} */ mode = undefined,
+) {
   assertRepositoryPath(path);
   if (mode !== undefined && mode !== "100644" && mode !== "100755")
     throw new Error(`Nonregular Git JSON entry: ${path}`);

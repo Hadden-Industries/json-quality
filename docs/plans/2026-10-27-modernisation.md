@@ -53,12 +53,13 @@ to:
 The meaning should be made explicit throughout the repository:
 
 - `>=22.13.0` is the **installability and compatibility floor**.
-- Officially tested/support-gating releases are **Node major versions that are in LTS**.
+- Officially tested/support-gating releases are **maintained LTS majors**, plus the owner's explicit advance qualification of **Node 26** before its imminent LTS launch.
 - Other releases satisfying the engine range receive **best-effort compatibility**, not release-blocking CI guarantees.
 - Documentation should recommend the latest security-patched release of an LTS line for actual use rather than presenting `22.13.0` as a security recommendation.
 
 As of **27 October 2026**, the Node project lists Node 22 and Node 24 as LTS and Node 26 as Current.
-Therefore the gating matrix should initially cover **22 and 24, not 26**.
+The owner subsequently selected **22, 24 and 26** for the initial gating matrix because Node 26's LTS launch is imminent.
+Record that exception explicitly as `preLtsMajors: [26]` while metadata still classifies it as Current; this does not relabel Current as LTS or extend gating to arbitrary engine-compatible releases.
 The Node project also changes its release model beginning with Node 27, so repository logic must not infer LTS status from “even major number” rules. citeturn6view0
 
 The latest security release on 21 October 2026 produced Node 22.23.4 and 24.22.1, fixing vulnerabilities up to HIGH severity.
@@ -75,8 +76,10 @@ For example:
   "minimum": "22.13.0",
   "testedLtsMajors": [
     22,
-    24
+    24,
+    26
   ],
+  "preLtsMajors": [26],
   "reference": "24.22.1",
   "platforms": [
     "ubuntu-24.04",
@@ -98,7 +101,7 @@ Do not silently change the matrix midway through qualification.
 Update `project-node-support.js`, `node-matrix.js`, `ci-node-policy.js`, the Node-policy tests and generated documentation so there is a single authority for:
 
 - the `22.13.0` engine floor;
-- which majors are presently LTS-qualified;
+- which maintained LTS majors and explicit advance-LTS exceptions are qualified;
 - exact current secure patches used by a qualification run;
 - the canonical development/producer release;
 - platform qualification.
@@ -673,7 +676,7 @@ Add:
 tsconfig.json
 types/
   index.d.ts
-  eslint.d.ts
+  eslint/index.d.ts
 ```
 
 Annotate all public API inputs, outputs and structured contracts in source JSDoc and enable strict `checkJs`.
@@ -692,7 +695,7 @@ Change the root export metadata along these lines:
       "import": "./src/index.js"
     },
     "./eslint": {
-      "types": "./types/eslint.d.ts",
+      "types": "./types/eslint/index.d.ts",
       "import": "./src/eslint/index.js"
     }
   }
@@ -727,9 +730,8 @@ For each public schema:
 
 ```text
 configuration.schema.json
-result.schema.json
-document-request.schema.json
-document-response.schema.json
+source-contract.schema.json
+event.schema.json
 ```
 
 add or standardise:
@@ -753,6 +755,8 @@ Then:
 - verify every schema exported through `package.json` is the same byte content used by runtime validation.
 
 If project-controlled GitHub Pages identifiers are used, actually publish the corresponding versioned schemas there rather than leaving identifiers as aspirational addresses.
+The implementation uses stable logical GitHub identifiers registered offline from package exports, not a Pages/download service.
+The current cohort-2 package no longer exports the earlier result/document-request/document-response envelopes; those retired schemas are outside this migration.
 
 Make schema-version evolution explicit: a breaking wire/configuration schema change requires a new `schemaVersion` and documented migration, independently of package SemVer.
 
@@ -1166,7 +1170,7 @@ and prefer repo-local execution examples such as:
 
 ```sh
 npm exec -- json-quality check --root .
-npm exec -- json-quality format --check --root .
+npm exec -- json-quality format --root . -- authored.json
 ```
 
 Add concise badges for:
@@ -1272,7 +1276,7 @@ In particular, remove language preserving a direct-to-default-branch model and r
 Use one short policy everywhere:
 
 > JSON Quality requires Node.js `>=22.13.0`.
-> Official qualification covers maintained LTS Node major versions.
+> Official qualification covers maintained LTS Node major versions and the owner's explicit advance Node 26 lane.
 > Other engine-compatible Node releases receive best-effort support.
 > Use a current security-patched LTS release for production use.
 

@@ -12,7 +12,7 @@ import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 /** Read trusted component metadata through a fixed allocation and unchanged
  * descriptor/path identity, including a bounded check for growth after stat.
  */
-async function readManifest(path) {
+async function readManifest(/** @type {*} */ path) {
   const before = observeRegularFile(path);
   if (
     !before.isFile() ||
@@ -42,7 +42,13 @@ async function readManifest(path) {
       throw new Error("native-component-manifest-changed");
     const after = observeRegularFile(path),
       final = await file.stat({ bigint: true });
-    for (const key of ["dev", "ino", "size", "mtimeNs", "ctimeNs"])
+    for (const key of /** @type {const} */ ([
+      "dev",
+      "ino",
+      "size",
+      "mtimeNs",
+      "ctimeNs",
+    ]))
       if (before[key] !== after[key] || before[key] !== final[key])
         throw new Error("native-component-manifest-changed");
     return JSON.parse(
@@ -56,7 +62,7 @@ async function readManifest(path) {
 }
 
 /** Hash a regular immutable component member with one bounded read buffer. */
-async function verifyMember(path, expected) {
+async function verifyMember(/** @type {*} */ path, /** @type {*} */ expected) {
   if (
     !expected ||
     !/^[a-f0-9]{64}$/u.test(expected.sha256) ||
@@ -90,7 +96,13 @@ async function verifyMember(path, expected) {
     }
     const after = observeRegularFile(path),
       final = await file.stat({ bigint: true });
-    for (const key of ["dev", "ino", "size", "mtimeNs", "ctimeNs"])
+    for (const key of /** @type {const} */ ([
+      "dev",
+      "ino",
+      "size",
+      "mtimeNs",
+      "ctimeNs",
+    ]))
       if (before[key] !== after[key] || before[key] !== final[key])
         throw new Error("native-component-member-changed");
     if (hash.digest("hex") !== expected.sha256)
@@ -104,7 +116,7 @@ async function verifyMember(path, expected) {
  * Filenames are fixed here; a manifest cannot select executable/module paths.
  * This internal boundary is not a public backend selector or download fallback.
  */
-export async function loadNativeComponent(directory) {
+export async function loadNativeComponent(/** @type {*} */ directory) {
   if (!isAbsolute(directory)) throw new TypeError("native-component-directory");
   const manifest = await readManifest(join(directory, "component.json"));
   if (

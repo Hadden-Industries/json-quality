@@ -4,38 +4,41 @@ import { createBorrowedValueSession } from "./value-session.js";
 import { requireAsyncStream } from "./source-streams.js";
 import { posix } from "node:path";
 
-export function isLogicalContainer(definition, path) {
+export function isLogicalContainer(
+  /** @type {*} */ definition,
+  /** @type {*} */ path,
+) {
   return (
     typeof path === "string" &&
-    (definition.containerPaths ?? []).some((pattern) =>
+    (definition.containerPaths ?? []).some((/** @type {*} */ pattern) =>
       posix.matchesGlob(path, pattern),
     )
   );
 }
 
 export async function* logicalInventory(
-  core,
-  factory,
-  { definition, resources, signal },
+  /** @type {*} */ core,
+  /** @type {*} */ factory,
+  /** @type {*} */ { definition, resources, signal },
 ) {
   const values = createBorrowedValueSession(core);
-  const methods = [
-    "capturedSource",
-    "select",
-    "describe",
-    "children",
-    "read",
-    "readSource",
-    "fragments",
-    "sourceFragments",
-    "materialize",
-    "materializeControl",
-  ];
+  const /** @type {Array<keyof typeof values>} */ methods = [
+      "capturedSource",
+      "select",
+      "describe",
+      "children",
+      "read",
+      "readSource",
+      "fragments",
+      "sourceFragments",
+      "materialize",
+      "materializeControl",
+    ];
   const access = Object.freeze({
     ...Object.fromEntries(
       methods.map((name) => [name, values[name].bind(values)]),
     ),
-    capturedSource(path) {
+    capturedSource(/** @type {*} */ path) {
       if (!isLogicalContainer(definition, path))
         return Promise.reject(new Error("logical-container-scope"));
       return values.capturedSource(path);

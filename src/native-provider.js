@@ -11,7 +11,10 @@ import { nativeJsonSourceFormat } from "./json-paths.js";
 /** Refuse a whole-body provider buffer instead of silently moving its resource
  * cost outside the advertised bounded transport contract.
  */
-async function* memberFragments(chunks, signal) {
+async function* memberFragments(
+  /** @type {*} */ chunks,
+  /** @type {*} */ signal,
+) {
   for await (const part of requireAsyncStream(chunks, "member chunks")) {
     signal?.throwIfAborted();
     if (!ArrayBuffer.isView(part) || part.byteLength > 65536)
@@ -25,16 +28,18 @@ async function* memberFragments(chunks, signal) {
 /** Reconcile independent provenance, inventory and member streams. The caller
  * injects trusted provider code; policy data never selects executable modules.
  */
-export async function* checkNativeProvider({
-  root,
-  session,
-  definition,
-  provider,
-  contractFor,
-  signal,
-  retainValues = false,
-  retainValuesFor = () => false,
-}) {
+export async function* checkNativeProvider(
+  /** @type {*} */ {
+    root,
+    session,
+    definition,
+    provider,
+    contractFor,
+    signal,
+    retainValues = false,
+    retainValuesFor = () => false,
+  },
+) {
   if (typeof provider !== "function" || typeof contractFor !== "function")
     throw new TypeError("Trusted native provider and policy matcher required.");
   const id = definition.id;
@@ -178,7 +183,9 @@ export async function* checkNativeProvider({
 }
 
 /** Revalidate native authority files without retaining a JS snapshot inventory. */
-export async function recheckNativeAuthorities({ root, session, signal }) {
+export async function recheckNativeAuthorities(
+  /** @type {*} */ { root, session, signal },
+) {
   let after = "";
   while (true) {
     signal?.throwIfAborted();

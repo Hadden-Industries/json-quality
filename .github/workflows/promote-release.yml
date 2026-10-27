@@ -65,10 +65,12 @@ jobs:
   admit:
     if: github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 120
     permissions:
       contents: read
       actions: read
+    outputs:
+      artifact-id: ${{ steps.admitted.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -79,16 +81,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: npm run release:admit -- promote "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: ./.github/actions/upload-evidence
+        id: admitted
         with:
-          name: admitted-promote-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/admitted/
-          if-no-files-found: error
+          name: "admitted-promote-${{ github.run_attempt }}"
+          path: "${{ runner.temp }}/admitted"
           retention-days: 1
   promote:
     needs: admit
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 120
     environment: npm-promotion
     permissions:
       contents: write
@@ -101,19 +103,17 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - uses: ./.github/actions/setup-producer
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - uses: ./.github/actions/download-evidence
         with:
-          name: admitted-promote-${{ github.run_attempt }}
+          artifact-id: ${{ needs.admit.outputs.artifact-id }}
           path: ${{ runner.temp }}/admitted/
-          digest-mismatch: error
       - name: Apply admitted release effect
         env:
           GH_TOKEN: ${{ github.token }}
         run: npm run release:effect -- promote "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: ./.github/actions/upload-evidence
         if: always()
         with:
-          name: effect-promote-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/admitted/
-          if-no-files-found: error
+          name: "effect-promote-${{ github.run_attempt }}"
+          path: "${{ runner.temp }}/admitted"
           retention-days: 90

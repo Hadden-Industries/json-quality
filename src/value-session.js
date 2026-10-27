@@ -8,14 +8,17 @@ class ValueSession {
   #core;
   #closed = false;
   #cleanupComplete = false;
-  #closing;
+  /** @type {*} */ #closing;
   #active = false;
   #cancelled = false;
   #scope = randomUUID();
   #captureOwner;
   #ownsCore;
   #leases = new Set();
-  constructor(core, { captureOwner, ownsCore = true } = {}) {
+  constructor(
+    /** @type {*} */ core,
+    /** @type {*} */ { captureOwner, ownsCore = true } = {},
+  ) {
     this.#core = core;
     this.#captureOwner = captureOwner;
     this.#ownsCore = ownsCore;
@@ -23,7 +26,11 @@ class ValueSession {
   #open() {
     if (this.#closed) throw new Error("closed-session");
   }
-  #reference(kind, id, metadata = {}) {
+  #reference(
+    /** @type {*} */ kind,
+    /** @type {*} */ id,
+    /** @type {*} */ metadata = {},
+  ) {
     const reference = Object.freeze({
       ...metadata,
       kind,
@@ -32,23 +39,23 @@ class ValueSession {
     references.set(reference, { owner: this, kind, id });
     return reference;
   }
-  #resolve(reference, kind) {
+  #resolve(/** @type {*} */ reference, /** @type {*} */ kind) {
     this.#open();
     const authority = references.get(reference);
     if (!authority || authority.owner !== this || authority.kind !== kind)
       throw new TypeError("foreign-or-invalid-reference");
     return authority.id;
   }
-  #value(id) {
+  #value(/** @type {*} */ id) {
     return id && id !== "0" ? this.#reference("value", id) : null;
   }
-  #selected(descriptor) {
+  #selected(/** @type {*} */ descriptor) {
     const metadata = { ...descriptor, valueKind: descriptor.kind };
     for (const key of ["id", "type", "parent", "name", "source"])
       delete metadata[key];
     return this.#reference("value", descriptor.id, metadata);
   }
-  #project(event, source) {
+  #project(/** @type {*} */ event, /** @type {*} */ source) {
     const result = { ...event, ...(source ? { source } : {}) };
     if (event.type === "value") {
       result.reference = this.#value(event.id);
@@ -78,7 +85,7 @@ class ValueSession {
   /** Logical identity remains stable across repeated projections and backing
    * transitions. Object identity is not a persistent reference contract.
    */
-  sameReference(left, right) {
+  sameReference(/** @type {*} */ left, /** @type {*} */ right) {
     this.#open();
     const first = references.get(left),
       second = references.get(right);
@@ -91,7 +98,7 @@ class ValueSession {
    * one current source capability; callers own any retained earlier handles.
    * Repository census/terminal order remains with that controller.
    */
-  async *projectRepositoryEvents(events) {
+  async *projectRepositoryEvents(/** @type {*} */ events) {
     this.#open();
     if (this.#active || this.#cancelled) throw new Error("session-not-ready");
     this.#active = true;
@@ -128,9 +135,9 @@ class ValueSession {
    * references are caller-owned capabilities; collecting them is caller state.
    */
   async *check(
-    chunks,
-    contract = {},
-    {
+    /** @type {*} */ chunks,
+    /** @type {*} */ contract = {},
+    /** @type {*} */ {
       identity,
       includeValues = false,
       retainValues = true,
@@ -179,7 +186,11 @@ class ValueSession {
   /** Select an unambiguous decoded JSON Pointer in a completed retained source.
    * JSONL requires the exact physical record number in canonical decimal form.
    */
-  async select(source, pointer = "", record) {
+  async select(
+    /** @type {*} */ source,
+    pointer = "",
+    /** @type {*} */ record = undefined,
+  ) {
     const id = this.#resolve(source, "source"),
       { result } = await this.#core.command("select-value", {
         source: id,
@@ -192,7 +203,7 @@ class ValueSession {
   /** Internal provider view: mint from actual captured census membership, never
    * from a caller's raw native ID or claimed payload identity.
    */
-  async capturedSource(path) {
+  async capturedSource(/** @type {*} */ path) {
     this.#open();
     if (typeof path !== "string") throw new TypeError("Expected source path.");
     const { result } = await this.#core.command("census-get", { path });
@@ -208,7 +219,7 @@ class ValueSession {
   /** Describe the same scoped value, including exact raw byte span for explicit
    * bounded transformations. This never materializes its JSON or decoded body.
    */
-  async describe(value) {
+  async describe(/** @type {*} */ value) {
     const id = this.#resolve(value, "value"),
       { result } = await this.#core.command("describe-value", { value: id });
     return this.#selected(result.value);
@@ -219,7 +230,7 @@ class ValueSession {
    * references, so oversized names need no complete JS string. A completed
    * retained source is required; duplicate object members remain distinct.
    */
-  async *children(value) {
+  async *children(/** @type {*} */ value) {
     const id = this.#resolve(value, "value");
     let ordinal = "0";
     while (true) {
@@ -244,7 +255,11 @@ class ValueSession {
    * without a complete JS string or a giant control frame. The raw pointer and
    * decoded lookup segment use the same accounted adaptive native store.
    */
-  async selectStream(source, chunks, { identity, record, signal } = {}) {
+  async selectStream(
+    /** @type {*} */ source,
+    /** @type {*} */ chunks,
+    /** @type {*} */ { identity, record, signal } = {},
+  ) {
     const id = this.#resolve(source, "source");
     if (this.#active || this.#cancelled) throw new Error("session-not-ready");
     signal?.throwIfAborted();
@@ -280,7 +295,12 @@ class ValueSession {
   /** Read a bounded range of raw JSON, decoded UTF-8, NFC UTF-8 or JSON Pointer
    * bytes. Offsets and lengths use canonical unsigned decimal strings.
    */
-  async read(value, representation, offset = "0", maximum = "65536") {
+  async read(
+    /** @type {*} */ value,
+    /** @type {*} */ representation,
+    offset = "0",
+    maximum = "65536",
+  ) {
     const id = this.#resolve(value, "value"),
       { result, data } = await this.#core.read(
         id,
@@ -298,7 +318,7 @@ class ValueSession {
   /** Read identified original source bytes, including whitespace and rejected
    * input. Source access makes no claim that parsing or domain checks passed.
    */
-  async readSource(source, offset = "0", maximum = "65536") {
+  async readSource(/** @type {*} */ source, offset = "0", maximum = "65536") {
     const id = this.#resolve(source, "source"),
       { result, data } = await this.#core.command("read-source", {
         source: id,
@@ -312,7 +332,7 @@ class ValueSession {
     };
   }
 
-  async *sourceFragments(source) {
+  async *sourceFragments(/** @type {*} */ source) {
     let offset = 0n;
     while (true) {
       const range = await this.readSource(source, String(offset));
@@ -324,7 +344,7 @@ class ValueSession {
   }
 
   /** Stream a representation with one bounded native response at a time. */
-  async *fragments(value, representation) {
+  async *fragments(/** @type {*} */ value, /** @type {*} */ representation) {
     let offset = 0n;
     while (true) {
       const range = await this.read(value, representation, String(offset));
@@ -339,7 +359,11 @@ class ValueSession {
    * The caller owns the lease until release, must stop using its borrowed bytes
    * then, and must explicitly copy any data that needs a longer lifetime.
    */
-  async materialize(value, representation, maximum) {
+  async materialize(
+    /** @type {*} */ value,
+    /** @type {*} */ representation,
+    /** @type {*} */ maximum,
+  ) {
     return this.#materialize(
       value,
       representation,
@@ -347,14 +371,19 @@ class ValueSession {
       "reserve-materialization",
     );
   }
-  async #materialize(value, representation, maximum, command) {
+  async #materialize(
+    /** @type {*} */ value,
+    /** @type {*} */ representation,
+    /** @type {*} */ maximum,
+    /** @type {*} */ command,
+  ) {
     const id = this.#resolve(value, "value"),
       { result } = await this.#core.command(command, {
         value: id,
         representation,
         maximum,
       });
-    let bytes,
+    let /** @type {any} */ bytes,
       released = false,
       releasing;
     const release = async () => {
@@ -410,7 +439,11 @@ class ValueSession {
    * transfer moves the independent object and its accounting obligation to the
    * caller; it does not extend a borrowed native value's lifetime.
    */
-  async materializeControl(value, maximum, validate) {
+  async materializeControl(
+    /** @type {*} */ value,
+    /** @type {*} */ maximum,
+    /** @type {*} */ validate,
+  ) {
     if (typeof validate !== "function")
       throw new TypeError("domain-validator-required");
     const lease = await this.#materialize(
@@ -419,7 +452,7 @@ class ValueSession {
       maximum,
       "reserve-control-materialization",
     );
-    let object;
+    let /** @type {any} */ object;
     try {
       object = JSON.parse(
         new TextDecoder("utf-8", { fatal: true }).decode(lease.bytes),
@@ -486,7 +519,7 @@ class ValueSession {
 /** Internal composition seam: the supplied core is already verified/configured.
  * Kept outside supported package exports; public factories own acquisition.
  */
-export function createValueSession(core) {
+export function createValueSession(/** @type {*} */ core) {
   return new ValueSession(core);
 }
 
@@ -494,13 +527,16 @@ export function createValueSession(core) {
  * It cannot close that owner. Raw capture provenance stays within this seam;
  * the supported facade exposes neither constructor nor native identifiers.
  */
-export function createTransformValueSession(core, captureOwner) {
+export function createTransformValueSession(
+  /** @type {*} */ core,
+  /** @type {*} */ captureOwner,
+) {
   return new ValueSession(core, { captureOwner, ownsCore: false });
 }
 
 /** A trusted metadata reader shares its execution's core and allocation ledger,
  * while settlement invalidates only this borrowed view and its own leases.
  */
-export function createBorrowedValueSession(core) {
+export function createBorrowedValueSession(/** @type {*} */ core) {
   return new ValueSession(core, { ownsCore: false });
 }

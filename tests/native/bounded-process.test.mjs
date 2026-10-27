@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "../../scripts/qualification-process.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { runBoundedTool } from "../../src/bounded-process.js";
 
 const options = {
   input: Buffer.alloc(0),
-  timeout: 5000,
+  timeout: budgets.read,
   maximumOutputBytes: 65536,
 };
 test("bounded native-tool delivery admits success and refuses aggregate output overflow", async () => {

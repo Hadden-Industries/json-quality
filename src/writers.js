@@ -8,7 +8,7 @@ import { admitTransformSource } from "./transform-capabilities.js";
 import { resolveExecutionResources } from "./execution-resources.js";
 import { sourceContract } from "./source-contract.js";
 
-function writerOptions(options = {}) {
+function writerOptions(/** @type {*} */ options = {}) {
   if (
     !options ||
     typeof options !== "object" ||
@@ -71,6 +71,9 @@ function writerOptions(options = {}) {
 /** Preserve decoded meaning, member order and exact numeric lexemes while
  * selecting the package's fixed Prettier presentation. This is a finite text
  * transformation; refusal never invokes a different reader or writes a file.
+ * @param {string} text
+ * @param {import("./api-types.js").WriterOptions} [options]
+ * @returns {Promise<string>}
  */
 export async function formatJsonSource(text, options) {
   admitTransformSource(text);
@@ -85,6 +88,9 @@ export async function formatJsonSource(text, options) {
 /** Serialize an already materialized plain producer value with native platform
  * JSON serialization, then apply the same bounded presentation/quality checks.
  * Producers retain ownership of their object graph and domain admission.
+ * @param {import("./api-types.js").JsonValue} value
+ * @param {import("./api-types.js").WriterOptions} [options]
+ * @returns {Promise<string>}
  */
 export async function formatJsonValue(value, options) {
   const selected = writerOptions(options),
@@ -98,6 +104,9 @@ export async function formatJsonValue(value, options) {
 
 /** Explicit NFC repair changes string/key literal spans only, after collision
  * preflight. Numeric lexemes, whitespace and original member order are retained.
+ * @param {string} text
+ * @param {import("./api-types.js").WriterOptions} [options]
+ * @returns {Promise<string>}
  */
 export async function normalizeJsonSource(text, options) {
   admitTransformSource(text);

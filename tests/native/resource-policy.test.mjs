@@ -12,7 +12,7 @@ const schema = JSON.parse(
 );
 const contract = { formatContract: "producer-json-compact-body" };
 const unlimitedAdmission = Object.fromEntries(
-  Object.keys(schema.definitions.capacityLimits.properties).map((name) => [
+  Object.keys(schema.$defs.capacityLimits.properties).map((name) => [
     name,
     null,
   ]),
@@ -32,7 +32,7 @@ test("native effective resources are projected from the maintained schema", asyn
     assert.deepEqual(
       result.resources.admission,
       Object.fromEntries(
-        Object.entries(schema.definitions.capacityLimits.properties).map(
+        Object.entries(schema.$defs.capacityLimits.properties).map(
           ([name, rule]) => [name, String(rule.default)],
         ),
       ),
@@ -40,7 +40,7 @@ test("native effective resources are projected from the maintained schema", asyn
     assert.deepEqual(
       result.resources.runtime,
       Object.fromEntries(
-        Object.entries(schema.definitions.runtimeControls.properties).map(
+        Object.entries(schema.$defs.runtimeControls.properties).map(
           ([name, rule]) => [name, String(rule.default)],
         ),
       ),

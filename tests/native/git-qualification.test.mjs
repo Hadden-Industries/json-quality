@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "../../scripts/qualification-process.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -177,7 +178,7 @@ test("qualification CLI delivers NDJSON for the immutable source scope", async (
       ],
       {
         windowsHide: true,
-        timeout: 15000,
+        timeout: budgets.read,
         encoding: "utf8",
         maxBuffer: 1048576,
       },

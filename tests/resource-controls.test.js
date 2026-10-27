@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "../scripts/qualification-process.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync, readFileSync, cpSync, mkdirSync } from "node:fs";
@@ -63,7 +64,13 @@ test("both public CLIs reject the removed environment name before loading roots"
     const result = spawnSync(
       process.execPath,
       [fileURLToPath(new URL(entry, import.meta.url)), ...args],
-      { cwd: root, env, encoding: "utf8", windowsHide: true, timeout: 30000 },
+      {
+        cwd: root,
+        env,
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: budgets.read,
+      },
     );
     assert.equal(result.status, 2);
     const message =
@@ -221,7 +228,7 @@ test("producer npm setup admits resource overrides before dependencies are insta
         env,
         encoding: "utf8",
         windowsHide: true,
-        timeout: 30000,
+        timeout: budgets.read,
       },
     );
     assert.equal(result.status, 0, result.stderr);
@@ -249,7 +256,7 @@ test("producer npm setup admits resource overrides before dependencies are insta
       },
       encoding: "utf8",
       windowsHide: true,
-      timeout: 30000,
+      timeout: budgets.read,
     },
   );
   assert.notEqual(rejected.status, 0);

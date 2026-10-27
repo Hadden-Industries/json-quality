@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "../scripts/qualification-process.js";
 import test from "node:test";
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -40,7 +41,7 @@ test("maintained consumer corpus exercises the current public cohort before tran
     ],
     {
       windowsHide: true,
-      timeout: 20000,
+      timeout: budgets.read,
       encoding: "utf8",
       maxBuffer: 2097152,
     },

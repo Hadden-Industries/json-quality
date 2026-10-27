@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "../../scripts/qualification-process.js";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
@@ -15,7 +16,7 @@ function benchmark(args, options = {}) {
   return spawnSync(process.execPath, [harness, ...args], {
     encoding: "utf8",
     windowsHide: true,
-    timeout: 30000,
+    timeout: budgets.read,
     ...options,
   });
 }

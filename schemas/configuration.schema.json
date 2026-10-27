@@ -47,7 +47,7 @@
           "type": "boolean"
         },
         {
-          "$ref": "#/definitions/capacityLimits"
+          "$ref": "#/$defs/capacityLimits"
         }
       ]
     },
@@ -114,7 +114,7 @@
             "const": "preserve"
           },
           "preserveNfcValues": {
-            "$ref": "#/definitions/nfcValues"
+            "$ref": "#/$defs/nfcValues"
           },
           "allowEmptyKeys": {
             "type": "array",
@@ -178,7 +178,7 @@
                       "pattern": "^[a-f0-9]{64}$"
                     },
                     "byteLength": {
-                      "$ref": "#/definitions/unsignedIntegerText"
+                      "$ref": "#/$defs/unsignedIntegerText"
                     }
                   }
                 }
@@ -188,13 +188,13 @@
                 "pattern": "^[a-f0-9]{64}$"
               },
               "byteLength": {
-                "$ref": "#/definitions/unsignedIntegerText"
+                "$ref": "#/$defs/unsignedIntegerText"
               },
               "diagnostics": {
                 "type": "array",
                 "uniqueItems": true,
                 "items": {
-                  "$ref": "#/definitions/diagnosticIdentity"
+                  "$ref": "#/$defs/diagnosticIdentity"
                 }
               }
             }
@@ -251,10 +251,12 @@
       }
     },
     "runtimeControls": {
-      "$ref": "#/definitions/runtimeControls"
+      "$ref": "#/$defs/runtimeControls"
     }
   },
-  "definitions": {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v2",
+  "$defs": {
     "runtimeControls": {
       "description": "Finite working controls for one execution. Admission bypass never disables these controls. The first native cohort admits one active checker under its aggregate target.",
       "type": "object",
@@ -314,7 +316,7 @@
             "pattern": "^[a-f0-9]{64}$"
           },
           "byteLength": {
-            "$ref": "#/definitions/positiveIntegerText"
+            "$ref": "#/$defs/positiveIntegerText"
           },
           "record": {
             "type": "object",
@@ -490,19 +492,19 @@
           "minLength": 1
         },
         "line": {
-          "$ref": "#/definitions/positiveIntegerText"
+          "$ref": "#/$defs/positiveIntegerText"
         },
         "column": {
-          "$ref": "#/definitions/positiveIntegerText"
+          "$ref": "#/$defs/positiveIntegerText"
         },
         "endLine": {
-          "$ref": "#/definitions/positiveIntegerText"
+          "$ref": "#/$defs/positiveIntegerText"
         },
         "endColumn": {
-          "$ref": "#/definitions/positiveIntegerText"
+          "$ref": "#/$defs/positiveIntegerText"
         },
         "record": {
-          "$ref": "#/definitions/positiveIntegerText"
+          "$ref": "#/$defs/positiveIntegerText"
         },
         "severity": {
           "const": "error"
@@ -527,17 +529,16 @@
           "pattern": "^[a-f0-9]{64}$"
         },
         "byteLength": {
-          "$ref": "#/definitions/unsignedIntegerText"
+          "$ref": "#/$defs/unsignedIntegerText"
         },
         "diagnostics": {
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "$ref": "#/definitions/diagnosticIdentity"
+            "$ref": "#/$defs/diagnosticIdentity"
           }
         }
       }
     }
-  },
-  "$schema": "http://json-schema.org/draft-07/schema#"
+  }
 }

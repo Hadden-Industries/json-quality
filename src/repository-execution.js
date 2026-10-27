@@ -16,19 +16,21 @@ import { encodeNativeControl } from "./native-control.js";
  * The component comes only from the verified acquisition owner. No installation
  * or download happens here, and no check acquires source-write authority.
  */
-export async function createRepositoryExecution({
-  root,
-  component,
-  temporaryDirectory,
-  capacityLimits,
-  runtimeControls,
-  nativeProviders = {},
-  logicalProviders = [],
-  requiredOutputs = [],
-  gitExecutable,
-  signal,
-  retainValues = false,
-}) {
+export async function createRepositoryExecution(
+  /** @type {*} */ {
+    root,
+    component,
+    temporaryDirectory,
+    capacityLimits,
+    runtimeControls,
+    nativeProviders = {},
+    logicalProviders = [],
+    requiredOutputs = [],
+    gitExecutable,
+    signal,
+    retainValues = false,
+  },
+) {
   const began = performance.now(),
     invocation = { capacityLimits, runtimeControls };
   root = resolve(root);
@@ -68,21 +70,23 @@ export async function createRepositoryExecution({
       Object.keys(nativeProviders).some(
         (name) =>
           !(admitted.policy.nativeSources ?? []).some(
-            (definition) => definition.provider === name,
+            (/** @type {*} */ definition) => definition.provider === name,
           ),
       )
     )
       throw new TypeError("Undeclared trusted native provider.");
-    const supplied = (admitted.policy.nativeSources ?? []).map((definition) => {
-      if (
-        !Object.hasOwn(nativeProviders, definition.provider) ||
-        typeof nativeProviders[definition.provider] !== "function"
-      )
-        throw new TypeError(
-          `Missing trusted native provider: ${definition.provider}`,
-        );
-      return { definition, provider: nativeProviders[definition.provider] };
-    });
+    const supplied = (admitted.policy.nativeSources ?? []).map(
+      (/** @type {*} */ definition) => {
+        if (
+          !Object.hasOwn(nativeProviders, definition.provider) ||
+          typeof nativeProviders[definition.provider] !== "function"
+        )
+          throw new TypeError(
+            `Missing trusted native provider: ${definition.provider}`,
+          );
+        return { definition, provider: nativeProviders[definition.provider] };
+      },
+    );
     if (!Array.isArray(logicalProviders))
       throw new TypeError("Expected trusted logical inventory factories.");
     logicalProviders = logicalProviders.map((entry) => {
@@ -102,7 +106,8 @@ export async function createRepositoryExecution({
         !Array.isArray(definition?.containerPaths) ||
         !definition.containerPaths.length ||
         definition.containerPaths.some(
-          (path) => typeof path !== "string" || !path || !path.isWellFormed(),
+          (/** @type {*} */ path) =>
+            typeof path !== "string" || !path || !path.isWellFormed(),
         )
       )
         throw new TypeError(
@@ -117,7 +122,10 @@ export async function createRepositoryExecution({
         }),
       };
     });
-    const contractFor = (path, source = {}) => {
+    const contractFor = (
+      /** @type {*} */ path,
+      /** @type {*} */ source = {},
+    ) => {
       // Native presentation is a producer default. Sparse path contracts keep
       // their established precedence, including exact source-map exceptions.
       const policy = source.definition?.formatContract
@@ -216,7 +224,7 @@ export async function createRepositoryExecution({
 /** Ordinary execution owns its lifetime through final event consumption.
  * Advanced sessions compose the same controller and close explicitly.
  */
-export async function* executeRepositoryCheck(options) {
+export async function* executeRepositoryCheck(/** @type {*} */ options) {
   const execution = await createRepositoryExecution(options);
   try {
     yield* execution.events();

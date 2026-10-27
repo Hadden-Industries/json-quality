@@ -21,7 +21,11 @@ import { isLogicalContainer } from "./logical-inventory.js";
 /** Linkage is an execution obligation. The core checks the source byte and
  * diagnostic expectations; this owner discharges the separate indexed linkage.
  */
-function sourceContract(path, contract, context) {
+function sourceContract(
+  /** @type {*} */ path,
+  /** @type {*} */ contract,
+  /** @type {*} */ context = undefined,
+) {
   const selected = {
     ...contract,
     path,
@@ -34,7 +38,10 @@ function sourceContract(path, contract, context) {
 }
 
 /** Iterate the adaptive index without retaining the inventory in JavaScript. */
-export async function* repositoryMembers(session, signal) {
+export async function* repositoryMembers(
+  /** @type {*} */ session,
+  /** @type {*} */ signal,
+) {
   let after = "";
   while (true) {
     signal?.throwIfAborted();
@@ -49,11 +56,18 @@ export async function* repositoryMembers(session, signal) {
  * actual retained parent/value/encoding and captured member identity. Pins are
  * bounded policy control data; the growing source inventory stays in the core.
  */
-async function reconcileLinkage(session, member, contract) {
+async function reconcileLinkage(
+  /** @type {*} */ session,
+  /** @type {*} */ member,
+  /** @type {*} */ contract,
+) {
   const pins = contract.expected?.linkedDocuments;
   if (!pins) return;
   for (const [index, pin] of pins.entries()) {
-    if (pins.findIndex((other) => other.path === pin.path) !== index)
+    if (
+      pins.findIndex((/** @type {*} */ other) => other.path === pin.path) !==
+      index
+    )
       throw new Error(`Duplicate expected logical linkage: ${pin.path}`);
     const actual = (await session.command("census-get", { path: pin.path }))
       .result.member;
@@ -84,19 +98,21 @@ async function reconcileLinkage(session, member, contract) {
  * admission remains with the caller. Consumer interruption yields no verdict.
  * The caller owns session lifetime, and must close it after success or failure.
  */
-export async function* checkRepository({
-  root,
-  session,
-  capacities,
-  contractFor,
-  requiredOutputs,
-  gitExecutable,
-  nativeProviders = [],
-  logicalProviders = [],
-  policyObservation,
-  retainValues = false,
-  signal,
-}) {
+export async function* checkRepository(
+  /** @type {*} */ {
+    root,
+    session,
+    capacities,
+    contractFor,
+    requiredOutputs,
+    gitExecutable,
+    nativeProviders = [],
+    logicalProviders = [],
+    policyObservation,
+    retainValues = false,
+    signal,
+  },
+) {
   root = resolve(root);
   const cancel = () => session.cancel();
   signal?.throwIfAborted();
@@ -117,9 +133,12 @@ export async function* checkRepository({
       gitExecutable,
       signal,
     });
-    const keepValues = (path, contract) =>
+    const keepValues = (
+      /** @type {*} */ path,
+      /** @type {*} */ contract = undefined,
+    ) =>
       retainValues ||
-      logicalProviders.some(({ definition }) =>
+      logicalProviders.some((/** @type {*} */ { definition }) =>
         isLogicalContainer(definition, path),
       ) ||
       Boolean((contract ?? contractFor(path)).expected?.linkedDocuments);
@@ -160,7 +179,7 @@ export async function* checkRepository({
     }
     for (const provider of ["git", "tree"])
       await session.command("census-close-provider", { provider });
-    const adaptedContract = (path, context) =>
+    const adaptedContract = (/** @type {*} */ path, /** @type {*} */ context) =>
       sourceContract(path, contractFor(path, context), context);
     for (const supplied of nativeProviders)
       for await (const event of checkNativeProvider({
@@ -170,7 +189,7 @@ export async function* checkRepository({
         signal,
         contractFor: adaptedContract,
         retainValues,
-        retainValuesFor: (path) => keepValues(path),
+        retainValuesFor: (/** @type {*} */ path) => keepValues(path),
       }))
         yield { ...event, scope: "source", linkedExpectationsComplete: false };
     for (const supplied of logicalProviders)
@@ -180,7 +199,7 @@ export async function* checkRepository({
         signal,
         contractFor: adaptedContract,
         retainValues,
-        retainValuesFor: (path) => keepValues(path),
+        retainValuesFor: (/** @type {*} */ path) => keepValues(path),
       }))
         yield { ...event, scope: "source", linkedExpectationsComplete: false };
     for await (const member of repositoryMembers(session, signal)) {

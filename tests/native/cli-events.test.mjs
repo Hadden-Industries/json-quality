@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "../../scripts/qualification-process.js";
 import assert from "node:assert/strict";
 import { spawn, spawnSync, execFileSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
@@ -14,7 +15,7 @@ const cli = fileURLToPath(new URL("../../src/cli.js", import.meta.url)),
       input,
       encoding: "utf8",
       windowsHide: true,
-      timeout: 30000,
+      timeout: budgets.read,
       maxBuffer: 4194304,
     }),
   events = (result) => {

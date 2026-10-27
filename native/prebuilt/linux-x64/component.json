@@ -10,26 +10,26 @@
   },
   "platform": "linux-x64",
   "nodeApiVersion": 9,
-  "sourceInputsSha256": "99fe880c25f2e200b97bdccd6ca97bd05e50f9208fddaff581cb97677e7b3957",
+  "sourceInputsSha256": "113f2216d9dc2e1541477e2b823e4d7c037dc5ee945a5c98ceeafef1dbdecf11",
   "artifacts": {
     "json-quality.node": {
-      "sha256": "264c67f0b42664259648252533ab7be3ba95c77102f0c0eaa52f99bd7fcaf121",
+      "sha256": "abaa25042440dc38b488d2c94a2a2d2c4572830341ba454a692598209135b990",
       "bytes": 37416808
     },
     "json-quality-native": {
-      "sha256": "6c8556b02dfd5f5921a38da57ed3df7d7b7252f7f7aa2a6bad28b687a1061d83",
+      "sha256": "bf8ba6d789fdab3c3e7de9fb76c714de0508d805307ad29ab92d116addb281bd",
       "bytes": 37391776
     }
   },
-  "configurationSchemaSha256": "fd955571d8aec8f13f317fa58357c6545d26c3d6df3d22595539d4b5bac71a24",
+  "configurationSchemaSha256": "cb6d0b8df4fac41db7b87101f4de28a35fb3a8f2a5e79133bf19fee332a5ed97",
   "controlSchemas": {
     "configuration.schema.json": {
-      "sha256": "fd955571d8aec8f13f317fa58357c6545d26c3d6df3d22595539d4b5bac71a24",
-      "bytes": 15108
+      "sha256": "cb6d0b8df4fac41db7b87101f4de28a35fb3a8f2a5e79133bf19fee332a5ed97",
+      "bytes": 15109
     },
     "source-contract.schema.json": {
-      "sha256": "f2ed86bb912237c8880cda89c6ad33fabc9b451949bc589e371276b0754392ff",
-      "bytes": 1833
+      "sha256": "c67f2039802ace9792b4e317fca6562c62ad77d12fabe03332c2150cdefa386f",
+      "bytes": 2066
     },
     "contract-cohort.json": {
       "sha256": "c8ea223658e45aad176288c957ceae72e81584eac5e5832ba6b450b126c42c98",

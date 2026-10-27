@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "../scripts/qualification-process.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -52,7 +53,7 @@ function run(args, { root, input = "", context } = {}) {
       input,
       encoding: "utf8",
       windowsHide: true,
-      timeout: 15000,
+      timeout: budgets.read,
       maxBuffer: 2097152,
     },
   );

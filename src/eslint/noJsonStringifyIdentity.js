@@ -50,41 +50,48 @@ const LIMIT_SCHEMA = {
   ),
 };
 
-function propertyName(node) {
+function propertyName(/** @type {*} */ node) {
   if (!node.computed && node.property?.type === "Identifier")
     return node.property.name;
   if (node.property?.type === "Literal") return String(node.property.value);
   return null;
 }
 
-function bindingPath(pattern, target, path = []) {
+/** @returns {*} */ function bindingPath(
+  /** @type {*} */ pattern,
+  /** @type {*} */ target,
+  /** @type {*} */ path = [],
+) {
   if (pattern === target) return path;
   if (pattern?.type === "AssignmentPattern")
     return bindingPath(pattern.left, target, path);
   if (pattern?.type === "ObjectPattern") {
     for (const property of pattern.properties) {
       if (property.type !== "Property" || property.computed) continue;
-      const found = bindingPath(property.value, target, [
-        ...path,
-        property.key.name ?? String(property.key.value),
-      ]);
+      const /** @type {any} */ found = bindingPath(property.value, target, [
+          ...path,
+          property.key.name ?? String(property.key.value),
+        ]);
       if (found) return found;
     }
   }
   if (pattern?.type === "ArrayPattern") {
     for (const [index, element] of pattern.elements.entries()) {
-      const found = bindingPath(element, target, [...path, String(index)]);
+      const /** @type {any} */ found = bindingPath(element, target, [
+          ...path,
+          String(index),
+        ]);
       if (found) return found;
     }
   }
   return null;
 }
 
-function selectedValue(node, path) {
+function selectedValue(/** @type {*} */ node, /** @type {*} */ path) {
   if (!path.length) return node;
   if (node?.type === "ObjectExpression") {
     const property = node.properties.find(
-      (candidate) =>
+      (/** @type {*} */ candidate) =>
         candidate.type === "Property" &&
         !candidate.computed &&
         (candidate.key.name ?? String(candidate.key.value)) === path[0],
@@ -96,7 +103,8 @@ function selectedValue(node, path) {
   return null;
 }
 
-export default {
+/** @type {import("eslint").Rule.RuleModule} */
+const rule = {
   meta: {
     type: "problem",
     docs: {
@@ -115,7 +123,7 @@ export default {
         "JSON identity analysis exceeded {{maxFrames}} lexical frames or {{maxSteps}} steps; simplify the alias graph or explicitly adjust its resource limits.",
     },
   },
-  create(context) {
+  create(/** @type {*} */ context) {
     const limits = Object.fromEntries(
       Object.entries(DEFAULT_LIMITS).map(([name, defaultValue]) => {
         const value =
@@ -128,22 +136,22 @@ export default {
     const source = context.sourceCode;
     const contracts = source
       .getAllComments()
-      .filter((comment) =>
+      .filter((/** @type {*} */ comment) =>
         comment.value.trim().startsWith("json-identity-contract:"),
       );
     const used = new Set();
     const reported = new Set();
-    const sinks = [];
+    const /** @type {any[]} */ sinks = [];
     // Prune impossible flows from native scope facts, rather than exempting
     // generated files. Escaped identifiers have their decoded binding names.
     const roots = new Set(["JSON", "globalThis", "global", "window"]);
     const maySerialize = source.scopeManager.scopes.some(
-      (scope) =>
-        scope.through.some((reference) =>
+      (/** @type {*} */ scope) =>
+        scope.through.some((/** @type {*} */ reference) =>
           roots.has(reference.identifier.name),
         ) ||
         scope.variables.some(
-          (bound) =>
+          (/** @type {*} */ bound) =>
             roots.has(bound.name) &&
             !bound.defs.length &&
             bound.references.length,
@@ -152,7 +160,7 @@ export default {
     let remainingAnalysisSteps = limits.maxSteps;
     let analysisLimited = false;
 
-    function withinBudget(seen) {
+    function withinBudget(/** @type {*} */ seen) {
       if (seen.size >= limits.maxFrames || --remainingAnalysisSteps < 0) {
         analysisLimited = true;
         return false;
@@ -160,17 +168,17 @@ export default {
       return true;
     }
 
-    function variable(node) {
+    function variable(/** @type {*} */ node) {
       for (let scope = source.getScope(node); scope; scope = scope.upper) {
         if (scope.set.has(node.name)) return scope.set.get(node.name);
       }
       return null;
     }
 
-    function values(node) {
+    function values(/** @type {*} */ node) {
       const bound = variable(node);
       if (!bound) return [];
-      const entries = [];
+      const /** @type {any[]} */ entries = [];
       for (const definition of bound.defs) {
         if (definition.type === "Variable" && definition.node.init) {
           entries.push({
@@ -205,7 +213,11 @@ export default {
       return entries;
     }
 
-    function projectedValues(node, path, seen = new Set()) {
+    /** @returns {*} */ function projectedValues(
+      /** @type {*} */ node,
+      /** @type {*} */ path,
+      seen = new Set(),
+    ) {
       if (!node || seen.has(node) || !withinBudget(seen)) return [];
       if (!path.length) return [node];
       seen = new Set(seen).add(node);
@@ -224,19 +236,27 @@ export default {
       return [];
     }
 
-    function rolesAt(node, path, seen) {
+    /** @returns {*} */ function rolesAt(
+      /** @type {*} */ node,
+      /** @type {*} */ path,
+      /** @type {*} */ seen,
+    ) {
       if (!path.length) return roles(node, seen);
       const selected = projectedValues(node, [path[0]], seen);
       if (selected.length)
-        return selected.flatMap((value) => rolesAt(value, path.slice(1), seen));
+        return selected.flatMap((/** @type {*} */ value) =>
+          rolesAt(value, path.slice(1), seen),
+        );
       return path.reduce(
-        (current, name) =>
-          current.map((role) => memberRole(role, name)).filter(Boolean),
+        (/** @type {*} */ current, /** @type {*} */ name) =>
+          current
+            .map((/** @type {*} */ role) => memberRole(role, name))
+            .filter(Boolean),
         roles(node, seen),
       );
     }
 
-    function memberRole(role, name) {
+    function memberRole(/** @type {*} */ role, /** @type {*} */ name) {
       if (
         ["stringify", "compare", "expect", "matcher", "hash-factory"].includes(
           role,
@@ -264,7 +284,10 @@ export default {
       return null;
     }
 
-    function roles(node, seen = new Set()) {
+    /** @returns {*} */ function roles(
+      /** @type {*} */ node,
+      seen = new Set(),
+    ) {
       if (!node || seen.has(node) || !withinBudget(seen)) return [];
       seen = new Set(seen).add(node);
       if (node.type === "ChainExpression") return roles(node.expression, seen);
@@ -275,7 +298,7 @@ export default {
           return role ? [role] : [];
         }
         const imported = bound.defs.find(
-          (definition) => definition.type === "ImportBinding",
+          (/** @type {*} */ definition) => definition.type === "ImportBinding",
         );
         if (imported) {
           const from = imported.parent.source.value;
@@ -305,11 +328,13 @@ export default {
       if (node.type === "ArrayExpression") return ["array"];
       if (node.type === "NewExpression")
         return roles(node.callee, seen)
-          .map((role) => INSTANCE_ROLES.get(role))
+          .map((/** @type {*} */ role) => INSTANCE_ROLES.get(role))
           .filter(Boolean);
       if (node.type === "CallExpression") {
-        const called = roles(node.callee, seen);
-        const boundRole = called.find((role) => role.endsWith("-bound"));
+        const /** @type {any} */ called = roles(node.callee, seen);
+        const /** @type {any} */ boundRole = called.find(
+            (/** @type {*} */ role) => role.endsWith("-bound"),
+          );
         if (boundRole) return [boundRole.slice(0, -6)];
         if (called.includes("expect")) return ["expect-result"];
         if (called.includes("hash-factory")) return ["hash"];
@@ -339,20 +364,23 @@ export default {
       return [];
     }
 
-    function origins(node, seen = new Set()) {
+    /** @returns {*} */ function origins(
+      /** @type {*} */ node,
+      seen = new Set(),
+    ) {
       if (!node || seen.has(node) || !withinBudget(seen)) return [];
       seen = new Set(seen).add(node);
       if (node.type === "ChainExpression")
         return origins(node.expression, seen);
       if (node.type === "Identifier")
         return values(node).flatMap((entry) =>
-          projectedValues(entry.node, entry.path, seen).flatMap((value) =>
-            origins(value, seen),
+          projectedValues(entry.node, entry.path, seen).flatMap(
+            (/** @type {*} */ value) => origins(value, seen),
           ),
         );
       if (node.type === "MemberExpression" && propertyName(node) !== null)
         return projectedValues(node.object, [propertyName(node)], seen).flatMap(
-          (value) => origins(value, seen),
+          (/** @type {*} */ value) => origins(value, seen),
         );
       if (node.type === "CallExpression") {
         const called = roles(node.callee);
@@ -374,7 +402,7 @@ export default {
           return origins(node.callee.object, seen);
       }
       if (node.type === "TemplateLiteral")
-        return node.expressions.flatMap((expression) =>
+        return node.expressions.flatMap((/** @type {*} */ expression) =>
           origins(expression, seen),
         );
       if (node.type === "BinaryExpression" && node.operator === "+")
@@ -394,7 +422,7 @@ export default {
       return [];
     }
 
-    function inspect(node) {
+    function inspect(/** @type {*} */ node) {
       for (const origin of origins(node)) {
         if (reported.has(origin)) continue;
         reported.add(origin);
@@ -421,7 +449,7 @@ export default {
           )
             break;
         }
-        const attached = contracts.filter((comment) =>
+        const attached = contracts.filter((/** @type {*} */ comment) =>
           starts.has(comment.loc.end.line + 1),
         );
         if (
@@ -432,14 +460,14 @@ export default {
             .slice(0, attached[0].loc.start.column)
             .trim() &&
           CONTRACT.test(attached[0].value.trim()) &&
-          CONTRACT.exec(attached[0].value.trim())[2].trim()
+          CONTRACT.exec(attached[0].value.trim())?.[2].trim()
         ) {
           used.add(attached[0]);
         } else context.report({ node: origin, messageId: "identity" });
       }
     }
 
-    function expectArguments(node) {
+    function expectArguments(/** @type {*} */ node) {
       while (node?.type === "MemberExpression") node = node.object;
       if (
         node?.type === "CallExpression" &&
@@ -449,7 +477,7 @@ export default {
       return [];
     }
 
-    function matcherArguments(node, seen = new Set()) {
+    function matcherArguments(/** @type {*} */ node, seen = new Set()) {
       if (!node || seen.has(node) || !withinBudget(seen)) return [];
       seen = new Set(seen).add(node);
       if (node.type === "ChainExpression")
@@ -462,8 +490,8 @@ export default {
         return matcherArguments(node.callee.object, seen);
       if (node.type === "Identifier")
         return values(node).flatMap((entry) =>
-          projectedValues(entry.node, entry.path, seen).flatMap((value) =>
-            matcherArguments(value, seen),
+          projectedValues(entry.node, entry.path, seen).flatMap(
+            (/** @type {*} */ value) => matcherArguments(value, seen),
           ),
         );
       return node.type === "MemberExpression"
@@ -471,7 +499,11 @@ export default {
         : [];
     }
 
-    function collectionElements(node, map, seen = new Set()) {
+    function collectionElements(
+      /** @type {*} */ node,
+      /** @type {*} */ map,
+      seen = new Set(),
+    ) {
       if (!node || seen.has(node) || !withinBudget(seen)) return;
       seen = new Set(seen).add(node);
       if (node.type === "Identifier") {
@@ -480,7 +512,7 @@ export default {
             collectionElements(value, map, seen);
       } else if (node.type === "ArrayExpression") {
         sinks.push(
-          ...node.elements.map((entry) =>
+          ...node.elements.map((/** @type {*} */ entry) =>
             map ? selectedValue(entry, ["0"]) : entry,
           ),
         );
@@ -500,16 +532,16 @@ export default {
     }
 
     return {
-      BinaryExpression(node) {
+      BinaryExpression(/** @type {*} */ node) {
         if (EQUALITY.has(node.operator)) sinks.push(node.left, node.right);
       },
-      MemberExpression(node) {
+      MemberExpression(/** @type {*} */ node) {
         if (node.computed) sinks.push(node.property);
       },
-      Property(node) {
+      Property(/** @type {*} */ node) {
         if (node.computed) sinks.push(node.key);
       },
-      NewExpression(node) {
+      NewExpression(/** @type {*} */ node) {
         if (!maySerialize) return;
         const called = roles(node.callee);
         if (called.includes("set-constructor"))
@@ -517,7 +549,7 @@ export default {
         if (called.includes("map-constructor"))
           collectionElements(node.arguments[0], true);
       },
-      CallExpression(node) {
+      CallExpression(/** @type {*} */ node) {
         if (!maySerialize) return;
         const called = roles(node.callee);
         if (called.includes("compare"))
@@ -541,7 +573,7 @@ export default {
         )
           sinks.push(node.arguments[0]);
       },
-      "Program:exit"(node) {
+      "Program:exit"(/** @type {*} */ node) {
         if (maySerialize) sinks.forEach(inspect);
         if (analysisLimited)
           context.report({ node, messageId: "analysisLimit", data: limits });
@@ -559,3 +591,4 @@ export default {
     };
   },
 };
+export default rule;

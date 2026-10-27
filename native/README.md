@@ -56,3 +56,39 @@ That job retains verification diagnostics and never stages its instrumented bina
 They default to fixed installed resolution; explicit test-only artifact locations verify binary digest, byte length, platform, component versions and embedded source identity before opening a session.
 Default test scratch uses the OS temporary parent; explicit artifact qualification can use its identified producer group.
 Each session owns cleanup.
+
+## Reuse the maintained producer
+
+Use the same entry point on Windows and Linux, with an existing external owned workspace:
+
+```sh
+npm run native:build -- --workspace /absolute/owned/native-workspace --jobs 2
+```
+
+The launcher delegates to `native/build.py`.
+It discovers CMake on PATH or in installed Visual Studio Build Tools editions; it installs no toolchain.
+Supply `--cmake /path/to/cmake` or `JSON_QUALITY_CMAKE` to select an existing installation explicitly.
+`JSON_QUALITY_PYTHON` selects an existing Python executable.
+The Windows producer uses its installed MSVC/Windows SDK through CMake; Linux uses its installed C/C++ toolchain.
+
+The producer already supports digest-verified dependency reuse:
+
+```sh
+npm run native:build -- --workspace /absolute/owned/native-workspace --archive boost=/cache/boost_1_92_0.tar.gz
+```
+
+`--archive NAME=PATH` reuses only bytes matching the committed archive digest.
+`--reuse-source NAME=PATH` additionally compares every selected source byte against that archive before read-only reuse.
+Neither option admits an unverified cache or replaces component/source identity checks.
+The final JSON result names its artifact directory; stage it explicitly with `npm run native:stage -- --artifacts ABSOLUTE_PATH --replace`.
+Production and staging are separate from installed/runtime qualification.
+
+For hosted production, `native.yml` is the manual entry point and `native-producer.yml` is the reusable workflow used by deliberate acceptance.
+Dispatching `native.yml` with `run_checks: false` produces source-bound, unqualified payloads for assembly; the default and PR acceptance retain qualification and sanitizer checks.
+A hosted build needs the exact source ref available on GitHub; no entry point silently pushes source, rewrites a manifest or adopts a component.
+Compiler/sanitizer diagnostics remain in native job logs; only component payloads with a staging/package consumer are artifacts.
+
+Rebuild both platforms when any embedded first-party producer/control input changes.
+The input inventory includes the producer and configuration/source-contract schema bytes, so a dialect/identifier migration requires new binaries even if the C++ source is unchanged.
+Do not edit hashes in old component manifests to make them appear current.
+When the inputs match, reuse the existing verified component; when they differ, reuse this process and its checked dependencies to produce the new component.

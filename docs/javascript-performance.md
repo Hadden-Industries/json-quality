@@ -60,4 +60,4 @@ It does not impose a universal three-child ceiling or remove effect-time freshne
 CI retains separate Windows/Linux runtime-lane reports using the existing runtime matrix and dispatch semantics.
 Performance reports use separate artifacts so archive and release-evidence layouts keep their existing roots.
 
-The [implementation plan](plans/2026-10-26-javascript-performance-implementation-plan.md) preserves the original audits and the safety conditions for omitted or optional experiments.
+The [implementation plan](https://github.com/Hadden-Industries/json-quality/blob/main/docs/plans/2026-10-26-javascript-performance-implementation-plan.md) preserves the original audits and the safety conditions for omitted or optional experiments.

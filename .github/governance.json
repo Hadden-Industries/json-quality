@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "repository": "Hadden-Industries/json-quality",
+  "branch": "main",
+  "actionsAppId": 15368,
+  "ruleset": {
+    "name": "Deliberate qualified main",
+    "target": "branch",
+    "enforcement": "active",
+    "bypass_actors": [],
+    "conditions": {
+      "ref_name": {
+        "include": [
+          "~DEFAULT_BRANCH"
+        ],
+        "exclude": []
+      }
+    },
+    "rules": [
+      {
+        "type": "pull_request",
+        "parameters": {
+          "dismiss_stale_reviews_on_push": true,
+          "require_code_owner_review": false,
+          "require_last_push_approval": false,
+          "required_approving_review_count": 0,
+          "required_review_thread_resolution": true,
+          "allowed_merge_methods": [
+            "merge"
+          ]
+        }
+      },
+      {
+        "type": "required_status_checks",
+        "parameters": {
+          "required_status_checks": [
+            {
+              "context": "CI / acceptance",
+              "integration_id": 15368
+            }
+          ],
+          "strict_required_status_checks_policy": true,
+          "do_not_enforce_on_create": false
+        }
+      },
+      {
+        "type": "deletion"
+      },
+      {
+        "type": "non_fast_forward"
+      }
+    ]
+  },
+  "actions": {
+    "enabled": true,
+    "allowed_actions": "selected",
+    "sha_pinning_required": true
+  },
+  "selectedActions": {
+    "github_owned_allowed": true,
+    "verified_allowed": false,
+    "patterns_allowed": [
+      "Hadden-Industries/*"
+    ]
+  },
+  "workflowPermissions": {
+    "default_workflow_permissions": "read",
+    "can_approve_pull_request_reviews": false
+  },
+  "forkApproval": {
+    "approval_policy": "all_external_contributors"
+  },
+  "repositorySettings": {
+    "allow_merge_commit": true,
+    "allow_squash_merge": false,
+    "allow_rebase_merge": false,
+    "security_and_analysis": {
+      "secret_scanning": {
+        "status": "enabled"
+      },
+      "secret_scanning_push_protection": {
+        "status": "enabled"
+      }
+    }
+  },
+  "codeqlDefaultSetup": {
+    "state": "not-configured"
+  },
+  "retention": {
+    "days": 90
+  }
+}

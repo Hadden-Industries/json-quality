@@ -6,11 +6,17 @@ import { posix } from "node:path";
  * Their independent identity supplies the byte expectation; semantic findings
  * still fail unless separately declared by an exact protected exception.
  */
-export function sourcePresentationContract(contract, context, identity) {
+export function sourcePresentationContract(
+  /** @type {*} */ contract,
+  /** @type {*} */ context,
+  /** @type {*} */ identity,
+) {
   const selected = (context.policy.preserveSourcePresentation ?? []).flatMap(
-    (rule, index) => {
+    (/** @type {*} */ rule, /** @type {*} */ index) => {
       if (
-        !rule.paths.some((pattern) => posix.matchesGlob(contract.path, pattern))
+        !rule.paths.some((/** @type {*} */ pattern) =>
+          posix.matchesGlob(contract.path, pattern),
+        )
       )
         return [];
       context.sourcePresentationMatches.add(index);

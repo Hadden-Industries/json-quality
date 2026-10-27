@@ -1,0 +1,79 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+import assert from "node:assert/strict";
+import test from "node:test";
+import { inspectGovernance, governance } from "../scripts/github-governance.js";
+import { readFileSync } from "node:fs";
+import { parse } from "yaml";
+
+test("governance drift identifies missing protection and expected native check source", async () => {
+  const desired = structuredClone(governance);
+  const responses = {
+    "": {
+      ...desired.repositorySettings,
+      full_name: desired.repository,
+      default_branch: "main",
+    },
+    "/rulesets?per_page=100": [{ id: 7, name: desired.ruleset.name }],
+    "/rulesets/7": desired.ruleset,
+    "/actions/permissions": desired.actions,
+    "/actions/permissions/selected-actions": desired.selectedActions,
+    "/actions/permissions/workflow": desired.workflowPermissions,
+    "/actions/permissions/fork-pr-contributor-approval": desired.forkApproval,
+    "/code-scanning/default-setup": desired.codeqlDefaultSetup,
+    "/actions/permissions/artifact-and-log-retention": desired.retention,
+  };
+  const read = async (path) => {
+    assert.ok(Object.hasOwn(responses, path), path);
+    return responses[path];
+  };
+  assert.equal((await inspectGovernance(read)).status, "CONFIGURED");
+  desired.ruleset.rules.find(
+    (rule) => rule.type === "required_status_checks",
+  ).parameters.required_status_checks[0].integration_id = 1;
+  assert.deepEqual((await inspectGovernance(read)).differences, ["ruleset"]);
+  responses["/rulesets?per_page=100"] = [];
+  assert.deepEqual((await inspectGovernance(read)).differences, ["ruleset"]);
+});
+test("deliberate triggers and skip-resistant acceptance remain explicit", () => {
+  const read = (name) =>
+    parse(
+      readFileSync(
+        new URL(`../.github/workflows/${name}`, import.meta.url),
+        "utf8",
+      ),
+    );
+  const ci = read("ci.yml");
+  assert.deepEqual(ci.on.pull_request, {
+    branches: ["main"],
+    types: ["ready_for_review"],
+  });
+  assert.deepEqual(Object.keys(ci.on).sort(), [
+    "pull_request",
+    "workflow_call",
+  ]);
+  assert.equal(ci.jobs.acceptance.if, "always()");
+  assert.deepEqual(ci.jobs.acceptance.needs, [
+    "policy",
+    "product",
+    "native",
+    "dependencies",
+    "codeql",
+  ]);
+  assert.deepEqual(Object.keys(read("qualification.yml").on), [
+    "workflow_call",
+  ]);
+  const main = read("main-qualification.yml");
+  assert.equal(
+    main.jobs.full.if,
+    "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
+  );
+  assert.equal(main.jobs.full.uses, "./.github/workflows/ci.yml");
+  const checks = governance.ruleset.rules.find(
+    (rule) => rule.type === "required_status_checks",
+  ).parameters;
+  assert.equal(checks.strict_required_status_checks_policy, true);
+  assert.deepEqual(checks.required_status_checks, [
+    { context: "CI / acceptance", integration_id: 15368 },
+  ]);
+  assert.deepEqual(governance.ruleset.bypass_actors, []);
+});

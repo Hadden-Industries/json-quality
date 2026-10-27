@@ -22,7 +22,9 @@ export function jsonQualityAcquisitionBootstrap() {
 }
 
 /** A consumer bridge may expose public exports only from its isolated install. */
-export function assertIsolatedJsonQuality(toolingRoot) {
+export function assertIsolatedJsonQuality(
+  /** @type {string | URL} */ toolingRoot,
+) {
   const root = realpathSync(
     toolingRoot instanceof URL ? fileURLToPath(toolingRoot) : toolingRoot,
   );
@@ -40,9 +42,11 @@ export function assertIsolatedJsonQuality(toolingRoot) {
   return root;
 }
 
-/** Admit an exact registry version of this package, including an npm alias. */
+/** Admit an exact registry version of this package, including an npm alias.
+ * @returns {{kind: "registry", version: string}}
+ */
 export function jsonQualitySourceCoordinate(
-  specifier,
+  /** @type {string} */ specifier,
   npmExecutable = process.env.npm_execpath,
 ) {
   if (!npmExecutable)
@@ -66,6 +70,8 @@ export function jsonQualitySourceCoordinate(
 
 /** Verify installed bytes against npm's independently cached locked payload.
  * This reads native npm's cache; it performs no acquisition, extraction or writes.
+ * @param {import("./api-types.js").InstallationOptions} options
+ * @returns {Promise<import("./api-types.js").InstallationVerification>}
  */
 export async function verifyJsonQualityInstallation({
   toolingRoot,
@@ -75,11 +81,13 @@ export async function verifyJsonQualityInstallation({
   bootstrapPath,
   signal,
   ...otherOptions
-} = {}) {
+}) {
   if (Object.hasOwn(otherOptions, "limits"))
     throw new TypeError("Use capacityLimits; limits is not supported.");
   if (Object.keys(otherOptions).length)
     throw new TypeError("Invalid installation verification options.");
+  if (!npmExecutable)
+    throw new Error("Run installation verification through npm.");
   if (signal !== undefined && !(signal instanceof AbortSignal))
     throw new TypeError("Expected AbortSignal.");
   signal?.throwIfAborted();
@@ -178,7 +186,7 @@ export async function verifyJsonQualityInstallation({
   )
     throw new Error("Installed package family resource limit exceeded.");
   if (bootstrapPath) {
-    const normalize = (bytes) =>
+    const normalize = (/** @type {*} */ bytes) =>
       new TextDecoder("utf-8", { fatal: true })
         .decode(bytes)
         .replaceAll("\r\n", "\n");

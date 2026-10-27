@@ -1,0 +1,155 @@
+name: Reusable package qualification
+
+on:
+  workflow_call:
+    outputs:
+      archive-id:
+        description: Immutable original producer artifact for retained-job reruns
+        value: ${{ jobs.producer.outputs.archive-id }}
+    inputs:
+      emit-proof:
+        type: boolean
+        default: false
+      matrix:
+        type: string
+        default: ""
+      release-mode:
+        type: boolean
+        default: false
+      version:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  producer:
+    name: Reference producer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    outputs:
+      matrix: ${{ steps.policy.outputs.matrix }}
+      consumer-npm: ${{ steps.policy.outputs.consumer-npm }}
+      archive-id: ${{ steps.archive.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-producer
+      - id: policy
+        name: Freeze minimum, current and reference lanes
+        env:
+          FROZEN_MATRIX: ${{ inputs.matrix }}
+          RELEASE_MODE: ${{ inputs.release-mode }}
+        run: npm run ci:node-policy
+      - name: Qualify the complete reference producer
+        run: npm run check:full
+      - name: Record reference orchestration performance
+        shell: bash
+        run: |
+          node scripts/bench-orchestration.js --workload check --files 30 --repetitions 5 --output "${{ runner.temp }}/perf-check.json"
+          node scripts/bench-orchestration.js --workload format --files 50 --repetitions 5 --assert-batching --output "${{ runner.temp }}/perf-format.json"
+      - name: Retain one immutable archive for every consumer lane
+        shell: bash
+        run: |
+          npm run pack:archive -- "${{ runner.temp }}/json-quality-archive"
+          cp "${{ runner.temp }}/perf-check.json" "${{ runner.temp }}/perf-format.json" "${{ runner.temp }}/json-quality-archive/"
+      - name: Freeze release identity and native source production inventory
+        if: inputs.release-mode
+        env:
+          RELEASE_MATRIX: ${{ inputs.matrix }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npm run release:prepare -- "${{ runner.temp }}/json-quality-archive"
+          npm run release:inventory -- . "${{ runner.temp }}/json-quality-archive"
+      - uses: ./.github/actions/upload-evidence
+        id: archive
+        if: success()
+        with:
+          name: "qualified-producer-${{ github.run_attempt }}"
+          path: "${{ runner.temp }}/json-quality-archive"
+          retention-days: "${{ inputs.release-mode && 30 || 1 }}"
+
+  qualification:
+    name: Qualify ${{ matrix.os }} / Node ${{ matrix.node }}
+    needs: producer
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.producer.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-producer
+      - name: Retain the producer toolchain and provision the native consumer npm
+        shell: bash
+        env:
+          CONSUMER_NPM: ${{ needs.producer.outputs.consumer-npm }}
+        run: |
+          npm run ci:producer-toolchain
+          npm run ci:consumer-npm -- "${{ runner.temp }}/consumer-npm"
+      - uses: ./.github/actions/download-evidence
+        with:
+          artifact-id: ${{ needs.producer.outputs.archive-id }}
+          path: ${{ runner.temp }}/json-quality-archive/
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Execute source behavior and the transported consumer on the selected runtime
+        env:
+          JSON_QUALITY_EXPECTED_NODE: ${{ matrix.node }}
+          JSON_QUALITY_CONSUMER_NPM: ${{ runner.temp }}/consumer-npm/node_modules/npm/bin/npm-cli.js
+          JSON_QUALITY_ARCHIVE_DIRECTORY: ${{ runner.temp }}/json-quality-archive
+          JSON_QUALITY_REPORT: ${{ runner.temp }}/consumer-result.json
+          JSON_QUALITY_RELEASE_OUTPUT: ${{ inputs.release-mode && format('{0}/release-lane', runner.temp) || '' }}
+          GH_TOKEN: ${{ github.token }}
+          JSON_QUALITY_VALIDATOR_ROOT: ${{ runner.temp }}/validation-tool
+        run: node scripts/qualify-runtime.js
+      - name: Record orchestration performance on the frozen runtime lane
+        shell: bash
+        run: |
+          node scripts/bench-orchestration.js --workload check --files 30 --repetitions 5 --output "${{ runner.temp }}/perf-check.json"
+          node scripts/bench-orchestration.js --workload format --files 50 --repetitions 5 --assert-batching --output "${{ runner.temp }}/perf-format.json"
+      - name: Record complete packed consumer and performance proof
+        id: receipt
+        if: inputs.emit-proof
+        env:
+          CI_OS: ${{ matrix.os }}
+          CI_ARCHIVE_ID: ${{ needs.producer.outputs.archive-id }}
+          JSON_QUALITY_REPORT: ${{ runner.temp }}/consumer-result.json
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci-command.js lane
+      - name: Retain only the compact proof needed by acceptance
+        if: inputs.emit-proof
+        timeout-minutes: 5
+        shell: bash
+        env:
+          EVIDENCE_PATH: ${{ steps.receipt.outputs.path }}
+        run: '"$JSON_QUALITY_PRODUCER_NODE" scripts/upload-evidence.js upload "$EVIDENCE_PATH" 1'
+      - uses: ./.github/actions/upload-evidence
+        if: inputs.release-mode && success()
+        with:
+          name: "consumer-${{ matrix.os }}-${{ matrix.node }}-${{ github.run_attempt }}"
+          path: "${{ runner.temp }}/release-lane"
+          retention-days: 30
+
+  complete:
+    name: Complete runtime qualification
+    if: always()
+    needs: [producer, qualification]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require the producer and every frozen matrix lane
+        env:
+          PRODUCER_RESULT: ${{ needs.producer.result }}
+          CONSUMER_RESULT: ${{ needs.qualification.result }}
+        run: |
+          test "$PRODUCER_RESULT" = success
+          test "$CONSUMER_RESULT" = success

@@ -4,7 +4,7 @@ import { assertRepositoryPath } from "./paths.js";
 import { gitReadEnvironment } from "./repository-discovery.js";
 import { runBoundedTool } from "./bounded-process.js";
 
-export function gitIgnoreBatchLimits(resources) {
+export function gitIgnoreBatchLimits(/** @type {*} */ resources) {
   const maximumOutputBytes = Math.min(
     resources.admission.maxGitOutputBytes ?? 262144,
     262144,
@@ -26,7 +26,11 @@ export function gitIgnoreBatchLimits(resources) {
 /** --non-matching provides a result for EVERY path. Missing complete records
  * cannot be mistaken for permission, even when truncation lands on a NUL.
  */
-export function decodeGitIgnoreDecisions(stdout, paths, code) {
+export function decodeGitIgnoreDecisions(
+  /** @type {*} */ stdout,
+  /** @type {*} */ paths,
+  /** @type {*} */ code,
+) {
   if (!Buffer.isBuffer(stdout) || !stdout.length || stdout.at(-1) !== 0)
     throw new Error("Incomplete Git ignore response.");
   const fields = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true })
@@ -54,7 +58,12 @@ export function decodeGitIgnoreDecisions(stdout, paths, code) {
   return ignored;
 }
 
-export async function ignoredGitPaths(root, paths, execution, gitExecutable) {
+export /** @returns {*} */ async function ignoredGitPaths(
+  /** @type {*} */ root,
+  /** @type {*} */ paths,
+  /** @type {*} */ execution,
+  /** @type {*} */ gitExecutable,
+) {
   if (!paths.length) return new Set();
   const limits = gitIgnoreBatchLimits(execution.numericResources);
   let bytes = 0;
@@ -100,10 +109,15 @@ export async function ignoredGitPaths(root, paths, execution, gitExecutable) {
   } catch (error) {
     // Long repeated rule metadata can exceed a capture even when input fits.
     // Retry smaller batches only after the failed child has fully settled.
-    if (error.code !== "native-tool-output-capacity" || paths.length === 1)
+    if (
+      !(error instanceof Error) ||
+      !("code" in error) ||
+      error.code !== "native-tool-output-capacity" ||
+      paths.length === 1
+    )
       throw error;
     const middle = Math.ceil(paths.length / 2),
-      ignored = await ignoredGitPaths(
+      /** @type {any} */ ignored = await ignoredGitPaths(
         root,
         paths.slice(0, middle),
         execution,

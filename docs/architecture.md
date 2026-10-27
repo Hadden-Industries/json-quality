@@ -85,8 +85,8 @@ Consumers need neither a compiler nor global ICU.
 
 `installation.js` and `package-payload.js` retain exact selector, lock, npm-cache/SRI and installed-member verification. Package binaries have independent finite capabilities; the JSON source-byte admission is not a binary-size ceiling. Archive members and installed files are hashed incrementally without extraction. Installer/SDK memory ownership is separate from checker memory accounting.
 
-The current local artifact is Windows x64.
-Linux source/build paths and the selected hosted matrix require actual CI evidence before Linux acceptance; local Linux measurements were explicitly deferred by the requester.
+The producer supports Windows x64 and Linux x64/glibc and stages both source-bound companion payloads through the same owner.
+Hosted Linux production is separate from installed/runtime qualification; a staged binary alone does not establish Linux acceptance.
 Node-API compatibility, clean package transport, rights, non-Node supervision and whole-process measurements must be reported for the actual candidate.
 
 ## Development controls
@@ -97,6 +97,8 @@ The oracle is excluded from npm membership and never selected at runtime.
 
 Dependency-cruiser enforces package declarations, private/runtime boundaries, cycles and foundation direction. Native npm membership independently closes shipped imports and exports. The affected selector recognizes `.test.js` and `.test.mjs`, snapshots graph text/resources without native binary bodies, and binds source identity through bounded file hashing.
 Unknown or non-import scope selects the full suite.
+Strict source JSDoc checking, committed declarations and offline 2020-12 schema projections add package contracts without introducing a second runtime implementation.
+CI proof binds the entire tested merge tree, frozen runtimes and runner images, including JSON/schema/native/generated inputs; uncertainty selects `FULL_REQUIRED` without automatically running tests.
 
 See [shared authority ownership](centralized-contracts.md), [resource controls](resource-limits.md), [consumer contracts](consumer-guide.md) and [native protocol](native-protocol.md).
 Source correctness, independent review, security, hosted/platform qualification, package publication and downstream adoption remain separate evidence classes.

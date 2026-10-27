@@ -15,6 +15,8 @@ import { parseArgs } from "node:util";
 import { packCandidate } from "./pack.js";
 import { assertNativeNpmRuntime } from "./consumer-toolchain.js";
 import { native } from "./qualification-process.js";
+import { qualifyPublicApi } from "./qualify-api.js";
+import { nodeSupport } from "./node-matrix.js";
 import { verifyArchive, archiveInventory, sha256 } from "./release-contract.js";
 import {
   recipientEvidence,
@@ -199,17 +201,28 @@ try {
     throw new Error(
       "Recipient installed an unexpected optional platform payload",
     );
+  let coreFiles;
   for (const [path, installedRoot] of [
     [archive, coreRoot],
     [nativeArchive, selectedNative.directory],
   ]) {
     const inventory = await archiveInventory(path, npm);
+    if (path === archive) coreFiles = inventory.files;
     for (const member of inventory.files) {
       const installed = readFileSync(join(installedRoot, member.path));
       if (sha256(installed) !== member.sha256)
         throw new Error(`Installed payload differs: ${member.path}`);
     }
   }
+  if (process.versions.node === nodeSupport.reference)
+    await qualifyPublicApi({
+      directory,
+      archive,
+      platforms: transportedPlatforms,
+      npm,
+      installedRoot: coreRoot,
+      files: coreFiles,
+    });
   execFileSync("git", ["init", "-q", fixture], { windowsHide: true });
   writeFileSync(
     join(fixture, ".json-quality.json"),

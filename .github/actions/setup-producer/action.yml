@@ -3,6 +3,9 @@ description: Select policy-owned Node and npm, then install the frozen producer 
 runs:
   using: composite
   steps:
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version-file: .python-version
     - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version-file: .node-version
@@ -23,3 +26,6 @@ runs:
     - name: Install the pinned Markdown development toolchain
       shell: bash
       run: npm run install:markdown
+    - name: Retain producer executables for direct evidence commands and floor lanes
+      shell: bash
+      run: npm run ci:producer-toolchain

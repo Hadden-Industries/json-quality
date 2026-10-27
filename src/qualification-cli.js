@@ -19,21 +19,21 @@ import cohort from "../schemas/contract-cohort.json" with { type: "json" };
  * Output failure, cancellation or missing execution-terminal returns 2. The
  * source-only scope is declared in execution events; no candidate code runs.
  */
-export async function runJsonQualificationCli(args) {
+export async function runJsonQualificationCli(/** @type {*} */ args) {
   const caller = new AbortController(),
     began = performance.now(),
     interrupt = () => caller.abort(new Error("Qualification interrupted.")),
-    outputError = (error) => caller.abort(error);
+    outputError = (/** @type {*} */ error) => caller.abort(error);
   let requestId = randomUUID(),
     signal = caller.signal,
     outputBytes = 0n,
-    maximumOutput = null,
+    /** @type {any} */ maximumOutput = null,
     exitCode = 2,
     terminal;
   process.stdout.on("error", outputError);
   process.once("SIGINT", interrupt);
   process.once("SIGTERM", interrupt);
-  const write = async (bytes) => {
+  const write = async (/** @type {*} */ bytes) => {
       signal.throwIfAborted();
       await new Promise((done, reject) => {
         const abort = () => {
@@ -44,11 +44,11 @@ export async function runJsonQualificationCli(args) {
         process.stdout.write(bytes, (error) => {
           signal.removeEventListener("abort", abort);
           if (error) reject(error);
-          else done();
+          else done(undefined);
         });
       });
     },
-    emit = async (event) => {
+    emit = async (/** @type {*} */ event) => {
       assertJsonQualityEvent(event);
       const bytes = Buffer.concat([
         encodeNativeControl(event, 2097152),
@@ -60,7 +60,7 @@ export async function runJsonQualificationCli(args) {
       await write(bytes);
     };
   try {
-    const { values } = parseArgs({
+    const parsed = parseArgs({
       args,
       allowNegative: true,
       options: {
@@ -74,6 +74,7 @@ export async function runJsonQualificationCli(args) {
         "candidate-sha": { type: "string" },
       },
     });
+    const /** @type {Record<string, any>} */ values = parsed.values;
     if (values.help) {
       await write(
         Buffer.from(
@@ -111,6 +112,7 @@ export async function runJsonQualificationCli(args) {
         values["candidate-sha"] ?? process.env.JSON_QUALITY_CANDIDATE_SHA,
     })) {
       if (event.type === "execution") {
+        if (!event.resources) throw new Error("execution-resources-missing");
         maximumOutput = event.resources.admission.maxToolOutputBytes;
         const remaining =
           Number(event.resources.runtime.maxCheckTimeMs) -
@@ -130,7 +132,7 @@ export async function runJsonQualificationCli(args) {
     // A failed/aborted sink is already incomplete. Never retry it or block cleanup.
     if (!process.stdout.destroyed) {
       signal = AbortSignal.timeout(1000);
-      const message = String(error.message ?? error);
+      const message = String(error instanceof Error ? error.message : error);
       try {
         await emit({
           schemaVersion: cohort.eventSchemaVersion,

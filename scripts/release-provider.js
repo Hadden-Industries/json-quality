@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { native } from "./qualification-process.js";
+import { native, budgets } from "./qualification-process.js";
+import { sameJobExecution } from "./github-job-execution.js";
 import {
   repository,
   regularBytes,
@@ -21,12 +22,40 @@ import {
 } from "./release-contract.js";
 
 export const gh = (args, options) => native("gh", args, options);
-export const api = (path, args = []) =>
-  JSON.parse(gh(["api", `repos/${repository}/${path}`, ...args]));
+export const api = (path, args = []) => {
+  try {
+    return JSON.parse(
+      native(
+        process.execPath,
+        [
+          fileURLToPath(new URL("./github-evidence.js", import.meta.url)),
+          `/${path}`,
+          ...(args.includes("--paginate") ? ["--paginate"] : []),
+          ...(args.includes("Accept: application/sarif+json")
+            ? ["--sarif"]
+            : []),
+        ],
+        { timeout: budgets.read, phase: "github-evidence-read" },
+      ),
+    );
+  } catch (error) {
+    const line = String(error.stderr ?? "")
+      .trim()
+      .split("\n")
+      .at(-1);
+    try {
+      Object.assign(error, JSON.parse(line).githubEvidenceError);
+    } catch {
+      /* Preserve the original native failure. */
+    }
+    throw error;
+  }
+};
 export function optionalApi(path) {
   try {
     return api(path);
   } catch (error) {
+    if (error.httpStatus === 404) return null;
     let response;
     try {
       response = JSON.parse(error.stdout);
@@ -74,27 +103,105 @@ export function provider(runId, attempt) {
   );
   return { run, jobs: { total_count: jobs.length, jobs } };
 }
+/** Recover original artifact-producing attempts, never mutable latest labels. */
+export function producingAttempt(
+  observed,
+  name,
+  read = provider,
+  cache = new Map(),
+) {
+  const { run, jobs } = observed;
+  assert.ok(
+    run.run_attempt >= 1 && run.run_attempt <= 8,
+    "Producing-attempt lookup bound exceeded",
+  );
+  const current = jobs.jobs.find((job) => job.name === name);
+  assert.equal(current?.status, "completed");
+  assert.equal(current?.conclusion, "success");
+  for (let attempt = 1; attempt <= run.run_attempt; attempt++) {
+    if (!cache.has(attempt)) cache.set(attempt, read(run.id, attempt));
+    const original = cache.get(attempt);
+    assert.equal(original.run.id, run.id);
+    assert.equal(original.run.run_attempt, attempt);
+    assert.equal(original.run.head_sha, run.head_sha);
+    assert.equal(original.jobs.total_count, original.jobs.jobs.length);
+    assert.equal(
+      new Set(original.jobs.jobs.map((job) => job.name)).size,
+      original.jobs.jobs.length,
+    );
+    assert.ok(
+      original.jobs.jobs.every(
+        (job) =>
+          job.run_id === run.id &&
+          job.head_sha === run.head_sha &&
+          job.run_attempt === attempt,
+      ),
+    );
+    const found = original.jobs.jobs.find((job) => job.name === name);
+    if (!found || found.conclusion === "skipped") continue;
+    if (sameJobExecution(found, current)) {
+      assert.equal(found.status, "completed");
+      assert.equal(found.conclusion, "success");
+      return attempt;
+    }
+  }
+  throw new Error("Original artifact-producing execution unavailable");
+}
 export function download(runId, attempt, name, root, readers = {}) {
   const list = readers.pages ?? pages,
-    read = readers.api ?? api,
-    invoke = readers.gh ?? gh;
+    read = readers.api ?? api;
   assert.match(name, /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,200}$/u);
   const artifacts = list(
     `actions/runs/${id(runId)}/artifacts?per_page=100`,
     "artifacts",
   );
-  const matches = artifacts.filter((item) => item.name === name);
-  assert.equal(matches.length, 1, "Missing or ambiguous native artifact");
-  const artifact = matches[0];
+  const recovered = new RegExp(
+    `^${name.replaceAll(".", "\\.")}-recovery-[23]$`,
+    "u",
+  );
+  const matches = artifacts.filter(
+    (item) => item.name === name || recovered.test(item.name),
+  );
+  assert.ok(
+    matches.length > 0 && matches.length <= 3,
+    "Missing or ambiguous native artifact",
+  );
+  assert.equal(
+    new Set(matches.map((item) => item.digest)).size,
+    1,
+    "Conflicting native artifact candidates",
+  );
+  const artifact = matches
+    .filter((item) => !item.expired)
+    .sort((a, b) => a.id - b.id)[0];
+  assert.ok(artifact, "Expired native artifact");
   assert.equal(artifact.expired, false);
   assert.match(artifact.digest, /^sha256:[a-f0-9]{64}$/u);
   assert.equal(artifact.workflow_run.id, Number(runId));
   const run = read(`actions/runs/${id(runId)}`);
   assert.equal(artifact.workflow_run.head_sha, run.head_sha);
-  const zip = invoke(
-    ["api", `repos/${repository}/actions/artifacts/${id(artifact.id)}/zip`],
-    { encoding: null, maxBuffer: releaseTransportMaximumBytes },
-  );
+  const zip = readers.bytes
+    ? readers.bytes(artifact.id)
+    : native(
+        process.execPath,
+        [
+          fileURLToPath(new URL("./github-evidence.js", import.meta.url)),
+          `/actions/artifacts/${id(artifact.id)}/zip`,
+          "--binary",
+        ],
+        {
+          encoding: null,
+          maxBuffer: releaseTransportMaximumBytes,
+          timeout: budgets.read,
+          phase: "artifact-read",
+          env: {
+            ...process.env,
+            JSON_QUALITY_ARTIFACT_MAXIMUM_BYTES: String(
+              releaseTransportMaximumBytes,
+            ),
+          },
+        },
+      );
   assert.ok(
     zip.length <= releaseTransportMaximumBytes,
     "Release artifact transport exceeds bound",
@@ -108,17 +215,22 @@ export function download(runId, attempt, name, root, readers = {}) {
   assert.ok(name.endsWith(`-${id(attempt)}`), "Unbound artifact attempt");
   const directory = join(root, `${runId}-${name}`);
   mkdirSync(directory);
-  invoke([
-    "run",
-    "download",
-    id(runId),
-    "--repo",
-    repository,
-    "--name",
-    name,
-    "--dir",
-    directory,
-  ]);
+  const archivePath = join(root, `${artifact.id}.zip`);
+  writeFileSync(archivePath, zip, { flag: "wx" });
+  (
+    readers.extract ??
+    ((archivePath, directory, maximum) =>
+      native(
+        process.platform === "win32" ? "python" : "python3",
+        [
+          fileURLToPath(new URL("./extract-artifact.py", import.meta.url)),
+          archivePath,
+          directory,
+          String(maximum),
+        ],
+        { timeout: budgets.collection, phase: "verified-artifact-extraction" },
+      ))
+  )(archivePath, directory, releaseTransportMaximumBytes);
   const retained = read(`actions/artifacts/${id(artifact.id)}`);
   assert.equal(retained.name, artifact.name);
   assert.equal(retained.digest, artifact.digest);
@@ -374,7 +486,7 @@ export function readHistoryCheckpoint(
   assert.ok(Buffer.isBuffer(bytes) && bytes.length <= 20000000);
   assert.equal(sha256(bytes), checkpoint.sha256);
   const record = JSON.parse(bytes);
-  assert.equal(record.schemaVersion, 1);
+  assert.ok([1, 2].includes(record.schemaVersion));
   assert.equal(record.repository, repository);
   assert.ok(Array.isArray(record.entries) && record.entries.length <= 10000);
   const keys = record.entries.map(
@@ -387,7 +499,9 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
   const list = readers.pages ?? pages;
   const observe = readers.provider ?? provider;
   const acquire = readers.download ?? download;
-  let retained;
+  let retained = checkpoint
+    ? (readers.checkpoint ?? readHistoryCheckpoint)(checkpoint)
+    : undefined;
   const acquisition = join(root, "writer-history");
   mkdirSync(acquisition, { recursive: true });
   const history = [];
@@ -420,9 +534,17 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
             `actions/runs/${id(run.id)}/artifacts?per_page=100`,
             "artifacts",
           );
-          const matches = artifacts.filter((item) => item.name === name);
-          assert.ok(matches.length <= 1, "Ambiguous historical artifact");
-          if (!matches.length || matches[0].expired) {
+          const matches = artifacts.filter(
+            (item) =>
+              item.name === name ||
+              new RegExp(`^${name}-recovery-[23]$`, "u").test(item.name),
+          );
+          assert.ok(matches.length <= 3, "Ambiguous historical artifact");
+          assert.ok(
+            new Set(matches.map((item) => item.digest)).size <= 1,
+            "Conflicting historical artifact candidates",
+          );
+          if (!matches.some((item) => !item.expired)) {
             assert.ok(
               checkpoint,
               "Historical effect artifact unavailable; admit a signed history checkpoint",
@@ -469,6 +591,52 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
       }
     }
   }
+  const seen = new Set(
+    history.map(
+      (entry) => `${entry.phase}:${entry.run.id}:${entry.run.run_attempt}`,
+    ),
+  );
+  // Expired/deleted runs disappear from provider enumeration. The signed
+  // checkpoint's original native inventory must remain in the union.
+  for (const record of retained ?? []) {
+    const key = `${record.phase}:${id(record.run)}:${id(record.attempt)}`;
+    if (seen.has(key)) continue;
+    if (
+      String(record.run) === env.GITHUB_RUN_ID &&
+      String(record.attempt) === env.GITHUB_RUN_ATTEMPT
+    )
+      continue;
+    assert.ok(["stage", "archive", "promote"].includes(record.phase));
+    assert.ok(
+      record.provider,
+      "Checkpoint lacks original provider inventory for an expired run",
+    );
+    const entry = structuredClone(record.provider);
+    assert.equal(String(entry.run.id), String(record.run));
+    assert.equal(String(entry.run.run_attempt), String(record.attempt));
+    assert.equal(entry.run.repository.full_name, repository);
+    assert.equal(
+      entry.run.path,
+      `.github/workflows/${workflows[record.phase]}`,
+    );
+    assert.equal(entry.run.head_sha, record.controller);
+    assert.equal(entry.jobs.total_count, entry.jobs.jobs.length);
+    assert.ok(
+      entry.jobs.jobs.every(
+        (job) =>
+          job.run_id === entry.run.id && job.head_sha === entry.run.head_sha,
+      ),
+    );
+    entry.phase = record.phase;
+    if (record.journal) {
+      entry.journal = Buffer.from(record.journal, "base64");
+      assert.equal(entry.journal.toString("base64"), record.journal);
+    }
+    if (record.noEffect) entry.noEffect = record.noEffect;
+    if (record.settlements) entry.settlements = record.settlements;
+    history.push(entry);
+    seen.add(key);
+  }
   return history;
 }
 /** Read-only export before expiration; only an owner-admitted signed tag is reusable. */
@@ -487,21 +655,18 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   );
   // Keep unknown and incomplete records verbatim. Export never declares them resolved.
   save(output, {
-    schemaVersion: 1,
+    schemaVersion: 2,
     repository,
-    entries: history
-      .filter((entry) => entry.journal || entry.noEffect)
-      .map((entry) => ({
-        phase: entry.phase,
-        run: String(entry.run.id),
-        attempt: String(entry.run.run_attempt),
-        controller: entry.run.head_sha,
-        ...(entry.journal ? { journal: entry.journal.toString("base64") } : {}),
-        ...(entry.noEffect ? { noEffect: entry.noEffect } : {}),
-        ...(entry.settlements?.length
-          ? { settlements: entry.settlements }
-          : {}),
-      })),
+    entries: history.map((entry) => ({
+      phase: entry.phase,
+      run: String(entry.run.id),
+      attempt: String(entry.run.run_attempt),
+      controller: entry.run.head_sha,
+      provider: { run: entry.run, jobs: entry.jobs },
+      ...(entry.journal ? { journal: entry.journal.toString("base64") } : {}),
+      ...(entry.noEffect ? { noEffect: entry.noEffect } : {}),
+      ...(entry.settlements?.length ? { settlements: entry.settlements } : {}),
+    })),
   });
 }
 /** Index only bounded ordinary files; artifact consumers name each retained member. */

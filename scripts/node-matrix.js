@@ -3,10 +3,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { npmCli } from "./qualification-process.js";
 
-if (!process.env.npm_execpath)
-  throw new Error("Run Node policy tools through npm.");
-const semver = createRequire(process.env.npm_execpath)("semver");
+const semver = createRequire(npmCli())("semver");
 export const nodeSupport = JSON.parse(
   readFileSync(new URL("../assets/node-support.json", import.meta.url), "utf8"),
 );
@@ -15,20 +14,33 @@ const production = Object.entries(
     .packages,
 ).filter(([path, entry]) => path && !entry.dev);
 
-/** Current package scope excludes odd and unqualified future Node families. */
+/** Installability is a floor; the explicit LTS policy owns qualification. */
 export function validatePolicy(policy) {
-  assert.equal(policy.schemaVersion, 1);
-  assert.ok(Array.isArray(policy.minimums) && policy.minimums.length > 0);
-  const families = new Set();
-  for (const version of policy.minimums) {
+  assert.equal(policy.schemaVersion, 2);
+  assert.equal(semver.valid(policy.minimum), policy.minimum);
+  assert.equal(semver.prerelease(policy.minimum), null);
+  assert.ok(
+    Array.isArray(policy.testedLtsMajors) && policy.testedLtsMajors.length > 0,
+  );
+  assert.equal(
+    new Set(policy.testedLtsMajors).size,
+    policy.testedLtsMajors.length,
+  );
+  assert.ok(Array.isArray(policy.preLtsMajors));
+  assert.equal(new Set(policy.preLtsMajors).size, policy.preLtsMajors.length);
+  assert.ok(
+    policy.preLtsMajors.every((major) =>
+      policy.testedLtsMajors.includes(major),
+    ),
+  );
+  for (const major of policy.testedLtsMajors)
+    assert.ok(
+      Number.isSafeInteger(major) && major >= semver.major(policy.minimum),
+    );
+  assert.equal(policy.support?.otherEngineCompatibleReleases, "best-effort");
+  for (const version of [policy.minimum, policy.reference]) {
     assert.equal(semver.valid(version), version);
     assert.equal(semver.prerelease(version), null);
-    const family = semver.major(version);
-    assert.ok(
-      [22, 24, 26].includes(family) && !families.has(family),
-      "Unsupported or duplicate Node family",
-    );
-    families.add(family);
     for (const [path, entry] of production)
       assert.ok(
         !entry.engines?.node || semver.satisfies(version, entry.engines.node),
@@ -38,10 +50,9 @@ export function validatePolicy(policy) {
   assert.equal(semver.valid(policy.reference), policy.reference);
   assert.equal(semver.prerelease(policy.reference), null);
   assert.ok(
-    policy.minimums.some((minimum) =>
-      semver.satisfies(policy.reference, `^${minimum}`),
-    ),
-    "Reference is outside supported families",
+    semver.gte(policy.reference, policy.minimum) &&
+      policy.testedLtsMajors.includes(semver.major(policy.reference)),
+    "Reference is outside qualified LTS policy",
   );
   for (const version of [policy.consumerNpm, policy.producerNpm?.version]) {
     assert.equal(semver.valid(version), version);
@@ -61,7 +72,7 @@ export function validatePolicy(policy) {
   return policy;
 }
 
-/** Freeze minimum/latest/reference selections using npm's native semver. */
+/** Freeze the one floor and latest qualified LTS patches; never infer LTS by parity. */
 export function qualificationMatrix(releases, policy = nodeSupport) {
   validatePolicy(policy);
   assert.ok(
@@ -73,21 +84,27 @@ export function qualificationMatrix(releases, policy = nodeSupport) {
     return release.version.slice(1);
   });
   assert.ok(versions.includes(policy.reference), "Missing reference release");
-  const nodes = policy.minimums.flatMap((minimum) => {
-    assert.ok(versions.includes(minimum), "Missing minimum release");
-    const latest = semver.maxSatisfying(versions, `^${minimum}`);
+  assert.ok(versions.includes(policy.minimum), "Missing minimum release");
+  const nodes = policy.testedLtsMajors.map((major) => {
+    const qualified = releases
+      .filter(
+        (release) =>
+          (release.lts || policy.preLtsMajors.includes(major)) &&
+          semver.major(release.version) === major,
+      )
+      .map((release) => release.version.slice(1));
+    const latest = semver.maxSatisfying(
+      qualified,
+      `>=${major}.0.0 <${major + 1}.0.0`,
+    );
     assert.ok(latest);
-    return [
-      minimum,
-      latest,
-      ...(semver.satisfies(policy.reference, `^${minimum}`)
-        ? [policy.reference]
-        : []),
-    ];
+    return latest;
   });
   return {
     os: policy.platforms,
-    node: [...new Set(nodes)].sort(semver.compare),
+    node: [...new Set([policy.minimum, ...nodes, policy.reference])].sort(
+      semver.compare,
+    ),
   };
 }
 

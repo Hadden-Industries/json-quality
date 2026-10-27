@@ -21,7 +21,7 @@ import {
 } from "./transform-capabilities.js";
 import { jsonSourceFormat, isJsonLinesPath } from "./json-paths.js";
 
-function selection(operation, options) {
+function selection(/** @type {*} */ operation, /** @type {*} */ options) {
   if (
     !["format", "normalize"].includes(operation) ||
     !options ||
@@ -55,7 +55,11 @@ function selection(operation, options) {
   return selected;
 }
 
-async function policyAllowsWrite(root, member, execution) {
+async function policyAllowsWrite(
+  /** @type {*} */ root,
+  /** @type {*} */ member,
+  /** @type {*} */ execution,
+) {
   const contract = execution.contractFor(member.path, {
     tracked: member.provider === "git",
   });
@@ -104,7 +108,10 @@ async function policyAllowsWrite(root, member, execution) {
   return true;
 }
 
-async function withGitIgnoreReservation(execution, operation) {
+async function withGitIgnoreReservation(
+  /** @type {*} */ execution,
+  /** @type {*} */ operation,
+) {
   const limits = gitIgnoreBatchLimits(execution.numericResources);
   await execution.core.command("resize-control-state", {
     byteLength: String(
@@ -125,6 +132,8 @@ async function withGitIgnoreReservation(execution, operation) {
     } catch (error) {
       // A refused native selection may cancel the core. Preserve that primary
       // refusal; the session owner still closes its resources after failure.
+      // A cleanup failure must block success; an existing refusal takes priority.
+      // eslint-disable-next-line no-unsafe-finally
       if (!operationFailed) throw error;
     }
   }
@@ -133,63 +142,79 @@ async function withGitIgnoreReservation(execution, operation) {
 /** Keep only one byte/count-bounded path batch; native state owns the complete
  * candidate inventory. Selection finishes before transformation or file effects.
  */
-async function selectWritablePaths(root, execution, selected, gitExecutable) {
-  return withGitIgnoreReservation(execution, async (limits) => {
-    const core = execution.core;
-    let paths = [],
-      bytes = 0;
-    const flush = async () => {
-      const ignored = await ignoredGitPaths(
-        root,
-        paths,
-        execution,
-        gitExecutable,
-      );
-      for (const path of paths) {
-        if (ignored.has(path)) {
-          if (selected)
-            throw new Error(`Protected or undiscovered write source: ${path}`);
-        } else await core.command("rewrite-select", { path });
-      }
-      paths = [];
-      bytes = 0;
-    };
-    async function* members() {
-      if (selected) {
-        for (const path of selected) {
-          const member = (await core.command("census-get", { path })).result
-            .member;
-          if (!member)
-            throw new Error(`Protected or undiscovered write source: ${path}`);
-          yield member;
+async function selectWritablePaths(
+  /** @type {*} */ root,
+  /** @type {*} */ execution,
+  /** @type {*} */ selected,
+  /** @type {*} */ gitExecutable,
+) {
+  return withGitIgnoreReservation(
+    execution,
+    async (/** @type {*} */ limits) => {
+      const core = execution.core;
+      let /** @type {any[]} */ paths = [],
+        bytes = 0;
+      const flush = async () => {
+        const ignored = await ignoredGitPaths(
+          root,
+          paths,
+          execution,
+          gitExecutable,
+        );
+        for (const path of paths) {
+          if (ignored.has(path)) {
+            if (selected)
+              throw new Error(
+                `Protected or undiscovered write source: ${path}`,
+              );
+          } else await core.command("rewrite-select", { path });
         }
-      } else yield* repositoryMembers(core, execution.signal);
-    }
-    for await (const member of members()) {
-      execution.signal?.throwIfAborted();
-      if (!(await policyAllowsWrite(root, member, execution))) {
-        if (selected)
-          throw new Error(
-            `Protected or undiscovered write source: ${member.path}`,
-          );
-        continue;
+        paths = [];
+        bytes = 0;
+      };
+      async function* members() {
+        if (selected) {
+          for (const path of selected) {
+            const member = (await core.command("census-get", { path })).result
+              .member;
+            if (!member)
+              throw new Error(
+                `Protected or undiscovered write source: ${path}`,
+              );
+            yield member;
+          }
+        } else yield* repositoryMembers(core, execution.signal);
       }
-      const size = Buffer.byteLength(member.path) + 1;
-      if (size > limits.maximumInputBytes)
-        throw new Error("git-ignore-input-capacity");
-      if (
-        paths.length === limits.maximumPaths ||
-        bytes + size > limits.maximumInputBytes
-      )
-        await flush();
-      paths.push(member.path);
-      bytes += size;
-    }
-    if (paths.length) await flush();
-  });
+      for await (const member of members()) {
+        execution.signal?.throwIfAborted();
+        if (!(await policyAllowsWrite(root, member, execution))) {
+          if (selected)
+            throw new Error(
+              `Protected or undiscovered write source: ${member.path}`,
+            );
+          continue;
+        }
+        const size = Buffer.byteLength(member.path) + 1;
+        if (size > limits.maximumInputBytes)
+          throw new Error("git-ignore-input-capacity");
+        if (
+          paths.length === limits.maximumPaths ||
+          bytes + size > limits.maximumInputBytes
+        )
+          await flush();
+        paths.push(member.path);
+        bytes += size;
+      }
+      if (paths.length) await flush();
+    },
+  );
 }
 
-async function* sourceBytes(core, source, signal) {
+async function* sourceBytes(
+  /** @type {*} */ core,
+  /** @type {*} */ source,
+  /** @type {*} */ signal,
+) {
   let offset = 0n;
   while (true) {
     signal?.throwIfAborted();
@@ -206,7 +231,7 @@ async function* sourceBytes(core, source, signal) {
   }
 }
 
-async function sourceText(execution, member) {
+async function sourceText(/** @type {*} */ execution, /** @type {*} */ member) {
   const length = BigInt(member.byteLength);
   if (length > BigInt(JSON_TRANSFORM_CAPABILITIES.maximumSourceBytes))
     throw new Error("transform-source-capacity");
@@ -230,7 +255,12 @@ async function sourceText(execution, member) {
   return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
 
-async function fresh(root, execution, gitExecutable, afterWrites) {
+async function fresh(
+  /** @type {*} */ root,
+  /** @type {*} */ execution,
+  /** @type {*} */ gitExecutable,
+  /** @type {*} */ afterWrites,
+) {
   const core = execution.core;
   for await (const member of repositoryMembers(core, execution.signal)) {
     if (member.kind !== "physical") continue;
@@ -269,7 +299,7 @@ async function fresh(root, execution, gitExecutable, afterWrites) {
   });
 }
 
-async function* candidates(core, signal) {
+async function* candidates(/** @type {*} */ core, /** @type {*} */ signal) {
   let after = "";
   while (true) {
     signal?.throwIfAborted();
@@ -287,10 +317,10 @@ async function* candidates(core, signal) {
  * writes and an uncertain current path; no batch-atomicity claim is made.
  */
 export async function* rewriteRepository(
-  execution,
-  { root, gitExecutable },
-  operation,
-  options = {},
+  /** @type {*} */ execution,
+  /** @type {*} */ { root, gitExecutable },
+  /** @type {*} */ operation,
+  /** @type {*} */ options = {},
 ) {
   const selected = selection(operation, options),
     core = execution.core;
@@ -314,20 +344,25 @@ export async function* rewriteRepository(
         ).some((value) => value === null)
           ? false
           : execution.numericResources.admission;
-      let text = await sourceText(execution, member),
-        transformed = await (
-          operation === "format" ? formatSource : normalizeSource
-        )(text, {
-          core,
-          parentSource: member.source,
-          controlStateBytes: execution.controlStateBytes,
-          capacityLimits,
-          runtimeControls: execution.numericResources.runtime,
-          signal: execution.signal,
-          allowEmptyKeys: contract.allowEmptyKeys,
-          normalization: contract.normalization,
-          preserveNfcValues: contract.preserveNfcValues,
-        });
+      let /** @type {string | undefined} */ text = await sourceText(
+          execution,
+          member,
+        ),
+        /** @type {ReturnType<typeof import("./transform-capabilities.js").retainedTransformResult> | undefined} */ transformed =
+          await (operation === "format" ? formatSource : normalizeSource)(
+            text,
+            {
+              core,
+              parentSource: member.source,
+              controlStateBytes: execution.controlStateBytes,
+              capacityLimits,
+              runtimeControls: execution.numericResources.runtime,
+              signal: execution.signal,
+              allowEmptyKeys: contract.allowEmptyKeys,
+              normalization: contract.normalization,
+              preserveNfcValues: contract.preserveNfcValues,
+            },
+          );
       // Selected complete policy applies again after transformation. Preflight
       // writer parsing never substitutes for this final source obligation.
       const postReservation =
@@ -495,7 +530,10 @@ export async function* rewriteRepository(
       preflightComplete,
       written: String(written),
       uncertainPath,
-      message: String(error.message ?? error).slice(0, 2048),
+      message: String(error instanceof Error ? error.message : error).slice(
+        0,
+        2048,
+      ),
     };
   }
 }

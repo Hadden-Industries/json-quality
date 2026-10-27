@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Complete provider/report closure before a privileged job may consume a bundle. */
 import assert from "node:assert/strict";
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  appendFileSync,
+} from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -27,6 +33,7 @@ import {
   download,
   evidenceIndex,
   provider,
+  producingAttempt,
   readEffectHistory,
   signedTag,
   verifyEffectHistory,
@@ -183,6 +190,8 @@ export function verifyBundle(
       "archive-assets-intent.json",
       "release-acceptance.json",
       "source.tar.gz",
+      "build-attestation.jsonl",
+      "build-attestation-verification.json",
     ]);
     assert.ok(
       extra.every((name) => allowed.has(name)),
@@ -264,6 +273,7 @@ export function refreshAdmission(
     context.qualification.attempt,
   );
   verifyRun(qualified, "qualification", release.source.commit, release.matrix);
+  retainProvider(directory, "qualification", qualified);
   const reviewBytes = regularBytes(join(directory, "release-review.json"));
   const decision = verifyDecision(
     reviewBytes,
@@ -289,6 +299,7 @@ export function refreshAdmission(
         String(recovery.stage.record.run) === context.stage.run &&
         String(recovery.stage.record.attempt) === context.stage.attempt,
     });
+    retainProvider(directory, "stage", staged);
     const stage = readJson(join(directory, "stage-outcome.json"));
     assert.equal(stage.manifestSha256, env.MANIFEST_SHA);
     assert.equal(stage.subject.source, release.source.commit);
@@ -303,13 +314,16 @@ export function refreshAdmission(
         regularBytes(join(directory, effectJournal("stage", context.stage))),
       ),
     );
-    if (phase !== "registry")
+    if (phase !== "registry") {
+      const registry = provider(context.registry.run, context.registry.attempt);
       verifyRun(
-        provider(context.registry.run, context.registry.attempt),
+        registry,
         "registry",
         context.registry.controller,
         release.matrix,
       );
+      retainProvider(directory, "registry", registry);
+    }
   }
   if (phase === "promote")
     verifyRun(
@@ -333,6 +347,10 @@ export function refreshAdmission(
   let history = [];
   if (checkHistory) {
     assert.ok(historyRoot);
+    assert.ok(
+      decision.historyCheckpoint,
+      "A complete signed writer-history checkpoint, including an empty first-use baseline, is required before release effects",
+    );
     history = verifyEffectHistory(
       readEffectHistory(env, historyRoot, decision.historyCheckpoint),
       { run: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT },
@@ -350,7 +368,41 @@ export function refreshAdmission(
       );
   }
   currentMain(env);
+  sealBundle(directory, env.MANIFEST_SHA);
   return { release, context, history, recovery };
+}
+function retainProvider(directory, phase, observed) {
+  const path = join(
+    directory,
+    phase === "qualification"
+      ? "qualification-provider.json"
+      : `${phase}-provider-${observed.run.id}-${observed.run.run_attempt}.json`,
+  );
+  if (!existsSync(path)) save(path, observed);
+  else {
+    const original = readJson(path);
+    for (const key of [
+      "id",
+      "run_attempt",
+      "head_sha",
+      "path",
+      "status",
+      "conclusion",
+    ])
+      assert.deepEqual(
+        original.run[key],
+        observed.run[key],
+        "Original provider identity changed",
+      );
+    assert.deepEqual(
+      original.jobs.jobs
+        .map((job) => [job.name, job.status, job.conclusion])
+        .sort(),
+      observed.jobs.jobs
+        .map((job) => [job.name, job.status, job.conclusion])
+        .sort(),
+    );
+  }
 }
 /** Every optional package is an independently approved immutable publication. */
 export function verifyStageFamily(stages, release) {
@@ -360,6 +412,7 @@ export function verifyStageFamily(stages, release) {
     assert.equal(actual.package, subject.package);
     assert.equal(actual.version, subject.version);
     assert.equal(actual.integrity, subject.archive.integrity);
+    // eslint-disable-next-line no-control-regex -- Reject provider identifier controls.
     assert.match(actual.stageId, /^[^\x00-\x1f]{1,256}$/u);
   }
   assert.equal(
@@ -505,10 +558,17 @@ export function assembleQualification(
   env = process.env,
 ) {
   const origin = provider(run, attempt);
+  const producerCache = new Map();
+  const originalProducer = producingAttempt(
+    origin,
+    "product / Reference producer",
+    provider,
+    producerCache,
+  );
   const downloaded = download(
     run,
-    attempt,
-    `qualified-producer-${attempt}`,
+    originalProducer,
+    `qualified-producer-${originalProducer}`,
     scratch,
   );
   const manifestBytes = regularBytes(
@@ -521,10 +581,16 @@ export function assembleQualification(
   save(join(output, "qualification-provider.json"), origin);
   const artifacts = [downloaded.identity];
   for (const lane of lanes(release.matrix)) {
+    const original = producingAttempt(
+      origin,
+      `product / Qualify ${lane.os} / Node ${lane.node}`,
+      provider,
+      producerCache,
+    );
     const artifact = download(
       run,
-      attempt,
-      `consumer-${lane.os}-${lane.node}-${attempt}`,
+      original,
+      `consumer-${lane.os}-${lane.node}-${original}`,
       scratch,
     );
     verifyLane(artifact.directory, release, lane, "transported archive");
@@ -534,10 +600,16 @@ export function assembleQualification(
       join(output, `candidate-${lane.os}-${lane.node}`),
     );
   }
+  const originalSecurity = producingAttempt(
+    origin,
+    "security",
+    provider,
+    producerCache,
+  );
   const security = download(
     run,
-    attempt,
-    `release-security-${attempt}`,
+    originalSecurity,
+    `release-security-${originalSecurity}`,
     scratch,
   );
   verifySecurity(
@@ -545,7 +617,7 @@ export function assembleQualification(
     release,
     env.MANIFEST_SHA,
     run,
-    attempt,
+    originalSecurity,
   );
   artifacts.push(security.identity);
   copyEvidence(security.directory, join(output, "candidate-security"));
@@ -613,6 +685,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const admitted = refreshAdmission(output, phase, process.env, {
     historyRoot: scratch,
   });
+  if (process.env.GITHUB_OUTPUT)
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `attest-required=${phase === "archive" && !admitted.recovery?.archive}\n`,
+    );
   if (phase !== "stage") {
     const priorPhase =
       phase === "registry"

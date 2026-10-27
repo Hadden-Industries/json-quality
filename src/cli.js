@@ -20,7 +20,7 @@ import { assertJsonQualityEvent } from "./events.js";
 import { sourceContract } from "./source-contract.js";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 
-function textView(event) {
+function textView(/** @type {*} */ event) {
   if (event.type === "finding")
     return (
       (event.path ?? "<stdin>") +
@@ -62,20 +62,23 @@ function textView(event) {
  * Human filtering is presentation only. The final operation terminal is held
  * until owned session cleanup succeeds; output failure never returns zero.
  */
-export async function runJsonQualityCli(args, context = {}) {
+export async function runJsonQualityCli(
+  /** @type {string[]} */ args,
+  /** @type {import("./api-types.js").CliContext | (() => import("./api-types.js").CliContext | Promise<import("./api-types.js").CliContext>)} */ context = {},
+) {
   let machine = Array.isArray(args) && args.includes("--json"),
     requestId = randomUUID(),
-    session,
+    /** @type {any} */ session,
     pendingTerminal,
-    outputFailure,
+    /** @type {any} */ outputFailure,
     outputBytes = 0n,
-    outputCeiling = null,
-    reportSignal,
-    exitCode = 2;
+    /** @type {any} */ outputCeiling = null,
+    /** @type {any} */ reportSignal,
+    /** @type {number} */ exitCode;
   const began = performance.now(),
     caller = new AbortController(),
     interrupt = () => caller.abort(new Error("JSON Quality interrupted.")),
-    onOutputError = (error) => {
+    onOutputError = (/** @type {*} */ error) => {
       outputFailure ??= error;
     },
     stop = () => {
@@ -87,7 +90,11 @@ export async function runJsonQualityCli(args, context = {}) {
   process.once("SIGINT", interrupt);
   process.once("SIGTERM", interrupt);
 
-  const write = async (bytes, target, signal) => {
+  const write = async (
+    /** @type {*} */ bytes,
+    /** @type {*} */ target,
+    /** @type {*} */ signal,
+  ) => {
     signal?.throwIfAborted();
     if (outputFailure) throw outputFailure;
     await new Promise((done, reject) => {
@@ -96,15 +103,15 @@ export async function runJsonQualityCli(args, context = {}) {
         target.destroy();
       };
       signal?.addEventListener("abort", abort, { once: true });
-      target.write(bytes, (error) => {
+      target.write(bytes, (/** @type {*} */ error) => {
         signal?.removeEventListener("abort", abort);
         if (error) reject(error);
-        else done();
+        else done(undefined);
       });
     });
     if (outputFailure) throw outputFailure;
   };
-  const emit = async (event) => {
+  const emit = async (/** @type {*} */ event) => {
     assertJsonQualityEvent(event);
     const bytes = machine
       ? Buffer.concat([encodeNativeControl(event, 2097152), Buffer.from("\n")])
@@ -119,7 +126,7 @@ export async function runJsonQualityCli(args, context = {}) {
       reportSignal ?? caller.signal,
     );
   };
-  const failure = async (error) => {
+  const failure = async (/** @type {*} */ error) => {
     const message = String(error.message ?? error);
     try {
       await emit({
@@ -139,13 +146,15 @@ export async function runJsonQualityCli(args, context = {}) {
   };
 
   try {
-    const { values, positionals } = parseArgs({
+    const parsed = parseArgs({
       args,
       allowPositionals: true,
       allowNegative: true,
       strict: true,
       options: CLI_OPTIONS,
     });
+    const /** @type {Record<string, any>} */ values = parsed.values;
+    const positionals = parsed.positionals;
     machine = values.json;
     const [operation, ...files] = positionals;
     if ((!operation || Object.hasOwn(COMMANDS, operation)) && values.help) {
@@ -215,7 +224,7 @@ export async function runJsonQualityCli(args, context = {}) {
         reportSignal.addEventListener("abort", stop, { once: true });
         for await (const event of session.check(
           {
-            async *open({ signal }) {
+            async *open(/** @type {{signal: AbortSignal}} */ { signal }) {
               const abort = () => process.stdin.destroy();
               signal.addEventListener("abort", abort, { once: true });
               try {

@@ -52,10 +52,10 @@
       "pattern": "\\S"
     },
     "preserveNfcValues": {
-      "$ref": "configuration.schema.json#/definitions/nfcValues"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v2#/$defs/nfcValues"
     },
     "expected": {
-      "$ref": "configuration.schema.json#/definitions/sourceExpectation"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v2#/$defs/sourceExpectation"
     }
   },
   "allOf": [
@@ -81,5 +81,7 @@
         ]
       }
     }
-  ]
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hadden-Industries/json-quality/schema/source-contract/v2"
 }

@@ -203,7 +203,7 @@ test("candidate census and captured references survive a real spill with all sev
 
 test("NFC-changed logical container bytes require a complete recheck of their actual derived member", async () => {
   const core = new NativeSession(),
-    original = '{"embedded":"\\\"é\\\""}\n';
+    original = '{"embedded":"\\"é\\""}\n';
   try {
     const sources = await physical(core, { "container.json": original }),
       source = sources["container.json"].source,
@@ -249,7 +249,7 @@ test("NFC-changed logical container bytes require a complete recheck of their ac
     await core.command("rewrite-select", { path: "container.json" });
     const candidate = await capture(
       core,
-      '{"embedded":"\\\"é\\\""}\n',
+      '{"embedded":"\\"é\\""}\n',
       { formatContract: "producer-json-compact" },
       { transformOf: source },
     );

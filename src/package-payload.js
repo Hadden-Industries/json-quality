@@ -23,7 +23,7 @@ export const PACKAGE_VERIFICATION_CAPABILITIES = Object.freeze({
   maximumVerificationTimeMs: 120000,
 });
 const capabilities = PACKAGE_VERIFICATION_CAPABILITIES,
-  observation = (value) =>
+  observation = (/** @type {*} */ value) =>
     [
       value.dev,
       value.ino,
@@ -37,7 +37,7 @@ const capabilities = PACKAGE_VERIFICATION_CAPABILITIES,
 /** Fixed-buffer metadata admission, also used for the copied cold bootstrap.
  * Descriptor and pathname must retain the same regular file observation.
  */
-export async function readPackageMetadataBytes(path) {
+export async function readPackageMetadataBytes(/** @type {*} */ path) {
   const before = observeRegularFile(path);
   if (
     !before.isFile() ||
@@ -79,11 +79,16 @@ export async function readPackageMetadataBytes(path) {
     await descriptor.close();
   }
 }
-export async function readPackageMetadata(path) {
+export async function readPackageMetadata(/** @type {*} */ path) {
   return JSON.parse(decoder.decode(await readPackageMetadataBytes(path)));
 }
 
-async function installedDigest(root, key, maximum, signal) {
+async function installedDigest(
+  /** @type {*} */ root,
+  /** @type {*} */ key,
+  /** @type {*} */ maximum,
+  /** @type {*} */ signal,
+) {
   const path = assertRegularSource(root, key),
     before = observeRegularFile(path);
   if (before.size > BigInt(maximum))
@@ -129,14 +134,14 @@ async function installedDigest(root, key, maximum, signal) {
  * even when npm's maintained cacache reader supplies chunks up to 64 MiB.
  * No archive/member collection or cache memoization is permitted here.
  */
-export function packageTarSink(parser) {
-  let pending, final;
+export function packageTarSink(/** @type {*} */ parser) {
+  let /** @type {any} */ pending, /** @type {any} */ final;
   const sink = new Writable({
     highWaterMark: 65536,
     write(chunk, encoding, callback) {
       let offset = 0,
         settled = false;
-      const finish = (error) => {
+      const finish = (/** @type {*} */ error = undefined) => {
         if (!settled) {
           settled = true;
           pending = undefined;
@@ -172,7 +177,11 @@ export function packageTarSink(parser) {
         parser.end();
       } catch (error) {
         final = undefined;
-        callback(error);
+        callback(
+          error instanceof Error
+            ? error
+            : new Error(String(error), { cause: error }),
+        );
       }
     },
     destroy(error, callback) {
@@ -181,7 +190,7 @@ export function packageTarSink(parser) {
       callback(error);
     },
   });
-  parser.on("error", (error) => {
+  parser.on("error", (/** @type {*} */ error) => {
     pending?.(error);
     const done = final;
     final = undefined;
@@ -192,8 +201,8 @@ export function packageTarSink(parser) {
 }
 
 export async function verifyPackagePayload(
-  npmRequire,
-  { cache, integrity, installedRoot, admission, signal },
+  /** @type {*} */ npmRequire,
+  /** @type {*} */ { cache, integrity, installedRoot, admission, signal },
 ) {
   const operationSignal = AbortSignal.any([
       AbortSignal.timeout(capabilities.maximumVerificationTimeMs),
@@ -222,7 +231,7 @@ export async function verifyPackagePayload(
   parser.on("ignoredEntry", () =>
     sink.destroy(new Error("Unsupported or oversized package archive member.")),
   );
-  parser.on("entry", (member) => {
+  parser.on("entry", (/** @type {*} */ member) => {
     try {
       operationSignal.throwIfAborted();
       if (!member.path.startsWith("package/"))
@@ -264,8 +273,8 @@ export async function verifyPackagePayload(
       seen.add(key.toLowerCase());
       const hash = createHash("sha256");
       let length = 0;
-      member.on("error", (error) => sink.destroy(error));
-      member.on("data", (part) => {
+      member.on("error", (/** @type {*} */ error) => sink.destroy(error));
+      member.on("data", (/** @type {*} */ part) => {
         length += part.length;
         hash.update(part);
       });
@@ -280,7 +289,11 @@ export async function verifyPackagePayload(
       });
       member.resume();
     } catch (error) {
-      sink.destroy(error);
+      sink.destroy(
+        error instanceof Error
+          ? error
+          : new Error(String(error), { cause: error }),
+      );
     }
   });
   const gate = new Transform({
@@ -312,7 +325,7 @@ export async function verifyPackagePayload(
     throw new Error("Cached JSON quality archive integrity differs.");
   let files = 0,
     installedBytes = 0n;
-  async function walk(directory, depth = 0) {
+  async function walk(/** @type {*} */ directory, depth = 0) {
     operationSignal.throwIfAborted();
     if (depth > capabilities.maximumDepth)
       throw new Error("Installed package depth limit exceeded.");

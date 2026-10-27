@@ -21,11 +21,7 @@ on:
       timeout-minutes:
         description: Job deadline within GitHub runner limits
         type: number
-        default: 45
-      artifact-retention-days:
-        description: Evidence retention within repository limits; 0 uses repository default
-        type: number
-        default: 7
+        default: 120
 permissions:
   contents: read
 jobs:
@@ -97,16 +93,10 @@ jobs:
           JSON_QUALITY_CANDIDATE_ROOT: ${{ github.workspace }}/candidate
           JSON_QUALITY_TRUSTED_SHA: ${{ inputs.trusted-sha }}
           JSON_QUALITY_CANDIDATE_SHA: ${{ inputs.candidate-sha }}
-          JSON_QUALITY_REPORT: ${{ runner.temp }}/json-quality-consumer.json
+          JSON_QUALITY_RUNTIME_CONTROLS: '{"maxCheckTimeMs":600000}'
           NODE_OPTIONS: ""
           NODE_PATH: ""
           GH_TOKEN: ""
           GITHUB_TOKEN: ""
-        run: node producer/src/qualification-cli.js > "$JSON_QUALITY_REPORT"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: shared-json-${{ matrix.os }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/json-quality-consumer.json
-          if-no-files-found: error
-          retention-days: ${{ inputs.artifact-retention-days }}
+        timeout-minutes: 15
+        run: node producer/src/qualification-cli.js

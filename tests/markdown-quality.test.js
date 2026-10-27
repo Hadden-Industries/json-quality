@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "../scripts/qualification-process.js";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -48,7 +49,7 @@ function check(root, args = []) {
   const child = spawnSync(
     process.execPath,
     [cli, "check", "--root", root, "--json", ...args],
-    { encoding: "utf8", windowsHide: true, timeout: 60000 },
+    { encoding: "utf8", windowsHide: true, timeout: budgets.read },
   );
   assert.ifError(child.error);
   const report = JSON.parse(child.stdout);
@@ -129,7 +130,12 @@ test("root commands retain explicit-file scope and forward options to the public
         "--",
         "README.md",
       ],
-      { cwd: repository, encoding: "utf8", windowsHide: true, timeout: 60000 },
+      {
+        cwd: repository,
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: budgets.read,
+      },
     );
     const report = JSON.parse(output);
     validateQualityResult(report, { exitCode: 0, selectionMode: "explicit" });

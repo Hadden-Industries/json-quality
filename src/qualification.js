@@ -42,6 +42,8 @@ const names = [
  * require their complete trusted repository adapter, not this source-only path.
  * Consume the iterator to its final execution-terminal; early return cancels.
  * The terminal is delivered only after native storage and subprocess cleanup.
+ * @param {import("./api-types.js").QualificationOptions} options
+ * @returns {AsyncGenerator<import("./api-types.js").JsonQualityEvent>}
  */
 export async function* qualifyJsonConsumer(options) {
   if (
@@ -51,12 +53,16 @@ export async function* qualifyJsonConsumer(options) {
     Object.keys(options).some((key) => !names.includes(key))
   )
     throw new TypeError("Invalid consumer qualification options.");
-  for (const key of ["trustedSha", "candidateSha"])
+  for (const key of /** @type {const} */ (["trustedSha", "candidateSha"]))
     if (!/^[a-f0-9]{40}$/u.test(options[key] ?? ""))
       throw new TypeError("Full immutable source commits are required.");
   if (options.signal !== undefined && !(options.signal instanceof AbortSignal))
     throw new TypeError("Expected AbortSignal.");
-  for (const key of ["trustedRoot", "candidateRoot", "temporaryDirectory"])
+  for (const key of /** @type {const} */ ([
+    "trustedRoot",
+    "candidateRoot",
+    "temporaryDirectory",
+  ]))
     if (
       options[key] !== undefined &&
       (typeof options[key] !== "string" ||
@@ -90,7 +96,12 @@ export async function* qualifyJsonConsumer(options) {
   if (typeof requestId !== "string" || !requestId || !requestId.isWellFormed())
     throw new TypeError("Expected a nonempty well-formed requestId.");
   encodeNativeControl({ requestId });
-  const context = (root, sha, capacities, signal = operationSignal) => ({
+  const context = (
+      /** @type {*} */ root,
+      /** @type {*} */ sha,
+      /** @type {*} */ capacities,
+      signal = operationSignal,
+    ) => ({
       executable: authority.executable,
       root,
       sha,
@@ -107,7 +118,7 @@ export async function* qualifyJsonConsumer(options) {
       temporaryDirectory,
       resources: bootstrap.native,
       signal: operationSignal,
-      async source({ signal, maximumBytes }) {
+      async source(/** @type {*} */ { signal, maximumBytes }) {
         await assertGitCommit({ ...policySource, signal });
         let member;
         for await (const entry of gitTree({
@@ -142,7 +153,9 @@ export async function* qualifyJsonConsumer(options) {
   if (
     admitted.policy.nativeSources?.length ||
     admitted.policy.preserveSourcePresentation?.length ||
-    admitted.policy.exceptions.some((rule) => rule.expected?.linkedDocuments)
+    admitted.policy.exceptions.some(
+      (/** @type {*} */ rule) => rule.expected?.linkedDocuments,
+    )
   )
     throw new Error(
       "Trusted policy requires native/logical admission; use its trusted repository adapter.",

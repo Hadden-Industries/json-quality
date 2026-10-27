@@ -86,7 +86,11 @@ export function acquisitionResourceLimits(
 }
 
 /** Resolve native cache policy once for acquisition and payload checking. */
-export function nativeQualityCachePath(toolingRoot, npmExecutable, overrides) {
+export function nativeQualityCachePath(
+  /** @type {*} */ toolingRoot,
+  /** @type {*} */ npmExecutable,
+  /** @type {*} */ overrides,
+) {
   const capacityLimits = acquisitionResourceLimits(overrides);
   return execFileSync(
     process.execPath,
@@ -127,7 +131,7 @@ async function acquire() {
   const scratch = mkdtempSync(join(tmpdir(), "repository-quality-install-"));
   const cachePath = jsonCache ?? join(scratch, "cache");
   /** Remove only the task-owned real temporary acquisition workspace. */
-  function removeAcquisitionWorkspace(path) {
+  function removeAcquisitionWorkspace(/** @type {*} */ path) {
     const target = realpathSync(path);
     const contained = relative(realpathSync(tmpdir()), target);
     if (
@@ -150,7 +154,7 @@ async function acquire() {
       global = join(scratch, "global.npmrc");
     writeFileSync(user, "");
     writeFileSync(global, "");
-    const env = {};
+    const /** @type {Record<string, any>} */ env = {};
     for (const name of [
       "PATH",
       "Path",
@@ -194,7 +198,7 @@ async function acquire() {
     process.exitCode = result.status;
     if (kind === "json" && result.status === 0) {
       const { verifyJsonQualityInstallation } = await import(
-        new URL("../tooling/json/public-api.mjs", import.meta.url)
+        new URL("../tooling/json/public-api.mjs", import.meta.url).href
       );
       await verifyJsonQualityInstallation({
         toolingRoot: fileURLToPath(

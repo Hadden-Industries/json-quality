@@ -5,11 +5,12 @@ Use current security patches for ordinary operation; a compatibility floor is no
 
 <!-- node-support:start -->
 
-- Node 22: 22.13.0
-- Node 24: 24.0.0
-- Node 26: 26.0.0
+Installability and compatibility floor: Node >=22.13.0.
+Qualified LTS majors: 22, 24, 26.
+Advance qualification for imminent LTS: 26.
+Other engine-compatible releases receive best-effort compatibility.
 
-Development/producer reference: 24.21.0.
+Development/producer reference: 24.22.1.
 Producer npm: 12.2.1; consumer qualification npm: 11.21.1.
 
 <!-- node-support:end -->

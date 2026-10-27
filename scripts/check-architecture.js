@@ -89,7 +89,7 @@ function declaredTargets(value) {
 async function graphWorker() {
   if (!existsSync("src")) throw new Error("Expected the runtime source root.");
   const roots = [
-    ...["src", "scripts", "tests"].filter(existsSync),
+    ...["src", "scripts", "tests", "examples"].filter(existsSync),
     ...readdirSync(".", { withFileTypes: true })
       .filter(
         (entry) => entry.isFile() && /\.(?:js|mjs|cjs)$/u.test(entry.name),

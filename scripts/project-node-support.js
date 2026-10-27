@@ -11,9 +11,7 @@ export function projectNodeSupport(files, policy = nodeSupport) {
     Object.entries(files).map(([path, source]) => {
       if (path === "package.json") {
         const manifest = JSON.parse(source);
-        manifest.engines.node = policy.minimums
-          .map((minimum) => `^${minimum}`)
-          .join(" || ");
+        manifest.engines.node = `>=${policy.minimum}`;
         manifest.packageManager = `npm@${policy.producerNpm.version}`;
         manifest.devEngines.packageManager.version = policy.producerNpm.range;
         return [path, JSON.stringify(manifest, null, 2) + "\n"];
@@ -30,9 +28,14 @@ export function projectNodeSupport(files, policy = nodeSupport) {
       const block = [
         start,
         "",
-        ...policy.minimums.map(
-          (minimum) => `- Node ${minimum.split(".")[0]}: ${minimum}`,
-        ),
+        `Installability and compatibility floor: Node >=${policy.minimum}.`,
+        `Qualified LTS majors: ${policy.testedLtsMajors.join(", ")}.`,
+        ...(policy.preLtsMajors.length
+          ? [
+              `Advance qualification for imminent LTS: ${policy.preLtsMajors.join(", ")}.`,
+            ]
+          : []),
+        "Other engine-compatible releases receive best-effort compatibility.",
         "",
         `Development/producer reference: ${policy.reference}.`,
         `Producer npm: ${policy.producerNpm.version}; consumer qualification npm: ${policy.consumerNpm}.`,

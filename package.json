@@ -8,12 +8,12 @@
   "devEngines": {
     "packageManager": {
       "name": "npm",
-      "version": ">=12.2.0 <13",
+      "version": ">=12.2.1 <13",
       "onFail": "error"
     }
   },
   "engines": {
-    "node": "^22.13.0 || ^24.0.0 || ^26.0.0"
+    "node": ">=22.13.0"
   },
   "repository": {
     "type": "git",
@@ -36,8 +36,14 @@
     "json-quality-qualify": "src/qualification-cli.js"
   },
   "exports": {
-    ".": "./src/index.js",
-    "./eslint": "./src/eslint/index.js",
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./eslint": {
+      "types": "./types/eslint/index.d.ts",
+      "import": "./src/eslint/index.js"
+    },
     "./configuration-schema": "./schemas/configuration.schema.json",
     "./source-contract-schema": "./schemas/source-contract.schema.json",
     "./event-schema": "./schemas/event.schema.json",
@@ -45,11 +51,13 @@
   },
   "files": [
     "src/",
+    "types/",
     "schemas/",
     "assets/native-packages.json",
     "LICENSE",
     "THIRD-PARTY-NOTICES.md",
     "README.md",
+    "CHANGELOG.md",
     "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md",
     "SECURITY.md",
@@ -59,8 +67,20 @@
     "docs/architecture.md",
     "docs/ci-trust.md",
     "docs/resource-limits.md",
-    "docs/native-protocol.md"
+    "docs/native-protocol.md",
+    "docs/README.md",
+    "docs/api.md",
+    "docs/cli.md",
+    "docs/configuration.md",
+    "docs/dependency-graph-and-tests.md",
+    "docs/javascript-performance.md",
+    "docs/markdown-quality.md",
+    "docs/release-operations.md",
+    "docs/rules/",
+    "native/README.md",
+    "examples/"
   ],
+  "types": "./types/index.d.ts",
   "scripts": {
     "graph:dependencies": "node scripts/dependency-graph.js",
     "check:focused": "node --test tests/contracts.test.js tests/identity.test.js tests/markdown-quality.test.js",
@@ -69,7 +89,13 @@
     "check:perf": "npm run bench:check && npm run bench:format",
     "test": "node --test --test-concurrency=1 tests/*.test.js tests/native/*.test.mjs",
     "check:affected": "node scripts/affected-tests.js",
-    "check:full": "npm run check:node && npm run check:resources && npm run check:architecture && npm run check:release && npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
+    "check:full": "npm run check:node && npm run check:resources && npm run check:architecture && npm run check:schemas && npm run check:types && npm run check:types:generated && npm run check:release && npm run check:package && npm run check:security && npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
+    "check:schemas": "node scripts/check-schemas.js",
+    "check:types": "tsc -p tsconfig.json --noEmit",
+    "build:types": "node scripts/build-types.js",
+    "check:types:generated": "node scripts/build-types.js --check",
+    "check:package": "node scripts/check-package.js",
+    "check:security": "node scripts/check-security.js",
     "check:resources": "node scripts/project-resource-limits.js",
     "sync:resources": "node scripts/project-resource-limits.js --write",
     "check:release": "node scripts/release-check.js",
@@ -110,11 +136,19 @@
     "normalize:json": "node src/cli.js normalize --root .",
     "qualify:package": "node scripts/qualify-package.js",
     "test:native": "node --test --test-concurrency=1 tests/native/*.test.mjs",
-    "native:build": "python native/build.py",
+    "native:build": "node scripts/build-native.js",
     "native:stage": "python native/stage.py"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "peerDependencies": {
+    "eslint": ">=9"
+  },
+  "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    }
   },
   "dependencies": {
     "ajv": "8.20.0",
@@ -125,9 +159,16 @@
     "@hadden-industries/json-quality-win32-x64": "file:native/prebuilt/win32-x64"
   },
   "devDependencies": {
-    "@eslint/json": "2.1.1",
+    "@actions/artifact": ">=6.3.1",
+    "@eslint/js": ">=10.0.1",
+    "@eslint/json": ">=2.1.1",
     "@humanwhocodes/momoa": ">=3.3.13",
-    "dependency-cruiser": ">=18.6.0",
-    "eslint": "10.13.0"
+    "@types/node": ">=26.6.5",
+    "dependency-cruiser": ">=18.7.0",
+    "eslint": ">=10.13.0",
+    "json-schema-to-typescript": ">=16.0.0",
+    "publint": ">=0.3.25",
+    "typescript": ">=7.0.2",
+    "yaml": ">=2.9.1"
   }
 }

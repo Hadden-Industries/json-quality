@@ -129,6 +129,7 @@ export function safeMember(path) {
   assert.ok(
     typeof path === "string" &&
       path.length <= 512 &&
+      // eslint-disable-next-line no-control-regex -- Reject archive path controls.
       !/[\\:\x00-\x1f]/u.test(path) &&
       !path.startsWith("/") &&
       path.split("/").every((part) => part && part !== "." && part !== ".."),
@@ -200,12 +201,17 @@ export function verifyManifest(release) {
   const { matrix, policy } = release;
   assert.deepEqual([...matrix.os].sort(), [...policy.platforms].sort());
   assert.ok(matrix.node.includes(policy.reference));
-  for (const version of policy.minimums)
-    assert.ok(matrix.node.includes(version), "Missing floor lane");
+  assert.ok(matrix.node.includes(policy.minimum), "Missing floor lane");
+  for (const major of policy.testedLtsMajors)
+    assert.ok(
+      matrix.node.some((node) => Number(node.split(".")[0]) === major),
+      "Missing LTS lane",
+    );
   const semver = createRequire(npmCli())("semver");
   for (const node of matrix.node)
     assert.ok(
-      policy.minimums.some((floor) => semver.satisfies(node, `^${floor}`)),
+      semver.gte(node, policy.minimum) &&
+        policy.testedLtsMajors.includes(semver.major(node)),
     );
   assert.equal(release.toolchain.node, policy.reference);
   assert.equal(release.toolchain.npm, policy.producerNpm.version);
@@ -251,12 +257,17 @@ export function validateFrozenMatrix(matrix, policy) {
   assert.equal(new Set(matrix.node).size, matrix.node.length);
   assert.ok(matrix.node.length <= 9 && matrix.node.includes(policy.reference));
   const semver = createRequire(npmCli())("semver");
-  for (const minimum of policy.minimums)
-    assert.ok(matrix.node.includes(minimum));
+  assert.ok(matrix.node.includes(policy.minimum));
+  for (const major of policy.testedLtsMajors)
+    assert.ok(
+      matrix.node.some((node) => semver.major(node) === major),
+      "Missing LTS lane",
+    );
   for (const node of matrix.node)
     assert.ok(
       semver.valid(node) === node &&
-        policy.minimums.some((floor) => semver.satisfies(node, `^${floor}`)),
+        semver.gte(node, policy.minimum) &&
+        policy.testedLtsMajors.includes(semver.major(node)),
     );
   return matrix;
 }
@@ -474,6 +485,8 @@ export function expectedJobs(phase, matrix) {
         ({ os, node }) => `product / Qualify ${os} / Node ${node}`,
       ),
       "product / Complete runtime qualification",
+      "codeql / Scan actions",
+      "codeql / Scan javascript-typescript",
       "security",
       "qualified",
     ];

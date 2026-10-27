@@ -14,7 +14,7 @@ import {
 /** Freeze the admitted bounded control object. The iterative worklist is part
  * of its conservative node reservation and cannot overflow a JS recursion stack.
  */
-function freezePolicy(policy) {
+function freezePolicy(/** @type {*} */ policy) {
   const pending = [policy];
   while (pending.length) {
     const object = pending.pop();
@@ -37,10 +37,12 @@ function freezePolicy(policy) {
  * Closing the bootstrap releases native storage; it does not erase this owned
  * object's accounting obligation. No overlapping native workers are retained.
  */
-export async function bootstrapJsonPolicy({ root, ...options }) {
+export async function bootstrapJsonPolicy(
+  /** @type {*} */ { root, ...options },
+) {
   return bootstrapJsonPolicySource({
     ...options,
-    async source({ signal, maximumBytes }) {
+    async source(/** @type {*} */ { signal, maximumBytes }) {
       const observed = observeRepositorySource(root, ".json-quality.json");
       if (
         maximumBytes !== null &&
@@ -64,13 +66,15 @@ export async function bootstrapJsonPolicy({ root, ...options }) {
  * share the same strict parsing, bounded materialization and Ajv admission.
  * The producer must establish its independent SHA-256 and verify it at EOF.
  */
-export async function bootstrapJsonPolicySource({
-  source: identify,
-  component,
-  resources = {},
-  temporaryDirectory,
-  signal,
-}) {
+export async function bootstrapJsonPolicySource(
+  /** @type {*} */ {
+    source: identify,
+    component,
+    resources = {},
+    temporaryDirectory,
+    signal,
+  },
+) {
   const core = new NativeSession(
       component,
       join(temporaryDirectory, "json-quality-policy-" + randomUUID()),
@@ -119,7 +123,7 @@ export async function bootstrapJsonPolicySource({
       lease = await session.materializeControl(
         rootValue,
         member.byteLength,
-        (policy) => {
+        (/** @type {*} */ policy) => {
           admitJsonPolicy(policy);
           freezePolicy(policy);
         },

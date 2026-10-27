@@ -1,30 +1,55 @@
 # JSON Quality
 
-JSON Quality checks strict JSON, JSONL and NDJSON through one shared native reader.
-Small documents and oversized values use the same grammar, Unicode rules, presentation checks and lossless value access.
-An adaptive store starts in memory and can spill once to owned temporary storage.
+[![npm](https://img.shields.io/npm/v/%40hadden-industries%2Fjson-quality)](https://www.npmjs.com/package/@hadden-industries/json-quality) [![CI](https://github.com/Hadden-Industries/json-quality/actions/workflows/ci.yml/badge.svg)](https://github.com/Hadden-Industries/json-quality/actions/workflows/ci.yml) [![Node](https://img.shields.io/badge/node-%3E%3D22.13.0-green)](docs/node-runtime-compatibility.md) [![AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 
-The owner-selected release candidate is **1.0.0-rc.1**, contract cohort **2**.
-It replaces the previous aggregate APIs and document envelopes.
-Publication, platform qualification, downstream adoption and release acceptance require their own evidence; source implementation alone establishes none of them.
+Check strict JSON, JSONL and NDJSON; preserve exact numeric lexemes and member order; catch duplicate decoded keys, invalid Unicode and inconsistent presentation.
+One native reader handles small documents and oversized values with bounded memory and owned spill storage.
+
+Install a published version with npm:
 
 ```sh
-json-quality check --root /path/to/repository --json
-json-quality source --json
-json-quality format --root /path/to/repository -- authored.json
-json-quality normalize --root /path/to/repository -- authored.json
+npm install --save-dev --save-exact @hadden-industries/json-quality
 ```
 
-`check` reconciles the complete physical, native and logical source inventory and emits versioned NDJSON events.
-`source` checks raw standard input under an explicit source contract.
-`format` and `normalize` perform explicit, guarded file effects after complete peer and candidate preflight.
-Only those write commands accept literal path selection.
+These examples describe contract cohort **2**, currently selected as development candidate **1.0.0-rc.1**.
+Publication and installed qualification remain separate release gates; the source checkout does not establish registry availability.
 
-Read-only checks install nothing and write no source files.
-The checker may create owned scratch after a spill.
-A source terminal remains provisional until the final `execution-terminal` closes repository census, source observations, diagnostics and logical linkage.
-A missing final terminal or failed output delivery means incomplete work.
-Domain validation belongs to the consumer.
+Create `.json-quality.json`:
+
+```json
+{
+  "schemaVersion": 2,
+  "defaults": {
+    "formatContract": "prettier-json",
+    "allowFormatWrites": true,
+    "normalization": "NFC"
+  },
+  "exceptions": [
+    {
+      "paths": [".git/**", "**/node_modules/**"],
+      "exclude": true,
+      "owner": "Git and npm",
+      "reason": "External metadata and installed dependencies."
+    }
+  ]
+}
+```
+
+Check complete repository obligations, then select explicit physical files for a guarded write:
+
+```sh
+npm exec -- json-quality check --root .
+npm exec -- json-quality format --root . -- authored.json
+npm exec -- json-quality normalize --root . -- authored.json
+```
+
+Checking writes no source files; a spill may create owned temporary storage.
+Formatting preserves decoded meaning and exact numeric lexemes.
+Normalization explicitly repairs NFC string/key spans and refuses collisions.
+Write batches report confirmed writes and any uncertain path; they are not atomic.
+Producer-owned, logical and JSONL sources retain their owning write boundary.
+
+Use the typed ESM API:
 
 ```js
 import { openJsonSourceSession } from "@hadden-industries/json-quality";
@@ -36,7 +61,6 @@ try {
       yield Buffer.from('{\n  "value": 1.00\n}\n');
     },
   })) {
-    // Consume findings and the final source terminal with backpressure.
     console.log(event.type);
   }
 } finally {
@@ -44,52 +68,32 @@ try {
 }
 ```
 
-Sessions expose bounded raw-source, decoded-string, number-lexeme, NFC and pointer reads.
-References belong to their open session.
-Converting JSON into an ordinary object is an explicit, charged materialization with a caller-supplied domain validator.
-No checker path falls back to an in-memory JavaScript document parser.
+[Run the maintained example](examples/source-session.mjs).
+A missing terminal means incomplete delivery.
+References belong to their open session; materialization is an explicit charged lease with caller-owned domain validation.
+See the [API](docs/api.md), [CLI](docs/cli.md), [configuration](docs/configuration.md) and [consumer guide](docs/consumer-guide.md).
 
-The default managed-memory target is 32 MiB.
-Admission controls such as `maxFileBytes` can be raised or bypassed with `capacityLimits`; finite working-memory, scratch, nesting, time and concurrency controls remain active.
-This target is managed checker accounting, not a whole-process RSS promise.
-See [resource controls](docs/resource-limits.md).
+Use the public ESLint flat configuration with your installed ESLint:
 
-Formatting preserves decoded meaning, member order and exact numeric lexemes.
-NFC normalization changes admitted string/key spans and refuses collisions. Materializing writers have a separate 2 MiB input/output capability.
-Repository writes require the complete candidate contract to pass, so normalization can refuse a file that would still have unrelated presentation errors.
-A later failure reports confirmed writes and any uncertain path; batches are not atomic.
+```js
+import jsonQuality from "@hadden-industries/json-quality/eslint";
 
-Git discovery and an owned-tree walk include hidden, untracked and ignored generated JSON.
-Tracked JSON inside an excluded ancestor remains checked and protected from generic writes, including Windows casing aliases.
-Trusted native owners provide independent streamed inventories and actual members; logical owners select decoded values from frozen checked containers.
-Ordinary checking never loads provider code from JSON data.
-Protected, native, logical and JSONL sources retain their owning producer's effect boundary.
+export default [jsonQuality.configs.recommended];
+```
 
-The exact native dependencies are Boost 1.92.0, ICU 79.1 with Unicode 18.0, SQLite 3.54.1 and double-conversion 3.4.0.
-Node-API and the framed executable use the same core.
-Installed operation loads only verified packaged artifacts; it performs no compiler or downloader fallback.
-The small core uses exact-version optional packages for Windows x64 and Linux x64 glibc, so native npm installs only the matching platform's binaries.
-Keep optional dependencies enabled; both the Node addon and standalone executable remain available in that platform package.
-The [native protocol](docs/native-protocol.md) documents the non-Node boundary.
+The [identity rule](docs/rules/no-json-stringify-identity.md) rejects JSON serialization used as semantic identity.
 
-The `./eslint` export retains the separate JavaScript `no-json-stringify-identity` rule.
-The consumer supplies ESLint and selects its JavaScript scope.
-This rule does not parse JSON documents or define domain identity.
+Node.js `>=22.13.0` is the compatibility floor.
+Qualification covers maintained LTS majors and the owner's explicit advance qualification of Node 26 before its imminent LTS launch.
+Other engine-compatible releases receive best-effort support.
+Use current security patches; the historical floor is not a security recommendation.
+The first platform set is Windows x64 and Linux x64/glibc; keep optional dependencies enabled so npm installs the matching verified native companion.
+There is no compiler, downloader or alternate parser fallback at runtime.
 
-See the [consumer guide](docs/consumer-guide.md), [shared authorities](docs/centralized-contracts.md), [architecture](docs/architecture.md), [trusted consumer CI](docs/ci-trust.md), [runtime policy](docs/node-runtime-compatibility.md), [contributing guide](CONTRIBUTING.md) and [security guidance](SECURITY.md).
+Contributors iterate on feature branches and draft PRs.
+Marking a PR **Ready for review** requests full qualification of that exact candidate; the owner merges after **CI / acceptance** succeeds.
+A later commit invalidates acceptance and requires another deliberate ready checkpoint.
+An ordinary merge runs lightweight reuse admission: **REUSED** includes eligible JSON results; **FULL_REQUIRED** waits for an explicit main-qualification dispatch.
+Release qualification always binds a fresh source commit and candidate bytes.
 
-`assets/node-support.json` owns supported Node families, the independent producer reference and npm selections.
-`npm run sync:node` projects the policy; `npm run check:node` rejects drift.
-The native lockfile freezes the producer graph.
-
-`npm test` includes JavaScript and native `.mjs` tests.
-`npm run check:affected` combines before/after import graphs with declared non-import inputs; uncertain scope selects the complete suite.
-Native binaries participate in source identity through bounded hashing.
-`npm run check:full` retains architecture, release, tests, lint, style, clean package qualification and JSON dogfood checks.
-
-The manually dispatched hosted workflow retains Windows/Linux and supported Node consumer lanes.
-The separate [native component workflow](https://github.com/Hadden-Industries/json-quality/blob/main/.github/workflows/native.yml) builds the pinned dependencies and both bindings on Windows/Linux, stages each component through the verified owner, and runs the native suite including public installed resolution.
-It retains payloads, original notices, exact source/control identities and build diagnostics for inspection; it neither publishes a package nor automatically adopts a newly built component.
-An explicit manual run with `run_checks: false` produces an unqualified component for assembling a frozen candidate before its final reviews; ordinary push/PR runs and the manual default retain native checks.
-Local Windows evidence does not qualify Linux.
-The current oversized-value implementation explicitly defers local Linux measurements to remote CI, as authorized by its requester.
+Start with the [documentation index](docs/README.md), [contributor workflow](CONTRIBUTING.md), [release operations](docs/release-operations.md), [changelog](CHANGELOG.md) and [security policy](SECURITY.md).

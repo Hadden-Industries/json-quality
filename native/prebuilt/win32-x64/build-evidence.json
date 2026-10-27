@@ -5,7 +5,7 @@
     "native/CMakeLists.txt": "133b8daf6a834cf862c405b3946d520f17ece4434cd1968137bd05996862d0df",
     "native/dependencies.json": "246bee9dfbbbaeca3fce1c6c98c3b585238e137ff467838f726b2b2d5df07556",
     "native/icu-windows.props.in": "e82fbda22ab86278e259841fa2eb6fb51398bee1fc4e38bc5aa034354c097b89",
-    "native/build.py": "81270840d88c129f3e38241fc729513795508a770e1784e482215fc4db987365",
+    "native/build.py": "1c37c575722f512a94357079c7f11e6a5b9616612c6eb79cb7529b8964a719fe",
     "native/core/adaptive_store.hpp": "e08457fc0f3e4543b8eba57e86d4166a367caea593c8c9c2d10ff4394b174812",
     "native/core/allocation_ledger.hpp": "acc407e4980abed2248e527369c44083747a2300e105fc6c811705edb5ed58e1",
     "native/core/control_memory.hpp": "883c9949aa80a6144699f91fad3e518179a9c08eeeac298da49bbb9a3adf7545",
@@ -36,11 +36,11 @@
     "native/core/wire_integer.hpp": "8040ee6b11266c12127fc6d64f4013fb1c631c9e50749b83b95bc6128f037415",
     "native/bindings/framed_stdio.cpp": "90889acde29c39026eeda75ca60869d91a14bb2cf12968d7fd422fac13343c68",
     "native/bindings/node_api.cpp": "87ba5545c8773f816bed010bdad375794b4774136260ac18b0681544b3726ac8",
-    "schemas/configuration.schema.json": "fd955571d8aec8f13f317fa58357c6545d26c3d6df3d22595539d4b5bac71a24",
-    "schemas/source-contract.schema.json": "f2ed86bb912237c8880cda89c6ad33fabc9b451949bc589e371276b0754392ff",
+    "schemas/configuration.schema.json": "cb6d0b8df4fac41db7b87101f4de28a35fb3a8f2a5e79133bf19fee332a5ed97",
+    "schemas/source-contract.schema.json": "c67f2039802ace9792b4e317fca6562c62ad77d12fabe03332c2150cdefa386f",
     "schemas/contract-cohort.json": "c8ea223658e45aad176288c957ceae72e81584eac5e5832ba6b450b126c42c98"
   },
-  "sourceInputsSha256": "99fe880c25f2e200b97bdccd6ca97bd05e50f9208fddaff581cb97677e7b3957",
+  "sourceInputsSha256": "113f2216d9dc2e1541477e2b823e4d7c037dc5ee945a5c98ceeafef1dbdecf11",
   "platform": "win32-x64",
   "dependencies": [
     {
@@ -127,9 +127,9 @@
     "source_contract_enums.hpp": "8b2b94f3a745266f232e779ba3681b29c7eecddcd9732c020ec632ee17288262"
   },
   "artifactFiles": {
-    "component.json": "12c1c03cd30fdaf0cbbe9e3b60737e30a6fecad713dd87ed114959648919c68d",
-    "json-quality-native.exe": "63fe09d084e1fdba5b7f89cba749b63ce24fceed1bce942881845f9ae97d4793",
-    "json-quality.node": "1e182b2e642b1499b3c2306946a0f9c60058de5da86bc1fb113e046acc6d9293",
+    "component.json": "8b1ec57f365b14693632366ebf980877ebab5f043e5ab9862864a4b86255bfe3",
+    "json-quality-native.exe": "7669dabb71d70cc8b1e2ac2b258e214097ffac5424022b672578a709e0331562",
+    "json-quality.node": "cfa5bd94ec30c689679d59149f80fab3bc8723e12a39456ec782de0c3661a8e1",
     "notice-inventory.json": "cb9bd3641bc03aedb6c4dbefe84baf3bd2deda7c938f88415dbae80f87c94a83",
     "notices/boost/LICENSE_1_0.txt": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
     "notices/doubleConversion/AUTHORS": "02f8e5babc63a87d460219a74b97e15046d198ed3bab061e3d46b4f44ea77a9d",

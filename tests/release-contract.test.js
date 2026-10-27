@@ -171,7 +171,19 @@ const fixture = () => ({
   })),
   matrix: {
     os: ["ubuntu-24.04", "windows-2025"],
-    node: [...new Set([...policy.minimums, policy.reference])],
+    node: [
+      ...new Set([
+        policy.minimum,
+        ...policy.testedLtsMajors.map((major) =>
+          major === 22
+            ? "22.23.4"
+            : major === 26
+              ? "26.12.1"
+              : policy.reference,
+        ),
+        policy.reference,
+      ]),
+    ],
   },
   policy: structuredClone(policy),
   policySha256: sha,
@@ -355,7 +367,7 @@ test("real hard-link tar members are rejected by the release reader without extr
       cwd: fileURLToPath(new URL("../", import.meta.url)),
       encoding: "utf8",
       windowsHide: true,
-      timeout: 5000,
+      timeout: budgets.read,
     },
   );
   assert.notEqual(result.status, 0);
@@ -1389,6 +1401,49 @@ test("expired effect artifacts use signed digest-bound checkpoints without forge
     }),
   );
 });
+test("signed history retains completely expired provider runs and rejects missing or conflicting inventories", (t) => {
+  const root = temp(t),
+    observed = providerFixture();
+  const record = {
+    phase: "stage",
+    run: String(observed.run.id),
+    attempt: String(observed.run.run_attempt),
+    controller: observed.run.head_sha,
+    provider: observed,
+  };
+  const readers = {
+    pages: () => [],
+    checkpoint: () => [record],
+    provider: () => {
+      throw new Error("Expired provider must come from the signed checkpoint");
+    },
+  };
+  const history = readEffectHistory({}, root, {}, readers);
+  assert.equal(history.length, 1);
+  assert.deepEqual(history[0].run, observed.run);
+  assert.deepEqual(history[0].jobs, observed.jobs);
+  for (const mutate of [
+    (value) => delete value.provider,
+    (value) => {
+      value.controller = "f".repeat(40);
+    },
+    (value) => {
+      value.provider.jobs.total_count++;
+    },
+  ]) {
+    const value = structuredClone(record);
+    mutate(value);
+    assert.throws(() =>
+      readEffectHistory(
+        {},
+        root,
+        {},
+        { ...readers, checkpoint: () => [value] },
+      ),
+    );
+  }
+});
+
 test("promotion requires explicit prior-label absence and rejects prerelease or concurrent latest", () => {
   const release = fixture();
   release.version = "0.1.0";
@@ -1602,17 +1657,18 @@ test("native predecessor download and writer-history acquisition have disjoint f
     pages: () => [artifact],
     api: (path) =>
       path.startsWith("actions/artifacts/") ? artifact : { head_sha: source },
-    gh: (args, options) => {
-      if (args[0] === "api") {
-        assert.ok(
-          options.maxBuffer >= zip.length,
-          "Admitted family ZIP exceeds legacy32MiB capture",
-        );
-        return zip;
-      }
-      const destination = args[args.indexOf("--dir") + 1];
+    bytes: () => zip,
+    extract: (archive, destination, maximum) => {
+      assert.ok(
+        maximum >= zip.length,
+        "Admitted family exceeds legacy 32 MiB capture",
+      );
+      assert.deepEqual(
+        readFileSync(archive),
+        zip,
+        "Extraction must consume the very bytes whose digest was verified",
+      );
       writeFileSync(join(destination, "stage-17-1.jsonl"), journal);
-      return "";
     },
   };
   const original = download(17, 1, name, root, transport);
@@ -1915,7 +1971,7 @@ test("CodeQL gate uses exact-source native analyses and query inventories, inclu
     commit_sha: source,
     ref: "refs/heads/main",
     category: `/language:${language}`,
-    analysis_key: "dynamic/github-code-scanning/codeql:analyze",
+    analysis_key: ".github/workflows/security.yml:codeql",
     environment: JSON.stringify({ language }),
     tool: { name: "CodeQL", version: "2.0.0" },
     error: "",
@@ -2267,7 +2323,7 @@ test("real command failure and timeout retain native diagnostics and finite clas
     (error) => error.facts.timeout,
   );
   assert.throws(() => native(process.execPath, [], { timeout: 0 }));
-  assert.equal(budgets.install, 300000);
+  assert.equal(budgets.install, 1200000);
   assert.equal(budgets.suite, 1800000);
 });
 test("consumer reports cannot substitute a source, lane, registry boundary or schema observation", () => {

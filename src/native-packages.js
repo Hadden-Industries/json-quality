@@ -7,6 +7,7 @@ import definitions from "../assets/native-packages.json" with { type: "json" };
 import { readPackageMetadata } from "./package-payload.js";
 import { isPathContained } from "./paths.js";
 
+/** @type {Record<string, {package: string, os: string[], cpu: string[], libc?: string[], executable: string}>} */
 export const nativePackages = definitions;
 
 export function nativePlatformSpec() {
@@ -14,13 +15,18 @@ export function nativePlatformSpec() {
   const spec = nativePackages[platform];
   if (
     !spec ||
-    (spec.libc && !process.report.getReport().header.glibcVersionRuntime)
+    (spec.libc &&
+      !(
+        /** @type {{header: {glibcVersionRuntime?: string}}} */ (
+          process.report.getReport()
+        ).header.glibcVersionRuntime
+      ))
   )
     throw new Error(`Unsupported JSON Quality native platform: ${platform}`);
   return { platform, spec };
 }
 
-export async function resolveNativePackage(coreRoot) {
+export async function resolveNativePackage(/** @type {*} */ coreRoot) {
   const { platform, spec } = nativePlatformSpec();
   coreRoot = realpathSync(coreRoot);
   const core = await readPackageMetadata(join(coreRoot, "package.json"));
@@ -37,7 +43,7 @@ export async function resolveNativePackage(coreRoot) {
   }
   const directory = realpathSync(dirname(metadataPath)),
     parts = coreRoot.split(sep),
-    index = parts.findIndex((part) =>
+    index = parts.findIndex((/** @type {*} */ part) =>
       process.platform === "win32"
         ? part.toLowerCase() === "node_modules"
         : part === "node_modules",

@@ -1,0 +1,19 @@
+name: Download admitted evidence
+description: Bound one native artifact identity and extract only digest-verified bytes
+inputs:
+  artifact-id:
+    required: true
+    description: Immutable original artifact ID
+  path:
+    required: true
+    description: Empty owned destination
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      timeout-minutes: 15
+      env:
+        ARTIFACT_ID: ${{ inputs.artifact-id }}
+        ARTIFACT_DESTINATION: ${{ inputs.path }}
+        GH_TOKEN: ${{ github.token }}
+      run: node scripts/download-evidence.js "$ARTIFACT_ID" "$ARTIFACT_DESTINATION"

@@ -8,7 +8,10 @@ import { assertRegularSource } from "./paths.js";
 import { sourceObservation } from "./source-observation.js";
 
 /** Observe one regular repository source for later bounded capture/revalidation. */
-export function observeRepositorySource(root, path) {
+export function observeRepositorySource(
+  /** @type {*} */ root,
+  /** @type {*} */ path,
+) {
   const absolute = assertRegularSource(root, path),
     stat = observeRegularFile(absolute);
   return {
@@ -21,7 +24,7 @@ export function observeRepositorySource(root, path) {
 /** Own a descriptor that matches the census observation and current pathname.
  * The returned check repeats both identities after EOF. Every failure closes it.
  */
-async function openDiscovered(root, member) {
+async function openDiscovered(/** @type {*} */ root, /** @type {*} */ member) {
   const absolute = assertRegularSource(root, member.path);
   const descriptor = await open(
     absolute,
@@ -49,7 +52,10 @@ async function openDiscovered(root, member) {
 /** Read one 64 KiB fragment ahead; the consumer settles each yielded view before
  * advancing because its backing buffer is deliberately reused.
  */
-async function* sourceFragments(descriptor, signal) {
+async function* sourceFragments(
+  /** @type {*} */ descriptor,
+  /** @type {*} */ signal,
+) {
   const buffer = Buffer.alloc(65536);
   while (true) {
     signal?.throwIfAborted();
@@ -60,7 +66,9 @@ async function* sourceFragments(descriptor, signal) {
 }
 
 /** Stream one observed source, checking the descriptor/path again at EOF. */
-export async function* repositorySourceFragments({ root, member, signal }) {
+export async function* repositorySourceFragments(
+  /** @type {*} */ { root, member, signal },
+) {
   const { descriptor, assertUnchanged } = await openDiscovered(root, member);
   try {
     yield* sourceFragments(descriptor, signal);
@@ -73,7 +81,9 @@ export async function* repositorySourceFragments({ root, member, signal }) {
 /** Establish an independent byte pin with bounded reads before identified
  * capture. Both passes must still match the same filesystem observation.
  */
-export async function identifyRepositorySource({ root, member, signal }) {
+export async function identifyRepositorySource(
+  /** @type {*} */ { root, member, signal },
+) {
   const hash = createHash("sha256");
   let length = 0n;
   for await (const fragment of repositorySourceFragments({
@@ -88,16 +98,18 @@ export async function identifyRepositorySource({ root, member, signal }) {
 }
 
 /** Capture one discovered regular file without retaining a JS copy of its body. */
-export async function captureRepositorySource({
-  root,
-  member,
-  session,
-  contract,
-  signal,
-  retainValues = false,
-  sourceKind = "physical",
-  identity,
-}) {
+export async function captureRepositorySource(
+  /** @type {*} */ {
+    root,
+    member,
+    session,
+    contract,
+    signal,
+    retainValues = false,
+    sourceKind = "physical",
+    identity,
+  },
+) {
   const { descriptor, assertUnchanged } = await openDiscovered(root, member);
   try {
     const captured = await session.capture(
@@ -118,7 +130,9 @@ export async function captureRepositorySource({
 }
 
 /** Verify the discovered file still has the captured identity and exact bytes. */
-export async function recheckRepositorySource({ root, member, signal }) {
+export async function recheckRepositorySource(
+  /** @type {*} */ { root, member, signal },
+) {
   const { descriptor, assertUnchanged } = await openDiscovered(root, member);
   try {
     const hash = createHash("sha256");

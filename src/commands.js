@@ -4,10 +4,13 @@ import schema from "../schemas/configuration.schema.json" with { type: "json" };
 import { resolveExecutionResources } from "./execution-resources.js";
 import { capacityLimitsEnvironment } from "./acquire.js";
 
-const capacityNames = Object.keys(schema.definitions.capacityLimits.properties),
-  runtimeNames = Object.keys(schema.definitions.runtimeControls.properties);
-export const limitFlag = (name) =>
-  name.replace(/[A-Z]/gu, (letter) => "-" + letter.toLowerCase());
+const capacityNames = Object.keys(schema.$defs.capacityLimits.properties),
+  runtimeNames = Object.keys(schema.$defs.runtimeControls.properties);
+export const limitFlag = (/** @type {*} */ name) =>
+  name.replace(
+    /[A-Z]/gu,
+    (/** @type {*} */ letter) => "-" + letter.toLowerCase(),
+  );
 export const RESOURCE_OPTIONS = Object.freeze({
   "capacity-limits": { type: "boolean" },
   ...Object.fromEntries(
@@ -19,8 +22,8 @@ export const RUNTIME_OPTIONS = Object.freeze(
     runtimeNames.map((name) => [limitFlag(name), { type: "string" }]),
   ),
 );
-function overrides(values, names) {
-  const selected = {};
+function overrides(/** @type {*} */ values, /** @type {*} */ names) {
+  const /** @type {Record<string, any>} */ selected = {};
   for (const name of names) {
     const value = values[limitFlag(name)];
     if (value === undefined) continue;
@@ -31,7 +34,7 @@ function overrides(values, names) {
   return selected;
 }
 export function resourceCliLimits(
-  values,
+  /** @type {*} */ values,
   encoded = capacityLimitsEnvironment(),
 ) {
   const base = encoded === undefined ? undefined : JSON.parse(encoded),
@@ -51,7 +54,7 @@ export function resourceCliLimits(
   if (enabled === true) return Object.keys(merged).length ? merged : true;
   return hasOverrides ? merged : base;
 }
-export function resourceCliControls(values) {
+export function resourceCliControls(/** @type {*} */ values) {
   const capacityLimits = resourceCliLimits(values),
     encoded = process.env.JSON_QUALITY_RUNTIME_CONTROLS,
     base = encoded === undefined ? undefined : JSON.parse(encoded);

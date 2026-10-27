@@ -7,14 +7,14 @@
  * owns the input objects; this boundary bounds its additional transport copies.
  * Accessors, custom serialization and cyclic data are not a control contract.
  */
-export function encodeNativeControl(input, maximum = 1048576) {
+export function encodeNativeControl(/** @type {*} */ input, maximum = 1048576) {
   let bytes = 0;
   const ancestors = new Set();
-  const add = (amount) => {
+  const add = (/** @type {*} */ amount) => {
     bytes += amount;
     if (bytes > maximum) throw new Error("control-envelope-size");
   };
-  const string = (value) => {
+  const string = (/** @type {*} */ value) => {
     add(2);
     // Each code unit costs at least one output byte. Reject giants before scan.
     if (value.length > maximum - bytes)
@@ -43,7 +43,7 @@ export function encodeNativeControl(input, maximum = 1048576) {
       } else add(3);
     }
   };
-  const visit = (value, depth) => {
+  const visit = (/** @type {*} */ value, /** @type {*} */ depth) => {
     if (value === null) return add(4);
     if (typeof value === "string") return string(value);
     if (typeof value === "boolean") return add(value ? 4 : 5);
@@ -82,7 +82,7 @@ export function encodeNativeControl(input, maximum = 1048576) {
       for (const key in value) {
         if (!Object.hasOwn(value, key)) continue;
         const descriptor = Object.getOwnPropertyDescriptor(value, key);
-        if (!Object.hasOwn(descriptor, "value"))
+        if (!descriptor || !Object.hasOwn(descriptor, "value"))
           throw new TypeError("native-control-data");
         if (descriptor.value === undefined) continue;
         if (count++) add(1);

@@ -40,6 +40,7 @@ if (process.argv[2] === "events") {
       () =>
         session.check(
           {
+            // eslint-disable-next-line require-yield -- Admission must reject before opening.
             async *open() {
               throw new Error("must not open");
             },

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "../../scripts/qualification-process.js";
 import assert from "node:assert/strict";
 import { copyFile, mkdtemp, rm } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
@@ -24,7 +25,7 @@ test("separately loaded binary copies reject each other's session handles", asyn
         path,
         directory,
       ],
-      { timeout: 20000, windowsHide: true, stdio: "pipe" },
+      { timeout: budgets.read, windowsHide: true, stdio: "pipe" },
     );
   } finally {
     await rm(directory, { recursive: true });

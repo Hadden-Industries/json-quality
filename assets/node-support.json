@@ -1,18 +1,25 @@
 {
-  "schemaVersion": 1,
-  "minimums": [
-    "22.13.0",
-    "24.0.0",
-    "26.0.0"
+  "schemaVersion": 2,
+  "minimum": "22.13.0",
+  "testedLtsMajors": [
+    22,
+    24,
+    26
   ],
-  "reference": "24.21.0",
+  "preLtsMajors": [
+    26
+  ],
+  "reference": "24.22.1",
   "platforms": [
     "ubuntu-24.04",
     "windows-2025"
   ],
   "producerNpm": {
     "version": "12.2.1",
-    "range": ">=12.2.0 <13"
+    "range": ">=12.2.1 <13"
+  },
+  "support": {
+    "otherEngineCompatibleReleases": "best-effort"
   },
   "consumerNpm": "11.21.1"
 }

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { budgets } from "../../scripts/qualification-process.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawn, execFileSync } from "node:child_process";
@@ -71,7 +72,7 @@ for (const owner of ["source", "repository"])
   for (const kind of ["member", "directory"])
     test(
       `public ${owner} close retries a real scratch ${kind} removal failure and removes its owned spill`,
-      { timeout: 60000 },
+      { timeout: budgets.read },
       async (t) => {
         const directory = await mkdtemp(
           join(nativeTemporaryRoot, "json-quality-close-retry-"),

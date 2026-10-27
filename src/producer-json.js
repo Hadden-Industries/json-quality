@@ -15,10 +15,10 @@ export const JSON_PRODUCER_CAPABILITIES = Object.freeze({
  * objects and reflection metadata belong to the producer; this helper does not
  * promise scalable traversal of a pre-existing JavaScript object graph.
  */
-export function serializeProducerJson(value) {
+export function serializeProducerJson(/** @type {*} */ value) {
   const ancestors = new Set();
   let members = 0;
-  const inspect = (item, depth) => {
+  const inspect = (/** @type {*} */ item, /** @type {*} */ depth) => {
     if (++members > JSON_PRODUCER_CAPABILITIES.maximumMembers)
       throw new Error("producer-member-capacity");
     if (depth > JSON_PRODUCER_CAPABILITIES.maximumDepth)
@@ -66,6 +66,7 @@ export function serializeProducerJson(value) {
       if (
         typeof key !== "string" ||
         !key.isWellFormed() ||
+        !descriptor ||
         !descriptor.enumerable ||
         !Object.hasOwn(descriptor, "value") ||
         (array &&

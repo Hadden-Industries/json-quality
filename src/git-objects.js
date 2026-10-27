@@ -12,13 +12,9 @@ import { sourceObservation } from "./source-observation.js";
 /** Fixed-size metadata query rejects a tree/tag identity posing as a commit.
  * No source body is buffered through execFile.
  */
-export async function assertGitCommit({
-  executable,
-  root,
-  sha,
-  capacities,
-  signal,
-}) {
+export async function assertGitCommit(
+  /** @type {*} */ { executable, root, sha, capacities, signal },
+) {
   const { stdout } = await promisify(execFile)(
     executable,
     ["-C", root, "cat-file", "-t", sha],
@@ -42,7 +38,7 @@ export async function assertGitCommit({
 /** Select an external native executable, then bind its canonical path/identity
  * for this operation. JSON data never supplies an executable or Git arguments.
  */
-export function gitObjectAuthority(roots) {
+export function gitObjectAuthority(/** @type {*} */ roots) {
   const path = (process.env.PATH ?? process.env.Path ?? "")
     .split(delimiter)
     .filter(isAbsolute)
@@ -53,7 +49,10 @@ export function gitObjectAuthority(roots) {
       (candidate) =>
         existsSync(candidate) &&
         lstatSync(candidate).isFile() &&
-        roots.every((root) => !isPathContained(root, realpathSync(candidate))),
+        roots.every(
+          (/** @type {*} */ root) =>
+            !isPathContained(root, realpathSync(candidate)),
+        ),
     );
   if (!path) throw new Error("External native Git executable is required.");
   const executable = realpathSync(path),
@@ -74,14 +73,9 @@ export function gitObjectAuthority(roots) {
 /** Long tree records carry the exact byte length before any blob is opened.
  * Only one bounded record is retained; the growing census belongs to SQLite.
  */
-export async function* gitTree({
-  executable,
-  root,
-  sha,
-  capacities,
-  signal,
-  path,
-}) {
+export async function* gitTree(
+  /** @type {*} */ { executable, root, sha, capacities, signal, path },
+) {
   const args = ["ls-tree", "-r", "-l", "-z", sha];
   if (path !== undefined) args.push("--", path);
   for await (const entry of gitRecords(
@@ -106,10 +100,12 @@ export async function* gitTree({
   }
 }
 
-export function assertGitJsonBlob(member) {
+export function assertGitJsonBlob(/** @type {*} */ member) {
   assertRepositoryPath(member.path);
   if (
-    member.path.split("/").some((part) => part.toLowerCase() === ".git") ||
+    member.path
+      .split("/")
+      .some((/** @type {*} */ part) => part.toLowerCase() === ".git") ||
     member.type !== "blob" ||
     !["100644", "100755"].includes(member.mode) ||
     !/^(0|[1-9][0-9]*)$/u.test(member.byteLength)
@@ -123,13 +119,9 @@ export function assertGitJsonBlob(member) {
  * Stderr is bounded separately; stdout is the admitted JSON payload, not a Git
  * metadata-output buffer. The owner must provide a finite operation signal.
  */
-export async function* gitBlob({
-  executable,
-  root,
-  member,
-  capacities,
-  signal,
-}) {
+export async function* gitBlob(
+  /** @type {*} */ { executable, root, member, capacities, signal },
+) {
   signal.throwIfAborted();
   const child = spawn(
     executable,
@@ -151,7 +143,7 @@ export async function* gitBlob({
     failure,
     stderrBytes = 0,
     timer;
-  const fail = (error) => {
+  const fail = (/** @type {*} */ error) => {
       failure ??= error;
       child.kill();
     },

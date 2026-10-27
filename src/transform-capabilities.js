@@ -9,7 +9,7 @@ export const JSON_TRANSFORM_CAPABILITIES = Object.freeze({
 });
 
 /** Refuse before a UTF-8 body copy or formatter/parser is created. */
-export function admitTransformSource(text) {
+export function admitTransformSource(/** @type {*} */ text) {
   if (typeof text !== "string" || !text.isWellFormed())
     throw new TypeError(
       "Transformation requires well-formed UTF-16 source text.",
@@ -27,7 +27,7 @@ export function admitTransformSource(text) {
  * their separate allocation owner. V8/OS overhead is measured
  * separately from this deliberately conservative managed bookkeeping.
  */
-export function transformWorkspaceReservation(sourceBytes) {
+export function transformWorkspaceReservation(/** @type {*} */ sourceBytes) {
   if (
     !Number.isSafeInteger(sourceBytes) ||
     sourceBytes < 0 ||
@@ -48,7 +48,10 @@ export function transformWorkspaceReservation(sourceBytes) {
 /** Formatter text/AST/output work and the separately owned debug-check worker
  * share this one reservation. Process runtime/RSS is measured independently.
  */
-export function formatWorkspaceReservation(sourceBytes, indexedValues = 0) {
+export function formatWorkspaceReservation(
+  /** @type {*} */ sourceBytes,
+  indexedValues = 0,
+) {
   if (
     !Number.isSafeInteger(sourceBytes) ||
     sourceBytes < 0 ||
@@ -67,7 +70,11 @@ export function formatWorkspaceReservation(sourceBytes, indexedValues = 0) {
  * caller retains the working reservation until it has stored/consumed the
  * output and stopped using the borrowed text. Capture metadata remains stable.
  */
-export function retainedTransformResult(text, capture, releaseOwner) {
+export function retainedTransformResult(
+  /** @type {*} */ text,
+  /** @type {*} */ capture,
+  /** @type {*} */ releaseOwner,
+) {
   let released = false,
     releasing;
   return Object.freeze({

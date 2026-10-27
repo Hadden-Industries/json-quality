@@ -21,8 +21,15 @@ export function verifyCodeql(analyses, source) {
         analysis.commit_sha === source &&
         analysis.ref === "refs/heads/main" &&
         analysis.category === `/language:${language}` &&
-        analysis.analysis_key ===
-          "dynamic/github-code-scanning/codeql:analyze" &&
+        [
+          "security.yml",
+          "release-qualification.yml",
+          "release-registry.yml",
+          "main-qualification.yml",
+        ].some(
+          (workflow) =>
+            analysis.analysis_key === `.github/workflows/${workflow}:codeql`,
+        ) &&
         analysis.tool?.name === "CodeQL",
     );
     assert.ok(matches.length, `Missing exact-source CodeQL ${language}`);

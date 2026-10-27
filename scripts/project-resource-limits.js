@@ -14,7 +14,7 @@ export function projectResourceLimits({ write = false } = {}) {
   );
   const path = new URL("../src/acquire.js", import.meta.url);
   const source = readFileSync(path, "utf8").replaceAll("\r\n", "\n");
-  const definition = schema.definitions.capacityLimits;
+  const definition = schema.$defs.capacityLimits;
   if (
     definition.type !== "object" ||
     definition.additionalProperties !== false ||
@@ -64,9 +64,9 @@ export function projectResourceLimits({ write = false } = {}) {
     ["admission", "capacityLimits"],
     ["runtime", "runtimeControls"],
   ]) {
-    const names = Object.keys(schema.definitions[definitionName].properties),
+    const names = Object.keys(schema.$defs[definitionName].properties),
       integer = {
-        $ref: "configuration.schema.json#/definitions/positiveIntegerText",
+        $ref: `${schema.$id}#/$defs/positiveIntegerText`,
       },
       rule = {
         type: "object",

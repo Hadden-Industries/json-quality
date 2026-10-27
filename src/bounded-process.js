@@ -3,9 +3,9 @@
 import { spawn } from "node:child_process";
 
 export async function runBoundedTool(
-  executable,
-  args,
-  {
+  /** @type {*} */ executable,
+  /** @type {*} */ args,
+  /** @type {*} */ {
     input,
     signal,
     timeout,
@@ -30,11 +30,11 @@ export async function runBoundedTool(
     windowsHide: true,
     stdio: ["pipe", "pipe", "pipe"],
   });
-  let failure,
+  let /** @type {any} */ failure,
     outputBytes = 0,
     termination;
-  const stdoutChunks = captureOutput ? [] : null;
-  const stop = (error) => {
+  const /** @type {Buffer[] | null} */ stdoutChunks = captureOutput ? [] : null;
+  const stop = (/** @type {*} */ error) => {
       failure ??= error;
       if (stdoutChunks) stdoutChunks.length = 0;
       child.kill();
@@ -59,10 +59,12 @@ export async function runBoundedTool(
           if (failure) return;
           outputBytes += chunk.length;
           if (outputBytes > maximumOutputBytes) {
-            const error = new Error("Native tool output capacity exceeded.");
+            const /** @type {NodeJS.ErrnoException} */ error = new Error(
+                "Native tool output capacity exceeded.",
+              );
             error.code = "native-tool-output-capacity";
             stop(error);
-          } else if (captureOutput && output === child.stdout)
+          } else if (stdoutChunks && output === child.stdout)
             stdoutChunks.push(chunk);
         });
       child.once("close", (code) => {
@@ -72,7 +74,9 @@ export async function runBoundedTool(
         else
           resolve({
             code,
-            stdout: captureOutput ? Buffer.concat(stdoutChunks) : undefined,
+            stdout: captureOutput
+              ? Buffer.concat(/** @type {Buffer[]} */ (stdoutChunks))
+              : undefined,
           });
       });
       child.stdin.end(input);
