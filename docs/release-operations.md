@@ -14,7 +14,9 @@ All packages share the owner-selected version, but retain independent archive in
 The existing `--archive` and `--provenance` inputs identify the core and its frozen companion archives; each recipient qualifies the core and only its matching platform payload.
 Linux executable mode is checked in the actual native archive.
 The local `.provenance.json` records all three byte identities; authenticated registry provenance comes from native npm verification.
-The owner-selected package release candidate is `1.0.0-rc.1`, with configuration/event/native cohort 2.
+The published `1.0.0-rc.1` uses configuration/event/native cohort 2.
+The resource-override source candidate is `1.0.0-rc.2`, with cohort 3; preparing that version does not publish it or select it in consumers.
+Formal release publication and HISEW adoption require their owner's separate decisions.
 Public API/schema exports, executable artifacts, CLI entrypoints and consumer Node floors remain separate compatibility contracts.
 
 The earlier release plan recorded a 1.0.0 selection on 2026-10-18.

@@ -65,10 +65,10 @@ export interface JsonQualityPolicy {
     }[],
   ];
   /**
-   * Shared operation capacity ceilings. True enables configured/default capacities, false disables them, and an override object enables finite capacities with explicit values. Policy settings apply after admission; invocation capacityLimits controls bootstrap. Separate ESLint, cleanup, workflow and platform controls are outside this setting.
+   * Caller-owned admission quotas. False removes all quotas, true selects configured/default quotas, and an object overrides only named fields. Null removes an individual quota. Invocation controls govern bootstrap.
    */
   capacityLimits?: boolean | CapacityLimits;
-  schemaVersion: 2;
+  schemaVersion: 3;
   defaults: {
     formatContract: "prettier-json";
     allowFormatWrites: true;
@@ -138,30 +138,34 @@ export interface JsonQualityPolicy {
       | "producer-json-compact"
       | "producer-json-compact-body";
   }[];
-  runtimeControls?: RuntimeControls;
+  runtimeControls?: boolean | RuntimeControls;
+  /**
+   * Caller-owned quotas for this operation. False removes every quota; null removes an individual quota; an object overrides only its named fields.
+   */
+  transformControls?: boolean | TransformControls;
 }
 /**
  * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
  * via the `definition` "capacityLimits".
  */
 export interface CapacityLimits {
-  maxFiles?: number;
-  maxFileBytes?: number;
-  maxTotalBytes?: number;
-  maxLogicalDocuments?: number;
-  maxRecords?: number;
-  maxDiagnostics?: number;
-  maxPolicyBytes?: number;
-  maxGitOutputBytes?: number;
-  maxToolOutputBytes?: number;
-  maxToolTimeMs?: number;
-  maxGitTimeMs?: number;
-  maxAcquisitionTimeMs?: number;
-  maxCacheLookupTimeMs?: number;
-  maxCacheOutputBytes?: number;
-  maxRequestIdCharacters?: number;
-  maxRequestBytes?: number;
-  maxRequestPathCharacters?: number;
+  maxFiles?: number | null;
+  maxFileBytes?: number | null;
+  maxTotalBytes?: number | null;
+  maxLogicalDocuments?: number | null;
+  maxRecords?: number | null;
+  maxDiagnostics?: number | null;
+  maxPolicyBytes?: number | null;
+  maxGitOutputBytes?: number | null;
+  maxToolOutputBytes?: number | null;
+  maxToolTimeMs?: number | null;
+  maxGitTimeMs?: number | null;
+  maxAcquisitionTimeMs?: number | null;
+  maxCacheLookupTimeMs?: number | null;
+  maxCacheOutputBytes?: number | null;
+  maxRequestIdCharacters?: number | null;
+  maxRequestBytes?: number | null;
+  maxRequestPathCharacters?: number | null;
 }
 /**
  * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
@@ -180,17 +184,26 @@ export interface DiagnosticIdentity {
   codePoint?: string;
 }
 /**
- * Finite working controls for one execution. Admission bypass never disables these controls. The first native cohort admits one active checker under its aggregate target.
+ * Caller-selected resource controls. Null disables an individual quota; false selects no package quotas. Numeric controls remain enforceable. Finite streaming buffers are independent of aggregate quotas.
  *
  * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
  * via the `definition` "runtimeControls".
  */
 export interface RuntimeControls {
-  managedMemoryTargetBytes?: number;
-  maxTemporaryBytes?: number;
-  maxNestingDepth?: number;
-  maxCheckTimeMs?: number;
-  maxConcurrency?: number;
+  managedMemoryTargetBytes?: number | null;
+  maxTemporaryBytes?: number | null;
+  maxNestingDepth?: number | null;
+  maxCheckTimeMs?: number | null;
+}
+/**
+ * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
+ * via the `definition` "transformControls".
+ */
+export interface TransformControls {
+  maximumSourceBytes?: number | null;
+  maximumOutputBytes?: number | null;
+  maximumNormalizationChanges?: number | null;
+  maximumWritePaths?: number | null;
 }
 /**
  * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
@@ -200,4 +213,29 @@ export interface SourceExpectation {
   sha256: string;
   byteLength: UnsignedIntegerText;
   diagnostics: DiagnosticIdentity[];
+}
+/**
+ * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
+ * via the `definition` "producerControls".
+ */
+export interface ProducerControls {
+  maximumDepth?: number | null;
+  maximumMembers?: number | null;
+}
+/**
+ * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
+ * via the `definition` "verificationControls".
+ */
+export interface VerificationControls {
+  maximumArchiveBytes?: number | null;
+  maximumMemberBytes?: number | null;
+  maximumExpandedBytes?: number | null;
+  maximumMembers?: number | null;
+  maximumIndexBytes?: number | null;
+  maximumMetadataBytes?: number | null;
+  maximumArchiveMetadataBytes?: number | null;
+  maximumPathBytes?: number | null;
+  maximumDepth?: number | null;
+  maximumVerificationTimeMs?: number | null;
+  maximumDecompressionRatio?: number | null;
 }

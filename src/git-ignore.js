@@ -3,6 +3,7 @@
 import { assertRepositoryPath } from "./paths.js";
 import { gitReadEnvironment } from "./repository-discovery.js";
 import { runBoundedTool } from "./bounded-process.js";
+import { minimumDuration } from "./execution-deadline.js";
 
 export function gitIgnoreBatchLimits(/** @type {*} */ resources) {
   const maximumOutputBytes = Math.min(
@@ -95,8 +96,8 @@ export /** @returns {*} */ async function ignoredGitPaths(
         cwd: root,
         env: gitReadEnvironment(),
         input: Buffer.from(paths.join("\0") + "\0"),
-        timeout: Math.min(
-          admission.maxGitTimeMs ?? runtime.maxCheckTimeMs,
+        timeout: minimumDuration(
+          admission.maxGitTimeMs,
           runtime.maxCheckTimeMs,
         ),
         maximumOutputBytes: limits.maximumOutputBytes,

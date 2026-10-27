@@ -26,7 +26,8 @@ inline Value pathNode(Streams &streams, std::uint64_t id) {
 inline std::vector<PathPart> valuePath(Streams &streams, Value value) {
   std::vector<PathPart> parts;
   while (value.parent) {
-    require(parts.size() < 4096, "value-path-depth");
+    streams.store.checkCancellation();
+    require(value.parent < value.id, "value-path-cycle");
     auto parent = pathNode(streams, value.parent);
     parts.push_back({parent.kind == "array" ? 0
                      : value.kind == "key"  ? value.id

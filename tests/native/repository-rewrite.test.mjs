@@ -20,7 +20,7 @@ async function fixture(documents, run, executionOptions = {}) {
       join(root, ".json-quality.json"),
       JSON.stringify(
         {
-          schemaVersion: 2,
+          schemaVersion: 3,
           defaults: {
             formatContract: "prettier-json",
             normalization: "NFC",
@@ -149,7 +149,7 @@ test("advanced facade delivers versioned candidate and write completion events",
       let terminal;
       for await (const event of session.rewrite("format")) terminal = event;
       assert.equal(terminal.type, "write-terminal", terminal.message);
-      assert.equal(terminal.schemaVersion, 2);
+      assert.equal(terminal.schemaVersion, 3);
       assert.equal(terminal.written, "1");
       assert.throws(() => session.rewrite("format"), /already-consumed/);
     } finally {

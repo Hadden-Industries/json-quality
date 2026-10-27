@@ -13,7 +13,7 @@ for (const mode of ["events", "empty-key-options"])
       join(root, ".json-quality.json"),
       JSON.stringify(
         {
-          schemaVersion: 2,
+          schemaVersion: 3,
           defaults: {
             formatContract: "prettier-json",
             allowFormatWrites: true,

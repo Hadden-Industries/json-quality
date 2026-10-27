@@ -1,23 +1,42 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Explicit materializing effects have a finite capability independent of scalable
+// Materializing effects have caller-owned quotas independent of scalable
 // checking. Transformation-owned workspace has its own reservation in the same
 // ledger. Runtime/OS overhead is measured separately; no read/storage selector.
-export const JSON_TRANSFORM_CAPABILITIES = Object.freeze({
-  maximumSourceBytes: 2097152,
-  maximumOutputBytes: 2097152,
-  maximumNormalizationChanges: 4096,
-});
+import {
+  resourceDefaults,
+  resolveResourceProfile,
+  exceedsQuota,
+} from "./resource-profile.js";
+export const JSON_TRANSFORM_CAPABILITIES =
+  /** @type {{ readonly [K in keyof Required<import("../types/schemas/configuration.js").TransformControls>]: number }} */ (
+    resourceDefaults("transformControls")
+  );
+export function transformResources(
+  /** @type {*} */ policy,
+  /** @type {*} */ invocation,
+) {
+  return resolveResourceProfile(
+    JSON_TRANSFORM_CAPABILITIES,
+    policy,
+    invocation,
+  );
+}
 
 /** Refuse before a UTF-8 body copy or formatter/parser is created. */
-export function admitTransformSource(/** @type {*} */ text) {
+export function admitTransformSource(
+  /** @type {*} */ text,
+  /** @type {*} */ controls = JSON_TRANSFORM_CAPABILITIES,
+) {
   if (typeof text !== "string" || !text.isWellFormed())
     throw new TypeError(
       "Transformation requires well-formed UTF-16 source text.",
     );
-  const maximum = JSON_TRANSFORM_CAPABILITIES.maximumSourceBytes;
-  if (text.length > maximum) throw new Error("transform-source-capacity");
+  const maximum = controls.maximumSourceBytes;
+  if (exceedsQuota(text.length, maximum))
+    throw new Error("transform-source-capacity");
   const bytes = Buffer.byteLength(text);
-  if (bytes > maximum) throw new Error("transform-source-capacity");
+  if (exceedsQuota(bytes, maximum))
+    throw new Error("transform-source-capacity");
   return bytes;
 }
 
@@ -27,22 +46,27 @@ export function admitTransformSource(/** @type {*} */ text) {
  * their separate allocation owner. V8/OS overhead is measured
  * separately from this deliberately conservative managed bookkeeping.
  */
-export function transformWorkspaceReservation(/** @type {*} */ sourceBytes) {
+export function transformWorkspaceReservation(
+  /** @type {*} */ sourceBytes,
+  /** @type {*} */ controls = JSON_TRANSFORM_CAPABILITIES,
+) {
   if (
     !Number.isSafeInteger(sourceBytes) ||
     sourceBytes < 0 ||
-    sourceBytes > JSON_TRANSFORM_CAPABILITIES.maximumSourceBytes
+    exceedsQuota(sourceBytes, controls.maximumSourceBytes)
   )
     throw new Error("transform-source-capacity");
-  return (
+  const reservation =
     sourceBytes * 16 +
     Math.min(
-      JSON_TRANSFORM_CAPABILITIES.maximumNormalizationChanges,
+      controls.maximumNormalizationChanges ?? Infinity,
       Math.floor(sourceBytes / 4),
     ) *
       512 +
-    65536
-  );
+    65536;
+  if (!Number.isSafeInteger(reservation))
+    throw new Error("transform-workspace-representation");
+  return reservation;
 }
 
 /** Formatter text/AST/output work and the separately owned debug-check worker
@@ -51,11 +75,12 @@ export function transformWorkspaceReservation(/** @type {*} */ sourceBytes) {
 export function formatWorkspaceReservation(
   /** @type {*} */ sourceBytes,
   indexedValues = 0,
+  /** @type {*} */ controls = JSON_TRANSFORM_CAPABILITIES,
 ) {
   if (
     !Number.isSafeInteger(sourceBytes) ||
     sourceBytes < 0 ||
-    sourceBytes > JSON_TRANSFORM_CAPABILITIES.maximumSourceBytes ||
+    exceedsQuota(sourceBytes, controls.maximumSourceBytes) ||
     !Number.isSafeInteger(indexedValues) ||
     indexedValues < 0
   )

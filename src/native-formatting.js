@@ -7,12 +7,16 @@ import * as prettier from "prettier";
 import formatOptions from "./json-format-options.json" with { type: "json" };
 import { NativeSession } from "./native-session.js";
 import { resolveExecutionResources } from "./execution-resources.js";
+import {
+  createExecutionDeadline,
+  minimumDuration,
+} from "./execution-deadline.js";
 import { runBoundedTool } from "./bounded-process.js";
 import {
   admitTransformSource,
   formatWorkspaceReservation,
   retainedTransformResult,
-  JSON_TRANSFORM_CAPABILITIES,
+  transformResources,
 } from "./transform-capabilities.js";
 
 async function checked(
@@ -60,30 +64,33 @@ export async function formatSource(
     reason,
     capacityLimits,
     runtimeControls,
+    transformControls,
     signal,
     core: executionCore,
     parentSource,
     controlStateBytes = "0",
   } = {},
 ) {
-  const size = admitTransformSource(text),
+  const controls = transformResources(undefined, transformControls),
+    size = admitTransformSource(text, controls),
     began = performance.now(),
     selected = resolveExecutionResources(
       {},
       { capacityLimits, runtimeControls },
     ),
-    operationSignal = AbortSignal.any([
-      AbortSignal.timeout(selected.runtime.maxCheckTimeMs),
-      ...(signal ? [signal] : []),
-    ]);
-  operationSignal.throwIfAborted();
-  const core =
+    core =
       executionCore ??
       new NativeSession(
         component,
         join(temporaryDirectory, "json-quality-format-" + randomUUID()),
       ),
-    abort = () => core.cancel(),
+    deadline = createExecutionDeadline(
+      selected.runtime.maxCheckTimeMs,
+      [signal],
+      { began },
+    ),
+    operationSignal = deadline.signal;
+  const abort = () => core.cancel(),
     contract = {
       checkPresentation: false,
       normalization,
@@ -95,12 +102,14 @@ export async function formatSource(
     };
   operationSignal.addEventListener("abort", abort, { once: true });
   try {
+    operationSignal.throwIfAborted();
     if (!executionCore) await core.configure(selected.native);
     await core.command(
       executionCore ? "resize-control-state" : "adopt-control-state",
       {
         byteLength: String(
-          BigInt(controlStateBytes) + BigInt(formatWorkspaceReservation(size)),
+          BigInt(controlStateBytes) +
+            BigInt(formatWorkspaceReservation(size, 0, controls)),
         ),
       },
     );
@@ -109,7 +118,11 @@ export async function formatSource(
       facts = (
         await core.command("source-statistics", { source: original.source })
       ).result,
-      workspace = formatWorkspaceReservation(size, Number(facts.indexedValues));
+      workspace = formatWorkspaceReservation(
+        size,
+        Number(facts.indexedValues),
+        controls,
+      );
     await core.command("resize-control-state", {
       byteLength: String(BigInt(controlStateBytes) + BigInt(workspace)),
     });
@@ -120,13 +133,12 @@ export async function formatSource(
     );
     operationSignal.throwIfAborted();
     if (
-      Buffer.byteLength(output) > JSON_TRANSFORM_CAPABILITIES.maximumOutputBytes
+      controls.maximumOutputBytes !== null &&
+      Buffer.byteLength(output) > controls.maximumOutputBytes
     )
       throw new Error("transform-output-capacity");
     if (output !== text) {
-      const remaining = Math.floor(
-        selected.runtime.maxCheckTimeMs - (performance.now() - began),
-      );
+      const remaining = deadline.remaining();
       await runBoundedTool(
         process.execPath,
         [
@@ -139,14 +151,8 @@ export async function formatSource(
         {
           input: bytes,
           signal: operationSignal,
-          timeout: Math.min(
-            remaining,
-            selected.admission.maxToolTimeMs ?? remaining,
-          ),
-          maximumOutputBytes: Math.min(
-            65536,
-            selected.admission.maxToolOutputBytes ?? 65536,
-          ),
+          timeout: minimumDuration(remaining, selected.admission.maxToolTimeMs),
+          maximumOutputBytes: selected.admission.maxToolOutputBytes,
         },
       );
     }
@@ -176,6 +182,7 @@ export async function formatSource(
     }
     return output;
   } finally {
+    deadline.dispose();
     operationSignal.removeEventListener("abort", abort);
     if (!executionCore) await core.close();
   }

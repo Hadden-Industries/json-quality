@@ -4,7 +4,14 @@
  * replacement outside these observations is outside the supported guarantee.
  */
 export declare function replaceObservedSource(
-  /** @type {*} */ { root, member, candidate, chunks, signal }: any,
+  /** @type {*} */ {
+    root,
+    member,
+    candidate,
+    chunks,
+    signal,
+    transformControls,
+  }: any,
 ): Promise<{
   path: any;
   byteLength: any;

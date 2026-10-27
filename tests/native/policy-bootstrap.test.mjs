@@ -12,7 +12,7 @@ import {
 } from "./client.mjs";
 
 const valid =
-  '{"schemaVersion":2,"defaults":{"formatContract":"prettier-json","allowFormatWrites":true,"normalization":"NFC"},"exceptions":[]}';
+  '{"schemaVersion":3,"defaults":{"formatContract":"prettier-json","allowFormatWrites":true,"normalization":"NFC"},"exceptions":[]}';
 async function fixture(text, run) {
   const root = await mkdtemp(join(nativeTemporaryRoot, "policy-bootstrap-"));
   try {
@@ -41,7 +41,7 @@ test("policy bootstrap preserves exact source identity, admits Ajv and transfers
         result.observation.byteLength,
         String(Buffer.byteLength(text)),
       );
-      assert.equal(result.policy.schemaVersion, 2);
+      assert.equal(result.policy.schemaVersion, 3);
       assert.throws(() => {
         result.policy.defaults.normalization = "preserve";
       }, TypeError);
@@ -67,7 +67,7 @@ test("policy bootstrap preserves exact source identity, admits Ajv and transfers
 
 test("policy duplicate names fail shared quality before object materialization", async () => {
   await fixture(
-    valid.replace('"schemaVersion":2', '"schemaVersion":2,"schemaVersion":2'),
+    valid.replace('"schemaVersion":3', '"schemaVersion":3,"schemaVersion":3'),
     async (options) => {
       await assert.rejects(
         bootstrapJsonPolicy(options),

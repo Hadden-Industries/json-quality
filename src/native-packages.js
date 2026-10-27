@@ -26,10 +26,18 @@ export function nativePlatformSpec() {
   return { platform, spec };
 }
 
-export async function resolveNativePackage(/** @type {*} */ coreRoot) {
+export async function resolveNativePackage(
+  /** @type {*} */ coreRoot,
+  /** @type {*} */ verificationControls = false,
+  /** @type {*} */ signal = undefined,
+) {
   const { platform, spec } = nativePlatformSpec();
   coreRoot = realpathSync(coreRoot);
-  const core = await readPackageMetadata(join(coreRoot, "package.json"));
+  const core = await readPackageMetadata(
+    join(coreRoot, "package.json"),
+    verificationControls,
+    signal,
+  );
   let metadataPath;
   try {
     metadataPath = createRequire(join(coreRoot, "package.json")).resolve(
@@ -68,7 +76,11 @@ export async function resolveNativePackage(/** @type {*} */ coreRoot) {
         "JSON Quality native package resolved outside its installation.",
       );
   }
-  const metadata = await readPackageMetadata(metadataPath);
+  const metadata = await readPackageMetadata(
+    metadataPath,
+    verificationControls,
+    signal,
+  );
   if (metadata.name !== spec.package || metadata.version !== core.version)
     throw new Error(
       "JSON Quality core and platform package identities differ.",

@@ -1,7 +1,7 @@
 # Shared native core
 
 This directory contains the private source integration of the [accepted oversized JSON design](https://github.com/Hadden-Industries/json-quality/blob/main/docs/plans/2026-10-23-oversized-json-design-checkpoint.md).
-Public API, CLI, providers and schemas now use cohort 2 and this single core.
+Public API, CLI, providers and schemas now use cohort 3 and this single core.
 The retired product checker and document/result envelopes are absent from the runtime; the immutable finite-v1 oracle remains development-only.
 Final platform, transported-package, rights, review and consumer acceptance are still separate qualification work.
 

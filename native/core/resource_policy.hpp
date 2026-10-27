@@ -4,8 +4,8 @@
 #include "wire_integer.hpp"
 #include <algorithm>
 
-// Schema annotations own the names, defaults and bounds. Null removes only an
-// admission ceiling; every working control remains finite and enforceable.
+// Schema annotations own names, defaults and representable bounds. Null removes
+// a selected quota; bounded transport buffers remain independent of quotas.
 struct ResourcePolicy {
   using Admission = ResourceDefaults::Admission;
   using Runtime = ResourceDefaults::Runtime;
@@ -21,6 +21,9 @@ struct ResourcePolicy {
   std::uint64_t get(Runtime field) const { return runtime[static_cast<std::size_t>(field)]; }
   static constexpr std::uint64_t minimum(Runtime field) {
     return ResourceDefaults::runtime[static_cast<std::size_t>(field)].minimum;
+  }
+  static constexpr std::uint64_t defaultValue(Runtime field) {
+    return ResourceDefaults::runtime[static_cast<std::size_t>(field)].value;
   }
   void configure(const boost::json::object &request) {
     const auto assign = [&](auto &values, const auto &specs, bool nullable) {
@@ -49,7 +52,7 @@ struct ResourcePolicy {
               "unknown-resource-control");
     }
     assign(admission, ResourceDefaults::admission, true);
-    assign(runtime, ResourceDefaults::runtime, false);
+    assign(runtime, ResourceDefaults::runtime, true);
   }
   boost::json::object effective() const {
     boost::json::object capacities, working;
@@ -58,7 +61,9 @@ struct ResourcePolicy {
           admission[i] == UINT64_MAX ? boost::json::value(nullptr)
                                      : boost::json::value(std::to_string(admission[i]));
     for (std::size_t i = 0; i < runtime.size(); ++i)
-      working[ResourceDefaults::runtime[i].name] = std::to_string(runtime[i]);
+      working[ResourceDefaults::runtime[i].name] =
+          runtime[i] == UINT64_MAX ? boost::json::value(nullptr)
+                                   : boost::json::value(std::to_string(runtime[i]));
     return {{"admission", std::move(capacities)}, {"runtime", std::move(working)}};
   }
 };

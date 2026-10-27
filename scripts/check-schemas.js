@@ -25,7 +25,7 @@ export function checkSchemas() {
     );
     assert.match(
       schema.$id,
-      /^https:\/\/github\.com\/Hadden-Industries\/json-quality\/schema\/[a-z-]+\/v2$/u,
+      /^https:\/\/github\.com\/Hadden-Industries\/json-quality\/schema\/[a-z-]+\/v3$/u,
     );
     assert.ok(!identities.has(schema.$id), "Duplicate public schema identity");
     identities.add(schema.$id);
@@ -34,7 +34,7 @@ export function checkSchemas() {
   for (const schema of schemas) assert.ok(ajv.getSchema(schema.$id));
   const policy = ajv.getSchema(schemas[0].$id);
   const valid = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     defaults: {
       formatContract: "prettier-json",
       allowFormatWrites: true,

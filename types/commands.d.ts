@@ -5,7 +5,10 @@ export declare function resourceCliLimits(
   /** @type {*} */ values: any,
   encoded?: string | undefined,
 ): any;
-export declare function resourceCliControls(/** @type {*} */ values: any): {
+export declare function resourceCliControls(
+  /** @type {*} */ values: any,
+  encoded?: string | undefined,
+): {
   capacityLimits: any;
   runtimeControls: any;
 };
@@ -16,4 +19,5 @@ export declare const COMMANDS: Readonly<{
   normalize: "Preflight complete candidate obligations and NFC-repair explicit physical paths.";
 }>;
 export declare const CLI_OPTIONS: any;
+export declare function transformCliControls(/** @type {*} */ values: any): any;
 export declare function commandHelp(): string;

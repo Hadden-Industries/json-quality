@@ -69,7 +69,8 @@ struct CoreSession {
   ResourcePolicy resources;
   OperationControl operation;
   std::atomic<bool> &cancelled = operation.cancelled;
-  SqliteOwner memory{ResourcePolicy::minimum(ResourcePolicy::Runtime::managedMemoryTargetBytes)};
+  SqliteOwner memory{
+      ResourcePolicy::defaultValue(ResourcePolicy::Runtime::managedMemoryTargetBytes)};
   ControlBytesResource controlResource{memory.value};
   json::storage_ptr controlStorage = json::make_shared_resource<ControlJsonResource>(memory.value);
   std::string nonce = newNonce(), scratch, lastRequestId = "0", uploadRequestId, sourceDigest;
@@ -289,8 +290,12 @@ struct CoreSession {
       std::uint64_t owner = 0;
       auto converted = std::from_chars(nonce.data(), nonce.data() + 16, owner, 16);
       require(converted.ec == std::errc{}, "storage-owner");
-      store = std::make_unique<Store>(owner, managedTarget, 65536, temporaryLimit,
-                                      pathFromUtf8(scratch), std::string(), memory.value);
+      store = std::make_unique<Store>(
+          owner, managedTarget, 65536, temporaryLimit, pathFromUtf8(scratch), std::string(),
+          memory.value,
+          managedTarget == UINT64_MAX
+              ? ResourcePolicy::defaultValue(ResourcePolicy::Runtime::managedMemoryTargetBytes)
+              : managedTarget);
       store->operation = &operation;
       store->database->bindOperation(&operation);
       streams = std::make_unique<Streams>(*store, resources);
@@ -393,14 +398,19 @@ struct CoreSession {
       return finishSource();
     }
     require(kind == 'C' || kind == 'c', "control-frame-type");
-    require(control.size() + bytes.size() <= (configured ? 1048576 : 4096),
+    require(control.size() + bytes.size() <=
+                (configured ? (std::max)(resources.get(ResourcePolicy::Admission::maxRequestBytes),
+                                         std::uint64_t(4096))
+                            : 4096),
             "control-envelope-size");
     control.insert(control.end(), bytes.begin(), bytes.end());
     if (kind == 'C')
       return {};
+    json::parse_options controlOptions;
+    controlOptions.max_depth = std::size_t(-1);
     auto request =
         json::parse(string_view(reinterpret_cast<const char *>(control.data()), control.size()),
-                    controlStorage)
+                    controlStorage, controlOptions)
             .as_object();
     auto requestBytes = control.size();
     control.clear();
@@ -441,7 +451,9 @@ struct CoreSession {
       operation.start(resources.get(ResourcePolicy::Runtime::maxCheckTimeMs));
       configured = true;
       return {reply({{"type", "configured"},
-                     {"managedMemoryTargetBytes", std::to_string(managedTarget)},
+                     {"managedMemoryTargetBytes", managedTarget == UINT64_MAX
+                                                      ? json::value(nullptr)
+                                                      : json::value(std::to_string(managedTarget))},
                      {"resources", resources.effective()},
                      {"workingReserveBytes", std::to_string(Store::reserve)}})};
     }

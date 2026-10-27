@@ -12,7 +12,7 @@ import {
   identifyRepositorySource,
   recheckRepositorySource,
 } from "./repository-source.js";
-import { JSON_TRANSFORM_CAPABILITIES } from "./transform-capabilities.js";
+import { transformResources } from "./transform-capabilities.js";
 
 /** Stage only an already admitted bounded candidate. Rehash actual staged bytes
  * and recheck the original descriptor/path identity before rename. Permissions
@@ -20,14 +20,22 @@ import { JSON_TRANSFORM_CAPABILITIES } from "./transform-capabilities.js";
  * replacement outside these observations is outside the supported guarantee.
  */
 export async function replaceObservedSource(
-  /** @type {*} */ { root, member, candidate, chunks, signal },
+  /** @type {*} */ {
+    root,
+    member,
+    candidate,
+    chunks,
+    signal,
+    transformControls,
+  },
 ) {
+  const controls = transformResources(undefined, transformControls);
   if (
     !candidate ||
     typeof candidate.byteLength !== "string" ||
     !/^[1-9][0-9]{0,19}$/u.test(candidate.byteLength) ||
-    BigInt(candidate.byteLength) >
-      BigInt(JSON_TRANSFORM_CAPABILITIES.maximumOutputBytes) ||
+    (controls.maximumOutputBytes !== null &&
+      BigInt(candidate.byteLength) > BigInt(controls.maximumOutputBytes)) ||
     !/^[a-f0-9]{64}$/u.test(candidate.sha256)
   )
     throw new TypeError("Expected admitted bounded replacement identity.");

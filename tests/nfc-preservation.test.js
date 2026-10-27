@@ -123,7 +123,7 @@ test("policy admission requires exact protected paths, attributable ownership an
     preserveNfcValues: [pin],
   };
   const policyFor = (entry) => ({
-    schemaVersion: 2,
+    schemaVersion: 3,
     defaults: {
       formatContract: "prettier-json",
       allowFormatWrites: true,

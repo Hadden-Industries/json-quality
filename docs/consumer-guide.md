@@ -1,6 +1,7 @@
-# Consumer guide: cohort 2
+# Consumer guide: cohort 3
 
-Contract cohort 2 replaces the aggregate checking APIs and Base64 document request/response envelopes.
+Contract cohort 3 retains streamed checking and lossless access while making every resource quota caller-overridable.
+Upgrade the core and platform packages together, migrate policy `schemaVersion` to 3, and remove `maxConcurrency`.
 Move consumers together to the configuration, source-contract, event and native-protocol versions in `./contract-cohort`.
 There is no old-reader backend or size-dependent dispatch.
 Historical artifacts retain their original bytes and versions.
@@ -113,7 +114,7 @@ try {
 }
 ```
 
-The repository owns a strictly admitted, bounded `.json-quality.json` with `schemaVersion: 2`.
+The repository owns a strictly admitted, bounded `.json-quality.json` with `schemaVersion: 3`.
 Bootstrap is checked by the same core, materialized under a reservation, validated with the package's local Ajv schema, frozen, and charged to the configured execution.
 Invocation controls govern bootstrap; effective policy controls govern the main operation.
 
@@ -172,8 +173,10 @@ This is an attributable contract choice, not automatic normalization.
 `formatJsonValue(value)` accepts an already materialized plain producer object.
 Getters, custom serialization, sparse/extended arrays, cycles, unsupported values, nonfinite numbers and negative zero are refused before producer serialization. Object ownership and domain validation remain with the producer. `normalizeJsonSource(text)` changes string/key literal spans only, with collision preflight and complete semantic checks.
 
-All pure writers use options `{ contract, temporaryDirectory, capacityLimits, runtimeControls, signal }`.
-Their separate capability is 2 MiB source/output and at most 4096 normalization changes. Larger or more complex transformations can refuse while scalable reads/checks remain available.
+All pure writers use options `{ contract, temporaryDirectory, capacityLimits, runtimeControls, transformControls, producerControls, signal }`.
+Transform defaults are 2 MiB source/output and 4096 normalization changes; `transformControls: false` removes them, and numeric/null overrides select individual quotas.
+`producerControls` applies to `formatJsonValue` and can independently remove depth/member quotas.
+Ordinary source checking does not inherit these materializing-operation defaults.
 Existing semantic hashing/canonicalization protocols must not be replaced by formatting.
 
 For repository effects, consume `session.events()` to completion, then iterate `session.rewrite("format", { files })` or `session.rewrite("normalize", { files })`.

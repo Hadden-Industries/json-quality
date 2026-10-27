@@ -8,6 +8,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { NativeSession } from "./native-session.js";
 import { createValueSession } from "./value-session.js";
 import { resolveExecutionResources } from "./execution-resources.js";
+import { createExecutionDeadline } from "./execution-deadline.js";
 import { createRepositoryExecution } from "./repository-execution.js";
 import { requireAsyncStream } from "./source-streams.js";
 import { isPathContained } from "./paths.js";
@@ -314,31 +315,39 @@ export async function createSourceSession(
     // requesting source bytes. In-memory checks need no JS filesystem hops.
     directory = options.temporaryDirectory ?? tmpdir(),
     context = new AbortController(),
-    signal = AbortSignal.any([
+    parentSignal = AbortSignal.any([
       context.signal,
-      AbortSignal.timeout(selected.runtime.maxCheckTimeMs),
       ...(options.signal ? [options.signal] : []),
     ]);
-  signal.throwIfAborted();
+  parentSignal.throwIfAborted();
   if (!isAbsolute(directory))
     throw new TypeError("Temporary directory must be absolute.");
   const core = new NativeSession(
       component,
       join(directory, "json-quality-source-" + randomUUID()),
     ),
-    values = createValueSession(core);
+    values = createValueSession(core),
+    deadline = createExecutionDeadline(selected.runtime.maxCheckTimeMs, [
+      parentSignal,
+    ]),
+    signal = deadline.signal;
   const abort = () => values.cancel();
   signal.addEventListener("abort", abort, { once: true });
   try {
+    signal.throwIfAborted();
     await core.configure(selected.native);
     signal.throwIfAborted();
     return surface(values, component, context, {
       resources: selected.wire,
       signal,
       check: true,
-      close: () => signal.removeEventListener("abort", abort),
+      close: () => {
+        signal.removeEventListener("abort", abort);
+        deadline.dispose();
+      },
     });
   } catch (error) {
+    deadline.dispose();
     signal.removeEventListener("abort", abort);
     await values.close();
     throw error;

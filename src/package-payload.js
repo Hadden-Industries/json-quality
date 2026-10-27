@@ -9,21 +9,25 @@ import { join, relative, sep } from "node:path";
 import { Transform, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { assertRegularSource, assertRepositoryPath } from "./paths.js";
+import {
+  resourceDefaults,
+  resolveResourceProfile,
+  minimumQuota,
+} from "./resource-profile.js";
+import { createExecutionDeadline } from "./execution-deadline.js";
 
-export const PACKAGE_VERIFICATION_CAPABILITIES = Object.freeze({
-  maximumArchiveBytes: 134217728,
-  maximumMemberBytes: 134217728,
-  maximumExpandedBytes: 536870912,
-  maximumMembers: 8192,
-  maximumIndexBytes: 4194304,
-  maximumMetadataBytes: 1048576,
-  maximumArchiveMetadataBytes: 4096,
-  maximumPathBytes: 32768,
-  maximumDepth: 64,
-  maximumVerificationTimeMs: 120000,
-});
-const capabilities = PACKAGE_VERIFICATION_CAPABILITIES,
-  observation = (/** @type {*} */ value) =>
+export const PACKAGE_VERIFICATION_CAPABILITIES =
+  /** @type {{ readonly [K in keyof Required<import("../types/schemas/configuration.js").VerificationControls>]: number }} */ (
+    resourceDefaults("verificationControls")
+  );
+export function verificationResources(/** @type {*} */ selected) {
+  return resolveResourceProfile(
+    PACKAGE_VERIFICATION_CAPABILITIES,
+    undefined,
+    selected,
+  );
+}
+const observation = (/** @type {*} */ value) =>
     [
       value.dev,
       value.ino,
@@ -34,22 +38,30 @@ const capabilities = PACKAGE_VERIFICATION_CAPABILITIES,
     ].join(":"),
   decoder = new TextDecoder("utf-8", { fatal: true });
 
-/** Fixed-buffer metadata admission, also used for the copied cold bootstrap.
+/** Incremental metadata admission, also used for the copied cold bootstrap.
  * Descriptor and pathname must retain the same regular file observation.
  */
-export async function readPackageMetadataBytes(/** @type {*} */ path) {
+export async function readPackageMetadataBytes(
+  /** @type {*} */ path,
+  /** @type {*} */ verificationControls = undefined,
+  /** @type {*} */ signal = undefined,
+) {
+  const maximum =
+    verificationResources(verificationControls).maximumMetadataBytes;
+  signal?.throwIfAborted();
   const before = observeRegularFile(path);
   if (
     !before.isFile() ||
     before.isSymbolicLink() ||
-    before.size > BigInt(capabilities.maximumMetadataBytes)
+    (maximum !== null && before.size > BigInt(maximum))
   )
     throw new Error("Package metadata resource limit exceeded.");
   const descriptor = await open(
       path,
       constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
     ),
-    bytes = Buffer.alloc(capabilities.maximumMetadataBytes + 1);
+    bytes = Buffer.alloc(65536),
+    chunks = [];
   try {
     if (
       observation(await descriptor.stat({ bigint: true })) !==
@@ -57,15 +69,19 @@ export async function readPackageMetadataBytes(/** @type {*} */ path) {
     )
       throw new Error("Package metadata changed before reading.");
     let length = 0;
-    while (length < bytes.length) {
-      const { bytesRead } = await descriptor.read(
-        bytes,
-        length,
-        bytes.length - length,
-        null,
-      );
+    while (true) {
+      signal?.throwIfAborted();
+      const { bytesRead } = await descriptor.read(bytes, 0, bytes.length, null);
       if (!bytesRead) break;
       length += bytesRead;
+      if (
+        (maximum !== null && length > maximum) ||
+        BigInt(length) > before.size
+      )
+        throw new Error(
+          "Package metadata resource limit or identity exceeded.",
+        );
+      chunks.push(Buffer.from(bytes.subarray(0, bytesRead)));
     }
     if (
       BigInt(length) !== before.size ||
@@ -74,13 +90,21 @@ export async function readPackageMetadataBytes(/** @type {*} */ path) {
       observation(observeRegularFile(path)) !== observation(before)
     )
       throw new Error("Package metadata changed during reading.");
-    return bytes.subarray(0, length);
+    return Buffer.concat(chunks, length);
   } finally {
     await descriptor.close();
   }
 }
-export async function readPackageMetadata(/** @type {*} */ path) {
-  return JSON.parse(decoder.decode(await readPackageMetadataBytes(path)));
+export async function readPackageMetadata(
+  /** @type {*} */ path,
+  /** @type {*} */ verificationControls = undefined,
+  /** @type {*} */ signal = undefined,
+) {
+  return JSON.parse(
+    decoder.decode(
+      await readPackageMetadataBytes(path, verificationControls, signal),
+    ),
+  );
 }
 
 async function installedDigest(
@@ -91,7 +115,7 @@ async function installedDigest(
 ) {
   const path = assertRegularSource(root, key),
     before = observeRegularFile(path);
-  if (before.size > BigInt(maximum))
+  if (maximum !== null && before.size > BigInt(maximum))
     throw new Error("Installed package resource limit exceeded.");
   const descriptor = await open(
       path,
@@ -111,7 +135,7 @@ async function installedDigest(
       const { bytesRead } = await descriptor.read(bytes, 0, bytes.length, null);
       if (!bytesRead) break;
       length += BigInt(bytesRead);
-      if (length > BigInt(maximum))
+      if (maximum !== null && length > BigInt(maximum))
         throw new Error("Installed package resource limit exceeded.");
       hash.update(bytes.subarray(0, bytesRead));
     }
@@ -202,184 +226,203 @@ export function packageTarSink(/** @type {*} */ parser) {
 
 export async function verifyPackagePayload(
   /** @type {*} */ npmRequire,
-  /** @type {*} */ { cache, integrity, installedRoot, admission, signal },
+  /** @type {*} */ {
+    cache,
+    integrity,
+    installedRoot,
+    admission,
+    signal,
+    verificationControls,
+  },
 ) {
-  const operationSignal = AbortSignal.any([
-      AbortSignal.timeout(capabilities.maximumVerificationTimeMs),
-      ...(signal ? [signal] : []),
+  const selected = verificationResources(verificationControls),
+    capabilities = Object.fromEntries(
+      Object.entries(selected).map(([key, value]) => [key, value ?? Infinity]),
+    ),
+    deadline = createExecutionDeadline(selected.maximumVerificationTimeMs, [
+      signal,
     ]),
+    operationSignal = deadline.signal,
     expected = new Map(),
     seen = new Set(),
     archiveHash = createHash("sha512"),
-    maximumFiles = Math.min(
-      admission.maxFiles ?? capabilities.maximumMembers,
-      capabilities.maximumMembers,
-    ),
-    maximumTotal = Math.min(
-      admission.maxTotalBytes ?? capabilities.maximumExpandedBytes,
-      capabilities.maximumExpandedBytes,
+    maximumFiles = minimumQuota(admission.maxFiles, selected.maximumMembers),
+    maximumTotal = minimumQuota(
+      admission.maxTotalBytes,
+      selected.maximumExpandedBytes,
     );
-  let archiveBytes = 0,
-    expandedBytes = 0,
-    indexBytes = 0;
-  const parser = new (npmRequire("tar").Parser)({
-    strict: true,
-    maxMetaEntrySize: capabilities.maximumArchiveMetadataBytes,
-    maxDecompressionRatio: 128,
-  });
-  const sink = packageTarSink(parser);
-  parser.on("ignoredEntry", () =>
-    sink.destroy(new Error("Unsupported or oversized package archive member.")),
-  );
-  parser.on("entry", (/** @type {*} */ member) => {
-    try {
-      operationSignal.throwIfAborted();
-      if (!member.path.startsWith("package/"))
-        throw new Error("Unexpected package archive root.");
-      const key = member.path.slice(8).replace(/\/$/u, "");
-      if (!key && member.type === "Directory") {
-        member.resume();
-        return;
-      }
-      assertRepositoryPath(key);
-      if (
-        Buffer.byteLength(key) > capabilities.maximumPathBytes ||
-        key.split("/").length > capabilities.maximumDepth
-      )
-        throw new Error("Package path resource limit exceeded.");
-      if (member.type === "Directory") {
-        member.resume();
-        return;
-      }
-      if (
-        !["File", "OldFile"].includes(member.type) ||
-        key.split("/").includes("node_modules") ||
-        seen.has(key.toLowerCase())
-      )
-        throw new Error(
-          "Duplicate, linked or non-file package archive member.",
-        );
-      if (!Number.isSafeInteger(member.size) || member.size < 0)
-        throw new Error("Package member size is not exact.");
-      expandedBytes += member.size;
-      indexBytes += Buffer.byteLength(key) * 4 + 384;
-      if (
-        seen.size >= maximumFiles ||
-        member.size > capabilities.maximumMemberBytes ||
-        expandedBytes > maximumTotal ||
-        indexBytes > capabilities.maximumIndexBytes
-      )
-        throw new Error("Package payload resource limit exceeded.");
-      seen.add(key.toLowerCase());
-      const hash = createHash("sha256");
-      let length = 0;
-      member.on("error", (/** @type {*} */ error) => sink.destroy(error));
-      member.on("data", (/** @type {*} */ part) => {
-        length += part.length;
-        hash.update(part);
-      });
-      member.on("end", () => {
-        if (length !== member.size)
-          sink.destroy(new Error("Incomplete package member."));
-        else
-          expected.set(key, {
-            sha256: hash.digest("hex"),
-            byteLength: BigInt(length),
-          });
-      });
-      member.resume();
-    } catch (error) {
+  try {
+    let archiveBytes = 0n,
+      expandedBytes = 0n,
+      indexBytes = 0n;
+    const parser = new (npmRequire("tar").Parser)({
+      strict: true,
+      maxMetaEntrySize: capabilities.maximumArchiveMetadataBytes,
+      maxDecompressionRatio: capabilities.maximumDecompressionRatio,
+    });
+    const sink = packageTarSink(parser);
+    parser.on("ignoredEntry", () =>
       sink.destroy(
-        error instanceof Error
-          ? error
-          : new Error(String(error), { cause: error }),
-      );
-    }
-  });
-  const gate = new Transform({
-    highWaterMark: 65536,
-    transform(chunk, encoding, callback) {
-      archiveBytes += chunk.length;
-      if (
-        archiveBytes > capabilities.maximumArchiveBytes ||
-        chunk.length > 67108864
-      ) {
-        callback(new Error("Package archive byte limit exceeded."));
-        return;
-      }
-      archiveHash.update(chunk);
-      callback(null, chunk);
-    },
-  });
-  await pipeline(
-    npmRequire("cacache").get.stream.byDigest(
-      join(cache, "_cacache"),
-      integrity,
-      { memoize: false },
-    ),
-    gate,
-    sink,
-    { signal: operationSignal },
-  );
-  if ("sha512-" + archiveHash.digest("base64") !== integrity)
-    throw new Error("Cached JSON quality archive integrity differs.");
-  let files = 0,
-    installedBytes = 0n;
-  async function walk(/** @type {*} */ directory, depth = 0) {
-    operationSignal.throwIfAborted();
-    if (depth > capabilities.maximumDepth)
-      throw new Error("Installed package depth limit exceeded.");
-    const handle = await opendir(directory, { bufferSize: 1 });
-    try {
-      while (true) {
-        const member = await handle.read();
-        if (!member) break;
-        operationSignal.throwIfAborted();
-        if (
-          directory === installedRoot &&
-          member.name === "node_modules" &&
-          member.isDirectory()
-        )
-          continue;
-        const path = join(directory, member.name),
-          key = relative(installedRoot, path).split(sep).join("/");
-        if (member.isDirectory()) {
-          if (member.name === "node_modules" || member.isSymbolicLink())
-            throw new Error("Unexpected installed dependency directory.");
-          await walk(path, depth + 1);
-        } else {
-          const identity = expected.get(key);
-          if (!identity)
-            throw new Error(
-              "Installed JSON quality payload differs from its locked cached archive.",
-            );
-          const actual = await installedDigest(
-            installedRoot,
-            key,
-            capabilities.maximumMemberBytes,
-            operationSignal,
-          );
-          if (
-            actual.sha256 !== identity.sha256 ||
-            actual.byteLength !== identity.byteLength
-          )
-            throw new Error(
-              "Installed JSON quality payload differs from its locked cached archive.",
-            );
-          installedBytes += actual.byteLength;
-          if (++files > maximumFiles || installedBytes > BigInt(maximumTotal))
-            throw new Error("Installed package resource limit exceeded.");
-          expected.delete(key);
-        }
-      }
-    } finally {
-      await handle.close();
-    }
-  }
-  await walk(installedRoot);
-  if (expected.size || files !== seen.size)
-    throw new Error(
-      "Installed JSON quality payload differs from its locked cached archive.",
+        new Error("Unsupported or oversized package archive member."),
+      ),
     );
-  return { files, bytes: installedBytes.toString() };
+    parser.on("entry", (/** @type {*} */ member) => {
+      try {
+        operationSignal.throwIfAborted();
+        if (!member.path.startsWith("package/"))
+          throw new Error("Unexpected package archive root.");
+        const key = member.path.slice(8).replace(/\/$/u, "");
+        if (!key && member.type === "Directory") {
+          member.resume();
+          return;
+        }
+        assertRepositoryPath(key);
+        if (
+          Buffer.byteLength(key) > capabilities.maximumPathBytes ||
+          key.split("/").length > capabilities.maximumDepth
+        )
+          throw new Error("Package path resource limit exceeded.");
+        if (member.type === "Directory") {
+          member.resume();
+          return;
+        }
+        if (
+          !["File", "OldFile"].includes(member.type) ||
+          key.split("/").includes("node_modules") ||
+          seen.has(key.toLowerCase())
+        )
+          throw new Error(
+            "Duplicate, linked or non-file package archive member.",
+          );
+        if (!Number.isSafeInteger(member.size) || member.size < 0)
+          throw new Error("Package member size is not exact.");
+        expandedBytes += BigInt(member.size);
+        indexBytes += BigInt(Buffer.byteLength(key)) * 4n + 384n;
+        if (
+          (maximumFiles !== null && seen.size >= maximumFiles) ||
+          member.size > capabilities.maximumMemberBytes ||
+          (maximumTotal !== null && expandedBytes > BigInt(maximumTotal)) ||
+          (selected.maximumIndexBytes !== null &&
+            indexBytes > BigInt(selected.maximumIndexBytes))
+        )
+          throw new Error("Package payload resource limit exceeded.");
+        seen.add(key.toLowerCase());
+        const hash = createHash("sha256");
+        let length = 0n;
+        member.on("error", (/** @type {*} */ error) => sink.destroy(error));
+        member.on("data", (/** @type {*} */ part) => {
+          length += BigInt(part.length);
+          hash.update(part);
+        });
+        member.on("end", () => {
+          if (length !== BigInt(member.size))
+            sink.destroy(new Error("Incomplete package member."));
+          else
+            expected.set(key, {
+              sha256: hash.digest("hex"),
+              byteLength: length,
+            });
+        });
+        member.resume();
+      } catch (error) {
+        sink.destroy(
+          error instanceof Error
+            ? error
+            : new Error(String(error), { cause: error }),
+        );
+      }
+    });
+    const gate = new Transform({
+      highWaterMark: 65536,
+      transform(chunk, encoding, callback) {
+        archiveBytes += BigInt(chunk.length);
+        if (
+          selected.maximumArchiveBytes !== null &&
+          archiveBytes > BigInt(selected.maximumArchiveBytes)
+        ) {
+          callback(new Error("Package archive byte limit exceeded."));
+          return;
+        }
+        archiveHash.update(chunk);
+        callback(null, chunk);
+      },
+    });
+    await pipeline(
+      npmRequire("cacache").get.stream.byDigest(
+        join(cache, "_cacache"),
+        integrity,
+        { memoize: false },
+      ),
+      gate,
+      sink,
+      { signal: operationSignal },
+    );
+    if ("sha512-" + archiveHash.digest("base64") !== integrity)
+      throw new Error("Cached JSON quality archive integrity differs.");
+    let files = 0,
+      installedBytes = 0n;
+    async function walk(/** @type {*} */ directory, depth = 0) {
+      operationSignal.throwIfAborted();
+      if (depth > capabilities.maximumDepth)
+        throw new Error("Installed package depth limit exceeded.");
+      const handle = await opendir(directory, { bufferSize: 1 });
+      try {
+        while (true) {
+          const member = await handle.read();
+          if (!member) break;
+          operationSignal.throwIfAborted();
+          if (
+            directory === installedRoot &&
+            member.name === "node_modules" &&
+            member.isDirectory()
+          )
+            continue;
+          const path = join(directory, member.name),
+            key = relative(installedRoot, path).split(sep).join("/");
+          if (member.isDirectory()) {
+            if (member.name === "node_modules" || member.isSymbolicLink())
+              throw new Error("Unexpected installed dependency directory.");
+            await walk(path, depth + 1);
+          } else {
+            const identity = expected.get(key);
+            if (!identity)
+              throw new Error(
+                "Installed JSON quality payload differs from its locked cached archive.",
+              );
+            const actual = await installedDigest(
+              installedRoot,
+              key,
+              selected.maximumMemberBytes,
+              operationSignal,
+            );
+            if (
+              actual.sha256 !== identity.sha256 ||
+              actual.byteLength !== identity.byteLength
+            )
+              throw new Error(
+                "Installed JSON quality payload differs from its locked cached archive.",
+              );
+            installedBytes += actual.byteLength;
+            ++files;
+            if (
+              (maximumFiles !== null && files > maximumFiles) ||
+              (maximumTotal !== null && installedBytes > BigInt(maximumTotal))
+            )
+              throw new Error("Installed package resource limit exceeded.");
+            expected.delete(key);
+          }
+        }
+      } finally {
+        await handle.close();
+      }
+    }
+    await walk(installedRoot);
+    if (expected.size || files !== seen.size)
+      throw new Error(
+        "Installed JSON quality payload differs from its locked cached archive.",
+      );
+    return { files, bytes: installedBytes.toString() };
+  } finally {
+    deadline.dispose();
+  }
 }

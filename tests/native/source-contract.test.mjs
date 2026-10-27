@@ -8,7 +8,7 @@ const expectation = (byteLength) => ({
   expected: { byteLength, sha256: "0".repeat(64), diagnostics: [] },
 });
 
-test("cohort 2 controls accept exact decimal boundaries and reject lossy or old wire forms", () => {
+test("cohort 3 controls accept exact decimal boundaries and reject lossy or old wire forms", () => {
   assert.equal(
     sourceContract({ formatContract: "prettier-json", normalization: "NFC" })
       .normalization,

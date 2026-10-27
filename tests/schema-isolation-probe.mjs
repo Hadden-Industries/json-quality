@@ -17,7 +17,7 @@ if (process.argv[2] === "events") {
   ).required.length = 0;
   assert.equal(
     validateJsonQualityEvent({
-      schemaVersion: 2,
+      schemaVersion: 3,
       requestId: "fixture",
       type: "execution",
     }),
@@ -54,7 +54,7 @@ if (process.argv[2] === "events") {
     assert.throws(
       () =>
         admitJsonPolicy({
-          schemaVersion: 2,
+          schemaVersion: 3,
           defaults: {
             formatContract: "prettier-json",
             allowFormatWrites: true,

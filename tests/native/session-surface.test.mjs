@@ -127,7 +127,7 @@ test("versioned event delivery preserves caller correlation and snapshotted flag
       root;
     for await (const event of iterator) {
       assert.equal(validateJsonQualityEvent(event), true);
-      assert.equal(event.schemaVersion, 2);
+      assert.equal(event.schemaVersion, 3);
       assert.equal(event.requestId, "independent-request");
       if (event.type === "source") reference = event.source;
       if (event.type === "value") {
@@ -153,7 +153,7 @@ test("versioned event delivery preserves caller correlation and snapshotted flag
     );
     assert.equal(
       validateJsonQualityEvent({
-        schemaVersion: 2,
+        schemaVersion: 3,
         requestId: "incomplete",
         type: "terminal",
         qualityPassed: true,
@@ -229,7 +229,7 @@ test("repository facade consumes one census and retains scoped reads until close
       join(root, ".json-quality.json"),
       JSON.stringify(
         {
-          schemaVersion: 2,
+          schemaVersion: 3,
           defaults: {
             formatContract: "prettier-json",
             allowFormatWrites: true,

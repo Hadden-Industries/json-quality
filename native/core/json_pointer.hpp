@@ -8,7 +8,6 @@
 #include <vector>
 struct PointerParts {
   std::vector<std::string> segments;
-  bool withinDepth = true;
 };
 inline PointerParts decodePointer(const boost::json::string &pointer) {
   PointerParts result;
@@ -18,18 +17,14 @@ inline PointerParts decodePointer(const boost::json::string &pointer) {
   std::string part;
   for (std::size_t i = 1; i <= pointer.size(); ++i) {
     if (i == pointer.size() || pointer[i] == '/') {
-      if (result.segments.size() < 4096)
-        result.segments.push_back(std::move(part));
-      else
-        result.withinDepth = false;
+      result.segments.push_back(std::move(part));
       part.clear();
     } else if (pointer[i] == '~') {
       require(i + 1 < pointer.size() && (pointer[i + 1] == '0' || pointer[i + 1] == '1'),
               "pointer-escape");
       char decoded = pointer[++i] == '0' ? '~' : '/';
-      if (result.withinDepth)
-        part.push_back(decoded);
-    } else if (result.withinDepth)
+      part.push_back(decoded);
+    } else
       part.push_back(pointer[i]);
   }
   return result;

@@ -24,6 +24,7 @@ export declare function verifyJsonQualityInstallation({
   npmExecutable,
   cachePath,
   capacityLimits,
+  verificationControls,
   bootstrapPath,
   signal,
   ...otherOptions

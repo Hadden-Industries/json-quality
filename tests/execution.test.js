@@ -13,7 +13,7 @@ const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 function repository(t) {
   const root = temporaryRepository(t, "json-quality-test-"),
     policy = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       defaults: {
         formatContract: "prettier-json",
         allowFormatWrites: true,

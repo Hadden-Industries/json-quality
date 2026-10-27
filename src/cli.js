@@ -14,8 +14,11 @@ import {
   COMMANDS,
   commandHelp,
   resourceCliControls,
+  transformCliControls,
 } from "./commands.js";
 import { encodeNativeControl } from "./native-control.js";
+import { createExecutionDeadline } from "./execution-deadline.js";
+import { resolveExecutionResources } from "./execution-resources.js";
 import { assertJsonQualityEvent } from "./events.js";
 import { sourceContract } from "./source-contract.js";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
@@ -74,6 +77,7 @@ export async function runJsonQualityCli(
     outputBytes = 0n,
     /** @type {any} */ outputCeiling = null,
     /** @type {any} */ reportSignal,
+    /** @type {any} */ reportDeadline,
     /** @type {number} */ exitCode;
   const began = performance.now(),
     caller = new AbortController(),
@@ -114,7 +118,13 @@ export async function runJsonQualityCli(
   const emit = async (/** @type {*} */ event) => {
     assertJsonQualityEvent(event);
     const bytes = machine
-      ? Buffer.concat([encodeNativeControl(event, 2097152), Buffer.from("\n")])
+      ? Buffer.concat([
+          encodeNativeControl(
+            event,
+            outputCeiling === null ? null : Number(outputCeiling),
+          ),
+          Buffer.from("\n"),
+        ])
       : Buffer.from(textView(event));
     if (!bytes.length) return;
     outputBytes += BigInt(bytes.length);
@@ -166,8 +176,8 @@ export async function runJsonQualityCli(
         throw new TypeError("Select check, source, format or normalize.");
       if (values["request-id"] !== undefined) {
         const selected = values["request-id"];
-        if (!selected || !selected.isWellFormed() || selected.length > 1048000)
-          throw new TypeError("Expected a bounded well-formed request ID.");
+        if (!selected || !selected.isWellFormed())
+          throw new TypeError("Expected a well-formed request ID.");
         requestId = selected;
       }
       if ((operation === "check" || operation === "source") && files.length)
@@ -197,12 +207,23 @@ export async function runJsonQualityCli(
       )
         throw new TypeError("Invalid trusted repository CLI context.");
       const controls = resourceCliControls(values);
+      const transformControls = transformCliControls(values);
+      if (
+        ["check", "source"].includes(operation) &&
+        transformControls !== undefined
+      )
+        throw new TypeError("Transform controls belong to format/normalize.");
       if (operation === "source") {
         if (values.root !== undefined || Object.keys(context).length)
           throw new TypeError(
             "Raw source checking cannot replace trusted repository obligations.",
           );
-        if ((values.contract?.length ?? 0) > 1048576)
+        const maximumRequest = resolveExecutionResources({}, controls).admission
+          .maxRequestBytes;
+        if (
+          maximumRequest !== null &&
+          Buffer.byteLength(values.contract ?? "") > maximumRequest
+        )
           throw new Error("source-contract-capacity");
         const contract = sourceContract(
           values.contract === undefined ? {} : JSON.parse(values.contract),
@@ -211,15 +232,12 @@ export async function runJsonQualityCli(
           ...controls,
           signal: caller.signal,
         });
-        const remaining = Math.floor(
-          Number(session.resources.runtime.maxCheckTimeMs) -
-            (performance.now() - began),
+        reportDeadline = createExecutionDeadline(
+          session.resources.runtime.maxCheckTimeMs,
+          [caller.signal],
+          { began },
         );
-        if (remaining < 1) throw new Error("execution-time-capacity");
-        reportSignal = AbortSignal.any([
-          caller.signal,
-          AbortSignal.timeout(remaining),
-        ]);
+        reportSignal = reportDeadline.signal;
         outputCeiling = session.resources.admission.maxToolOutputBytes;
         reportSignal.addEventListener("abort", stop, { once: true });
         for await (const event of session.check(
@@ -259,15 +277,12 @@ export async function runJsonQualityCli(
           requestId,
           retainValues: operation !== "check",
         });
-        const remaining = Math.floor(
-          Number(session.resources.runtime.maxCheckTimeMs) -
-            (performance.now() - began),
+        reportDeadline = createExecutionDeadline(
+          session.resources.runtime.maxCheckTimeMs,
+          [caller.signal],
+          { began },
         );
-        if (remaining < 1) throw new Error("execution-time-capacity");
-        reportSignal = AbortSignal.any([
-          caller.signal,
-          AbortSignal.timeout(remaining),
-        ]);
+        reportSignal = reportDeadline.signal;
         outputCeiling = session.resources.admission.maxToolOutputBytes;
         reportSignal.addEventListener("abort", stop, { once: true });
         for await (const event of session.events()) {
@@ -278,6 +293,7 @@ export async function runJsonQualityCli(
         if (operation !== "check") {
           for await (const event of session.rewrite(operation, {
             files: files.length ? files : undefined,
+            transformControls,
           })) {
             if (
               event.type === "write-terminal" ||
@@ -312,6 +328,7 @@ export async function runJsonQualityCli(
       exitCode = 2;
       await failure(error);
     }
+    reportDeadline?.dispose();
     process.removeListener("SIGINT", interrupt);
     process.removeListener("SIGTERM", interrupt);
     process.stdout.removeListener("error", onOutputError);

@@ -56,7 +56,8 @@ class Host:
         self.errors.start()
         try:
             hello = self.receive("J")
-            assert hello["protocolVersion"] == 2
+            self.protocol_version = manifest["cohort"]["nativeProtocolVersion"]
+            assert hello["protocolVersion"] == self.protocol_version
             assert hello["sourceInputsSha256"] == manifest["sourceInputsSha256"]
             for field, component in [
                 ("icu", "icuVersion"),
@@ -140,7 +141,7 @@ class Host:
         self.sequence += 1
         request = dict(
             fields,
-            protocolVersion=2,
+            protocolVersion=self.protocol_version,
             owner=self.owner,
             requestId=str(self.sequence),
             command=command,
@@ -408,6 +409,72 @@ def cancellation(executable, parent, manifest):
         host.process.stderr.close()
 
 
+def ordinary(executable, parent, manifest):
+    """Use the same admitted executable directly, without a Node source bridge."""
+    schema = json.loads(
+        (
+            Path(__file__).resolve().parents[2] / "schemas/configuration.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    controls = {
+        name: None
+        for group in ("capacityLimits", "runtimeControls")
+        for name in schema["$defs"][group]["properties"]
+    }
+    host = Host(executable, parent, manifest)
+    try:
+        configured = host.request("configure", **controls)
+        assert all(
+            value is None
+            for group in configured["resources"].values()
+            for value in group.values()
+        )
+        ready = host.request(
+            "begin-source",
+            contract={"formatContract": "producer-json-compact-body"},
+            retainValues=True,
+        )
+        depth = 4097
+        payload = b"[" * depth + b"0" + b"]" * depth
+        for offset in range(0, len(payload), 31):
+            host.frame("B", payload[offset : offset + 31])
+        host.frame("F")
+        captured = host.receive("J")
+        assert captured["source"] == ready["source"]
+        assert captured["sha256"] == hashlib.sha256(payload).hexdigest()
+        assert captured["byteLength"] == str(len(payload))
+        terminal = None
+        while terminal is None:
+            for event in host.request("next")["events"]:
+                assert event["type"] != "finding"
+                if event["type"] == "terminal":
+                    terminal = event
+        assert terminal["contractSatisfied"] is True
+        assert terminal["diagnosticsComplete"] is True
+        selected = host.request(
+            "select-value", source=captured["source"], pointer="/0" * depth
+        )["value"]
+        response, value = host.request(
+            "read-value",
+            data=True,
+            value=selected["id"],
+            representation="number-lexeme",
+            offset="0",
+            maximum="1",
+        )
+        assert response["byteLength"] == "1" and value == b"0"
+        host.close()
+        return {
+            "depth": depth,
+            "contractSatisfied": True,
+            "fragmentBytes": 31,
+            "pythonExecutable": sys.executable,
+            "returncode": host.process.returncode,
+        }
+    except BaseException as error:  # noqa: BLE001 - Settle the child and preserve every original protocol failure, including interruption.
+        host.fail(error, "unlimited ordinary read")
+
+
 def main():
     executable, manifest_path, parent = map(Path, sys.argv[1:4])
     assert os.getppid() == int(sys.argv[4]), (
@@ -419,6 +486,17 @@ def main():
         digest = hashlib.file_digest(source, "sha256").hexdigest()
     assert digest == identity["sha256"]
     assert executable.stat().st_size == identity["bytes"]
+    if len(sys.argv) == 6 and sys.argv[5] == "ordinary":
+        print(
+            json.dumps(
+                {
+                    "ordinary": ordinary(executable, parent, manifest),
+                    "executableSha256": digest,
+                    "sourceInputsSha256": manifest["sourceInputsSha256"],
+                }
+            )
+        )
+        return
     scalars = [scalar(executable, parent, manifest, mib) for mib in (0, 8, 32, 128)]
     if os.name == "nt":
         assert (

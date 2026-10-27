@@ -6,8 +6,11 @@
  * @typedef {import("../types/schemas/event.js").JsonQualityEvent} JsonQualityEvent
  * @typedef {NonNullable<JsonQualityPolicy["runtimeControls"]>} RuntimeControls
  * @typedef {JsonQualityPolicy["capacityLimits"]} CapacityLimits
+ * @typedef {JsonQualityPolicy["transformControls"]} TransformControls
+ * @typedef {boolean | import("../types/schemas/configuration.js").ProducerControls} ProducerControls
+ * @typedef {boolean | import("../types/schemas/configuration.js").VerificationControls} VerificationControls
  * @typedef {JsonSourceContract & {path: string, exclude: boolean, exceptions: {owner: string, reason: string}[]}} JsonContract
- * @typedef {{toolingRoot: string, npmExecutable?: string, cachePath?: string, capacityLimits?: CapacityLimits, bootstrapPath?: string, signal?: AbortSignal}} InstallationOptions
+ * @typedef {{toolingRoot: string, npmExecutable?: string, cachePath?: string, capacityLimits?: CapacityLimits, verificationControls?: VerificationControls, bootstrapPath?: string, signal?: AbortSignal}} InstallationOptions
  * @typedef {{specifier: string, coordinate: {kind: "registry", version: string}, integrity: string, files: number, native: {name: string, version: string, integrity: string, files: number}}} InstallationVerification
  * @typedef {{capacityLimits?: CapacityLimits, runtimeControls?: RuntimeControls, temporaryDirectory?: string, signal?: AbortSignal}} SessionOptions
  * @typedef {{readonly kind: "source", readonly identity: string, readonly byteLength?: string, readonly sha256?: string}} SourceReference
@@ -23,7 +26,7 @@
  * @typedef {SessionOptions & {root: string, nativeProviders?: Record<string, unknown>[], logicalProviders?: Record<string, unknown>[], requiredOutputs?: string[], gitExecutable?: string, retainValues?: boolean, requestId?: string}} RepositoryOptions
  * @typedef {JsonValueSession & {events: () => AsyncIterable<JsonQualityEvent>, rewrite: (operation: "format" | "normalize", options?: Record<string, unknown>) => AsyncIterable<JsonQualityEvent>}} JsonRepositorySession
  * @typedef {Partial<Pick<RepositoryOptions, "root" | "nativeProviders" | "logicalProviders" | "requiredOutputs">>} CliContext
- * @typedef {SessionOptions & {contract?: Pick<JsonSourceContract, "normalization" | "allowEmptyKeys" | "preserveNfcValues" | "allowFormatWrites" | "owner" | "reason">}} WriterOptions
+ * @typedef {SessionOptions & {transformControls?: TransformControls, producerControls?: ProducerControls, contract?: Pick<JsonSourceContract, "normalization" | "allowEmptyKeys" | "preserveNfcValues" | "allowFormatWrites" | "owner" | "reason">}} WriterOptions
  * @typedef {null | boolean | number | string | JsonValue[] | {[key: string]: JsonValue}} JsonValue
  * @typedef {{trustedRoot: string, candidateRoot: string, trustedSha: string, candidateSha: string, capacityLimits?: CapacityLimits, runtimeControls?: RuntimeControls, temporaryDirectory?: string, signal?: AbortSignal, requestId?: string}} QualificationOptions
  */

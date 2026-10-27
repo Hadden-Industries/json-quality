@@ -149,9 +149,9 @@ test("admission bypass retains finite structural depth and quality checks", asyn
 
 test("invalid working controls fail before scratch creation", async () => {
   for (const resources of [
-    { maxCheckTimeMs: null },
+    { maxCheckTimeMs: "0" },
     { maxConcurrency: "2" },
-    { managedMemoryTargetBytes: "1" },
+    { managedMemoryTargetBytes: "0" },
     { segmentSize: "65536" },
   ]) {
     const session = new NativeSession();

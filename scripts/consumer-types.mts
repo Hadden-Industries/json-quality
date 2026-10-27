@@ -22,16 +22,27 @@ import {
 } from "@hadden-industries/json-quality";
 import plugin from "@hadden-industries/json-quality/eslint";
 import type { Linter } from "eslint";
-const policy = admitJsonPolicy({ schemaVersion: 2 });
+const policy = admitJsonPolicy({ schemaVersion: 3 });
 jsonContract("a.json", policy, { tracked: true });
 const text: string = await formatJsonValue({ a: [null, true, 1, "value"] });
-await formatJsonSource(text, { contract: { allowFormatWrites: false } });
+await formatJsonSource(text, {
+  contract: { allowFormatWrites: false },
+  transformControls: false,
+});
+await formatJsonValue(
+  { nested: [] },
+  {
+    producerControls: { maximumDepth: null },
+    transformControls: { maximumOutputBytes: null },
+  },
+);
 await normalizeJsonSource(text);
 const options = await jsonFormatOptions();
 const tabWidth: number | undefined = options.tabWidth;
 const config: Linter.Config = plugin.configs.recommended;
 const session = await openJsonSourceSession({
-  runtimeControls: { maxCheckTimeMs: 120000 },
+  capacityLimits: false,
+  runtimeControls: { maxCheckTimeMs: null, maxNestingDepth: null },
 });
 for await (const event of session.check({
   async *open() {
@@ -61,7 +72,10 @@ qualifyJsonConsumer({
 assertIsolatedJsonQuality(new URL(".", import.meta.url));
 const bootstrap: string = jsonQualityAcquisitionBootstrap();
 jsonQualitySourceCoordinate("1.0.0");
-verifyJsonQualityInstallation({ toolingRoot: process.cwd() });
+verifyJsonQualityInstallation({
+  toolingRoot: process.cwd(),
+  verificationControls: false,
+});
 void [
   tabWidth,
   config,
@@ -75,5 +89,7 @@ void [
 formatJsonValue(() => 1);
 // @ts-expect-error Unsupported resource controls must not enter the API.
 openJsonSourceSession({ runtimeControls: { madeUpLimit: 1 } });
+// @ts-expect-error The retired concurrency field is not a configurable quota.
+openJsonSourceSession({ runtimeControls: { maxConcurrency: 1 } });
 // @ts-expect-error Private source paths are not package exports.
 await import("@hadden-industries/json-quality/src/value-session.js");

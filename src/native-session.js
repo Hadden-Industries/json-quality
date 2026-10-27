@@ -53,6 +53,7 @@ export class NativeSession {
   #handle;
   #owner;
   #sequence = 0n;
+  /** @type {number | null} */ #maximumControlBytes = 4096;
   /** @type {*} */ #pending;
   /** @type {*} */ #closing;
   #closed = false;
@@ -102,13 +103,16 @@ export class NativeSession {
       if (Object.hasOwn(fields, key))
         throw new TypeError("reserved-native-envelope-field");
     const requestId = String(++this.#sequence),
-      body = encodeNativeControl({
-        ...fields,
-        protocolVersion: cohort.nativeProtocolVersion,
-        owner: this.#owner,
-        requestId,
-        command,
-      });
+      body = encodeNativeControl(
+        {
+          ...fields,
+          protocolVersion: cohort.nativeProtocolVersion,
+          owner: this.#owner,
+          requestId,
+          command,
+        },
+        this.#maximumControlBytes,
+      );
     let frames;
     for (let offset = 0; offset < body.length; offset += 65536)
       frames = decodeNativeFrames(
@@ -134,8 +138,14 @@ export class NativeSession {
   command(/** @type {*} */ command, /** @type {*} */ fields = {}) {
     return this.#exclusive(() => this.#command(command, fields));
   }
-  configure(/** @type {*} */ resources = {}) {
-    return this.command("configure", resources);
+  async configure(/** @type {*} */ resources = {}) {
+    const configured = await this.command("configure", resources);
+    const maximum = configured.result.resources.admission.maxRequestBytes;
+    // Always retain enough envelope space for the quota-exempt close command;
+    // the native service still admits every ordinary request against its quota.
+    this.#maximumControlBytes =
+      maximum === null ? null : Math.max(4096, Number(maximum));
+    return configured;
   }
   capture(
     /** @type {*} */ input,

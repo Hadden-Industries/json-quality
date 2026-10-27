@@ -21,7 +21,7 @@ function fixture(t) {
     join(root, ".json-quality.json"),
     JSON.stringify(
       {
-        schemaVersion: 2,
+        schemaVersion: 3,
         defaults: {
           formatContract: "prettier-json",
           allowFormatWrites: true,
@@ -93,7 +93,7 @@ test("public cohort rejects retired aggregate interfaces and document envelopes"
 });
 test("event admission is closed and requires complete terminal evidence", () => {
   const terminal = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     requestId: "fixture",
     type: "execution-terminal",
     inventoryComplete: true,

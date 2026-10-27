@@ -25,6 +25,7 @@ export declare function createRepositoryExecution(
     source?: any,
   ) => import("./api-types.js").JsonContract;
   policyObservation: any;
+  policyTransformControls: any;
   controlStateBytes: any;
   numericResources: {
     admission: any;

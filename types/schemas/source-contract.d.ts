@@ -93,38 +93,72 @@ export interface DiagnosticIdentity {
   codePoint?: string;
 }
 /**
- * Finite working controls for one execution. Admission bypass never disables these controls. The first native cohort admits one active checker under its aggregate target.
+ * Caller-selected resource controls. Null disables an individual quota; false selects no package quotas. Numeric controls remain enforceable. Finite streaming buffers are independent of aggregate quotas.
  *
  * This interface was referenced by `undefined`'s JSON-Schema
  * via the `definition` "runtimeControls".
  */
 export interface RuntimeControls {
-  managedMemoryTargetBytes?: number;
-  maxTemporaryBytes?: number;
-  maxNestingDepth?: number;
-  maxCheckTimeMs?: number;
-  maxConcurrency?: number;
+  managedMemoryTargetBytes?: number | null;
+  maxTemporaryBytes?: number | null;
+  maxNestingDepth?: number | null;
+  maxCheckTimeMs?: number | null;
 }
 /**
  * This interface was referenced by `undefined`'s JSON-Schema
  * via the `definition` "capacityLimits".
  */
 export interface CapacityLimits {
-  maxFiles?: number;
-  maxFileBytes?: number;
-  maxTotalBytes?: number;
-  maxLogicalDocuments?: number;
-  maxRecords?: number;
-  maxDiagnostics?: number;
-  maxPolicyBytes?: number;
-  maxGitOutputBytes?: number;
-  maxToolOutputBytes?: number;
-  maxToolTimeMs?: number;
-  maxGitTimeMs?: number;
-  maxAcquisitionTimeMs?: number;
-  maxCacheLookupTimeMs?: number;
-  maxCacheOutputBytes?: number;
-  maxRequestIdCharacters?: number;
-  maxRequestBytes?: number;
-  maxRequestPathCharacters?: number;
+  maxFiles?: number | null;
+  maxFileBytes?: number | null;
+  maxTotalBytes?: number | null;
+  maxLogicalDocuments?: number | null;
+  maxRecords?: number | null;
+  maxDiagnostics?: number | null;
+  maxPolicyBytes?: number | null;
+  maxGitOutputBytes?: number | null;
+  maxToolOutputBytes?: number | null;
+  maxToolTimeMs?: number | null;
+  maxGitTimeMs?: number | null;
+  maxAcquisitionTimeMs?: number | null;
+  maxCacheLookupTimeMs?: number | null;
+  maxCacheOutputBytes?: number | null;
+  maxRequestIdCharacters?: number | null;
+  maxRequestBytes?: number | null;
+  maxRequestPathCharacters?: number | null;
+}
+/**
+ * This interface was referenced by `undefined`'s JSON-Schema
+ * via the `definition` "transformControls".
+ */
+export interface TransformControls {
+  maximumSourceBytes?: number | null;
+  maximumOutputBytes?: number | null;
+  maximumNormalizationChanges?: number | null;
+  maximumWritePaths?: number | null;
+}
+/**
+ * This interface was referenced by `undefined`'s JSON-Schema
+ * via the `definition` "producerControls".
+ */
+export interface ProducerControls {
+  maximumDepth?: number | null;
+  maximumMembers?: number | null;
+}
+/**
+ * This interface was referenced by `undefined`'s JSON-Schema
+ * via the `definition` "verificationControls".
+ */
+export interface VerificationControls {
+  maximumArchiveBytes?: number | null;
+  maximumMemberBytes?: number | null;
+  maximumExpandedBytes?: number | null;
+  maximumMembers?: number | null;
+  maximumIndexBytes?: number | null;
+  maximumMetadataBytes?: number | null;
+  maximumArchiveMetadataBytes?: number | null;
+  maximumPathBytes?: number | null;
+  maximumDepth?: number | null;
+  maximumVerificationTimeMs?: number | null;
+  maximumDecompressionRatio?: number | null;
 }

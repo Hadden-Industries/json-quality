@@ -13,6 +13,7 @@ import {
 import { encodeNativeControl } from "./native-control.js";
 import { assertJsonQualityEvent } from "./events.js";
 import { resolveExecutionResources } from "./execution-resources.js";
+import { createExecutionDeadline } from "./execution-deadline.js";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 
 /** Stream cohort-2 NDJSON with backpressure and a final cleaned-up verdict.
@@ -28,6 +29,7 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
     signal = caller.signal,
     outputBytes = 0n,
     /** @type {any} */ maximumOutput = null,
+    /** @type {any} */ deadline,
     exitCode = 2,
     terminal;
   process.stdout.on("error", outputError);
@@ -51,7 +53,10 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
     emit = async (/** @type {*} */ event) => {
       assertJsonQualityEvent(event);
       const bytes = Buffer.concat([
-        encodeNativeControl(event, 2097152),
+        encodeNativeControl(
+          event,
+          maximumOutput === null ? null : Number(maximumOutput),
+        ),
         Buffer.from("\n"),
       ]);
       outputBytes += BigInt(bytes.length);
@@ -86,7 +91,7 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
               .map((name) => "--" + name)
               .join(", ") +
             "\n" +
-            "--no-capacity-limits bypasses admission only; finite runtime controls remain active.\n",
+            "--no-capacity-limits and --no-runtime-controls disable their quotas; individual controls also accept null.\n",
         ),
       );
       return 0;
@@ -95,10 +100,12 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
     const controls = resourceCliControls(values),
       resources = resolveExecutionResources({}, controls);
     maximumOutput = resources.wire.admission.maxToolOutputBytes;
-    signal = AbortSignal.any([
-      caller.signal,
-      AbortSignal.timeout(resources.runtime.maxCheckTimeMs),
-    ]);
+    deadline = createExecutionDeadline(
+      resources.runtime.maxCheckTimeMs,
+      [caller.signal],
+      { began },
+    );
+    signal = deadline.signal;
     for await (const event of qualifyJsonConsumer({
       ...controls,
       signal,
@@ -114,14 +121,13 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       if (event.type === "execution") {
         if (!event.resources) throw new Error("execution-resources-missing");
         maximumOutput = event.resources.admission.maxToolOutputBytes;
-        const remaining =
-          Number(event.resources.runtime.maxCheckTimeMs) -
-          Math.floor(performance.now() - began);
-        if (remaining < 1) throw new Error("execution-time-capacity");
-        signal = AbortSignal.any([
-          caller.signal,
-          AbortSignal.timeout(remaining),
-        ]);
+        deadline.dispose();
+        deadline = createExecutionDeadline(
+          event.resources.runtime.maxCheckTimeMs,
+          [caller.signal],
+          { began },
+        );
+        signal = deadline.signal;
       }
       if (event.type === "execution-terminal") terminal = event;
       await emit(event);
@@ -148,6 +154,7 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
     }
     exitCode = 2;
   } finally {
+    deadline?.dispose();
     process.stdout.removeListener("error", outputError);
     process.removeListener("SIGINT", interrupt);
     process.removeListener("SIGTERM", interrupt);

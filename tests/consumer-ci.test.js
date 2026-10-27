@@ -37,7 +37,7 @@ function commit(root) {
 
 function policy() {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     defaults: {
       formatContract: "prettier-json",
       allowFormatWrites: true,
