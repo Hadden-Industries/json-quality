@@ -1,6 +1,8 @@
 # JSON Quality Modernisation Implementation Plan
 
-This is the replacement implementation plan for the attached `json-quality` clone. It contains only changes to make. The target is a public npm package with a deliberately narrow supported-runtime contract, reproducible npm-owned development, manually checkpointed but mandatory CI, strong package/API ergonomics, and a release path that makes the published artefact independently verifiable.
+This is the replacement implementation plan for the attached `json-quality` clone.
+It contains only changes to make.
+The target is a public npm package with a deliberately narrow supported-runtime contract, reproducible npm-owned development, manually checkpointed but mandatory CI, strong package/API ergonomics, and a release path that makes the published artefact independently verifiable.
 
 The central engineering decision is:
 
@@ -35,13 +37,17 @@ The meaning should be made explicit throughout the repository:
 - Other releases satisfying the engine range receive **best-effort compatibility**, not release-blocking CI guarantees.
 - Documentation should recommend the latest security-patched release of an LTS line for actual use rather than presenting `22.13.0` as a security recommendation.
 
-As of **27 October 2026**, the Node project lists Node 22 and Node 24 as LTS and Node 26 as Current. Therefore the gating matrix should initially cover **22 and 24, not 26**. The Node project also changes its release model beginning with Node 27, so repository logic must not infer LTS status from “even major number” rules. citeturn6view0
+As of **27 October 2026**, the Node project lists Node 22 and Node 24 as LTS and Node 26 as Current.
+Therefore the gating matrix should initially cover **22 and 24, not 26**.
+The Node project also changes its release model beginning with Node 27, so repository logic must not infer LTS status from “even major number” rules. citeturn6view0
 
-The latest security release on 21 October 2026 produced Node 22.23.4 and 24.22.1, fixing vulnerabilities up to HIGH severity. Those are appropriate current patch targets at the time of implementation, while `22.13.0` remains the compatibility floor. citeturn5search7
+The latest security release on 21 October 2026 produced Node 22.23.4 and 24.22.1, fixing vulnerabilities up to HIGH severity.
+Those are appropriate current patch targets at the time of implementation, while `22.13.0` remains the compatibility floor. citeturn5search7
 
 ### Reshape `assets/node-support.json`
 
-Replace the present per-family minimum model with a policy that distinguishes the package floor, the currently tested LTS majors, the canonical producer version and best-effort releases. For example:
+Replace the present per-family minimum model with a policy that distinguishes the package floor, the currently tested LTS majors, the canonical producer version and best-effort releases.
+For example:
 
 ```json
 {
@@ -67,7 +73,8 @@ Replace the present per-family minimum model with a policy that distinguishes th
 }
 ```
 
-Resolve the exact current patch for each LTS major when the policy is refreshed, record that exact version in CI evidence, and freeze it for the run. Do not silently change the matrix midway through qualification.
+Resolve the exact current patch for each LTS major when the policy is refreshed, record that exact version in CI evidence, and freeze it for the run.
+Do not silently change the matrix midway through qualification.
 
 Update `project-node-support.js`, `node-matrix.js`, `ci-node-policy.js`, the Node-policy tests and generated documentation so there is a single authority for:
 
@@ -77,7 +84,9 @@ Update `project-node-support.js`, `node-matrix.js`, `ci-node-policy.js`, the Nod
 - the canonical development/producer release;
 - platform qualification.
 
-Add a dedicated **minimum-floor lane for Node 22.13.0**. Provision dependencies and the package artefact before entering that lane where practical, then perform its compatibility tests without exposing credentials. This proves that the declared floor is real rather than merely metadata.
+Add a dedicated **minimum-floor lane for Node 22.13.0**.
+Provision dependencies and the package artefact before entering that lane where practical, then perform its compatibility tests without exposing credentials.
+This proves that the declared floor is real rather than merely metadata.
 
 Update `.node-version` to the current canonical LTS patch selected by the policy.
 
@@ -106,7 +115,8 @@ Development dependencies   >= current latest safe version
 
 Thus the runtime portion of `package.json` remains deliberately controlled, while development tools remain floating forwards as requested.
 
-Commit the npm lockfile after every refresh. Floating development ranges do **not** make CI non-reproducible when `npm ci` consumes a committed lockfile: npm documents `package-lock.json` as the exact dependency tree needed to reproduce installations despite intermediate dependency releases. citeturn7search4
+Commit the npm lockfile after every refresh.
+Floating development ranges do **not** make CI non-reproducible when `npm ci` consumes a committed lockfile: npm documents `package-lock.json` as the exact dependency tree needed to reproduce installations despite intermediate dependency releases. citeturn7search4
 
 Apply the same latest/safe refresh principle to the isolated Markdown tooling dependency graph and regenerate its native npm lockfile independently.
 
@@ -121,7 +131,8 @@ Add automated checks that reject:
 
 Remove the unused file-type-specific indentation override from `.editorconfig`.
 
-Also remove the conversational-source URL comment currently embedded in that file. Repository configuration should describe the repository's policy directly rather than retain an external conversation as its authority.
+Also remove the conversational-source URL comment currently embedded in that file.
+Repository configuration should describe the repository's policy directly rather than retain an external conversation as its authority.
 
 ## Pull-request CI and default-branch governance
 
@@ -146,7 +157,8 @@ Create:
 
 `qualification.yml` should be `workflow_call`-only and own the reusable package qualification mechanics.
 
-`ci.yml` should be the PR acceptance wrapper. Its principal trigger should be:
+`ci.yml` should be the PR acceptance wrapper.
+Its principal trigger should be:
 
 ```yaml
 name: CI
@@ -193,7 +205,9 @@ A draft PR cannot itself be merged, and GitHub permits switching between draft a
 
 ### Do not use `workflow_dispatch` as the merge gate
 
-A manually dispatched Actions run is superficially attractive but is the wrong primitive for a required PR check. GitHub explicitly documents that checks created by a `workflow_dispatch` run are not evaluated as required PR status checks, even when they ran against the PR's head commit. `pull_request` is an eligible event; `workflow_dispatch` is not. citeturn6view1turn12search12
+A manually dispatched Actions run is superficially attractive but is the wrong primitive for a required PR check.
+GitHub explicitly documents that checks created by a `workflow_dispatch` run are not evaluated as required PR status checks, even when they ran against the PR's head commit.
+`pull_request` is an eligible event; `workflow_dispatch` is not. citeturn6view1turn12search12
 
 Therefore **“Ready for review” becomes the manual Run CI button for merge acceptance**.
 
@@ -219,7 +233,8 @@ A ─ B ─ C ─ D ─ E
 
 GitHub requires a required check to succeed on the latest relevant SHA; the result on `D` cannot satisfy the requirement for `E`. citeturn6view1
 
-Because `synchronize` is deliberately absent, pushing `E` does **not** trigger the full suite. It simply makes the PR non-mergeable until the author deliberately requests another qualification:
+Because `synchronize` is deliberately absent, pushing `E` does **not** trigger the full suite.
+It simply makes the PR non-mergeable until the author deliberately requests another qualification:
 
 ```text
 convert to draft
@@ -237,7 +252,8 @@ Document that a sufficiently old required check may also need to be rerun: GitHu
 
 ### Use a single, stable merge-gate status
 
-Do not make the ruleset depend on every individual matrix job name. Add a final job whose check name never changes, for example:
+Do not make the ruleset depend on every individual matrix job name.
+Add a final job whose check name never changes, for example:
 
 ```text
 CI / acceptance
@@ -263,7 +279,8 @@ acceptance:
 
 The checker must explicitly assert that **every required predecessor ended in `success`**.
 
-This matters because GitHub treats a skipped job as a successful status for branch-protection purposes. A required job that merely skips because an `if:` condition is false is therefore not a safe acceptance gate. citeturn7search27
+This matters because GitHub treats a skipped job as a successful status for branch-protection purposes.
+A required job that merely skips because an `if:` condition is false is therefore not a safe acceptance gate. citeturn7search27
 
 Add tests for `require-successful-ci-needs.js` covering success, failure, cancelled and skipped predecessor states.
 
@@ -273,14 +290,14 @@ The reusable qualification workflow should produce the package candidate **once*
 
 Use:
 
-| Job | Required change |
-|---|---|
-| Reference qualification | On the canonical current LTS/npm pair, run complete source tests, lint, formatting, architecture checks, Node-policy checks, package checks, type checks, schema checks, JSON dogfooding and package qualification. Produce one immutable `.tgz`. |
-| Engine-floor qualification | Run the installed artefact on Node 22.13.0 with no release credentials. |
-| LTS/platform matrix | Qualify the same `.tgz` on the latest secure Node patch for every current LTS major on Ubuntu, Windows and macOS. |
-| Package-consumer proof | Import every public JS entry point, consume every public schema, load the ESLint plugin, execute both binaries and verify package contents from a clean installation. |
-| Security jobs | Run dependency review and CodeQL for the candidate. |
-| Acceptance | Fail unless every mandatory job succeeded. |
+| Job                        | Required change                                                                                                                                                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reference qualification    | On the canonical current LTS/npm pair, run complete source tests, lint, formatting, architecture checks, Node-policy checks, package checks, type checks, schema checks, JSON dogfooding and package qualification. Produce one immutable `.tgz`. |
+| Engine-floor qualification | Run the installed artefact on Node 22.13.0 with no release credentials.                                                                                                                                                                           |
+| LTS/platform matrix        | Qualify the same `.tgz` on the latest secure Node patch for every current LTS major on Ubuntu, Windows and macOS.                                                                                                                                 |
+| Package-consumer proof     | Import every public JS entry point, consume every public schema, load the ESLint plugin, execute both binaries and verify package contents from a clean installation.                                                                             |
+| Security jobs              | Run dependency review and CodeQL for the candidate.                                                                                                                                                                                               |
+| Acceptance                 | Fail unless every mandatory job succeeded.                                                                                                                                                                                                        |
 
 Add `macos-15` to the platform policy so filesystem/path behaviour is qualified across all three major GitHub-hosted development platforms.
 
@@ -293,7 +310,8 @@ permissions:
   contents: read
 ```
 
-and elevate individual jobs only where their function requires it. CodeQL receives only its required `security-events` permission; publishing receives OIDC only inside the publisher job.
+and elevate individual jobs only where their function requires it.
+CodeQL receives only its required `security-events` permission; publishing receives OIDC only inside the publisher job.
 
 Use:
 
@@ -303,7 +321,8 @@ Use:
     persist-credentials: false
 ```
 
-for external actions generally, with full reviewed commit SHAs and an adjacent release-version comment. GitHub identifies full-length SHA pinning as the safest stable way to prevent a mutable tag from changing what code executes. citeturn5search1turn5search13
+for external actions generally, with full reviewed commit SHAs and an adjacent release-version comment.
+GitHub identifies full-length SHA pinning as the safest stable way to prevent a mutable tag from changing what code executes. citeturn5search1turn5search13
 
 Add PR-level concurrency so a newly requested qualification cancels a superseded in-progress qualification for the same PR:
 
@@ -313,37 +332,39 @@ concurrency:
   cancel-in-progress: true
 ```
 
-Do not use path filters on the required workflow. A required workflow skipped by filtering can remain pending and block the PR in confusing ways. citeturn5search8
+Do not use path filters on the required workflow.
+A required workflow skipped by filtering can remain pending and block the PR in confusing ways. citeturn5search8
 
 ### Activate a default-branch ruleset
 
 After `CI / acceptance` has existed at least once and can be selected as a status check, create an **active branch ruleset** targeting the default branch with:
 
-| Rule | Configuration |
-|---|---|
-| Require a pull request before merging | Enabled |
-| Required approvals | No mandatory human approval |
-| Require status checks | `CI / acceptance` |
-| Require branch to be up to date | Enabled |
-| Require conversation resolution | Enabled |
-| Block force pushes | Enabled |
-| Block deletion | Enabled |
-| Bypass | None for ordinary development/merge operations |
+| Rule                                  | Configuration                                  |
+| ------------------------------------- | ---------------------------------------------- |
+| Require a pull request before merging | Enabled                                        |
+| Required approvals                    | No mandatory human approval                    |
+| Require status checks                 | `CI / acceptance`                              |
+| Require branch to be up to date       | Enabled                                        |
+| Require conversation resolution       | Enabled                                        |
+| Block force pushes                    | Enabled                                        |
+| Block deletion                        | Enabled                                        |
+| Bypass                                | None for ordinary development/merge operations |
 
 GitHub's strict required-status mode requires the topic branch to be current with the base before it can merge, preventing acceptance against an obsolete base. citeturn7search5turn12search16
 
-If `main` advances after a qualification, update the PR branch, convert it back to draft and mark it ready again. That deliberately spends another qualification only when the integration candidate has actually changed.
+If `main` advances after a qualification, update the PR branch, convert it back to draft and mark it ready again.
+That deliberately spends another qualification only when the integration candidate has actually changed.
 
 The implementation acceptance test for the ruleset should explicitly demonstrate all six states:
 
-| Scenario | Required outcome |
-|---|---|
-| Push repeatedly to feature branch | No full CI |
-| Push repeatedly to draft PR | No full CI |
-| Mark draft Ready for review | Full CI runs once |
-| CI fails | Merge blocked |
-| CI passes | Merge eligible |
-| Push another commit after PASS | No automatic full CI; merge immediately becomes blocked until a new Ready-for-review qualification passes |
+| Scenario                          | Required outcome                                                                                          |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Push repeatedly to feature branch | No full CI                                                                                                |
+| Push repeatedly to draft PR       | No full CI                                                                                                |
+| Mark draft Ready for review       | Full CI runs once                                                                                         |
+| CI fails                          | Merge blocked                                                                                             |
+| CI passes                         | Merge eligible                                                                                            |
+| Push another commit after PASS    | No automatic full CI; merge immediately becomes blocked until a new Ready-for-review qualification passes |
 
 A direct ordinary push to the protected default branch must also be rejected.
 
@@ -364,7 +385,8 @@ types/
 
 Annotate all public API inputs, outputs and structured contracts in source JSDoc and enable strict `checkJs`.
 
-Generate declarations deterministically and either commit the generated declarations or generate them into a controlled packaging stage whose output is byte-verified. Given this repository's emphasis on source/artefact identity, the simpler contract is to commit them and have CI reject regeneration drift.
+Generate declarations deterministically and either commit the generated declarations or generate them into a controlled packaging stage whose output is byte-verified.
+Given this repository's emphasis on source/artefact identity, the simpler contract is to commit them and have CI reject regeneration drift.
 
 Change the root export metadata along these lines:
 
@@ -404,7 +426,9 @@ and make them part of `check:full`.
 
 ### Modernise the public JSON Schemas before stable publication
 
-The package currently mixes Draft 7 public schemas with a 2020-12 release schema. Standardise the public contract schemas on **JSON Schema 2020-12**, which remains the current published JSON Schema version. JSON Schema also recommends explicitly declaring `$schema` and using a stable `$id` for real-world schemas. citeturn14search0turn14search2
+The package currently mixes Draft 7 public schemas with a 2020-12 release schema.
+Standardise the public contract schemas on **JSON Schema 2020-12**, which remains the current published JSON Schema version.
+JSON Schema also recommends explicitly declaring `$schema` and using a stable `$id` for real-world schemas. citeturn14search0turn14search2
 
 For each public schema:
 
@@ -489,7 +513,8 @@ Add tests that load the **packed** plugin through ESLint using exactly the docum
 
 ### Add dedicated npm-package validation
 
-Add `publint` as a floating development dependency and run it in strict mode against the candidate package artefact. Its purpose is to detect npm-package metadata/export/resolution compatibility problems that ordinary unit tests do not exercise. citeturn10search6
+Add `publint` as a floating development dependency and run it in strict mode against the candidate package artefact.
+Its purpose is to detect npm-package metadata/export/resolution compatibility problems that ordinary unit tests do not exercise. citeturn10search6
 
 Add an explicit package contract check covering:
 
@@ -531,7 +556,8 @@ document request/response schemas
 typed ESM consumer
 ```
 
-Each fixture should consume an installed `.tgz`, never source-relative paths. This ensures the tests prove what npm users actually receive.
+Each fixture should consume an installed `.tgz`, never source-relative paths.
+This ensures the tests prove what npm users actually receive.
 
 Add an explicit exported-name contract test so accidentally adding, removing or renaming a root export becomes a conscious public-API decision.
 
@@ -548,17 +574,21 @@ github-actions  /
 
 and the isolated development-tooling npm graph where that graph can be maintained through ordinary npm metadata.
 
-Use a regular scheduled update cadence and grouping that keeps related development updates together. Enable Dependabot security updates so patched versions produce PRs independently of the normal version-update schedule. GitHub documents version updates as keeping dependencies current and security updates as opening PRs for vulnerable dependencies with available fixes. citeturn7search3turn7search7
+Use a regular scheduled update cadence and grouping that keeps related development updates together.
+Enable Dependabot security updates so patched versions produce PRs independently of the normal version-update schedule.
+GitHub documents version updates as keeping dependencies current and security updates as opening PRs for vulnerable dependencies with available fixes. citeturn7search3turn7search7
 
 For SHA-pinned Actions, keep the release tag/version comment on the same line; Dependabot understands that format when updating Actions references. citeturn7search17
 
-Dependabot PRs must pass the same normal acceptance gate before merging. When a bot PR is created already in the ready state, convert it to draft and back to Ready when the candidate is consciously ready for its merge-gating run.
+Dependabot PRs must pass the same normal acceptance gate before merging.
+When a bot PR is created already in the ready state, convert it to draft and back to Ready when the candidate is consciously ready for its merge-gating run.
 
 ### Add dependency review to PR acceptance
 
 Add `actions/dependency-review-action` as a mandatory `ci.yml` job.
 
-Configure it to fail when a PR introduces a dependency with an unacceptable known vulnerability severity. GitHub's dependency-review action specifically compares PR dependency changes and can fail the check when new vulnerable dependencies are introduced. citeturn7search2turn7search10
+Configure it to fail when a PR introduces a dependency with an unacceptable known vulnerability severity.
+GitHub's dependency-review action specifically compares PR dependency changes and can fail the check when new vulnerable dependencies are introduced. citeturn7search2turn7search10
 
 The final `CI / acceptance` job must depend on this result.
 
@@ -734,7 +764,8 @@ The release workflow must prove that the registry artefact is the candidate that
 
 ### Add GitHub build attestations for release artefacts
 
-For release artefacts attached to GitHub, generate GitHub artifact provenance attestations against the exact tarball and associated SBOM/evidence. GitHub describes artifact attestations as cryptographically signed claims binding a build artefact to its repository, workflow, commit and build environment. citeturn8view1
+For release artefacts attached to GitHub, generate GitHub artifact provenance attestations against the exact tarball and associated SBOM/evidence.
+GitHub describes artifact attestations as cryptographically signed claims binding a build artefact to its repository, workflow, commit and build environment. citeturn8view1
 
 Verify the attestation before publishing the GitHub release.
 
@@ -742,7 +773,8 @@ Verify the attestation before publishing the GitHub release.
 
 Create the GitHub release as a **draft**, attach all intended artefacts, verify them, and only then publish it.
 
-Enable immutable releases at repository level. Once published immutably, GitHub prevents the release assets from being changed or deleted and locks the associated tag against movement. citeturn15search0
+Enable immutable releases at repository level.
+Once published immutably, GitHub prevents the release assets from being changed or deleted and locks the associated tag against movement. citeturn15search0
 
 GitHub itself recommends drafting first so all assets can be attached before the release becomes immutable. citeturn15search1
 
@@ -917,7 +949,10 @@ In particular, remove language preserving a direct-to-default-branch model and r
 
 Use one short policy everywhere:
 
-> JSON Quality requires Node.js `>=22.13.0`. Official qualification covers maintained LTS Node major versions. Other engine-compatible Node releases receive best-effort support. Use a current security-patched LTS release for production use.
+> JSON Quality requires Node.js `>=22.13.0`.
+> Official qualification covers maintained LTS Node major versions.
+> Other engine-compatible Node releases receive best-effort support.
+> Use a current security-patched LTS release for production use.
 
 The LTS list itself should be generated/projected from `assets/node-support.json`, not copied manually into multiple documents.
 
@@ -986,17 +1021,17 @@ Remove obsolete auxiliary-runtime references from active package configuration a
 
 The changes should be applied in dependency order rather than as independent edits.
 
-| Order | Change set | Completion gate |
-|---|---|---|
-| Foundation | Update npm/toolchain/dependencies; change Node engine to `>=22.13.0`; redesign Node support policy; clean root configuration | `npm ci`, Node-policy tests and lockfile-drift checks pass on the canonical producer |
-| Package contracts | Add strict JS checking, JSDoc typing, declarations, public API contract tests and strict package linting | `check:types`, ESLint and package-lint checks pass; packed ESM/type consumers succeed |
-| Schema contract | Migrate public schemas to 2020-12, add stable IDs, update Ajv use and schema fixtures | Every public schema compiles strictly; positive/negative and cross-schema fixtures pass |
-| Public plugin | Add metadata, recommended flat config, rule docs/types and installed-consumer tests | Packed plugin works using the exact documented configuration |
-| Qualification CI | Add reusable qualification, ready-for-review PR workflow, exact candidate artefact transport, three-platform LTS matrix and stable acceptance job | Draft → Ready causes one complete run; pushing after PASS blocks merge without automatically rerunning |
-| GitHub governance | Activate the default-branch ruleset and Actions restrictions | Direct default-branch push is rejected; failing/missing/stale acceptance cannot merge; passing current acceptance can |
-| Security automation | Add dependency review, CodeQL, Dependabot, audit gates, secret protection and sensitive-path ownership | Dependency/security PRs use the same acceptance path and vulnerable additions are blocked |
-| Release system | Add qualification/staging/registry/GitHub-release/promotion workflows; configure npm OIDC, staged publishing, attestations and immutable releases | A release candidate can traverse exact-source qualification → stage → 2FA approval → public-registry requalification → immutable GitHub release without a long-lived npm publication token |
-| Public documentation | Rewrite README/contributor/runtime/release guidance; add API/CLI/config docs, changelog, issue forms and PR template | Every documented command/example is exercised by automated tests and no contributor documentation describes the obsolete merge/CI path |
+| Order                | Change set                                                                                                                                        | Completion gate                                                                                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Foundation           | Update npm/toolchain/dependencies; change Node engine to `>=22.13.0`; redesign Node support policy; clean root configuration                      | `npm ci`, Node-policy tests and lockfile-drift checks pass on the canonical producer                                                                                                       |
+| Package contracts    | Add strict JS checking, JSDoc typing, declarations, public API contract tests and strict package linting                                          | `check:types`, ESLint and package-lint checks pass; packed ESM/type consumers succeed                                                                                                      |
+| Schema contract      | Migrate public schemas to 2020-12, add stable IDs, update Ajv use and schema fixtures                                                             | Every public schema compiles strictly; positive/negative and cross-schema fixtures pass                                                                                                    |
+| Public plugin        | Add metadata, recommended flat config, rule docs/types and installed-consumer tests                                                               | Packed plugin works using the exact documented configuration                                                                                                                               |
+| Qualification CI     | Add reusable qualification, ready-for-review PR workflow, exact candidate artefact transport, three-platform LTS matrix and stable acceptance job | Draft → Ready causes one complete run; pushing after PASS blocks merge without automatically rerunning                                                                                     |
+| GitHub governance    | Activate the default-branch ruleset and Actions restrictions                                                                                      | Direct default-branch push is rejected; failing/missing/stale acceptance cannot merge; passing current acceptance can                                                                      |
+| Security automation  | Add dependency review, CodeQL, Dependabot, audit gates, secret protection and sensitive-path ownership                                            | Dependency/security PRs use the same acceptance path and vulnerable additions are blocked                                                                                                  |
+| Release system       | Add qualification/staging/registry/GitHub-release/promotion workflows; configure npm OIDC, staged publishing, attestations and immutable releases | A release candidate can traverse exact-source qualification → stage → 2FA approval → public-registry requalification → immutable GitHub release without a long-lived npm publication token |
+| Public documentation | Rewrite README/contributor/runtime/release guidance; add API/CLI/config docs, changelog, issue forms and PR template                              | Every documented command/example is exercised by automated tests and no contributor documentation describes the obsolete merge/CI path                                                     |
 
 The repository-level final acceptance should be one clean run of:
 
@@ -1036,4 +1071,5 @@ PASS
 normal merge succeeds
 ```
 
-That process proof is the decisive acceptance criterion for the new CI design: **iteration frequency no longer controls CI expenditure, but every exact revision that reaches the protected default branch has necessarily passed the complete qualification gate.** GitHub's required-check semantics—latest SHA required, PR-triggered checks eligible for branch protection, skipped jobs counting as success unless explicitly guarded, and strict up-to-date branch protection—provide the enforcement primitives needed for that model. citeturn6view1turn7search27turn7search5
+That process proof is the decisive acceptance criterion for the new CI design: **iteration frequency no longer controls CI expenditure, but every exact revision that reaches the protected default branch has necessarily passed the complete qualification gate.**
+GitHub's required-check semantics—latest SHA required, PR-triggered checks eligible for branch protection, skipped jobs counting as success unless explicitly guarded, and strict up-to-date branch protection—provide the enforcement primitives needed for that model. citeturn6view1turn7search27turn7search5
