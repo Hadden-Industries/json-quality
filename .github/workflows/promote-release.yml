@@ -82,6 +82,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: npm run release:admit -- promote "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
       - uses: ./.github/actions/upload-evidence
+        timeout-minutes: 5
         id: admitted
         with:
           name: "admitted-promote-${{ github.run_attempt }}"
@@ -104,6 +105,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup-producer
       - uses: ./.github/actions/download-evidence
+        timeout-minutes: 15
         with:
           artifact-id: ${{ needs.admit.outputs.artifact-id }}
           path: ${{ runner.temp }}/admitted/
@@ -112,6 +114,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: npm run release:effect -- promote "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
       - uses: ./.github/actions/upload-evidence
+        timeout-minutes: 5
         if: always()
         with:
           name: "effect-promote-${{ github.run_attempt }}"

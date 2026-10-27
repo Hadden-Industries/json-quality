@@ -68,6 +68,7 @@ jobs:
       - name: Retain exact native payload, rights and source identities
         if: success()
         uses: ./.github/actions/upload-evidence
+        timeout-minutes: 5
         with:
           name: "native-${{ matrix.platform }}-${{ github.run_attempt }}"
           path: "${{ steps.build.outputs.artifacts }}"

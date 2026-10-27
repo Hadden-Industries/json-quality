@@ -19,7 +19,6 @@ runs:
   steps:
     - id: upload
       shell: bash
-      timeout-minutes: 5
       env:
         EVIDENCE_ROOT: ${{ inputs.path }}
         EVIDENCE_NAME: ${{ inputs.name }}
