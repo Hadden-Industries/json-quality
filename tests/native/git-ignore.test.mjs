@@ -131,7 +131,7 @@ test("real Git preserves negation, nested rules, local excludes, literal hyphens
   }
 });
 
-test("ignore input is admitted by count and encoded bytes before spawning", async () => {
+test("ignore batches validate count and path encoding before spawning", async () => {
   const limits = gitIgnoreBatchLimits(execution.numericResources);
   assert.equal(limits.maximumPaths, 256);
   await assert.rejects(
@@ -143,14 +143,6 @@ test("ignore input is admitted by count and encoded bytes before spawning", asyn
     /path-capacity/,
   );
   await assert.rejects(
-    ignoredGitPaths(
-      "unused",
-      ["a".repeat(limits.maximumInputBytes)],
-      execution,
-    ),
-    /input-capacity/,
-  );
-  await assert.rejects(
     ignoredGitPaths("unused", ["bad\npath.json"], execution),
     /repository-relative/,
   );
@@ -159,6 +151,63 @@ test("ignore input is admitted by count and encoded bytes before spawning", asyn
     /encoding/,
   );
   assert.deepEqual([...(await ignoredGitPaths("unused", [], execution))], []);
+});
+
+test("one large ignore record grows its working capture under caller-owned quotas", async () => {
+  const root = await mkdtemp(join(tmpdir(), "json-ignore-large-record-")),
+    reservations = [],
+    unlimited = {
+      numericResources: resolveExecutionResources(
+        {},
+        { capacityLimits: false, runtimeControls: false },
+      ),
+      controlStateBytes: "0",
+      core: {
+        async command(command, { byteLength }) {
+          assert.equal(command, "resize-control-state");
+          reservations.push(BigInt(byteLength));
+          return { result: {} };
+        },
+      },
+    };
+  try {
+    execFileSync("git", ["-C", root, "init", "--quiet", "--template="], {
+      windowsHide: true,
+    });
+    await writeFile(join(root, ".gitignore"), "*".repeat(300000) + ".json\n");
+    assert.deepEqual(
+      [...(await ignoredGitPaths(root, ["victim.json"], unlimited))],
+      ["victim.json"],
+    );
+    assert.ok(reservations.some((bytes) => bytes >= 262144n * 16n));
+    assert.equal(reservations.at(-1), 0n);
+    const quotaRefusal = new Error("managed-allocation-capacity");
+    await assert.rejects(
+      ignoredGitPaths(root, ["victim.json"], {
+        ...unlimited,
+        core: {
+          async command() {
+            throw quotaRefusal;
+          },
+        },
+      }),
+      (error) => error === quotaRefusal,
+    );
+    await assert.rejects(
+      ignoredGitPaths(root, ["victim.json"], {
+        numericResources: resolveExecutionResources(
+          {},
+          {
+            capacityLimits: { maxGitOutputBytes: 1024 },
+            runtimeControls: false,
+          },
+        ),
+      }),
+      { code: "native-tool-output-capacity" },
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("ignore subprocess excludes inherited Git configuration injection", async () => {

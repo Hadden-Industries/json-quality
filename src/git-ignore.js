@@ -64,6 +64,7 @@ export /** @returns {*} */ async function ignoredGitPaths(
   /** @type {*} */ paths,
   /** @type {*} */ execution,
   /** @type {*} */ gitExecutable,
+  /** @type {*} */ reservationBytes = 0,
 ) {
   if (!paths.length) return new Set();
   const limits = gitIgnoreBatchLimits(execution.numericResources);
@@ -75,62 +76,113 @@ export /** @returns {*} */ async function ignoredGitPaths(
     if (!path.isWellFormed())
       throw new Error("Invalid Git ignore path encoding.");
     bytes += Buffer.byteLength(path) + 1;
-    if (bytes > limits.maximumInputBytes)
+    if (paths.length > 1 && bytes > limits.maximumInputBytes)
       throw new Error("git-ignore-input-capacity");
   }
   const { admission, runtime } = execution.numericResources;
+  let maximumOutputBytes = limits.maximumOutputBytes,
+    resized = false,
+    operationFailed = false;
   try {
-    const { code, stdout } = await runBoundedTool(
-      gitExecutable ?? "git",
-      [
-        "-C",
-        root,
-        "check-ignore",
-        "--stdin",
-        "-z",
-        "--no-index",
-        "--verbose",
-        "--non-matching",
-      ],
-      {
-        cwd: root,
-        env: gitReadEnvironment(),
-        input: Buffer.from(paths.join("\0") + "\0"),
-        timeout: minimumDuration(
-          admission.maxGitTimeMs,
-          runtime.maxCheckTimeMs,
-        ),
-        maximumOutputBytes: limits.maximumOutputBytes,
-        signal: execution.signal,
-        acceptedExitCodes: [0, 1],
-        captureOutput: true,
-      },
-    );
-    return decodeGitIgnoreDecisions(stdout, paths, code);
+    while (true) {
+      // Batches and the initial capture are working targets, not extra quotas.
+      // Grow a single large record only after its previous child has settled,
+      // charging the enlarged workspace to the existing native memory owner.
+      const extraBytes =
+        BigInt(Math.max(0, bytes - limits.maximumInputBytes)) * 16n +
+        BigInt(maximumOutputBytes - limits.maximumOutputBytes) * 16n;
+      if (extraBytes) {
+        await execution.core.command("resize-control-state", {
+          byteLength: String(
+            BigInt(execution.controlStateBytes) +
+              BigInt(reservationBytes) +
+              extraBytes,
+          ),
+        });
+        resized = true;
+      }
+      try {
+        const { code, stdout } = await runBoundedTool(
+          gitExecutable ?? "git",
+          [
+            "-C",
+            root,
+            "check-ignore",
+            "--stdin",
+            "-z",
+            "--no-index",
+            "--verbose",
+            "--non-matching",
+          ],
+          {
+            cwd: root,
+            env: gitReadEnvironment(),
+            input: Buffer.from(paths.join("\0") + "\0"),
+            timeout: minimumDuration(
+              admission.maxGitTimeMs,
+              runtime.maxCheckTimeMs,
+            ),
+            maximumOutputBytes,
+            signal: execution.signal,
+            acceptedExitCodes: [0, 1],
+            captureOutput: true,
+          },
+        );
+        return decodeGitIgnoreDecisions(stdout, paths, code);
+      } catch (error) {
+        // Long repeated rule metadata can exceed a capture even when input fits.
+        // Retry smaller batches only after the failed child has fully settled.
+        if (
+          !(error instanceof Error) ||
+          !("code" in error) ||
+          error.code !== "native-tool-output-capacity"
+        )
+          throw error;
+        if (paths.length === 1) {
+          const next = Math.min(
+            maximumOutputBytes * 2,
+            admission.maxGitOutputBytes ?? Number.MAX_SAFE_INTEGER,
+          );
+          if (next <= maximumOutputBytes) throw error;
+          maximumOutputBytes = next;
+          continue;
+        }
+        const middle = Math.ceil(paths.length / 2),
+          /** @type {any} */ ignored = await ignoredGitPaths(
+            root,
+            paths.slice(0, middle),
+            execution,
+            gitExecutable,
+            reservationBytes,
+          );
+        for (const path of await ignoredGitPaths(
+          root,
+          paths.slice(middle),
+          execution,
+          gitExecutable,
+          reservationBytes,
+        ))
+          ignored.add(path);
+        return ignored;
+      }
+    }
   } catch (error) {
-    // Long repeated rule metadata can exceed a capture even when input fits.
-    // Retry smaller batches only after the failed child has fully settled.
-    if (
-      !(error instanceof Error) ||
-      !("code" in error) ||
-      error.code !== "native-tool-output-capacity" ||
-      paths.length === 1
-    )
-      throw error;
-    const middle = Math.ceil(paths.length / 2),
-      /** @type {any} */ ignored = await ignoredGitPaths(
-        root,
-        paths.slice(0, middle),
-        execution,
-        gitExecutable,
-      );
-    for (const path of await ignoredGitPaths(
-      root,
-      paths.slice(middle),
-      execution,
-      gitExecutable,
-    ))
-      ignored.add(path);
-    return ignored;
+    operationFailed = true;
+    throw error;
+  } finally {
+    if (resized) {
+      try {
+        await execution.core.command("resize-control-state", {
+          byteLength: String(
+            BigInt(execution.controlStateBytes) + BigInt(reservationBytes),
+          ),
+        });
+      } catch (error) {
+        // Preserve a primary quota/cancellation refusal; cleanup still blocks
+        // success when the operation itself completed.
+        // eslint-disable-next-line no-unsafe-finally
+        if (!operationFailed) throw error;
+      }
+    }
   }
 }

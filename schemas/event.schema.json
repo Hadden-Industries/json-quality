@@ -3,12 +3,21 @@
   "description": "One delivered event. Absence of the applicable terminal means incomplete delivery. Serialized reference identities are labels, never access capabilities.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "requestId", "type"],
+  "required": [
+    "schemaVersion",
+    "requestId",
+    "type"
+  ],
   "properties": {
     "qualification": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["trustedSha", "candidateSha", "trustedPolicyBlob", "scope"],
+      "required": [
+        "trustedSha",
+        "candidateSha",
+        "trustedPolicyBlob",
+        "scope"
+      ],
       "properties": {
         "trustedSha": {
           "type": "string",
@@ -90,7 +99,10 @@
       ]
     },
     "scope": {
-      "enum": ["source", "candidate"]
+      "enum": [
+        "source",
+        "candidate"
+      ]
     },
     "linkedExpectationsComplete": {
       "type": "boolean"
@@ -168,7 +180,10 @@
       ]
     },
     "ruleId": {
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "messageId": {
       "type": "string",
@@ -220,7 +235,10 @@
       "type": "boolean"
     },
     "expectedMatched": {
-      "type": ["boolean", "null"]
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "domainAdmission": {
       "const": "unassessed"
@@ -272,7 +290,11 @@
     "linkage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["containerSource", "value", "encoding"],
+      "required": [
+        "containerSource",
+        "value",
+        "encoding"
+      ],
       "properties": {
         "containerSource": {
           "$ref": "#/$defs/sourceReference"
@@ -281,14 +303,20 @@
           "$ref": "#/$defs/valueReference"
         },
         "encoding": {
-          "enum": ["utf8", "base64"]
+          "enum": [
+            "utf8",
+            "base64"
+          ]
         }
       }
     },
     "resources": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["admission", "runtime"],
+      "required": [
+        "admission",
+        "runtime"
+      ],
       "properties": {
         "admission": {
           "type": "object",
@@ -556,7 +584,10 @@
       "type": "boolean"
     },
     "operation": {
-      "enum": ["format", "normalize"]
+      "enum": [
+        "format",
+        "normalize"
+      ]
     },
     "selected": {
       "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
@@ -604,7 +635,9 @@
           "const": "source"
         }
       },
-      "required": ["source"]
+      "required": [
+        "source"
+      ]
     },
     {
       "additionalProperties": false,
@@ -749,7 +782,11 @@
           "const": "execution"
         }
       },
-      "required": ["resources", "policySha256", "coreSourceInputsSha256"]
+      "required": [
+        "resources",
+        "policySha256",
+        "coreSourceInputsSha256"
+      ]
     },
     {
       "additionalProperties": false,
@@ -792,7 +829,11 @@
           "const": "failure"
         }
       },
-      "required": ["code", "message", "truncated"]
+      "required": [
+        "code",
+        "message",
+        "truncated"
+      ]
     },
     {
       "type": "object",
@@ -921,7 +962,10 @@
     "valueReference": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "identity"],
+      "required": [
+        "kind",
+        "identity"
+      ],
       "properties": {
         "kind": {
           "const": "value"
@@ -982,7 +1026,10 @@
     "sourceReference": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "identity"],
+      "required": [
+        "kind",
+        "identity"
+      ],
       "properties": {
         "kind": {
           "const": "source"

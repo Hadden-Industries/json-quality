@@ -257,7 +257,10 @@ test("repository facade consumes one census and retains scoped reads until close
         assert.equal(validateJsonQualityEvent(missing), false);
         const disabledRuntime = structuredClone(event);
         disabledRuntime.resources.runtime.maxCheckTimeMs = null;
-        assert.equal(validateJsonQualityEvent(disabledRuntime), false);
+        assert.equal(validateJsonQualityEvent(disabledRuntime), true);
+        const invalidRuntime = structuredClone(event);
+        invalidRuntime.resources.runtime.maxCheckTimeMs = "0";
+        assert.equal(validateJsonQualityEvent(invalidRuntime), false);
       }
       if (event.type === "source" && event.path === "value.json")
         reference = event.source;

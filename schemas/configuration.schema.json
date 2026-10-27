@@ -1,7 +1,11 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "defaults", "exceptions"],
+  "required": [
+    "schemaVersion",
+    "defaults",
+    "exceptions"
+  ],
   "properties": {
     "preserveSourcePresentation": {
       "type": "array",
@@ -10,7 +14,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["paths", "owner", "reason"],
+        "required": [
+          "paths",
+          "owner",
+          "reason"
+        ],
         "properties": {
           "paths": {
             "type": "array",
@@ -49,7 +57,11 @@
     "defaults": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["formatContract", "allowFormatWrites", "normalization"],
+      "required": [
+        "formatContract",
+        "allowFormatWrites",
+        "normalization"
+      ],
       "properties": {
         "formatContract": {
           "const": "prettier-json"
@@ -68,7 +80,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["paths", "owner", "reason"],
+        "required": [
+          "paths",
+          "owner",
+          "reason"
+        ],
         "minProperties": 4,
         "properties": {
           "paths": {
@@ -122,7 +138,11 @@
           "expected": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["sha256", "byteLength", "diagnostics"],
+            "required": [
+              "sha256",
+              "byteLength",
+              "diagnostics"
+            ],
             "properties": {
               "linkedDocuments": {
                 "type": "array",
@@ -148,7 +168,10 @@
                       "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
                     },
                     "encoding": {
-                      "enum": ["utf8", "base64"]
+                      "enum": [
+                        "utf8",
+                        "base64"
+                      ]
                     },
                     "sha256": {
                       "type": "string",
@@ -184,7 +207,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "provider", "owner", "reason"],
+        "required": [
+          "id",
+          "provider",
+          "owner",
+          "reason"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -253,25 +281,37 @@
       "additionalProperties": false,
       "properties": {
         "managedMemoryTargetBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 33554432
         },
         "maxTemporaryBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 2147483648
         },
         "maxNestingDepth": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 128
         },
         "maxCheckTimeMs": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 120000
@@ -285,7 +325,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["pointer", "sha256", "byteLength"],
+        "required": [
+          "pointer",
+          "sha256",
+          "byteLength"
+        ],
         "properties": {
           "pointer": {
             "type": "string",
@@ -301,7 +345,10 @@
           "record": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["pointer", "value"],
+            "required": [
+              "pointer",
+              "value"
+            ],
             "properties": {
               "pointer": {
                 "type": "string",
@@ -321,103 +368,154 @@
       "additionalProperties": false,
       "properties": {
         "maxFiles": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 50000
         },
         "maxFileBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 33554432
         },
         "maxTotalBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 268435456
         },
         "maxLogicalDocuments": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 100000
         },
         "maxRecords": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 100000
         },
         "maxDiagnostics": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 10000
         },
         "maxPolicyBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 1048576
         },
         "maxGitOutputBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 67108864
         },
         "maxToolOutputBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 67108864
         },
         "maxToolTimeMs": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 120000
         },
         "maxGitTimeMs": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 120000
         },
         "maxAcquisitionTimeMs": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 1200000
         },
         "maxCacheLookupTimeMs": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 60000
         },
         "maxCacheOutputBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 1048576
         },
         "maxRequestIdCharacters": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 1024
         },
         "maxRequestBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 50331648
         },
         "maxRequestPathCharacters": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 32768
@@ -451,10 +549,18 @@
       ],
       "properties": {
         "phase": {
-          "enum": ["bytes", "syntax", "lint", "framing"]
+          "enum": [
+            "bytes",
+            "syntax",
+            "lint",
+            "framing"
+          ]
         },
         "ruleId": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "messageId": {
           "type": "string",
@@ -487,7 +593,11 @@
     "sourceExpectation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["sha256", "byteLength", "diagnostics"],
+      "required": [
+        "sha256",
+        "byteLength",
+        "diagnostics"
+      ],
       "properties": {
         "sha256": {
           "type": "string",
@@ -510,25 +620,37 @@
       "additionalProperties": false,
       "properties": {
         "maximumSourceBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 2097152
         },
         "maximumOutputBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 2097152
         },
         "maximumNormalizationChanges": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 4096
         },
         "maximumWritePaths": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 4096
@@ -540,13 +662,19 @@
       "additionalProperties": false,
       "properties": {
         "maximumDepth": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 32
         },
         "maximumMembers": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 65536
@@ -558,67 +686,100 @@
       "additionalProperties": false,
       "properties": {
         "maximumArchiveBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 134217728
         },
         "maximumMemberBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 134217728
         },
         "maximumExpandedBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 536870912
         },
         "maximumMembers": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 8192
         },
         "maximumIndexBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 4194304
         },
         "maximumMetadataBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 1048576
         },
         "maximumArchiveMetadataBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 4096
         },
         "maximumPathBytes": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 32768
         },
         "maximumDepth": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 64
         },
         "maximumVerificationTimeMs": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 120000
         },
         "maximumDecompressionRatio": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 128

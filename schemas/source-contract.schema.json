@@ -9,7 +9,10 @@
       "minLength": 1
     },
     "format": {
-      "enum": ["json", "jsonl"]
+      "enum": [
+        "json",
+        "jsonl"
+      ]
     },
     "formatContract": {
       "enum": [
@@ -23,7 +26,10 @@
       ]
     },
     "normalization": {
-      "enum": ["NFC", "preserve"]
+      "enum": [
+        "NFC",
+        "preserve"
+      ]
     },
     "allowEmptyKeys": {
       "type": "array",
@@ -58,7 +64,9 @@
         "properties": {
           "preserveNfcValues": true
         },
-        "required": ["preserveNfcValues"]
+        "required": [
+          "preserveNfcValues"
+        ]
       },
       "then": {
         "properties": {
@@ -66,7 +74,11 @@
           "owner": true,
           "reason": true
         },
-        "required": ["allowFormatWrites", "owner", "reason"]
+        "required": [
+          "allowFormatWrites",
+          "owner",
+          "reason"
+        ]
       }
     }
   ],

@@ -10,28 +10,40 @@
   },
   "exceptions": [
     {
-      "paths": ["native/prebuilt/**"],
+      "paths": [
+        "native/prebuilt/**"
+      ],
       "formatContract": "producer-json-indent",
       "allowFormatWrites": false,
       "owner": "Verified native producer and frozen finite oracle",
       "reason": "Exact manifest and historical oracle bytes retain their producing serialization and independent hashes; shared quality checks remain mandatory."
     },
     {
-      "paths": ["tests/oracles/finite-v1/**"],
+      "paths": [
+        "tests/oracles/finite-v1/**"
+      ],
       "formatContract": "producer-json-indent-body",
       "allowFormatWrites": false,
       "owner": "Frozen finite v1 oracle",
       "reason": "Historical source bytes and their current-task identity catalog retain original line endings; only the comparison view projects CRLF and a final LF."
     },
     {
-      "paths": [".git/**", "**/node_modules/**", "coverage/**"],
+      "paths": [
+        ".git/**",
+        "**/node_modules/**",
+        "coverage/**"
+      ],
       "exclude": true,
       "owner": "Git and package/test tooling",
       "reason": "External installation and test coverage state; tracked JSON remains included."
     },
     {
-      "paths": ["**/package-lock.json"],
-      "allowEmptyKeys": ["/packages/"],
+      "paths": [
+        "**/package-lock.json"
+      ],
+      "allowEmptyKeys": [
+        "/packages/"
+      ],
       "allowFormatWrites": false,
       "owner": "npm lockfile producer",
       "reason": "npm owns lock serialization and uses the root package empty key; all other checks remain mandatory."

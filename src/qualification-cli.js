@@ -16,7 +16,7 @@ import { resolveExecutionResources } from "./execution-resources.js";
 import { createExecutionDeadline } from "./execution-deadline.js";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 
-/** Stream cohort-2 NDJSON with backpressure and a final cleaned-up verdict.
+/** Stream cohort-3 NDJSON with backpressure and a final cleaned-up verdict.
  * Output failure, cancellation or missing execution-terminal returns 2. The
  * source-only scope is declared in execution events; no candidate code runs.
  */
@@ -84,7 +84,7 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       await write(
         Buffer.from(
           "Usage: json-quality-qualify --trusted-root PATH --candidate-root PATH --trusted-sha SHA --candidate-sha SHA\n" +
-            "Checks immutable Git JSON under the trusted commit policy; emits cohort-2 NDJSON.\n" +
+            "Checks immutable Git JSON under the trusted commit policy; emits cohort-3 NDJSON.\n" +
             "No candidate scripts, installs, native/logical providers or domain validation.\n" +
             "Resource options: " +
             Object.keys({ ...RESOURCE_OPTIONS, ...RUNTIME_OPTIONS })

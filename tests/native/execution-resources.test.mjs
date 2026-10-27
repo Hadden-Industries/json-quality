@@ -42,10 +42,10 @@ test("resource resolution preserves admission precedence and independent runtime
   }
 });
 
-test("resource options reject removed names, coercion and nonfinite working controls", () => {
+test("resource options reject removed names, coercion and nonfinite numeric quotas", () => {
   for (const invocation of [
     { limits: false },
-    { runtimeControls: false },
+    { runtimeControls: null },
     { runtimeControls: { managedMemoryTargetBytes: Infinity } },
     { runtimeControls: { maxConcurrency: 2 } },
     { capacityLimits: { maxFiles: "1" } },

@@ -170,6 +170,7 @@ async function selectWritablePaths(
           paths,
           execution,
           gitExecutable,
+          limits.reservationBytes,
         );
         for (const path of paths) {
           if (ignored.has(path)) {
@@ -205,11 +206,10 @@ async function selectWritablePaths(
           continue;
         }
         const size = Buffer.byteLength(member.path) + 1;
-        if (size > limits.maximumInputBytes)
-          throw new Error("git-ignore-input-capacity");
         if (
-          paths.length === limits.maximumPaths ||
-          bytes + size > limits.maximumInputBytes
+          paths.length &&
+          (paths.length === limits.maximumPaths ||
+            bytes + size > limits.maximumInputBytes)
         )
           await flush();
         paths.push(member.path);
@@ -490,20 +490,24 @@ export async function* rewriteRepository(
           await core.command("census-get", { path: candidate.path })
         ).result.member;
         await fresh(root, execution, gitExecutable, afterWrites);
-        await withGitIgnoreReservation(execution, async () => {
-          if (
-            !(await policyAllowsWrite(root, member, execution)) ||
-            (
-              await ignoredGitPaths(
-                root,
-                [member.path],
-                execution,
-                gitExecutable,
-              )
-            ).has(member.path)
-          )
-            throw new Error(`Write permission changed: ${member.path}`);
-        });
+        await withGitIgnoreReservation(
+          execution,
+          async (/** @type {*} */ limits) => {
+            if (
+              !(await policyAllowsWrite(root, member, execution)) ||
+              (
+                await ignoredGitPaths(
+                  root,
+                  [member.path],
+                  execution,
+                  gitExecutable,
+                  limits.reservationBytes,
+                )
+              ).has(member.path)
+            )
+              throw new Error(`Write permission changed: ${member.path}`);
+          },
+        );
         uncertainPath = member.path;
         const committed = await replaceObservedSource({
           root,

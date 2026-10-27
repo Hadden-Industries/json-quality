@@ -43,7 +43,13 @@ export async function runBoundedTool(
     },
     deadline = createExecutionDeadline(timeout, [signal]),
     abort = () =>
-      stop(deadline.signal.reason ?? new Error("Native tool cancelled."));
+      stop(
+        signal?.aborted
+          ? (signal.reason ?? new Error("Native tool cancelled."))
+          : new Error("Native tool time capacity exceeded.", {
+              cause: deadline.signal.reason,
+            }),
+      );
   deadline.signal.addEventListener("abort", abort, { once: true });
   if (deadline.signal.aborted) abort();
   try {

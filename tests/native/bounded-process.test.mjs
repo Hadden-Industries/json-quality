@@ -47,12 +47,29 @@ test("native-tool timeout and active cancellation settle their owned child", asy
       runBoundedTool(process.execPath, ["-e", script], {
         ...options,
         signal: controller.signal,
+        timeout: null,
+        maximumOutputBytes: null,
       }),
       /fixture cancellation/,
     );
   } finally {
     clearTimeout(timer);
   }
+});
+
+test("unlimited native-tool time and output complete without a hidden finite ceiling", async () => {
+  const result = await runBoundedTool(
+    process.execPath,
+    ["-e", "setTimeout(() => process.stdout.write('x'.repeat(65537)), 30);"],
+    {
+      input: Buffer.alloc(0),
+      timeout: null,
+      maximumOutputBytes: null,
+      captureOutput: true,
+    },
+  );
+  assert.equal(result.code, 0);
+  assert.equal(result.stdout.length, 65537);
 });
 
 test("bounded capture joins fragmented binary stdout and counts stderr before retaining", async () => {
