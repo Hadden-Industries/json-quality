@@ -267,6 +267,93 @@ test("normal equal-tree merge reuses complete JSON and package qualification", a
   assert.equal(result.json, "REUSED");
   assert.equal(result.sourceRun, 71);
 });
+
+test("mixed hosted image builds reuse the same qualified platform and preserve their provenance", async () => {
+  for (const mainVersion of [
+    "20261023.334.3",
+    "20261026.354.1",
+    "20261027.400.1",
+  ]) {
+    const f = fixture();
+    for (const record of f.records) {
+      record.host.imageVersion =
+        record.lane.os === "ubuntu-24.04" && record.lane.node === "26.9.0"
+          ? "20261026.354.1"
+          : "20261023.334.3";
+      if (record.lane.os === "windows-2025" && record.lane.node === "26.9.0")
+        record.host.image = "win25-vs2026";
+    }
+    for (const host of f.hosts) host.imageVersion = mainVersion;
+    f.hosts.find((host) => host.lane === "windows-2025").image = "win25-vs2026";
+    const input = await proof(f),
+      originalHosts = structuredClone(
+        input.receipt.lanes.map((record) => record.host),
+      );
+    const result = await verifyProof(input);
+    assert.equal(result.mode, "REUSED");
+    assert.equal(result.json, "REUSED");
+    assert.deepEqual(
+      input.receipt.lanes.map((record) => record.host),
+      originalHosts,
+    );
+  }
+});
+
+test("platform, runtime and image provenance remain mandatory for reuse", async () => {
+  for (const [field, invalid] of [
+    ["os", "Linux"],
+    ["architecture", "ARM64"],
+    ["python", "3.15.2"],
+    ["image", "win22"],
+    ["imageVersion", undefined],
+    ["imageVersion", "unobserved"],
+  ]) {
+    const input = await proof(fixture()),
+      host = input.hosts.find((value) => value.lane === "windows-2025");
+    host[field] = invalid;
+    await assert.rejects(verifyProof(input), undefined, `main ${field}`);
+  }
+  for (const [field, invalid] of [
+    ["os", "Windows"],
+    ["architecture", "ARM64"],
+    ["python", "3.15.2"],
+    ["node", "26.10.0"],
+    ["npm", "12.2.1"],
+    ["image", "ubuntu22"],
+    ["image", "ubuntu24-slim"],
+    ["imageVersion", undefined],
+    ["imageVersion", "unobserved"],
+  ]) {
+    const input = await proof(fixture());
+    input.receipt = structuredClone(input.receipt);
+    input.receipt.lanes[0].host[field] = invalid;
+    await assert.rejects(verifyProof(input), undefined, `PR ${field}`);
+  }
+  const input = await proof(fixture());
+  input.hosts[0].image = "ubuntu26";
+  for (const record of input.receipt.lanes.filter(
+    (record) => record.lane.os === "ubuntu-24.04",
+  ))
+    record.host.image = "ubuntu26";
+  await assert.rejects(verifyProof(input), /image family/u);
+});
+
+test("PR acceptance refuses an unsupported platform even when its image provenance is present", async () => {
+  const f = fixture();
+  f.records[0].host.image = "ubuntu26";
+  await assert.rejects(
+    createReceipt({
+      ctx: f.ctx,
+      matrix: f.matrix,
+      records: f.records,
+      needs: f.needs,
+      read: f.read,
+      now: f.now,
+      sleep: noWait,
+    }),
+    /image family/u,
+  );
+});
 test("receipt waits finitely for expected pending and copied native job registrations", async () => {
   const f = fixture(),
     waits = [];
@@ -426,7 +513,7 @@ test("partial rerun retains every mandatory job's authenticated original produce
   assert.equal(result.sourceAttempt, 2);
   assert.equal(result.mode, "REUSED");
 });
-test("changed JSON/tree inputs, matrix, image or absent lane reject reuse", async () => {
+test("changed JSON/tree inputs, matrix, platform or absent lane reject reuse", async () => {
   for (const mutate of [
     (value) => {
       value.ctx = {
@@ -442,7 +529,7 @@ test("changed JSON/tree inputs, matrix, image or absent lane reject reuse", asyn
     },
     (value) => {
       value.hosts = structuredClone(value.hosts);
-      value.hosts[0].imageVersion = "20261021.2.0";
+      value.hosts[0].image = "ubuntu22";
     },
     (value) => {
       value.receipt = structuredClone(value.receipt);

@@ -257,7 +257,7 @@ async function main(mode) {
       });
       output(
         result,
-        "REUSED: the qualified PR tree, JSON/policy/schema/native/generated inputs, runtime matrix and runner images match this merge.",
+        "REUSED: the qualified PR tree, JSON/policy/schema/native/generated inputs, runtime matrix and supported platform contracts match this merge; original runner images remain recorded.",
       );
     } catch (error) {
       const reason = String(error.message)

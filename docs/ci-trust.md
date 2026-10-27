@@ -28,7 +28,7 @@ Source-only qualification refuses policy requirements for native sources, origin
 Use the complete trusted repository adapter to discharge those obligations.
 It also makes no application-domain, archive-meaning or installation-integrity claim.
 
-Output is cohort-2 NDJSON, with correlated `execution`, source/finding/terminal events and final `execution-terminal`.
+Output is cohort-3 NDJSON, with correlated `execution`, source/finding/terminal events and final `execution-terminal`.
 Execution metadata names the trusted/candidate commits, trusted policy blob, policy SHA-256, core source identity and `immutable-git-json` scope.
 Only the final terminal closes inventory, diagnostic and source-observation obligations.
 `domainComplete` stays false.
@@ -78,7 +78,14 @@ After the default-setup cutover, use `gh run rerun RUN_ID --failed` to rerun inf
 Source repairs require a new candidate and a new ready-for-review checkpoint; never replay publication effects to recover missing qualification.
 
 After an ordinary merge, `main-qualification.yml` performs lightweight image/input/provenance admission.
-The proof must bind the same tree, parents, workflow, dependency selectors/locks, generated declarations, JSON policy/schema/tool/native inputs, resolved runtimes and runner images.
+The proof must bind the same tree, parents, workflow, dependency selectors/locks, generated declarations, JSON policy/schema/tool/native inputs, resolved runtimes and supported platform contracts.
+Each original job retains its actual runner image and `ImageVersion` as provenance; image build numbers do not have to match other lanes or a later main observer.
+The platform contract requires Ubuntu 24.04 or Windows Server 2025 on x64, with the selected Node/npm matrix and pinned transport Python.
+Windows 2025 tool-image variants belong to the same consumer platform; an unsupported OS/image family, changed architecture/runtime or missing image provenance remains ineligible.
+The same platform validator admits PR consumer receipts and main probes, so two matching but unsupported image families cannot establish acceptance.
+Native results still belong to their authenticated original producer, exact tested tree and transported artifact identities.
+An unused compiler on the later observer is not a native rebuild input; fresh native production and commit-bound release qualification retain their own toolchain and verification requirements.
+This follows [GitHub's guidance to select tool versions explicitly across rolling runner updates](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners#runner-images).
 Equal-input JSON is eligible for `REUSED` with the rest of the complete qualification.
 Missing, expired, conflicted or changed proof yields `FULL_REQUIRED`; no full suite is launched automatically.
 The owner explicitly dispatches **Main qualification** on `main` for fresh `FULL` assurance.
