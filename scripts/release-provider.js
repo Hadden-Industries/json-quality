@@ -192,7 +192,7 @@ export function download(runId, attempt, name, root, readers = {}) {
         {
           encoding: null,
           maxBuffer: releaseTransportMaximumBytes,
-          timeout: budgets.read,
+          timeout: budgets.collection,
           phase: "artifact-read",
           env: {
             ...process.env,

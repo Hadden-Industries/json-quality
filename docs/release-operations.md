@@ -28,6 +28,9 @@ Source versioning, focused checks and static reviews do not establish release qu
 
 No artificial prerelease is required to warm npm or GitHub.
 Use the exact separately accepted version initially under the existing `pilot` availability tag, qualify real registry recipients, and promote only after acceptance.
+An owner may instead explicitly select `"npmTag":"latest"` in the digest-bound release review, including for a release candidate.
+This makes unpinned npm installations select that version; omission preserves `pilot`.
+The choice applies to the core and both matching platform packages and does not change the GitHub prerelease marker.
 Create the GitHub release as a draft, attach and verify every asset, then publish immutably through the existing archival workflow.
 Its pilot/prerelease marker can later change during promotion without replacing locked assets or tags.
 For a new npm package identity, native staging may create the public `0.0.0-stage` placeholder; owner bootstrap and 2FA still precede trusted-publisher setup.
@@ -112,7 +115,7 @@ Admission independently reads the completed native run, every job, artifact dige
 Missing, duplicate, skipped, expired or substituted inputs stop the workflow.
 The final staging job repeats admission under `npm-publication` and is the only staging job with npm OIDC authority.
 
-Each exact tarball is passed to `npm stage publish` with lifecycle scripts disabled, public access, explicit `pilot`, and provenance.
+Each exact tarball is passed to `npm stage publish` with lifecycle scripts disabled, public access, the owner-reviewed npm tag (`pilot` by default), and provenance.
 A durable request intent precedes each native request, staging the platforms before the core.
 Success is `staged-awaiting-owner`; it is not public availability.
 The effect artifact retains the manifest, source, evidence, native response, original journal and stage identity.
@@ -146,7 +149,8 @@ Actual immutability is verified after publication.
 It archives the tarball, manifest, public and candidate evidence, original staging journal, complete corresponding source archive, license and notices.
 Every native asset and release attestation is verified after publication.
 
-For prereleases, retain explicit pilot/prerelease availability and the correct GitHub prerelease/latest markers; do not invoke stable promotion.
+For prereleases, verify the owner-selected npm tag on all three packages and retain the GitHub prerelease marker; do not invoke stable promotion.
+An explicitly reviewed npm `latest` release candidate remains a GitHub prerelease and does not become GitHub's latest stable release.
 
 ## Promotion and restoration
 
@@ -259,6 +263,12 @@ The repository default remains 90 days to preserve one-shot recovery records; th
 Same-run transfer expiration also bounds any environment approval wait; if approval exceeds that window, dispatch fresh admission.
 Disposable dependency installs, validator executables, caches and fixture directories stay outside uploads.
 Release archives retain the evidence that must survive hosted expiration.
+GitHub archival publishes exactly ten uploaded assets for the three-package family: the three npm tarballs, corresponding source archive, release manifest, owner review, owner acceptance, third-party notices, `release-assets.json` and `release-evidence.zip`.
+The ZIP preserves the original proof paths and a manifest-bound `evidence-index.json` containing every retained member's size and SHA-256.
+`release-assets.json` binds the ZIP digest and repeats its member index so downloaded proof can be independently checked without one asset per evidence file.
+The bundle includes build attestations, native verification results, provider records, inventories and request journals; standalone package/source archives are not duplicated inside it.
+Disposable source installs, npm caches and the SBOM validator use a separate temporary workspace and never enter the retained producer directory.
+Binary evidence collection uses the shared fifteen-minute collection budget; metadata reads retain their shared two-minute budget, with both using bounded retries and remaining-time redirect handling.
 The archival workflow creates GitHub build attestations for all three tarballs and the release manifest, then uses native `gh attestation verify` against the exact repository, signer workflow, controller digest and subject bytes.
 The bundle and native verification results accompany the immutable release assets.
 Read-only recovery of an already archived release does not create another attestation.

@@ -39,6 +39,7 @@ import {
   verifyShippedLinks,
   releaseArtifactBytes,
   releasePackages,
+  releaseNpmTag,
 } from "../scripts/release-contract.js";
 import {
   journalEffect,
@@ -50,6 +51,7 @@ import {
   verifyCompletedLabels,
   verifyGithubPromotionState,
   recordNoRequest,
+  stagePublishArguments,
 } from "../scripts/release-effects.js";
 import {
   verifyEffectHistory,
@@ -2396,6 +2398,24 @@ test("owner decisions bind exact bytes and independent security evidence without
   const encode = (value) => Buffer.from(JSON.stringify(value));
   const raw = encode(decision);
   verifyDecision(raw, sha256(raw), release, sha, "review");
+  assert.equal(releaseNpmTag(decision), "pilot");
+  const latest = { ...decision, npmTag: "latest" },
+    latestRaw = encode(latest);
+  verifyDecision(latestRaw, sha256(latestRaw), release, sha, "review");
+  const argumentsFor = stagePublishArguments("release-input", release, latest);
+  assert.ok(argumentsFor.includes("--tag=latest"));
+  for (const argument of [
+    "--ignore-scripts",
+    "--provenance",
+    "--access=public",
+    "--registry=https://registry.npmjs.org/",
+  ])
+    assert.ok(argumentsFor.includes(argument));
+  assert.ok(
+    stagePublishArguments("release-input", release, decision).includes(
+      "--tag=pilot",
+    ),
+  );
   assert.throws(() =>
     verifyDecision(raw, "c".repeat(64), release, sha, "review"),
   );
@@ -2404,6 +2424,8 @@ test("owner decisions bind exact bytes and independent security evidence without
     (d) => (d.decisions.security.independent = false),
     (d) => delete d.decisions.retention,
     (d) => (d.decisions.rights.evidence = []),
+    (d) => (d.npmTag = "unreviewed"),
+    (d) => (d.npmTag = null),
   ]) {
     const copy = structuredClone(decision);
     change(copy);

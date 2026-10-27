@@ -8,10 +8,12 @@ import {
   readdirSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { native, npmCommand, budgets } from "./qualification-process.js";
@@ -428,11 +430,28 @@ export async function recipientEvidence({
   });
 }
 
+export function sourceInventoryWorkspace(
+  output,
+  temporaryRoot = process.env.RUNNER_TEMP || tmpdir(),
+) {
+  const workspace = mkdtempSync(join(temporaryRoot, "source-inventory-")),
+    location = relative(resolve(output), workspace);
+  assert.ok(
+    isAbsolute(location) ||
+      location === ".." ||
+      location.startsWith("..\\") ||
+      location.startsWith("../"),
+    "Source inventory scratch must be outside retained evidence",
+  );
+  return workspace;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   assert.equal(process.argv.length, 4);
   const [directory, output] = process.argv.slice(2).map((p) => resolve(p));
   mkdirSync(output, { recursive: true });
-  const install = join(output, "source-install");
+  const workspace = sourceInventoryWorkspace(output);
+  const install = join(workspace, "source-install");
   mkdirSync(install);
   const originalLock = regularBytes(join(directory, "package-lock.json"));
   save(join(install, "package-lock.json"), originalLock);
@@ -443,7 +462,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   delete metadata.scripts;
   save(join(install, "package.json"), metadata);
   stageSourceNativePackages(directory, install);
-  const environment = isolatedNpmEnvironment(output);
+  const environment = isolatedNpmEnvironment(workspace);
   npmCommand(
     ["ci", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"],
     { cwd: install, env: environment, phase: "source-production-install" },
@@ -479,7 +498,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   save(join(output, "source-audit.json"), Buffer.from(auditRaw));
   verifyAudit(JSON.parse(auditRaw));
   save(join(output, "source-production.cdx.json"), Buffer.from(raw));
-  native(acquireValidator(output), [
+  native(acquireValidator(workspace), [
     "validate",
     "--input-file",
     join(output, "source-production.cdx.json"),

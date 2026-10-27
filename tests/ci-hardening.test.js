@@ -175,6 +175,37 @@ test("slow artifact bodies use the remaining shared read budget across redirects
   assert.equal(time, (budgets.read * 5) / 8);
   await assert.rejects(read("/actions/artifacts/1"), /budget exhausted/);
 });
+test("binary collections use their longer finite budget while metadata keeps its short budget", async (t) => {
+  const admitted = [];
+  t.mock.method(AbortSignal, "timeout", (milliseconds) => {
+    admitted.push(milliseconds);
+    return new AbortController().signal;
+  });
+  for (const budgetMs of [budgets.read, budgets.collection]) {
+    let time = 0;
+    const read = createRepositoryReader({
+      repository: "Hadden-Industries/json-quality",
+      token: "fixture",
+      budgetMs,
+      now: () => time,
+      fetchImpl: async () => {
+        time += budgets.read + 1;
+        return new Response("{}");
+      },
+    });
+    const acquired = read("/actions/artifacts/1/zip", { raw: true });
+    if (budgetMs === budgets.read) {
+      await assert.rejects(acquired, /budget exhausted/);
+      await assert.rejects(read("/actions/artifacts/1"), /budget exhausted/);
+    } else {
+      await acquired;
+      await read("/actions/artifacts/1");
+    }
+  }
+  assert.equal(admitted[0], budgets.read);
+  assert.equal(admitted[1], budgets.collection);
+  assert.equal(admitted[2], budgets.collection - budgets.read - 1);
+});
 test("malformed, permanent and exhausted evidence never becomes retry-until-valid", async () => {
   for (const response of [
     new Response("{bad"),
