@@ -29,6 +29,7 @@ import {
   effectJournal,
   releasePackages,
   releaseNpmTag,
+  restorationAvailability,
 } from "./release-contract.js";
 import { refreshAdmission, verifyBundle } from "./release-evidence.js";
 import {
@@ -46,14 +47,20 @@ import { isolatedNpmEnvironment, verifyAudit } from "./release-inventory.js";
 import { qualifySecurity } from "./release-security.js";
 import { native, npmCommand } from "./qualification-process.js";
 import { verifyNativeAssets } from "./release-asset-verification.js";
-import { bundleReleaseAssets } from "./release-assets.js";
+import {
+  bundleReleaseAssets,
+  acquireArchiveEvidence,
+  verifyDraftAssets,
+} from "./release-assets.js";
+export { verifyDraftAssets } from "./release-assets.js";
+import { verifyPublicMetadata } from "./qualify-registry.js";
 
 export function journalEffect(
   path,
   subject,
   operation,
   request,
-  { env = process.env, before = null, verify = (value) => value } = {},
+  { env = process.env, before = null, guard, verify = (value) => value } = {},
 ) {
   if (existsSync(path)) {
     const prior = readFileSync(path, "utf8").trim();
@@ -85,6 +92,7 @@ export function journalEffect(
     attempt: env.GITHUB_RUN_ATTEMPT,
     controller: env.GITHUB_SHA,
     before,
+    ...(guard ? { guard } : {}),
     requestedAt: new Date().toISOString(),
   };
   const line = Buffer.from(JSON.stringify(intent) + "\n");
@@ -132,6 +140,7 @@ export function promotionPlan(
   expected,
   target = release.version,
   recovery = null,
+  { reviewedTag = "pilot", npmOnly = false } = {},
 ) {
   assert.ok(
     Object.hasOwn(expected, "latest"),
@@ -157,29 +166,26 @@ export function promotionPlan(
       expected.latest,
       "Prior latest changed; never overwrite a concurrent promotion",
     );
-  assert.equal(
-    tags.pilot,
-    release.version,
-    "Pilot no longer identifies this release",
-  );
-  assert.equal(isPrerelease(target), false, "Prerelease cannot become latest");
+  assert.ok(["pilot", "latest"].includes(reviewedTag));
+  if (npmOnly || reviewedTag === "latest")
+    assert.equal(
+      expected.latest,
+      release.version,
+      "Reviewed latest no longer identifies the affected release",
+    );
+  else
+    assert.equal(
+      tags.pilot,
+      release.version,
+      "Pilot no longer identifies this release",
+    );
+  if (!npmOnly)
+    assert.equal(
+      isPrerelease(target),
+      false,
+      "Prerelease cannot become latest",
+    );
   return { before: expected.latest, after: target };
-}
-export function verifyDraftAssets(expected, observed) {
-  assert.equal(
-    new Set(observed.map((asset) => asset.name)).size,
-    observed.length,
-  );
-  assert.deepEqual(
-    observed.map((asset) => asset.name).sort(),
-    expected.map((asset) => asset.name).sort(),
-    "Incomplete or extra GitHub assets",
-  );
-  for (const asset of expected) {
-    const actual = observed.find((item) => item.name === asset.name);
-    assert.equal(actual.size, asset.size);
-    assert.equal(actual.digest, `sha256:${asset.sha256}`);
-  }
 }
 function writeContext(directory, context) {
   writeFileSync(join(directory, "context.json"), jsonBytes(context), {
@@ -340,6 +346,44 @@ export function verifyCompletedLabels(target, npm, github) {
   );
   assert.equal(github.immutable, true);
   return { npm, github };
+}
+/** Compare only immutable identity and mutable labels; counters and timestamps may advance. */
+export function verifyNpmOnlyGithubState(expected, actual) {
+  assert.equal(
+    actual.latest?.tag_name ?? null,
+    expected.latest?.tag_name ?? null,
+    "GitHub latest changed during npm-only restoration",
+  );
+  assert.equal(
+    actual.latest?.id ?? null,
+    expected.latest?.id ?? null,
+    "GitHub latest identity changed during npm-only restoration",
+  );
+  for (const key of ["affected", "target"]) {
+    for (const field of ["id", "tag_name", "prerelease", "immutable", "draft"])
+      assert.equal(
+        actual[key]?.[field],
+        expected[key]?.[field],
+        `GitHub ${key} ${field} changed during npm-only restoration`,
+      );
+    assert.equal(actual[key].immutable, true);
+    assert.equal(actual[key].draft, false);
+    assert.ok(Number.isSafeInteger(actual[key].id) && actual[key].id > 0);
+    assert.equal(typeof actual[key].prerelease, "boolean");
+  }
+  const compact = (value) =>
+    value
+      ? Object.fromEntries(
+          ["id", "tag_name", "prerelease", "immutable", "draft"].map(
+            (field) => [field, value[field]],
+          ),
+        )
+      : null;
+  return {
+    latest: compact(actual.latest),
+    affected: compact(actual.affected),
+    target: compact(actual.target),
+  };
 }
 export function verifyGithubPromotionState(actual, expected, target, recovery) {
   const authorized =
@@ -668,6 +712,125 @@ function completeSelectedAvailability(
     });
   }
 }
+/** Caller admits owner decisions, immutable targets and fresh security before this seam. */
+export function applyAvailability(
+  {
+    journal,
+    release,
+    target,
+    expected,
+    planOptions,
+    recovery,
+    githubSnapshot,
+    env = process.env,
+  },
+  operations,
+) {
+  const {
+    assertCurrent,
+    readNpmTags,
+    writeNpmLatest,
+    readGithubState,
+    writeGithubLatest,
+  } = operations;
+  const npmOnly = planOptions.npmOnly;
+  if (npmOnly)
+    assert.equal(
+      githubSnapshot.latest?.tag_name ?? null,
+      expected.githubLatest,
+      "GitHub latest changed before npm-only restoration",
+    );
+  const plan = promotionPlan(
+    release,
+    readNpmTags(),
+    expected,
+    target,
+    recovery,
+    planOptions,
+  );
+  const guard = npmOnly
+    ? {
+        availability: "npm-only",
+        targetVersion: target,
+        githubState: githubSnapshot,
+      }
+    : undefined;
+  const verifyCompletion = () => {
+    const npm = readNpmTags();
+    const github = readGithubState();
+    if (!npmOnly) return verifyCompletedLabels(target, npm, github.latest);
+    assert.equal(npm.latest, target, "npm latest changed before completion");
+    return { npm, github: verifyNpmOnlyGithubState(githubSnapshot, github) };
+  };
+  if (npmOnly) verifyNpmOnlyGithubState(githubSnapshot, readGithubState());
+  const githubPrior = npmOnly
+    ? expected.githubLatest
+    : verifyGithubPromotionState(
+        readGithubState().latest?.tag_name ?? null,
+        expected,
+        target,
+        recovery,
+      );
+  if (!(recovery?.observed.npmLatest === target))
+    journalEffect(
+      journal,
+      release,
+      "npm-latest",
+      () => {
+        assertCurrent();
+        promotionPlan(
+          release,
+          readNpmTags(),
+          expected,
+          target,
+          null,
+          planOptions,
+        );
+        if (npmOnly)
+          verifyNpmOnlyGithubState(githubSnapshot, readGithubState());
+        writeNpmLatest(target);
+        const observed = readNpmTags();
+        assert.equal(observed.latest, target);
+        if (npmOnly)
+          verifyNpmOnlyGithubState(githubSnapshot, readGithubState());
+        return observed;
+      },
+      { env, before: plan.before, guard },
+    );
+  if (!npmOnly && !(recovery?.observed.githubLatest === `v${target}`))
+    journalEffect(
+      journal,
+      release,
+      "github-latest",
+      () => {
+        assertCurrent();
+        assert.equal(
+          readNpmTags().latest,
+          target,
+          "Another promotion intervened",
+        );
+        verifyGithubPromotionState(
+          readGithubState().latest?.tag_name ?? null,
+          expected,
+          target,
+          recovery,
+        );
+        writeGithubLatest(target);
+        const latest = readGithubState().latest;
+        assert.equal(latest.tag_name, `v${target}`);
+        assert.equal(latest.immutable, true);
+        return { id: latest.id, tag: latest.tag_name };
+      },
+      { env, before: githubPrior },
+    );
+  if (!readFileSync(journal, "utf8").trim())
+    journalEffect(journal, release, "completion-readback", verifyCompletion, {
+      env,
+      guard,
+    });
+  return { plan, completed: verifyCompletion() };
+}
+
 export function promote(directory, scratch, env = process.env) {
   const { release, context, recovery } = refreshAdmission(
     directory,
@@ -727,32 +890,87 @@ export function promote(directory, scratch, env = process.env) {
   );
   const githubBefore = optionalApi("releases/latest")?.tag_name ?? null;
   const target = env.RESTORE_VERSION || release.version;
-  const githubPriorForThisEffect = verifyGithubPromotionState(
-    githubBefore,
-    expected,
-    target,
-    recovery?.promote,
-  );
-  assert.equal(
-    isPrerelease(target),
-    false,
-    "Stable labels require a stable native SemVer target",
-  );
-  let auditRelease = release,
-    auditDirectory = directory;
-  if (env.RESTORE_VERSION) {
-    const restoration = verifyDecision(
-      regularBytes(join(directory, "release-restoration.json")),
-      env.RESTORATION_SHA,
-      release,
-      env.MANIFEST_SHA,
-      "restoration",
+  const restoration = env.RESTORE_VERSION
+    ? verifyDecision(
+        regularBytes(join(directory, "release-restoration.json")),
+        env.RESTORATION_SHA,
+        release,
+        env.MANIFEST_SHA,
+        "restoration",
+      )
+    : null;
+  const availability = restoration
+    ? restorationAvailability(restoration, expected)
+    : "npm-and-github";
+  const npmOnly = availability === "npm-only";
+  if (recovery?.promote)
+    assert.equal(
+      recovery.promote.record.availability ?? "npm-and-github",
+      availability,
+      "Recovery availability scope changed",
     );
+  const planOptions = {
+    reviewedTag: releaseNpmTag(
+      readJson(join(directory, "release-review.json")),
+    ),
+    npmOnly,
+  };
+  if (npmOnly)
+    assert.equal(
+      githubBefore,
+      expected.githubLatest,
+      "GitHub latest changed before npm-only restoration",
+    );
+  if (!npmOnly)
+    verifyGithubPromotionState(
+      githubBefore,
+      expected,
+      target,
+      recovery?.promote,
+    );
+  if (!npmOnly)
+    assert.equal(
+      isPrerelease(target),
+      false,
+      "Stable labels require a stable native SemVer target",
+    );
+  let auditRelease = release,
+    auditDirectory = directory,
+    githubSnapshot;
+  const currentGithubState = () => ({
+    latest: optionalApi("releases/latest"),
+    affected: githubRelease(release),
+    target: api(`releases/tags/v${target}`),
+  });
+  if (env.RESTORE_VERSION) {
     assert.equal(restoration.targetVersion, target);
     assert.equal(restoration.previousLatest, expected.latest);
     const prior = api(`releases/tags/v${target}`);
     assert.equal(prior.immutable, true);
     assert.equal(prior.draft, false);
+    if (npmOnly) {
+      assert.equal(live.prerelease, restoration.affectedPrerelease);
+      assert.equal(prior.prerelease, restoration.targetPrerelease);
+      const observed = {
+        latest: optionalApi("releases/latest"),
+        affected: live,
+        target: prior,
+      };
+      assert.equal(
+        observed.latest?.tag_name ?? null,
+        expected.githubLatest,
+        "GitHub latest changed before npm-only restoration",
+      );
+      githubSnapshot = verifyNpmOnlyGithubState(observed, observed);
+      if (recovery?.promote?.observed.githubState) {
+        verifyNpmOnlyGithubState(
+          recovery.promote.observed.githubState,
+          githubSnapshot,
+        );
+        githubSnapshot = recovery.promote.observed.githubState;
+      }
+      verifyNpmOnlyGithubState(githubSnapshot, currentGithubState());
+    }
     gh([
       "release",
       "verify",
@@ -771,11 +989,7 @@ export function promote(directory, scratch, env = process.env) {
     assert.equal(metadata.dist.integrity, restoration.targetIntegrity);
     const targetRoot = join(scratch, "restoration-target");
     mkdirSync(targetRoot);
-    for (const name of [
-      "release-manifest.json",
-      "context.json",
-      "release-assets.json",
-    ]) {
+    for (const name of ["release-manifest.json", "release-assets.json"]) {
       gh([
         "release",
         "download",
@@ -803,12 +1017,36 @@ export function promote(directory, scratch, env = process.env) {
     );
     assert.match(restoration.targetManifestSha256, /^[a-f0-9]{64}$/u);
     assert.equal(sha256(manifestBytes), restoration.targetManifestSha256);
-    const targetRelease = verifyManifest(JSON.parse(manifestBytes)),
-      targetContext = readJson(join(targetRoot, "context.json")),
-      targetAssets = readJson(join(targetRoot, "release-assets.json"));
+    const targetRelease = verifyManifest(JSON.parse(manifestBytes));
+    acquireArchiveEvidence(targetRoot, targetRelease, prior.assets, [
+      "context.json",
+      ...lanes(targetRelease.matrix).flatMap((lane) =>
+        ["root", "isolated"].map(
+          (layout) => `public-${lane.os}-${lane.node}/${layout}-lock.json`,
+        ),
+      ),
+    ]);
+    const targetContext = readJson(join(targetRoot, "context.json"));
     assert.equal(targetRelease.package, release.package);
     assert.equal(targetRelease.version, target);
     assert.equal(targetRelease.archive.integrity, restoration.targetIntegrity);
+    for (const subject of releasePackages(targetRelease)) {
+      const current =
+        subject.package === release.package
+          ? metadata
+          : npmViewObject(
+              npmCommand(
+                [
+                  "view",
+                  `${subject.package}@${target}`,
+                  "--json",
+                  "--registry=https://registry.npmjs.org/",
+                ],
+                { env: isolation },
+              ),
+            );
+      verifyPublicMetadata(current, subject.platform ? subject : targetRelease);
+    }
     signedTag(targetRelease);
     verifyRun(
       provider(targetContext.registry.run, targetContext.registry.attempt),
@@ -816,62 +1054,16 @@ export function promote(directory, scratch, env = process.env) {
       targetContext.registry.controller,
       targetRelease.matrix,
     );
-    verifyDraftAssets(
-      [
-        ...targetAssets.assets,
-        {
-          name: "release-assets.json",
-          sha256: sha256(regularBytes(join(targetRoot, "release-assets.json"))),
-          size: regularBytes(join(targetRoot, "release-assets.json")).length,
-        },
-      ],
-      prior.assets,
-    );
-    for (const lane of lanes(targetRelease.matrix))
-      for (const layout of ["root", "isolated"]) {
-        const relative = `public-${lane.os}-${lane.node}/${layout}-lock.json`;
-        const matches = targetAssets.assets.filter(
-          (asset) => asset.source === relative,
-        );
-        assert.equal(matches.length, 1);
-        const asset = matches[0];
-        gh([
-          "release",
-          "download",
-          `v${target}`,
-          "--repo",
-          repository,
-          "--pattern",
-          asset.name,
-          "--dir",
-          targetRoot,
-        ]);
-        gh([
-          "release",
-          "verify-asset",
-          `v${target}`,
-          join(targetRoot, asset.name),
-          "--repo",
-          repository,
-          "--format",
-          "json",
-        ]);
-        const lockBytes = regularBytes(join(targetRoot, asset.name));
-        assert.equal(sha256(lockBytes), asset.sha256);
-        mkdirSync(join(targetRoot, `public-${lane.os}-${lane.node}`), {
-          recursive: true,
-        });
-        save(join(targetRoot, relative), lockBytes);
-      }
     auditRelease = targetRelease;
     auditDirectory = targetRoot;
   }
-  const plan = promotionPlan(
+  promotionPlan(
     release,
     before,
     expected,
     target,
     recovery?.promote,
+    planOptions,
   );
   const refreshedAudits = [];
   for (const lane of lanes(auditRelease.matrix))
@@ -924,72 +1116,44 @@ export function promote(directory, scratch, env = process.env) {
     }),
   );
   writeFileSync(journal, "", { flag: "wx", flush: true });
-  if (!(recovery?.promote?.observed.npmLatest === target))
-    journalEffect(
+  const { completed } = applyAvailability(
+    {
       journal,
       release,
-      "npm-latest",
-      () => {
-        currentMain(env);
-        promotionPlan(release, tags(), expected, target);
+      target,
+      expected,
+      planOptions,
+      recovery: recovery?.promote,
+      githubSnapshot,
+      env,
+    },
+    {
+      assertCurrent: () => currentMain(env),
+      readNpmTags: tags,
+      writeNpmLatest: (value) =>
         npmCommand(
           [
             "dist-tag",
             "add",
-            `${release.package}@${target}`,
+            `${release.package}@${value}`,
             "latest",
             "--registry=https://registry.npmjs.org/",
           ],
           { env: isolation, phase: "npm-latest" },
-        );
-        const observed = tags();
-        assert.equal(observed.latest, target);
-        return observed;
-      },
-      { env, before: plan.before },
-    );
-  // A failure after npm success remains a truthful partial cross-service outcome.
-  if (!(recovery?.promote?.observed.githubLatest === `v${target}`))
-    journalEffect(
-      journal,
-      release,
-      "github-latest",
-      () => {
-        currentMain(env);
-        assert.equal(tags().latest, target, "Another promotion intervened");
-        verifyGithubPromotionState(
-          optionalApi("releases/latest")?.tag_name ?? null,
-          expected,
-          target,
-          recovery?.promote,
-        );
+        ),
+      readGithubState: npmOnly
+        ? currentGithubState
+        : () => ({ latest: optionalApi("releases/latest") }),
+      writeGithubLatest: (value) =>
         gh([
           "release",
           "edit",
-          `v${target}`,
+          `v${value}`,
           "--repo",
           repository,
           "--latest=true",
-        ]);
-        const latest = api("releases/latest");
-        assert.equal(latest.tag_name, `v${target}`);
-        assert.equal(latest.immutable, true);
-        return { id: latest.id, tag: latest.tag_name };
-      },
-      { env, before: githubPriorForThisEffect },
-    );
-  if (!readFileSync(journal, "utf8").trim())
-    journalEffect(
-      journal,
-      release,
-      "completion-readback",
-      () => verifyCompletedLabels(target, tags(), api("releases/latest")),
-      { env },
-    );
-  const completed = verifyCompletedLabels(
-    target,
-    tags(),
-    api("releases/latest"),
+        ]),
+    },
   );
   save(join(directory, "completion.json"), {
     schemaVersion: 1,
@@ -997,6 +1161,7 @@ export function promote(directory, scratch, env = process.env) {
     source: release.source.commit,
     version: target,
     priorLabels: expected,
+    availability,
     ...completed,
     state: "completed",
     observedAt: new Date().toISOString(),

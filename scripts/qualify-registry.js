@@ -4,6 +4,9 @@ import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
+import { retryDelay, transientReadError } from "./github-evidence.js";
+import { artifactLimits } from "./artifact-policy.js";
 import {
   regularBytes,
   save,
@@ -15,23 +18,77 @@ import { nativePlatformSpec, nativePackages } from "../src/native-packages.js";
 import { verifyBundle } from "./release-evidence.js";
 import { budgets, native } from "./qualification-process.js";
 
-export async function registryBytes(url, maximum, fetcher = fetch) {
+export async function registryBytes(
+  url,
+  maximum,
+  fetcher = fetch,
+  {
+    now = Date.now,
+    sleep = delay,
+    deadline = now() + budgets.registry,
+    collection = { bytes: 0 },
+  } = {},
+) {
   const location = new URL(url);
   assert.equal(location.origin, "https://registry.npmjs.org");
   assert.ok(!location.username && !location.password);
-  const response = await fetcher(location, {
-    redirect: "error",
-    signal: AbortSignal.timeout(budgets.registry),
-  });
-  assert.equal(response.status, 200, "Public version unavailable");
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of response.body) {
-    size += chunk.byteLength;
-    assert.ok(size <= maximum, "Registry response exceeds bound");
-    chunks.push(chunk);
+  for (let attempt = 0; ; attempt++) {
+    const remaining = deadline - now();
+    assert.ok(
+      remaining > 0,
+      "Registry availability observation budget exhausted",
+    );
+    let response;
+    try {
+      response = await fetcher(location, {
+        redirect: "error",
+        signal: AbortSignal.timeout(remaining),
+      });
+      if (response.status === 200) {
+        const chunks = [];
+        let size = 0;
+        for await (const chunk of response.body) {
+          size += chunk.byteLength;
+          collection.bytes += chunk.byteLength;
+          assert.ok(size <= maximum, "Registry response exceeds bound");
+          assert.ok(
+            collection.bytes <= artifactLimits.collectionBytes,
+            "Registry collection exceeds bound",
+          );
+          assert.ok(
+            now() < deadline,
+            "Registry availability observation budget exhausted",
+          );
+          chunks.push(chunk);
+        }
+        return Buffer.concat(chunks);
+      }
+      assert.ok(
+        [404, 408, 429].includes(response.status) ||
+          (response.status >= 500 && response.status <= 599),
+        `Public version unavailable: HTTP ${response.status}`,
+      );
+      await response.body?.cancel?.();
+    } catch (error) {
+      if (!transientReadError(error)) throw error;
+    }
+    const wait = retryDelay(response, Math.min(attempt, 6), now(), () => 0);
+    assert.ok(
+      wait < deadline - now(),
+      "Registry availability observation budget exhausted",
+    );
+    console.error(
+      JSON.stringify({
+        phase: "registry-observation",
+        state: "retry",
+        url: location.href,
+        attempt: attempt + 1,
+        waitMs: wait,
+        remainingMs: deadline - now(),
+      }),
+    );
+    await sleep(wait);
   }
-  return Buffer.concat(chunks);
 }
 export function verifyPublicMetadata(metadata, release) {
   assert.equal(metadata.name, release.package);
@@ -74,11 +131,17 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   );
   const context = JSON.parse(regularBytes(join(directory, "context.json")));
   const platform = nativePlatformSpec().platform;
+  const observation = {
+    deadline: Date.now() + budgets.registry,
+    collection: { bytes: 0 },
+  };
   for (const subject of releasePackages(release)) {
     const metadata = JSON.parse(
       await registryBytes(
         `https://registry.npmjs.org/${encodeURIComponent(subject.package)}/${encodeURIComponent(release.version)}`,
         1048576,
+        undefined,
+        observation,
       ),
     );
     verifyPublicMetadata(metadata, subject.platform ? subject : release);
@@ -95,6 +158,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const archive = await registryBytes(
       metadata.dist.tarball,
       subject.archive.size,
+      undefined,
+      observation,
     );
     verifyArchive(archive, subject.archive);
     // Public bytes have been independently acquired; install remains an anonymous registry install.

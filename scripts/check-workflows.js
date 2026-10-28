@@ -92,6 +92,24 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           `${path}: missing required input ${key}`,
         );
   }
+  const receipt = workflows
+    .get("./.github/workflows/ci.yml")
+    ?.jobs.acceptance.steps.find(
+      (step) => step.with?.path === "${{ steps.proof.outputs.path }}",
+    );
+  const producer = workflows
+    .get("./.github/workflows/qualification.yml")
+    ?.jobs.producer.steps.find((step) => step.id === "archive");
+  const horizon = receipt?.with?.["retention-days"];
+  assert.ok(
+    Number.isSafeInteger(horizon) && horizon > 0,
+    "PR proof retention horizon is missing",
+  );
+  assert.equal(
+    String(producer?.with?.["retention-days"]).replace(/\s+/gu, ""),
+    "${{(inputs.release-mode||inputs.emit-proof)&&" + horizon + "||1}}",
+    "PR producer retention must cover the compact reuse-proof horizon",
+  );
   let callers = 0;
   for (const [path, workflow] of workflows) {
     for (const job of Object.values(workflow.jobs ?? {})) {

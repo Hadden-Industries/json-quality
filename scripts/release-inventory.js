@@ -30,6 +30,7 @@ import {
   releasePackages,
 } from "./release-contract.js";
 import { nativePackages } from "../src/native-packages.js";
+import { gh } from "./release-provider.js";
 
 export function isolatedNpmEnvironment(root, env = process.env) {
   const result = Object.fromEntries(
@@ -77,7 +78,16 @@ export function verifySbom(bom, lock, directory, inventory) {
   const components = [...bom.components, bom.metadata.component];
   assert.ok(Array.isArray(inventory));
   for (const [location, entry] of Object.entries(lock.packages))
-    if (location && !entry.dev && !entry.link && !entry.optional)
+    // Native npm can omit devOptional subtrees with --omit=dev even when the
+    // mixed lock has neither dev nor optional set (for example a dev tool
+    // satisfying an optional production peer). They are not required nodes.
+    if (
+      location &&
+      !entry.dev &&
+      !entry.devOptional &&
+      !entry.link &&
+      !entry.optional
+    )
       assert.ok(
         inventory.some((node) => node.location === location),
         `Missing required installed location: ${location}`,
@@ -240,7 +250,7 @@ export function acquireValidator(root) {
   mkdirSync(directory, { recursive: true });
   const path = join(directory, asset.asset);
   if (!existsSync(path))
-    native("gh", [
+    gh([
       "release",
       "download",
       tool.tag,

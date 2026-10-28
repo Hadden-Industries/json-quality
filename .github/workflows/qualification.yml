@@ -72,7 +72,7 @@ jobs:
         with:
           name: "qualified-producer-${{ github.run_attempt }}"
           path: "${{ runner.temp }}/json-quality-archive"
-          retention-days: "${{ inputs.release-mode && 30 || 1 }}"
+          retention-days: "${{ (inputs.release-mode || inputs.emit-proof) && 30 || 1 }}"
 
   qualification:
     name: Qualify ${{ matrix.os }} / Node ${{ matrix.node }}
