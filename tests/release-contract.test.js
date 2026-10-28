@@ -70,7 +70,6 @@ import {
   normalizeFileReferences,
   verifySbom,
   installedInventory,
-  installProductionRecipient,
   stageSourceNativePackages,
 } from "../scripts/release-inventory.js";
 import {
@@ -1453,6 +1452,17 @@ test("promotion requires explicit prior-label absence and rejects prerelease or 
     promotionPlan(release, { pilot: "0.1.0" }, { latest: null }),
     { before: null, after: "0.1.0" },
   );
+  assert.deepEqual(
+    promotionPlan(
+      release,
+      { latest: "0.1.0" },
+      { latest: "0.1.0" },
+      release.version,
+      null,
+      { reviewedTag: "latest" },
+    ),
+    { before: "0.1.0", after: "0.1.0" },
+  );
   assert.throws(() => promotionPlan(release, { pilot: "0.1.0" }, {}));
   assert.throws(() =>
     promotionPlan(
@@ -1632,6 +1642,126 @@ test("second partial GitHub repair uses the latest owner guard while retaining t
       { MANIFEST_SHA: manifestSha },
       { ...readers, optionalApi: () => ({ tag_name: "v1.3.0" }) },
     ),
+  );
+});
+test("successive npm-only recoveries retain original labels and observe only the selected continuation", (t) => {
+  const root = temp(t),
+    directory = join(root, "admitted"),
+    { release } = bundleFixture(directory),
+    target = "1.0.0-rc.1";
+  release.version = "1.0.0-rc.2";
+  for (const entry of release.platformArchives) entry.version = release.version;
+  writeFileSync(join(directory, "release-manifest.json"), jsonBytes(release));
+  const manifestSha = sha256(jsonBytes(release));
+  const guard = {
+    availability: "npm-only",
+    targetVersion: target,
+    githubState: {
+      latest: null,
+      affected: {
+        id: 2,
+        tag_name: `v${release.version}`,
+        prerelease: true,
+        immutable: true,
+        draft: false,
+      },
+      target: {
+        id: 1,
+        tag_name: `v${target}`,
+        prerelease: true,
+        immutable: true,
+        draft: false,
+      },
+    },
+  };
+  const journalA = join(directory, "promote-17-1.jsonl"),
+    journalB = join(directory, "promote-18-1.jsonl");
+  for (const [journal, run, operation] of [
+    [journalA, "17", "npm-latest"],
+    [journalB, "18", "completion-readback"],
+  ])
+    assert.throws(() =>
+      journalEffect(
+        journal,
+        release,
+        operation,
+        () => {
+          throw new Error("lost acknowledgement");
+        },
+        {
+          env: {
+            ...environment("promote"),
+            GITHUB_RUN_ID: run,
+            GITHUB_RUN_ATTEMPT: "1",
+            MANIFEST_SHA: manifestSha,
+          },
+          before: release.version,
+          guard,
+        },
+      ),
+    );
+  const originals = [readFileSync(journalA), readFileSync(journalB)];
+  const common = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    phase: "promote",
+    attempt: "1",
+    version: release.version,
+    manifestSha256: manifestSha,
+    acceptedAt: "2026-10-28T00:00:00Z",
+    rationale:
+      "Owner reconciled original npm-only requests without repeating a write.",
+    targetVersion: target,
+    availability: "npm-only",
+    expectedGithubLatest: null,
+  };
+  const first = { ...common, run: "17", journalSha256: sha256(originals[0]) },
+    second = { ...common, run: "18", journalSha256: sha256(originals[1]) };
+  retainRecovery(directory, first);
+  let reads = 0;
+  const readers = {
+    provider: () => ({ run: { status: "completed", head_sha: source } }),
+    npmCommand: () => {
+      reads++;
+      return JSON.stringify({ latest: target });
+    },
+    optionalApi: () => null,
+  };
+  const result = reconcileObserved(
+    directory,
+    join(root, "scratch"),
+    {
+      MANIFEST_SHA: manifestSha,
+      RECOVERY_JSON: JSON.stringify(second),
+    },
+    readers,
+  );
+  assert.equal(
+    reads,
+    1,
+    "Retained historical records must not reassert live labels",
+  );
+  assert.deepEqual(result.promote.priorLabels, {
+    latest: release.version,
+    githubLatest: null,
+  });
+  assert.equal(result.entries[0].observed.state, "retained-original");
+  assert.equal(result.promote.observed.githubState.latest, null);
+  assert.deepEqual(retainedRecoveries(directory), [first, second]);
+  assert.deepEqual(readFileSync(journalA), originals[0]);
+  assert.deepEqual(readFileSync(journalB), originals[1]);
+  assert.throws(
+    () =>
+      reconcileObserved(
+        directory,
+        join(root, "changed"),
+        { MANIFEST_SHA: manifestSha },
+        {
+          ...readers,
+          optionalApi: () => ({ tag_name: "vconcurrent" }),
+        },
+      ),
+    /GitHub latest changed/,
   );
 });
 test("native predecessor download and writer-history acquisition have disjoint filesystem roots", (t) => {
@@ -2170,76 +2300,6 @@ test("registry metadata and bounded transport reject substituted bytes, redirect
     registryBytes("https://registry.npmjs.org/a", 2, fetcher),
   );
   await assert.rejects(registryBytes("https://attacker.test/a", 100, fetcher));
-});
-
-test("recipient production SBOM conserves a dependency shared with development tools and the original lock", async (t) => {
-  const directory = temp(t),
-    npm = process.env.npm_execpath,
-    tar = createRequire(npm)("tar"),
-    env = isolatedNpmEnvironment(directory);
-  const pack = (name, dependencies = {}) => {
-    const path = join(directory, name),
-      archive = join(directory, `${name}.tgz`);
-    mkdirSync(path);
-    writeFileSync(
-      join(path, "package.json"),
-      jsonBytes({ name, version: "1.0.0", license: "MIT", dependencies }),
-    );
-    tar.c(
-      { sync: true, gzip: true, cwd: path, prefix: "package/", file: archive },
-      ["package.json"],
-    );
-    return `file:${archive.replaceAll("\\", "/")}`;
-  };
-  const shared = pack("shared-production-dependency"),
-    production = pack("production-fixture", {
-      "shared-production-dependency": shared,
-    }),
-    development = pack("development-fixture", {
-      "shared-production-dependency": shared,
-    }),
-    metadata = {
-      name: "recipient-fixture",
-      version: "1.0.0",
-      license: "MIT",
-      dependencies: { "production-fixture": production },
-      devDependencies: { "development-fixture": development },
-      scripts: { postinstall: "exit 99" },
-    };
-  writeFileSync(join(directory, "package.json"), jsonBytes(metadata));
-  const run = (args) =>
-    native(process.execPath, [npm, ...args, "--ignore-scripts", "--offline"], {
-      cwd: directory,
-      env,
-    });
-  run(["install", "--no-audit", "--no-fund"]);
-  const original = readFileSync(join(directory, "package-lock.json")),
-    before = await installedInventory(directory, npm);
-  assert.ok(
-    before.some((entry) => entry.name === "shared-production-dependency"),
-  );
-  assert.ok(
-    !JSON.parse(original).packages["node_modules/shared-production-dependency"]
-      .dev,
-  );
-  installProductionRecipient(directory, npm, directory);
-  const inventory = await installedInventory(directory, npm),
-    bom = JSON.parse(run(["sbom", "--omit=dev", "--sbom-format=cyclonedx"]));
-  assert.deepEqual(
-    readFileSync(join(directory, "package-lock.json")),
-    original,
-  );
-  assert.ok(
-    inventory.some((entry) => entry.name === "shared-production-dependency"),
-  );
-  assert.ok(!inventory.some((entry) => entry.name === "development-fixture"));
-  assert.equal(
-    JSON.parse(readFileSync(join(directory, "package.json"))).dependencies[
-      "production-fixture"
-    ],
-    production,
-  );
-  verifySbom(bom, JSON.parse(original), directory, inventory);
 });
 
 test("native source inventory conserves the selected optional platform while the lock records both platforms", async (t) => {

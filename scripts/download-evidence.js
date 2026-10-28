@@ -18,6 +18,8 @@ export async function downloadEvidence({
   headRepositoryId = repositoryId,
   headSha,
   maximum = artifactLimits.payloadBytes,
+  now = Date.now,
+  deadline = now() + budgets.collection,
 }) {
   assert.ok(Number.isSafeInteger(id) && id > 0);
   const admit = (metadata) => {
@@ -52,12 +54,21 @@ export async function downloadEvidence({
   admit(retained);
   assert.equal(retained.digest, digest);
   assert.equal(retained.size_in_bytes, size);
+  assert.ok(
+    now() < deadline,
+    "Artifact transfer budget exhausted before extraction",
+  );
   const scratch = mkdtempSync(
       join(process.env.RUNNER_TEMP, "artifact-download-"),
     ),
     archive = join(scratch, "payload.zip");
   writeFileSync(archive, bytes, { flag: "wx" });
   mkdirSync(destination, { recursive: true });
+  const remaining = deadline - now();
+  assert.ok(
+    remaining > 0 && remaining <= budgets.collection,
+    "Artifact transfer budget exhausted before extraction",
+  );
   native(
     process.platform === "win32" ? "python" : "python3",
     [
@@ -66,10 +77,11 @@ export async function downloadEvidence({
       destination,
       String(maximum),
     ],
-    { timeout: budgets.collection, phase: "artifact-extract" },
+    { timeout: remaining, phase: "artifact-extract" },
   );
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const deadline = Date.now() + budgets.collection - 2000;
   const pull =
     process.env.GITHUB_EVENT_NAME === "pull_request"
       ? JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"))
@@ -79,6 +91,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     repository: process.env.GITHUB_REPOSITORY,
     token: process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN,
     budgetMs: budgets.collection,
+    deadline: deadline - budgets.pack,
   });
   await downloadEvidence({
     id: Number(process.argv[2]),
@@ -89,5 +102,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     headRepositoryId:
       pull?.head.repo.id ?? Number(process.env.GITHUB_REPOSITORY_ID),
     headSha: pull?.head.sha ?? process.env.GITHUB_SHA,
+    deadline,
   });
 }

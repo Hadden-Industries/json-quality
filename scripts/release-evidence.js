@@ -22,6 +22,7 @@ import {
   lanes,
   manualControl,
   verifyDecision,
+  restorationAvailability,
   repository,
   effectJournal,
   retainedRecoveries,
@@ -435,6 +436,10 @@ export function admitRestoration(directory, release, env) {
     "restoration",
   );
   assert.equal(decision.targetVersion, env.RESTORE_VERSION);
+  restorationAvailability(
+    decision,
+    env.EXPECTED_LABELS ? JSON.parse(env.EXPECTED_LABELS) : undefined,
+  );
   const path = join(directory, "release-restoration.json");
   if (existsSync(path)) assert.equal(sha256(regularBytes(path)), sha256(bytes));
   else save(path, bytes);

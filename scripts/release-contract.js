@@ -134,6 +134,21 @@ export function releaseNpmTag(review) {
   );
   return tag;
 }
+/** Restoration scope is a separately reviewed decision, never inferred from SemVer. */
+export function restorationAvailability(decision, expected) {
+  const availability = decision.availability ?? "npm-and-github";
+  assert.ok(
+    ["npm-and-github", "npm-only"].includes(availability),
+    "Unsupported restoration availability scope",
+  );
+  if (availability === "npm-only") {
+    assert.ok(Object.hasOwn(decision, "expectedGithubLatest"));
+    assert.equal(decision.expectedGithubLatest, expected?.githubLatest);
+    assert.equal(typeof decision.affectedPrerelease, "boolean");
+    assert.equal(typeof decision.targetPrerelease, "boolean");
+  }
+  return availability;
+}
 export function safeMember(path) {
   assert.ok(
     typeof path === "string" &&

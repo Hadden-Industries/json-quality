@@ -174,6 +174,26 @@ export function reconcileObserved(
   if (explicit) retainRecovery(directory, explicit);
   return result.entries.length ? result : null;
 }
+function npmOnlyRecoveryGuard(record, records) {
+  const intents = records.filter((entry) => entry.state === "intent");
+  assert.ok(
+    intents.length &&
+      intents.every((entry) => entry.guard?.availability === "npm-only"),
+  );
+  assert.ok(
+    !intents.some((entry) => entry.operation === "github-latest"),
+    "npm-only recovery cannot conceal a GitHub write",
+  );
+  const guard = intents[0].guard;
+  for (const intent of intents) assert.deepEqual(intent.guard, guard);
+  assert.equal(guard.targetVersion, record.targetVersion);
+  assert.ok(Object.hasOwn(record, "expectedGithubLatest"));
+  assert.equal(
+    record.expectedGithubLatest,
+    guard.githubState.latest?.tag_name ?? null,
+  );
+  return guard;
+}
 export function reconcilePromotionLabels(record, records, tags, latest) {
   assert.equal(
     tags.latest,
@@ -181,6 +201,23 @@ export function reconcilePromotionLabels(record, records, tags, latest) {
     "Unknown npm label effect has not been observed applied",
   );
   const githubLatest = latest?.tag_name ?? null;
+  if (record.availability === "npm-only") {
+    const guard = npmOnlyRecoveryGuard(record, records);
+    assert.equal(
+      githubLatest,
+      record.expectedGithubLatest,
+      "GitHub latest changed during npm-only recovery",
+    );
+    return {
+      npmLatest: tags.latest,
+      githubLatest,
+      githubState: guard.githubState,
+    };
+  }
+  assert.ok(
+    !records.some((entry) => entry.guard?.availability === "npm-only"),
+    "npm-only recovery requires explicit matching scope",
+  );
   if (
     records.some((r) => r.operation === "github-latest") &&
     githubLatest !== `v${record.targetVersion}`
@@ -442,6 +479,11 @@ function reconcileOne(
         !Object.hasOwn(priorLabels, "githubLatest")
       )
         priorLabels.githubLatest = intent.before;
+    }
+    if (record.availability === "npm-only") {
+      const guard = npmOnlyRecoveryGuard(record, records);
+      if (!Object.hasOwn(priorLabels, "githubLatest"))
+        priorLabels.githubLatest = guard.githubState.latest?.tag_name ?? null;
     }
   }
   return { record, observed, priorLabels };

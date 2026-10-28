@@ -174,6 +174,19 @@ Its phase is `restoration`; it binds the affected manifest, target version/integ
 Only an already qualified immutable target is eligible.
 Removing a first release's `latest` is a distinct owner decision; the normal restoration path does not silently convert prior absence into a removal.
 
+For an explicitly approved npm-only restoration, the restoration decision adds these fields to the usual target version/integrity/manifest and evidence bindings:
+
+```json
+{"availability":"npm-only","expectedGithubLatest":null,"affectedPrerelease":true,"targetPrerelease":true}
+```
+
+This mode changes the core package's npm default; its exact optional dependencies select the target's matching native family.
+The recorded GitHub latest value, affected and target release identities, and both prerelease markers stay unchanged and are checked before and after the native npm effect.
+The mode admits a separately qualified immutable release candidate as the target.
+Interrupted npm-only effects require matching owner recovery scope and original journal guard values; an observed completed npm mutation is not repeated.
+Stable npm/GitHub promotion retains its separate decision and guard path, including releases whose original owner review selected npm `latest` directly.
+Restoration reads both historical flat evidence and the current ZIP layout through one version-aware reader, verifying outer assets and every indexed member before using the original context and recipient locks.
+
 Dist-tag restoration cannot undo downloads.
 Published npm versions cannot be replaced.
 Immutable assets and tags are retained; corrections use a new identity.
@@ -212,6 +225,10 @@ Legacy per-phase recovery records remain readable.
 The recovery records preserve the original request journals.
 Already-observed label effects are skipped, rather than repeated.
 An unapproved unknown stage, incomplete draft, absent durable request or unobserved label effect stays blocked for an explicit owner-operated native reconciliation; this interface cannot certify absence of a remote effect.
+
+Three pre-existing recovery cases remain held for separately defined owner-approved recovery extensions: an unknown asset upload while the release is still a draft; abandonment of an unpublished partial stage family using authenticated staged/rejected-state evidence; and restoration after the original registry Actions records expire.
+Their proposed routes are exact draft-asset readback against the original asset intent, authenticated owner stage disposition evidence, and admission of independently verified immutable provider snapshots respectively.
+These routes need explicit evidence/authority contracts before activation; a held case does not authorize forced publication, replay of an ambiguous write, or substitution of archived proof for required live provider admission.
 `expected_labels` always describes the original pre-effect labels, including restoration.
 Reconciliation reads the original intent's `before` value instead of relabelling the already-applied npm target as its prior state.
 
@@ -252,8 +269,8 @@ Do not repeatedly launch a full matrix until a failure disappears.
 
 Hosted retention follows the artifact's purpose:
 
-- Same-run admission bundles and ordinary producer transport: 1 day.
-- Compact PR proof, release qualification inputs and native payloads: 30 days.
+- Same-run admission bundles, lane receipts and producer transport without PR reuse: 1 day.
+- Compact PR proof, its required producer transport, release qualification inputs and native payloads: 30 days.
 - Final effect journals and public-registry evidence bundles: 90 days.
 
 Ordinary test/npm output and failure diagnostics remain native Actions logs, with no uploaded log copies.
@@ -268,7 +285,13 @@ The ZIP preserves the original proof paths and a manifest-bound `evidence-index.
 `release-assets.json` binds the ZIP digest and repeats its member index so downloaded proof can be independently checked without one asset per evidence file.
 The bundle includes build attestations, native verification results, provider records, inventories and request journals; standalone package/source archives are not duplicated inside it.
 Disposable source installs, npm caches and the SBOM validator use a separate temporary workspace and never enter the retained producer directory.
-Binary evidence collection uses the shared fifteen-minute collection budget; metadata reads retain their shared two-minute budget, with both using bounded retries and remaining-time redirect handling.
+Binary evidence collection uses the shared fifteen-minute collection budget; standalone metadata reads retain their shared two-minute budget, with both using bounded retries and remaining-time redirect handling.
+An Actions download shares one total deadline across network/readback and extraction, reserving the pack budget for extraction rather than restarting a full collection window.
+Native GitHub release uploads use the existing four-minute upload profile; release and validator downloads use the collection profile.
+Mutating native requests remain one-shot.
+Anonymous registry availability observation retries exact approved coordinates on 404, transient status and transport failures with backoff inside one shared thirty-minute deadline and bounded cumulative bytes.
+Metadata, integrity and provenance admission failures remain immediate failures.
+Small offline dependency-graph contracts run under the actual consumer npm in ordinary runtime lanes as well as the producer, including development/optional overlap and conservation of required shared dependencies.
 The archival workflow creates GitHub build attestations for all three tarballs and the release manifest, then uses native `gh attestation verify` against the exact repository, signer workflow, controller digest and subject bytes.
 The bundle and native verification results accompany the immutable release assets.
 Read-only recovery of an already archived release does not create another attestation.

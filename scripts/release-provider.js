@@ -21,7 +21,14 @@ import {
   releaseTransportMaximumBytes,
 } from "./release-contract.js";
 
-export const gh = (args, options) => native("gh", args, options);
+/** Native mutations remain one-shot; only their time budget follows the payload. */
+export function gh(args, options = {}, invoke = native) {
+  let timeout = budgets.read;
+  if (args[0] === "release" && args[1] === "upload") timeout = budgets.upload;
+  if (args[0] === "release" && args[1] === "download")
+    timeout = budgets.collection;
+  return invoke("gh", args, { timeout, ...options });
+}
 export const api = (path, args = []) => {
   try {
     return JSON.parse(
