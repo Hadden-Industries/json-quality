@@ -289,6 +289,13 @@ Binary evidence collection uses the shared fifteen-minute collection budget; sta
 An Actions download shares one total deadline across network/readback and extraction, reserving the pack budget for extraction rather than restarting a full collection window.
 Native GitHub release uploads use the existing four-minute upload profile; release and validator downloads use the collection profile.
 Mutating native requests remain one-shot.
+Immutable release-attestation indexing can lag publication.
+Before native release verification or asset verification, a shared read-only worker observes the exact signed tag's attestation inventory inside one two-minute read deadline, with the existing request/byte limits and thirty-second observation cadence.
+A typed missing or empty inventory permits waiting only after a positive read of the frozen manifest's build-attestation inventory under the same token and repository; this control is repeated for every pending observation.
+The worker rechecks the pinned release ID, signed tag/source, immutable/draft/prerelease state and exact asset identities throughout the wait.
+Authorization and schema failures remain terminal, while the shared reader retains its classified transport/rate-limit handling.
+Native cryptographic verification runs once after readiness; its errors are never used as retry authority because the CLI can report several underlying lookup failures as missing attestations.
+Normal archival and read-only reconciliation share this gate, with release verification preceding the asset-verification fan-out.
 Anonymous registry availability observation retries exact approved coordinates on 404, transient status and transport failures with backoff inside one shared thirty-minute deadline and bounded cumulative bytes.
 Metadata, integrity and provenance admission failures remain immediate failures.
 Small offline dependency-graph contracts run under the actual consumer npm in ordinary runtime lanes as well as the producer, including development/optional overlap and conservation of required shared dependencies.

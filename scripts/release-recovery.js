@@ -20,6 +20,7 @@ import {
 import { api, gh, provider, optionalApi } from "./release-provider.js";
 import { npmCommand } from "./qualification-process.js";
 import { verifyNativeAssets } from "./release-asset-verification.js";
+import { verifyReleaseAttestation } from "./release-attestation-readiness.js";
 
 export function verifyArchiveIntent(directory, record, manifestSha) {
   assert.equal(record.disposition, "complete-read-only");
@@ -413,16 +414,19 @@ function reconcileOne(
       assert.equal(bytes.length, asset.size);
       assert.equal(sha256(bytes), asset.sha256);
     }
+    verifyReleaseAttestation(
+      {
+        release,
+        releaseId: live.id,
+        prerelease: live.prerelease,
+        assets: intent.assets,
+        manifestSha,
+        tagSha: readJson(join(directory, "signed-tag.json")).reference.object
+          .sha,
+      },
+      { observe: readers.observeReleaseAttestation, verify: invoke },
+    );
     const attestations = verifyAssets(release.version, scratch, intent.assets);
-    invoke([
-      "release",
-      "verify",
-      `v${release.version}`,
-      "--repo",
-      repository,
-      "--format",
-      "json",
-    ]);
     if (existsSync(join(directory, "archive-outcome.json"))) {
       const archived = readJson(join(directory, "archive-outcome.json"));
       assert.equal(archived.manifestSha256, env.MANIFEST_SHA);

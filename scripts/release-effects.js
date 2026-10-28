@@ -47,6 +47,7 @@ import { isolatedNpmEnvironment, verifyAudit } from "./release-inventory.js";
 import { qualifySecurity } from "./release-security.js";
 import { native, npmCommand } from "./qualification-process.js";
 import { verifyNativeAssets } from "./release-asset-verification.js";
+import { verifyReleaseAttestation } from "./release-attestation-readiness.js";
 import {
   bundleReleaseAssets,
   acquireArchiveEvidence,
@@ -603,15 +604,15 @@ export function archive(directory, scratch, env = process.env) {
       assert.equal(result.immutable, true);
       assert.equal(result.draft, false);
       verifyDraftAssets(assets, result.assets);
-      gh([
-        "release",
-        "verify",
-        `v${release.version}`,
-        "--repo",
-        repository,
-        "--format",
-        "json",
-      ]);
+      verifyReleaseAttestation({
+        release,
+        releaseId: result.id,
+        prerelease: result.prerelease,
+        assets,
+        manifestSha: env.MANIFEST_SHA,
+        tagSha: readJson(join(directory, "signed-tag.json")).reference.object
+          .sha,
+      });
       verifyNativeAssets(release.version, readback, assets);
       return { id: result.id, immutable: true, assets };
     },
