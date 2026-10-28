@@ -825,12 +825,22 @@ test("interrupted archival imports only owner-bound intent and journal without r
       },
     ],
   };
+  writeFileSync(
+    join(directory, "signed-tag.json"),
+    jsonBytes({ reference: { object: { sha: "a".repeat(40) } } }),
+  );
   const commands = [];
   const readers = {
     provider: () => ({
       run: { status: "completed", head_sha: environment("archive").GITHUB_SHA },
     }),
     api: () => live,
+    observeReleaseAttestation: (request) => {
+      assert.equal(request.tagSha, "a".repeat(40));
+      assert.equal(request.releaseId, live.id);
+      assert.deepEqual(request.assets, JSON.parse(intent).assets);
+      commands.push("readiness");
+    },
     gh: (args) => {
       assert.ok(
         ["download", "verify"].includes(args[1]),
@@ -842,6 +852,7 @@ test("interrupted archival imports only owner-bound intent and journal without r
       return "{}";
     },
     verifyNativeAssets: (version, downloaded, assets) => {
+      commands.push("assets");
       assert.equal(version, release.version);
       assert.equal(
         readFileSync(join(downloaded, "LICENSE"), "utf8"),
@@ -857,7 +868,7 @@ test("interrupted archival imports only owner-bound intent and journal without r
     env,
     readers,
   );
-  assert.deepEqual(commands, ["download", "verify"]);
+  assert.deepEqual(commands, ["download", "readiness", "verify", "assets"]);
   assert.equal(recovered.archive.observed.immutableRelease, 123);
   assert.equal(recovered.archive.observed.attestations.length, 1);
   assert.deepEqual(
