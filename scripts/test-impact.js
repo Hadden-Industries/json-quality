@@ -9,6 +9,31 @@ export const fullFiles = new Set([
 ]);
 export const relations = [
   {
+    dependency: "tests/native/process-observer-failure.py",
+    consumer: "tests/native/process-observer.test.mjs",
+    kind: "python-process",
+  },
+  {
+    dependency: "scripts/observe-process-tree.py",
+    consumer: "tests/native/process-observer.test.mjs",
+    kind: "python-process",
+  },
+  {
+    dependency: "scripts/observe-process-tree.py",
+    consumer: "tests/native/orchestration-benchmark.test.mjs",
+    kind: "python-process",
+  },
+  {
+    dependency: "scripts/performance-probe.js",
+    consumer: "tests/native/orchestration-benchmark.test.mjs",
+    kind: "node-process",
+  },
+  {
+    dependency: "scripts/bench-orchestration.js",
+    consumer: "tests/native/orchestration-benchmark.test.mjs",
+    kind: "node-process",
+  },
+  {
     dependency: "tests/native/stdio_probe.py",
     consumer: "tests/native/stdio.test.mjs",
     kind: "python-process",

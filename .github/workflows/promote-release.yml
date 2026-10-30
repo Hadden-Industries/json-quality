@@ -88,16 +88,19 @@ jobs:
           name: "admitted-promote-${{ github.run_attempt }}"
           path: "${{ runner.temp }}/admitted"
           retention-days: 1
-  promote:
+  npm:
     needs: admit
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     environment: npm-promotion
     permissions:
-      contents: write
+      contents: read
       actions: read
       id-token: write
       security-events: read
+    outputs:
+      artifact-id: ${{ steps.effect.outputs.artifact-id }}
+      availability: ${{ steps.npm.outputs.availability }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -110,13 +113,88 @@ jobs:
           artifact-id: ${{ needs.admit.outputs.artifact-id }}
           path: ${{ runner.temp }}/admitted/
       - name: Apply admitted release effect
+        id: npm
         env:
           GH_TOKEN: ${{ github.token }}
-        run: npm run release:effect -- promote "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
+        run: node scripts/promote-npm.js "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
+      - uses: ./.github/actions/upload-evidence
+        timeout-minutes: 5
+        if: always()
+        id: effect
+        with:
+          name: "effect-promote-npm-${{ github.run_attempt }}"
+          path: "${{ runner.temp }}/admitted"
+          retention-days: 90
+
+  github:
+    needs: npm
+    if: needs.npm.result == 'success' && needs.npm.outputs.availability == 'npm-and-github'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment: github-release
+    permissions:
+      contents: write
+      actions: read
+      security-events: read
+    outputs:
+      artifact-id: ${{ steps.effect.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-producer
+      - uses: ./.github/actions/download-evidence
+        timeout-minutes: 15
+        with:
+          artifact-id: ${{ needs.npm.outputs.artifact-id }}
+          path: ${{ runner.temp }}/admitted/
+      - name: Apply admitted release effect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NPM_CONTINUATION_ID: ${{ needs.npm.outputs.artifact-id }}
+        run: node scripts/promote-github.js "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
+      - uses: ./.github/actions/upload-evidence
+        timeout-minutes: 5
+        if: always()
+        id: effect
+        with:
+          name: "effect-promote-github-${{ github.run_attempt }}"
+          path: "${{ runner.temp }}/admitted"
+          retention-days: 90
+
+  complete:
+    needs: [npm, github]
+    if: always() && needs.npm.result == 'success' && (needs.github.result == 'success' || needs.github.result == 'skipped')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+      security-events: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-producer
+      - uses: ./.github/actions/download-evidence
+        timeout-minutes: 15
+        with:
+          artifact-id: ${{ needs.github.result == 'success' && needs.github.outputs.artifact-id || needs.npm.outputs.artifact-id }}
+          path: ${{ runner.temp }}/admitted/
+      - name: Verify every service selected by the owner decision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NPM_CONTINUATION_ID: ${{ needs.npm.outputs.artifact-id }}
+          GITHUB_CONTINUATION_ID: ${{ needs.github.outputs.artifact-id }}
+          NPM_RESULT: ${{ needs.npm.result }}
+          GITHUB_RESULT: ${{ needs.github.result }}
+        run: node scripts/complete-promotion.js "${{ runner.temp }}/admitted" "${{ runner.temp }}/completion-scratch"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         if: always()
         with:
-          name: "effect-promote-${{ github.run_attempt }}"
+          name: "completion-promote-${{ github.run_attempt }}"
           path: "${{ runner.temp }}/admitted"
           retention-days: 90

@@ -24,6 +24,54 @@ import { budgets } from "../scripts/qualification-budgets.js";
 const noWait = async () => {};
 
 const sha = (character) => character.repeat(40);
+function performanceFixture(source, node, os, operation) {
+  const windows = os.startsWith("windows");
+  const tree = {
+    schemaVersion: 1,
+    platform: windows ? "win32" : "linux",
+    status: "passed",
+    cleanup: "passed",
+    quiescence: "passed",
+    exitCode: 0,
+    timedOut: false,
+    cancelled: false,
+    units: "bytes",
+    driverIncluded: true,
+    controllerIncluded: false,
+    method: windows ? "windows-job" : "linux-process-group",
+    metric: windows ? "peak-committed-bytes" : "sampled-sum-rss-bytes",
+    peakBytes: 1024,
+    samples: 2,
+    processCount: 2,
+  };
+  return {
+    schemaVersion: 2,
+    status: "passed",
+    environment: { node: `v${node}`, platform: tree.platform },
+    workload: { operation, repetitions: 1 },
+    identities: [
+      {
+        variant: "candidate",
+        head: source,
+        sourceSha256: "e".repeat(64),
+        nativeIdentity: { coreSourceInputsSha256: "d".repeat(64) },
+      },
+    ],
+    samples: [
+      {
+        variant: "candidate",
+        repetition: 0,
+        identity: { coreSourceInputsSha256: "d".repeat(64) },
+        tree: { ...tree },
+      },
+    ],
+    observations: [-1, 0].map((repetition) => ({
+      variant: "candidate",
+      repetition,
+      ...tree,
+    })),
+  };
+}
 function fixture(attempt = 1, fork = false) {
   const now = Date.parse("2026-10-27T12:00:00Z"),
     repo = { id: 11, full_name: repository, default_branch: "main" };
@@ -125,7 +173,7 @@ function fixture(attempt = 1, fork = false) {
   };
   const records = matrix.os.flatMap((os) =>
     matrix.node.map((node) => ({
-      schemaVersion: 1,
+      schemaVersion: 2,
       status: "passed",
       repositoryId: 11,
       runId: 71,
@@ -138,19 +186,36 @@ function fixture(attempt = 1, fork = false) {
         npm: nodeSupport.consumerNpm,
       },
       transport,
-      consumer: {
-        archiveSha256: "e".repeat(64),
-        packageVersion: "1.0.0-rc.1",
-        nativePackage: {
-          name: `@hadden-industries/json-quality-${os.startsWith("windows") ? "win32" : "linux"}-x64`,
-          version: "1.0.0-rc.1",
-          integrity: "sha512-Ynl0ZXM=",
-        },
-        publicExports: 6,
-        cliPhysicalFiles: 2,
-        qualification: "transported archive",
-        installSource: "producer-archive",
-      },
+      performance: Object.fromEntries(
+        ["check", "format"].map((operation) => [
+          operation,
+          performanceFixture(snapshot.commit, node, os, operation),
+        ]),
+      ),
+      consumers: Object.fromEntries(
+        ["root", "isolated"].map((layout) => [
+          layout,
+          {
+            sourceCommit: snapshot.commit,
+            controllerCommit: snapshot.commit,
+            node,
+            npm: nodeSupport.consumerNpm,
+            platform: os.startsWith("windows") ? "win32" : "linux",
+            architecture: "x64",
+            archiveSha256: "e".repeat(64),
+            packageVersion: "1.0.0-rc.1",
+            nativePackage: {
+              name: `@hadden-industries/json-quality-${os.startsWith("windows") ? "win32" : "linux"}-x64`,
+              version: "1.0.0-rc.1",
+              integrity: "sha512-Ynl0ZXM=",
+            },
+            publicExports: 6,
+            cliPhysicalFiles: 2,
+            qualification: "transported archive",
+            installSource: "producer-archive",
+          },
+        ]),
+      ),
     })),
   );
   const needs = Object.fromEntries(
@@ -733,7 +798,7 @@ test("changed JSON/tree inputs, matrix, platform or absent lane reject reuse", a
     },
     (value) => {
       value.receipt = structuredClone(value.receipt);
-      value.receipt.lanes[0].consumer.archiveSha256 = "f".repeat(64);
+      value.receipt.lanes[0].consumers.root.archiveSha256 = "f".repeat(64);
     },
     (value) => {
       value.receipt = structuredClone(value.receipt);
@@ -772,6 +837,65 @@ test("missing, skipped, failed and foreign native results cannot seed reuse proo
       }),
     );
   }
+});
+
+test("incomplete layouts, obsolete proof and failed tree observations deny receipt creation and reuse", async () => {
+  const mutations = [
+    (record) => {
+      record.schemaVersion = 1;
+    },
+    (record) => {
+      delete record.consumers.isolated;
+    },
+    (record) => {
+      record.consumers.extra = record.consumers.root;
+    },
+    ...[
+      "archiveSha256",
+      "packageVersion",
+      "node",
+      "npm",
+      "sourceCommit",
+      "controllerCommit",
+      "nativePackage",
+      "publicExports",
+      "cliPhysicalFiles",
+      "qualification",
+      "installSource",
+    ].map((key) => (record) => {
+      record.consumers.isolated[key] = "foreign";
+    }),
+    (record) => {
+      record.performance.check.schemaVersion = 1;
+    },
+    (record) => {
+      record.performance.format.observations[0].cleanup = "failed";
+    },
+    (record) => {
+      record.performance.check.observations[1].status = "failed";
+    },
+  ];
+  for (const mutate of mutations) {
+    const f = fixture();
+    mutate(f.records[0]);
+    await assert.rejects(createReceipt({ ...f, sleep: noWait }));
+    const current = await proof(fixture());
+    mutate(current.receipt.lanes[0]);
+    await assert.rejects(verifyProof(current));
+  }
+  const obsolete = await proof(fixture());
+  obsolete.receipt.schemaVersion = 1;
+  await assert.rejects(verifyProof(obsolete), /Obsolete aggregate/u);
+  assert.deepEqual(
+    jobNames(fixture().matrix).filter((name) => name.startsWith("CodeQL")),
+    [
+      "CodeQL / Scan actions",
+      "CodeQL / Scan javascript-typescript",
+      "CodeQL / Scan python",
+      "CodeQL / Scan cpp-linux",
+      "CodeQL / Scan cpp-windows",
+    ],
+  );
 });
 test("expired or conflicted compact proof and a changed source attempt remain unavailable", async () => {
   const f = fixture();

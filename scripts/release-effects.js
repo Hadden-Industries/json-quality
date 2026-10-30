@@ -23,13 +23,9 @@ import {
   save,
   sha256,
   verifyDecision,
-  lanes,
-  verifyManifest,
-  verifyRun,
   effectJournal,
   releasePackages,
   releaseNpmTag,
-  restorationAvailability,
 } from "./release-contract.js";
 import { refreshAdmission, verifyBundle } from "./release-evidence.js";
 import {
@@ -40,21 +36,14 @@ import {
   optionalApi,
   signedTag,
   sealBundle,
-  provider,
   pages,
 } from "./release-provider.js";
-import { isolatedNpmEnvironment, verifyAudit } from "./release-inventory.js";
-import { qualifySecurity } from "./release-security.js";
+import { isolatedNpmEnvironment } from "./release-inventory.js";
 import { native, npmCommand } from "./qualification-process.js";
 import { verifyNativeAssets } from "./release-asset-verification.js";
 import { verifyReleaseAttestation } from "./release-attestation-readiness.js";
-import {
-  bundleReleaseAssets,
-  acquireArchiveEvidence,
-  verifyDraftAssets,
-} from "./release-assets.js";
+import { bundleReleaseAssets, verifyDraftAssets } from "./release-assets.js";
 export { verifyDraftAssets } from "./release-assets.js";
-import { verifyPublicMetadata } from "./qualify-registry.js";
 
 export function journalEffect(
   path,
@@ -82,6 +71,9 @@ export function journalEffect(
     }
   }
   const intent = {
+    ...(env.PROMOTION_SERVICE
+      ? { schemaVersion: 2, service: env.PROMOTION_SERVICE }
+      : {}),
     state: "intent",
     package: subject.package,
     version: subject.version,
@@ -633,7 +625,11 @@ export function archive(directory, scratch, env = process.env) {
   completeSelectedAvailability(directory, scratch, release, env);
 }
 export function recordNoRequest(directory, phase, env) {
-  const origin = { run: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT };
+  const origin = {
+    run: env.GITHUB_RUN_ID,
+    attempt: env.GITHUB_RUN_ATTEMPT,
+    ...(env.PROMOTION_SERVICE ? { service: env.PROMOTION_SERVICE } : {}),
+  };
   assert.ok(
     !existsSync(join(directory, effectJournal(phase, origin))) ||
       regularBytes(join(directory, effectJournal(phase, origin))).length === 0,
@@ -641,7 +637,7 @@ export function recordNoRequest(directory, phase, env) {
   );
   const path = join(
       directory,
-      `no-effect-${phase}-${origin.run}-${origin.attempt}.json`,
+      `no-effect-${phase}${origin.service ? `-${origin.service}` : ""}-${origin.run}-${origin.attempt}.json`,
     ),
     marker = {
       schemaVersion: 1,
@@ -832,350 +828,17 @@ export function applyAvailability(
   return { plan, completed: verifyCompletion() };
 }
 
-export function promote(directory, scratch, env = process.env) {
-  const { release, context, recovery } = refreshAdmission(
-    directory,
-    "promote",
-    env,
-    {
-      historyRoot: scratch,
-    },
-  );
-  const archiveProvider = context.archive;
-  assert.ok(archiveProvider);
-  const archived = readJson(join(directory, "archive-outcome.json"));
-  const live = githubRelease(release);
-  assert.equal(live.id, archived.release.id);
-  assert.equal(live.immutable, true);
-  assert.equal(live.draft, false);
-  verifyDraftAssets(archived.assets, live.assets);
-  gh([
-    "release",
-    "verify",
-    `v${release.version}`,
-    "--repo",
-    repository,
-    "--format",
-    "json",
-  ]);
-  const bytes = decisionAsset(release, "release-acceptance.json", scratch);
-  const acceptance = verifyDecision(
-    bytes,
-    env.ACCEPTANCE_SHA,
-    release,
-    env.MANIFEST_SHA,
-    "pilot",
-  );
-  assert.equal(acceptance.registryRun, context.registry.run);
-  assert.equal(acceptance.registryAttempt, context.registry.attempt);
-  assert.equal(acceptance.reviewSha256, env.REVIEW_SHA);
-  const isolation = npmEnvironment(scratch);
-  const tags = () =>
-    npmViewObject(
-      npmCommand(
-        [
-          "view",
-          release.package,
-          "dist-tags",
-          "--json",
-          "--registry=https://registry.npmjs.org/",
-        ],
-        { env: isolation },
-      ),
-    );
-  const before = tags(),
-    expected = JSON.parse(env.EXPECTED_LABELS);
-  assert.ok(
-    Object.hasOwn(expected, "githubLatest"),
-    "Prior GitHub latest must include explicit absence",
-  );
-  const githubBefore = optionalApi("releases/latest")?.tag_name ?? null;
-  const target = env.RESTORE_VERSION || release.version;
-  const restoration = env.RESTORE_VERSION
-    ? verifyDecision(
-        regularBytes(join(directory, "release-restoration.json")),
-        env.RESTORATION_SHA,
-        release,
-        env.MANIFEST_SHA,
-        "restoration",
-      )
-    : null;
-  const availability = restoration
-    ? restorationAvailability(restoration, expected)
-    : "npm-and-github";
-  const npmOnly = availability === "npm-only";
-  if (recovery?.promote)
-    assert.equal(
-      recovery.promote.record.availability ?? "npm-and-github",
-      availability,
-      "Recovery availability scope changed",
-    );
-  const planOptions = {
-    reviewedTag: releaseNpmTag(
-      readJson(join(directory, "release-review.json")),
-    ),
-    npmOnly,
-  };
-  if (npmOnly)
-    assert.equal(
-      githubBefore,
-      expected.githubLatest,
-      "GitHub latest changed before npm-only restoration",
-    );
-  if (!npmOnly)
-    verifyGithubPromotionState(
-      githubBefore,
-      expected,
-      target,
-      recovery?.promote,
-    );
-  if (!npmOnly)
-    assert.equal(
-      isPrerelease(target),
-      false,
-      "Stable labels require a stable native SemVer target",
-    );
-  let auditRelease = release,
-    auditDirectory = directory,
-    githubSnapshot;
-  const currentGithubState = () => ({
-    latest: optionalApi("releases/latest"),
-    affected: githubRelease(release),
-    target: api(`releases/tags/v${target}`),
-  });
-  if (env.RESTORE_VERSION) {
-    assert.equal(restoration.targetVersion, target);
-    assert.equal(restoration.previousLatest, expected.latest);
-    const prior = api(`releases/tags/v${target}`);
-    assert.equal(prior.immutable, true);
-    assert.equal(prior.draft, false);
-    if (npmOnly) {
-      assert.equal(live.prerelease, restoration.affectedPrerelease);
-      assert.equal(prior.prerelease, restoration.targetPrerelease);
-      const observed = {
-        latest: optionalApi("releases/latest"),
-        affected: live,
-        target: prior,
-      };
-      assert.equal(
-        observed.latest?.tag_name ?? null,
-        expected.githubLatest,
-        "GitHub latest changed before npm-only restoration",
-      );
-      githubSnapshot = verifyNpmOnlyGithubState(observed, observed);
-      if (recovery?.promote?.observed.githubState) {
-        verifyNpmOnlyGithubState(
-          recovery.promote.observed.githubState,
-          githubSnapshot,
-        );
-        githubSnapshot = recovery.promote.observed.githubState;
-      }
-      verifyNpmOnlyGithubState(githubSnapshot, currentGithubState());
-    }
-    gh([
-      "release",
-      "verify",
-      `v${target}`,
-      "--repo",
-      repository,
-      "--format",
-      "json",
-    ]);
-    const metadata = npmViewObject(
-      npmCommand(["view", `${release.package}@${target}`, "--json"], {
-        env: isolation,
-      }),
-    );
-    assert.equal(metadata.version, target);
-    assert.equal(metadata.dist.integrity, restoration.targetIntegrity);
-    const targetRoot = join(scratch, "restoration-target");
-    mkdirSync(targetRoot);
-    for (const name of ["release-manifest.json", "release-assets.json"]) {
-      gh([
-        "release",
-        "download",
-        `v${target}`,
-        "--repo",
-        repository,
-        "--pattern",
-        name,
-        "--dir",
-        targetRoot,
-      ]);
-      gh([
-        "release",
-        "verify-asset",
-        `v${target}`,
-        join(targetRoot, name),
-        "--repo",
-        repository,
-        "--format",
-        "json",
-      ]);
-    }
-    const manifestBytes = regularBytes(
-      join(targetRoot, "release-manifest.json"),
-    );
-    assert.match(restoration.targetManifestSha256, /^[a-f0-9]{64}$/u);
-    assert.equal(sha256(manifestBytes), restoration.targetManifestSha256);
-    const targetRelease = verifyManifest(JSON.parse(manifestBytes));
-    acquireArchiveEvidence(targetRoot, targetRelease, prior.assets, [
-      "context.json",
-      ...lanes(targetRelease.matrix).flatMap((lane) =>
-        ["root", "isolated"].map(
-          (layout) => `public-${lane.os}-${lane.node}/${layout}-lock.json`,
-        ),
-      ),
-    ]);
-    const targetContext = readJson(join(targetRoot, "context.json"));
-    assert.equal(targetRelease.package, release.package);
-    assert.equal(targetRelease.version, target);
-    assert.equal(targetRelease.archive.integrity, restoration.targetIntegrity);
-    for (const subject of releasePackages(targetRelease)) {
-      const current =
-        subject.package === release.package
-          ? metadata
-          : npmViewObject(
-              npmCommand(
-                [
-                  "view",
-                  `${subject.package}@${target}`,
-                  "--json",
-                  "--registry=https://registry.npmjs.org/",
-                ],
-                { env: isolation },
-              ),
-            );
-      verifyPublicMetadata(current, subject.platform ? subject : targetRelease);
-    }
-    signedTag(targetRelease);
-    verifyRun(
-      provider(targetContext.registry.run, targetContext.registry.attempt),
-      "registry",
-      targetContext.registry.controller,
-      targetRelease.matrix,
-    );
-    auditRelease = targetRelease;
-    auditDirectory = targetRoot;
-  }
-  promotionPlan(
-    release,
-    before,
-    expected,
-    target,
-    recovery?.promote,
-    planOptions,
-  );
-  const refreshedAudits = [];
-  for (const lane of lanes(auditRelease.matrix))
-    for (const layout of ["root", "isolated"]) {
-      const root = join(scratch, `audit-${lane.os}-${lane.node}-${layout}`);
-      mkdirSync(root);
-      const lockBytes = regularBytes(
-          join(
-            auditDirectory,
-            `public-${lane.os}-${lane.node}`,
-            `${layout}-lock.json`,
-          ),
-        ),
-        lock = JSON.parse(lockBytes);
-      save(join(root, "package-lock.json"), lockBytes);
-      save(join(root, "package.json"), { private: true, ...lock.packages[""] });
-      const audit = JSON.parse(
-        npmCommand(
-          [
-            "audit",
-            "--omit=dev",
-            "--json",
-            "--ignore-scripts",
-            "--registry=https://registry.npmjs.org/",
-          ],
-          { cwd: root, env: isolation, phase: "promotion-recipient-audit" },
-        ),
-      );
-      verifyAudit(audit);
-      refreshedAudits.push({
-        lane,
-        layout,
-        lockSha256: sha256(lockBytes),
-        audit,
-      });
-    }
-  save(join(directory, "promotion-security.json"), {
-    codeql: qualifySecurity(
-      auditRelease,
-      regularBytes(join(auditDirectory, "release-manifest.json")),
-    ),
-    recipient: refreshedAudits,
-    checkedAt: new Date().toISOString(),
-  });
-  const journal = join(
-    directory,
-    effectJournal("promote", {
-      run: env.GITHUB_RUN_ID,
-      attempt: env.GITHUB_RUN_ATTEMPT,
-    }),
-  );
-  writeFileSync(journal, "", { flag: "wx", flush: true });
-  const { completed } = applyAvailability(
-    {
-      journal,
-      release,
-      target,
-      expected,
-      planOptions,
-      recovery: recovery?.promote,
-      githubSnapshot,
-      env,
-    },
-    {
-      assertCurrent: () => currentMain(env),
-      readNpmTags: tags,
-      writeNpmLatest: (value) =>
-        npmCommand(
-          [
-            "dist-tag",
-            "add",
-            `${release.package}@${value}`,
-            "latest",
-            "--registry=https://registry.npmjs.org/",
-          ],
-          { env: isolation, phase: "npm-latest" },
-        ),
-      readGithubState: npmOnly
-        ? currentGithubState
-        : () => ({ latest: optionalApi("releases/latest") }),
-      writeGithubLatest: (value) =>
-        gh([
-          "release",
-          "edit",
-          `v${value}`,
-          "--repo",
-          repository,
-          "--latest=true",
-        ]),
-    },
-  );
-  save(join(directory, "completion.json"), {
-    schemaVersion: 1,
-    manifestSha256: env.MANIFEST_SHA,
-    source: release.source.commit,
-    version: target,
-    priorLabels: expected,
-    availability,
-    ...completed,
-    state: "completed",
-    observedAt: new Date().toISOString(),
-  });
-}
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   assert.equal(process.argv.length, 5);
   const [phase, directory, scratch] = process.argv.slice(2);
-  assert.ok(["stage", "archive", "promote"].includes(phase));
+  assert.ok(
+    ["stage", "archive"].includes(phase),
+    "Promotion requires the service-specific entry point",
+  );
   mkdirSync(scratch, { recursive: true });
   try {
     verifyBundle(directory, process.env.MANIFEST_SHA);
-    ({ stage, archive, promote })[phase](directory, scratch);
+    ({ stage, archive })[phase](directory, scratch);
   } catch (error) {
     const journal = join(
       directory,

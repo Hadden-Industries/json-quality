@@ -53,6 +53,13 @@ The PR wrapper runs only for `pull_request: ready_for_review` into `main`.
 Feature pushes and `synchronize` do not launch full qualification.
 The source/base head must match the checked-out integration and frozen matrix.
 Required `CI / acceptance` admits product/native/dependency/CodeQL results and every packed-consumer receipt; skipped, incomplete, foreign or failed mandatory jobs remain blocking.
+Every ordinary and release lane runs the source suite once and qualifies both root and isolated installed layouts from the same transported core/native tuple.
+Reference-runtime API/type/tooling checks run in both layouts; minimum-runtime lanes retain native engine checks without producer-only tooling.
+`JSON_QUALITY_LAYOUT_OUTPUT` names the directory containing exclusively created `root-result.json` and `isolated-result.json`.
+`JSON_QUALITY_RELEASE_EVIDENCE` separately enables release audits, inventories and SBOMs; ordinary qualification leaves it unset.
+Lane and aggregate proof schema 2 requires both keyed layout results with matching source, controller, Node/npm, core archive and native package identities.
+Old single-layout proof produces `FULL_REQUIRED`; it is never padded with an inferred isolated success.
+Schema-2 performance reports also require complete per-sample process observation and cleanup, including the warmup.
 The owner reviews changes to workflow code, tests and trust policy, then deliberately chooses whether to merge.
 CODEOWNERS routes that review without requiring an additional maintainer or reporting App.
 The native Actions App restriction authenticates the check source; it does not prove that candidate-edited workflow code reports honestly.
@@ -101,6 +108,19 @@ Only missing expected entries or pending jobs with no conclusion can settle this
 Both the latest projection and the current attempt must become complete before original producing-attempt admission, and no product job is rerun by this wait.
 
 ## Recovery and retention
+
+The shared scan inventory in `scripts/security-scans.js` requires five observations: Actions, JavaScript/TypeScript, Python, C/C++ on Ubuntu 24.04, and C/C++ on Windows 2025.
+The native categories are `/language:c-cpp/platform:linux` and `/language:c-cpp/platform:windows`; the other categories remain `/language:LANGUAGE`.
+Each native scan initializes CodeQL before a clean `native/build.py` build of both executable and Node-API bindings, including generated headers and verified dependencies.
+Scan outputs stay in their separate external workspace and never replace production components or sanitizer qualification.
+Workflow validation checks the complete matrix against that inventory; CI job admission, schema-2 release security and promotion refresh require the same meanings.
+Exact-source admission selects the newest analysis ID for each required category and checks workflow, language/platform, query/tool identity, findings, warnings and errors.
+Historical two-language proof cannot admit a current release continuation.
+
+After separately authorized source publication, deliberately run the frozen matrix and inspect each native CodeQL database's extraction diagnostics, first-party translation units and generated/header coverage on its actual platform.
+Confirm the provider's matrix environment (`key`, `language`, `os`) and category identities against the checked inventory.
+Record layout phase cost, scan-build cost, critical-path elapsed time and artifact size independently.
+Until these hosted observations pass, local source checks establish neither extraction completeness nor activated hosted qualification.
 
 `npm run check:ci` checks the complete local workflow/action graph before the candidate policy job starts expensive fan-out.
 The same owner, `scripts/check-workflows.js`, follows [OwlAPI's workflow governance](https://github.com/Hadden-Industries/owlapi/blob/36e28374447d94d9734960aaed6d3ab4be52ca17/scripts/workflow-governance.mjs): it validates YAML, native action entries, required/declared inputs, immutable external action references and transfer deadlines against the shared budget module.

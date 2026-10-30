@@ -23,6 +23,7 @@ import {
   packageTarSink,
 } from "../src/package-payload.js";
 import { nativePackages } from "../src/native-packages.js";
+import { securityScans } from "./security-scans.js";
 
 export const repository = "Hadden-Industries/json-quality";
 export const packageName = "@hadden-industries/json-quality";
@@ -43,9 +44,13 @@ export function assertNativeExecutableModes(files) {
 }
 export function effectJournal(phase, origin) {
   assert.ok(["stage", "archive", "promote"].includes(phase));
+  if (origin.service) {
+    assert.equal(phase, "promote");
+    assert.ok(["npm", "github"].includes(origin.service));
+  }
   for (const value of [origin.run, origin.attempt])
     assert.match(String(value), /^[1-9]\d{0,15}$/u);
-  return `${phase}-${origin.run}-${origin.attempt}.jsonl`;
+  return `${phase}${origin.service ? `-${origin.service}` : ""}-${origin.run}-${origin.attempt}.jsonl`;
 }
 export const sha256 = (bytes) =>
   createHash("sha256").update(bytes).digest("hex");
@@ -509,8 +514,7 @@ export function expectedJobs(phase, matrix) {
         ({ os, node }) => `product / Qualify ${os} / Node ${node}`,
       ),
       "product / Complete runtime qualification",
-      "codeql / Scan actions",
-      "codeql / Scan javascript-typescript",
+      ...securityScans.map(({ key }) => `codeql / Scan ${key}`),
       "security",
       "qualified",
     ];
@@ -521,6 +525,7 @@ export function expectedJobs(phase, matrix) {
       "security",
       "qualified",
     ];
+  if (phase === "promote") return ["admit", "npm", "github", "complete"];
   return ["admit", phase];
 }
 export function verifyRun(
@@ -528,7 +533,11 @@ export function verifyRun(
   phase,
   source,
   matrix,
-  { reconciled = false } = {},
+  {
+    reconciled = false,
+    historical = false,
+    availability = "npm-and-github",
+  } = {},
 ) {
   const { run, jobs } = provider;
   assert.equal(run.repository.full_name, repository);
@@ -545,7 +554,13 @@ export function verifyRun(
         ),
     );
   else assert.equal(run.conclusion, "success");
-  const names = expectedJobs(phase, matrix);
+  const legacyPromotion =
+    historical &&
+    phase === "promote" &&
+    jobs.jobs.some((job) => job.name === "promote");
+  const names = legacyPromotion
+    ? ["admit", "promote"]
+    : expectedJobs(phase, matrix);
   assert.equal(jobs.total_count, names.length, "Incomplete provider jobs");
   assert.equal(jobs.jobs.length, names.length, "Truncated provider jobs");
   assert.deepEqual(jobs.jobs.map(({ name }) => name).sort(), names.sort());
@@ -557,6 +572,12 @@ export function verifyRun(
           job.conclusion,
         ),
       );
+    else if (
+      phase === "promote" &&
+      job.name === "github" &&
+      availability === "npm-only"
+    )
+      assert.equal(job.conclusion, "skipped");
     else assert.equal(job.conclusion, "success", job.name);
     assert.equal(job.head_sha, run.head_sha);
     assert.equal(job.run_id, run.id);

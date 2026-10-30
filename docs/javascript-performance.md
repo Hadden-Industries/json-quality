@@ -50,7 +50,18 @@ Each variant gets one warmup, followed by all retained repetitions, with alterna
 Reports distinguish process wall time, session duration, event-phase observations, real child counts, sampled parent RSS/V8 memory and native managed/scratch peaks.
 Census and rewrite events have separate phase buckets; failed reports retain the available recipe, environment, identities and raw samples.
 Node's native diagnostics channel observes actual children; imported ESM process functions are not replaced.
-Child RSS, exact syscall counts, energy state and background-load isolation are not measured.
+Schema-2 reports add a fresh process observer for every warmup and retained sample, with raw `observations` and each retained sample's matching `tree` record.
+The outer controller gates a fresh Python worker until its process domain is established; only then can that worker start the Node probe and product children.
+Windows uses a Job Object with breakaway disabled and kill-on-close protection, reporting peak committed bytes, including the worker and descendants.
+Linux creates a dedicated session/process group and samples the sum of members' resident pages every 10 ms, including the worker; short peaks/processes can be missed and shared pages can be counted more than once.
+The outer observer controller is excluded on both platforms.
+The current probe and product child topology does not create detached Linux sessions/groups; such a topology change requires requalifying observation coverage.
+Windows committed bytes and Linux sampled RSS have different meanings and must not be compared as the same metric or added to parent/native memory values.
+Reports include method, units, process-count meaning, sample count/cadence, elapsed time, exit, timeout/cancellation, quiescence and cleanup outcomes.
+Observation errors, surviving descendants, malformed workload output or changed identities fail qualification and retain available observations; there is no parent-only fallback.
+Only the fresh owned domain is terminated on failure, and the observer removes its private scratch after cleanup.
+Python must be available (`PYTHON` can name its explicit executable).
+Exact syscall counts, energy state and background-load isolation are not measured.
 The probe exercises installed repository sessions; CLI serialization is covered separately by functional qualification.
 
 Timing is diagnostic until platform/runtime cohorts have accepted budgets.

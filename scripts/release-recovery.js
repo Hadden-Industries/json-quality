@@ -56,6 +56,10 @@ export function verifyRecoveryRecord(record, release, manifestSha, journal) {
   assert.equal(record.manifestSha256, manifestSha);
   assert.equal(record.version, release.version);
   assert.ok(["stage", "archive", "promote"].includes(record.phase));
+  if (record.service) {
+    assert.equal(record.phase, "promote");
+    assert.ok(["npm", "github"].includes(record.service));
+  }
   assert.match(String(record.run), /^[1-9]\d{0,15}$/u);
   assert.match(String(record.attempt), /^[1-9]\d{0,15}$/u);
   assert.ok(
@@ -76,6 +80,18 @@ export function verifyRecoveryRecord(record, release, manifestSha, journal) {
   for (let i = 0; i < records.length; i += 2) {
     const [intent, outcome] = records.slice(i, i + 2);
     assert.equal(intent.state, "intent");
+    if (record.service) {
+      assert.equal(intent.schemaVersion, 2);
+      assert.equal(intent.service, record.service);
+      assert.ok(
+        intent.operation === "completion-readback" ||
+          intent.operation === `${record.service}-latest`,
+      );
+    } else
+      assert.ok(
+        !intent.service,
+        "Service journal requires an explicit service recovery",
+      );
     assert.equal(intent.run, String(record.run));
     assert.equal(intent.attempt, String(record.attempt));
     assert.equal(intent.manifestSha256, manifestSha);
@@ -118,7 +134,7 @@ export function verifyRecoveryRecord(record, release, manifestSha, journal) {
 }
 export function retainRecovery(directory, record) {
   const records = retainedRecoveries(directory),
-    key = (value) => `${value.phase}:${value.run}:${value.attempt}`;
+    key = (value) => effectJournal(value.phase, value);
   const existing = records.filter((value) => key(value) === key(record));
   for (const value of existing)
     assert.equal(
@@ -157,8 +173,10 @@ export function reconcileObserved(
         ? explicit
         : records.findLast((value) => value.phase === phase);
     const observeCurrent =
-      record.run === selected.run && record.attempt === selected.attempt;
-    const root = join(scratch, `${phase}-${record.run}-${record.attempt}`);
+      record.run === selected.run &&
+      record.attempt === selected.attempt &&
+      record.service === selected.service;
+    const root = join(scratch, effectJournal(phase, record) + "-readback");
     mkdirSync(root, { recursive: true });
     const entry = reconcileOne(
       directory,
@@ -471,6 +489,21 @@ function reconcileOne(
     if (prior) {
       assert.equal(prior.record.targetVersion, record.targetVersion);
       Object.assign(priorLabels, prior.priorLabels);
+    }
+    if (record.service) {
+      const intents = records.filter((entry) => entry.state === "intent");
+      const original = intents[0].guard;
+      assert.equal(original.availability, record.availability);
+      assert.equal(original.targetVersion, record.targetVersion);
+      assert.ok(
+        Object.hasOwn(original.priorLabels, "latest") &&
+          Object.hasOwn(original.priorLabels, "githubLatest"),
+      );
+      for (const intent of intents)
+        assert.deepEqual(intent.guard.priorLabels, original.priorLabels);
+      for (const [key, value] of Object.entries(priorLabels))
+        assert.equal(original.priorLabels[key], value);
+      Object.assign(priorLabels, original.priorLabels);
     }
     for (const intent of records.filter((value) => value.state === "intent")) {
       if (

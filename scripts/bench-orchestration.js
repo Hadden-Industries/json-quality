@@ -50,6 +50,7 @@ const scratch = await mkdtemp(join(tmpdir(), "json-quality-benchmark-")),
   document = (index, dirty) =>
     dirty ? `{"value":${index}}` : `{\n  "value": ${index}\n}\n`,
   samples = [],
+  observations = [],
   identities = [],
   workload = {
     operation: values.workload,
@@ -61,11 +62,12 @@ const scratch = await mkdtemp(join(tmpdir(), "json-quality-benchmark-")),
   };
 let environment;
 const reportContext = () => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   workload,
   environment,
   identities,
   samples,
+  observations,
 });
 const git = (...args) =>
   execFileSync("git", ["-C", root, ...args], {
@@ -93,6 +95,8 @@ async function sourceIdentity(source) {
       "assets/native-packages.json",
       "scripts/bench-orchestration.js",
       "scripts/performance-probe.js",
+      "scripts/observe-process-tree.py",
+      "scripts/performance-contract.js",
     ],
     { encoding: "utf8", windowsHide: true, env: gitReadEnvironment() },
   )
@@ -138,7 +142,7 @@ try {
     loadConditions:
       "uncontrolled local background load; warm native acquisition",
     memoryScope:
-      "sampled parent RSS/heap/external plus event native peaks; child RSS is not included",
+      "parent RSS/heap/external, native event peaks, and separately scoped per-sample process-tree observations; overlapping metrics are not additive",
   };
   await mkdir(root);
   git("init", "--quiet", "--template=");
@@ -218,8 +222,13 @@ try {
         );
       const before = performance.now(),
         child = spawnSync(
-          process.execPath,
+          process.env.PYTHON ?? "python",
           [
+            join(project, "scripts/observe-process-tree.py"),
+            "--timeout",
+            "180",
+            "--",
+            process.execPath,
             join(project, "scripts/performance-probe.js"),
             source,
             root,
@@ -228,15 +237,45 @@ try {
           {
             cwd: project,
             windowsHide: true,
-            timeout: 180000,
+            timeout: 195000,
             maxBuffer: 4194304,
             encoding: "utf8",
           },
         );
-      if (child.error || child.status !== 0)
-        throw new Error(child.error?.message ?? child.stderr);
-      const result = JSON.parse(child.stdout),
-        identity = identities.find((entry) => entry.variant === variant),
+      let tree;
+      try {
+        tree = JSON.parse(child.stdout);
+      } catch {
+        throw new Error(
+          child.error?.message ??
+            `Malformed process observation: ${child.stderr}`,
+        );
+      }
+      const { stdout, stderr, ...observation } = tree;
+      observations.push({ variant, repetition, ...observation });
+      if (
+        child.error ||
+        child.status !== 0 ||
+        tree.status !== "passed" ||
+        tree.cleanup !== "passed" ||
+        tree.quiescence !== "passed"
+      ) {
+        observations.at(-1).workloadOutput = { stdout, stderr };
+        throw new Error(
+          child.error?.message ??
+            tree.error ??
+            stderr ??
+            "Process observation failed",
+        );
+      }
+      let result;
+      try {
+        result = JSON.parse(stdout);
+      } catch (error) {
+        observations.at(-1).workloadOutput = { stdout, stderr };
+        throw error;
+      }
+      const identity = identities.find((entry) => entry.variant === variant),
         counts = Object.fromEntries(
           ["git-ignore", "git-census", "prettier-debug", "other"].map(
             (role) => [
@@ -260,6 +299,7 @@ try {
           wallMs: performance.now() - before,
           ...result,
           counts,
+          tree: observation,
         });
       if (
         values["assert-batching"] &&
@@ -292,6 +332,7 @@ try {
   );
   const report = {
     ...reportContext(),
+    status: "passed",
     summaries,
     timingGate: "diagnostic-only; no calibrated platform budget accepted",
   };

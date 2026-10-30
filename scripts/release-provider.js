@@ -117,14 +117,29 @@ export function producingAttempt(
   read = provider,
   cache = new Map(),
 ) {
+  return originalJobAttempt(observed, name, read, cache);
+}
+function originalJobAttempt(
+  observed,
+  name,
+  read,
+  cache,
+  { requireSuccess = true, maximumAttempts = 8 } = {},
+) {
   const { run, jobs } = observed;
   assert.ok(
-    run.run_attempt >= 1 && run.run_attempt <= 8,
+    run.run_attempt >= 1 && run.run_attempt <= maximumAttempts,
     "Producing-attempt lookup bound exceeded",
   );
   const current = jobs.jobs.find((job) => job.name === name);
   assert.equal(current?.status, "completed");
-  assert.equal(current?.conclusion, "success");
+  if (requireSuccess) assert.equal(current?.conclusion, "success");
+  else
+    assert.ok(
+      ["success", "failure", "cancelled", "timed_out"].includes(
+        current?.conclusion,
+      ),
+    );
   for (let attempt = 1; attempt <= run.run_attempt; attempt++) {
     if (!cache.has(attempt)) cache.set(attempt, read(run.id, attempt));
     const original = cache.get(attempt);
@@ -148,7 +163,7 @@ export function producingAttempt(
     if (!found || found.conclusion === "skipped") continue;
     if (sameJobExecution(found, current)) {
       assert.equal(found.status, "completed");
-      assert.equal(found.conclusion, "success");
+      assert.equal(found.conclusion, current.conclusion);
       return attempt;
     }
   }
@@ -276,7 +291,12 @@ export function verifyEnvironment(environment, policies, name) {
 }
 export function checkEnvironment(name) {
   assert.ok(
-    ["npm-publication", "github-archival", "npm-promotion"].includes(name),
+    [
+      "npm-publication",
+      "github-archival",
+      "npm-promotion",
+      "github-release",
+    ].includes(name),
   );
   const environment = api(`environments/${name}`),
     policies = api(`environments/${name}/deployment-branch-policies`);
@@ -334,7 +354,16 @@ export function verifyEffectHistory(
     (entry) => entry.settlements?.length && entry.run.conclusion === "success",
   );
   for (const entry of settled)
-    verifyRun(entry, entry.phase, entry.run.head_sha, {});
+    verifyRun(
+      entry,
+      entry.phase,
+      entry.run.head_sha,
+      {},
+      {
+        historical: true,
+        availability: entry.availability ?? "npm-and-github",
+      },
+    );
   const reconciliations = [
     ...(recovery?.entries ?? []),
     ...settled.flatMap((entry) =>
@@ -365,18 +394,21 @@ export function verifyEffectHistory(
       "completed",
       "Another live release producer exists",
     );
-    const attempted = entry.jobs.jobs.some((job) =>
-      job.steps?.some(
-        (step) =>
-          step.name === effectStep &&
-          step.started_at &&
-          step.conclusion !== "skipped",
-      ),
-    );
+    const attempted = entry.jobs.jobs
+      .filter((job) => !entry.service || job.name === entry.service)
+      .some((job) =>
+        job.steps?.some(
+          (step) =>
+            step.name === effectStep &&
+            step.started_at &&
+            step.conclusion !== "skipped",
+        ),
+      );
     if (!attempted) continue;
     if (entry.noEffect) {
       assert.equal(entry.noEffect.schemaVersion, 1);
       assert.equal(entry.noEffect.state, "no-request");
+      assert.equal(entry.noEffect.service, entry.service);
       assert.equal(entry.noEffect.run, String(entry.run.id));
       assert.equal(entry.noEffect.attempt, String(entry.run.run_attempt));
       assert.equal(entry.noEffect.controller, entry.run.head_sha);
@@ -427,6 +459,14 @@ export function verifyEffectHistory(
       assert.equal(intent.run, String(entry.run.id));
       assert.equal(intent.attempt, String(entry.run.run_attempt));
       assert.equal(intent.controller, entry.run.head_sha);
+      assert.equal(intent.service, entry.service);
+      if (entry.service) {
+        assert.equal(intent.schemaVersion, 2);
+        assert.ok(
+          intent.operation === "completion-readback" ||
+            intent.operation === `${entry.service}-latest`,
+        );
+      }
       for (const { record } of reconciliations.filter(
         ({ record }) =>
           String(record.run) === intent.run &&
@@ -496,9 +536,7 @@ export function readHistoryCheckpoint(
   assert.ok([1, 2].includes(record.schemaVersion));
   assert.equal(record.repository, repository);
   assert.ok(Array.isArray(record.entries) && record.entries.length <= 10000);
-  const keys = record.entries.map(
-    (entry) => `${entry.phase}:${id(entry.run)}:${id(entry.attempt)}`,
-  );
+  const keys = record.entries.map((entry) => effectJournal(entry.phase, entry));
   assert.equal(new Set(keys).size, keys.length, "Ambiguous retained history");
   return record.entries;
 }
@@ -518,6 +556,13 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
       "workflow_runs",
     );
     for (const run of runs) {
+      const attempts = new Map();
+      const readAttempt = (runId, attempt) => {
+        assert.equal(runId, run.id);
+        if (!attempts.has(attempt))
+          attempts.set(attempt, observe(runId, attempt));
+        return attempts.get(attempt);
+      };
       assert.ok(run.run_attempt <= 100, "History attempt bound exceeded");
       for (let attempt = 1; attempt <= run.run_attempt; attempt++) {
         if (
@@ -525,88 +570,124 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
           String(attempt) === env.GITHUB_RUN_ATTEMPT
         )
           continue;
-        const entry = observe(run.id, attempt);
-        entry.phase = phase;
-        const attempted = entry.jobs.jobs.some((job) =>
-          job.steps?.some(
-            (step) =>
-              step.name === effectStep &&
-              step.started_at &&
-              step.conclusion !== "skipped",
-          ),
-        );
-        if (attempted) {
-          const name = `effect-${phase}-${attempt}`;
-          const artifacts = list(
-            `actions/runs/${id(run.id)}/artifacts?per_page=100`,
-            "artifacts",
-          );
-          const matches = artifacts.filter(
-            (item) =>
-              item.name === name ||
-              new RegExp(`^${name}-recovery-[23]$`, "u").test(item.name),
-          );
-          assert.ok(matches.length <= 3, "Ambiguous historical artifact");
-          assert.ok(
-            new Set(matches.map((item) => item.digest)).size <= 1,
-            "Conflicting historical artifact candidates",
-          );
-          if (!matches.some((item) => !item.expired)) {
-            assert.ok(
-              checkpoint,
-              "Historical effect artifact unavailable; admit a signed history checkpoint",
+        const observed = readAttempt(run.id, attempt);
+        const services =
+          phase === "promote" &&
+          observed.jobs.jobs.some((job) => job.name === "npm")
+            ? ["npm", "github"]
+            : [null];
+        for (const service of services) {
+          const entry = structuredClone(observed);
+          entry.phase = phase;
+          if (service) entry.service = service;
+          const attempted = entry.jobs.jobs
+            .filter((job) => !service || job.name === service)
+            .some((job) =>
+              job.steps?.some(
+                (step) =>
+                  step.name === effectStep &&
+                  step.started_at &&
+                  step.conclusion !== "skipped",
+              ),
             );
-            retained ??= (readers.checkpoint ?? readHistoryCheckpoint)(
-              checkpoint,
+          if (attempted) {
+            // A partial rerun can relabel a retained successful/failed job.
+            // Its immutable journal was already admitted at the original attempt.
+            if (
+              service &&
+              attempt > 1 &&
+              originalJobAttempt(observed, service, readAttempt, attempts, {
+                requireSuccess: false,
+                maximumAttempts: 100,
+              }) < attempt
+            )
+              continue;
+            const name = `effect-${phase}${service ? `-${service}` : ""}-${attempt}`;
+            const artifacts = list(
+              `actions/runs/${id(run.id)}/artifacts?per_page=100`,
+              "artifacts",
             );
-            const records = retained.filter(
+            const matches = artifacts.filter(
               (item) =>
-                item.phase === phase &&
-                String(item.run) === String(run.id) &&
-                String(item.attempt) === String(attempt),
+                item.name === name ||
+                new RegExp(`^${name}-recovery-[23]$`, "u").test(item.name),
             );
-            assert.equal(
-              records.length,
-              1,
-              "Missing exact historical attempt in checkpoint",
+            assert.ok(matches.length <= 3, "Ambiguous historical artifact");
+            assert.ok(
+              new Set(matches.map((item) => item.digest)).size <= 1,
+              "Conflicting historical artifact candidates",
             );
-            const record = records[0];
-            assert.equal(record.controller, entry.run.head_sha);
-            if (record.journal) {
-              entry.journal = Buffer.from(record.journal, "base64");
-              assert.equal(entry.journal.toString("base64"), record.journal);
+            if (!matches.some((item) => !item.expired)) {
+              assert.ok(
+                checkpoint,
+                "Historical effect artifact unavailable; admit a signed history checkpoint",
+              );
+              retained ??= (readers.checkpoint ?? readHistoryCheckpoint)(
+                checkpoint,
+              );
+              const records = retained.filter(
+                (item) =>
+                  item.phase === phase &&
+                  item.service === entry.service &&
+                  String(item.run) === String(run.id) &&
+                  String(item.attempt) === String(attempt),
+              );
+              assert.equal(
+                records.length,
+                1,
+                "Missing exact historical attempt in checkpoint",
+              );
+              const record = records[0];
+              assert.equal(record.controller, entry.run.head_sha);
+              if (record.availability) entry.availability = record.availability;
+              if (record.journal) {
+                entry.journal = Buffer.from(record.journal, "base64");
+                assert.equal(entry.journal.toString("base64"), record.journal);
+              }
+              if (record.noEffect) entry.noEffect = record.noEffect;
+              if (record.settlements) entry.settlements = record.settlements;
+              history.push(entry);
+              continue;
             }
-            if (record.noEffect) entry.noEffect = record.noEffect;
-            if (record.settlements) entry.settlements = record.settlements;
-            history.push(entry);
-            continue;
+            const { directory } = acquire(run.id, attempt, name, acquisition);
+            const journal = join(
+              directory,
+              effectJournal(phase, {
+                run: run.id,
+                attempt,
+                ...(service ? { service } : {}),
+              }),
+            );
+            if (existsSync(journal)) entry.journal = regularBytes(journal);
+            const marker = join(
+              directory,
+              `no-effect-${phase}${service ? `-${service}` : ""}-${run.id}-${attempt}.json`,
+            );
+            if (existsSync(marker)) entry.noEffect = readJson(marker);
+            entry.settlements = retainedRecoveries(directory);
+            if (service && existsSync(join(directory, "npm-continuation.json")))
+              entry.availability = readJson(
+                join(directory, "npm-continuation.json"),
+              ).availability;
           }
-          const { directory } = acquire(run.id, attempt, name, acquisition);
-          const journal = join(
-            directory,
-            effectJournal(phase, { run: run.id, attempt }),
-          );
-          if (existsSync(journal)) entry.journal = regularBytes(journal);
-          const marker = join(
-            directory,
-            `no-effect-${phase}-${run.id}-${attempt}.json`,
-          );
-          if (existsSync(marker)) entry.noEffect = readJson(marker);
-          entry.settlements = retainedRecoveries(directory);
+          history.push(entry);
         }
-        history.push(entry);
       }
     }
   }
   const seen = new Set(
-    history.map(
-      (entry) => `${entry.phase}:${entry.run.id}:${entry.run.run_attempt}`,
+    history.map((entry) =>
+      effectJournal(entry.phase, {
+        run: entry.run.id,
+        attempt: entry.run.run_attempt,
+        service: entry.service,
+      }),
     ),
   );
   // Expired/deleted runs disappear from provider enumeration. The signed
   // checkpoint's original native inventory must remain in the union.
   for (const record of retained ?? []) {
-    const key = `${record.phase}:${id(record.run)}:${id(record.attempt)}`;
+    const key = effectJournal(record.phase, record);
     if (seen.has(key)) continue;
     if (
       String(record.run) === env.GITHUB_RUN_ID &&
@@ -635,6 +716,8 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
       ),
     );
     entry.phase = record.phase;
+    if (record.service) entry.service = record.service;
+    if (record.availability) entry.availability = record.availability;
     if (record.journal) {
       entry.journal = Buffer.from(record.journal, "base64");
       assert.equal(entry.journal.toString("base64"), record.journal);
@@ -666,6 +749,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     repository,
     entries: history.map((entry) => ({
       phase: entry.phase,
+      ...(entry.service ? { service: entry.service } : {}),
+      ...(entry.availability ? { availability: entry.availability } : {}),
       run: String(entry.run.id),
       attempt: String(entry.run.run_attempt),
       controller: entry.run.head_sha,

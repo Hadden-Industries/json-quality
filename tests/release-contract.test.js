@@ -2109,20 +2109,36 @@ test("signed source tags must be annotated, verified and name the original candi
   );
 });
 test("CodeQL gate uses exact-source native analyses and query inventories, including newest failures", () => {
-  const analyses = ["actions", "javascript-typescript"].map((language, id) => ({
+  const analyses = [
+    ["actions", "actions", "ubuntu-24.04", "/language:actions"],
+    [
+      "javascript-typescript",
+      "javascript-typescript",
+      "ubuntu-24.04",
+      "/language:javascript-typescript",
+    ],
+    ["python", "python", "ubuntu-24.04", "/language:python"],
+    ["cpp-linux", "c-cpp", "ubuntu-24.04", "/language:c-cpp/platform:linux"],
+    [
+      "cpp-windows",
+      "c-cpp",
+      "windows-2025",
+      "/language:c-cpp/platform:windows",
+    ],
+  ].map(([key, language, os, category], id) => ({
     id: id + 1,
     commit_sha: source,
     ref: "refs/heads/main",
-    category: `/language:${language}`,
+    category,
     analysis_key: ".github/workflows/security.yml:codeql",
-    environment: JSON.stringify({ language }),
+    environment: JSON.stringify({ key, language, os }),
     tool: { name: "CodeQL", version: "2.0.0" },
     error: "",
     warning: "",
     results_count: 0,
     rules_count: 1,
   }));
-  assert.equal(verifyCodeql(analyses, source).length, 2);
+  assert.equal(verifyCodeql(analyses, source).length, 5);
   for (const change of [
     (a) => a.pop(),
     (a) => (a[0].results_count = 1),
@@ -2136,7 +2152,7 @@ test("CodeQL gate uses exact-source native analyses and query inventories, inclu
   }
   assert.throws(() =>
     verifyCodeql(
-      [{ ...analyses[0], warning: "new failure" }, ...analyses],
+      [{ ...analyses[0], id: 100, warning: "new failure" }, ...analyses],
       source,
     ),
   );
