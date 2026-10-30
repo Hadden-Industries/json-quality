@@ -10,7 +10,7 @@ Qualified LTS majors: 22, 24, 26.
 Advance qualification for imminent LTS: 26.
 Other engine-compatible releases receive best-effort compatibility.
 
-Development/producer reference: 24.22.1.
+Development/producer reference: 26.13.0.
 Producer npm: 12.2.1; consumer qualification npm: 11.21.1.
 
 <!-- node-support:end -->

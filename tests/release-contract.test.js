@@ -176,11 +176,7 @@ const fixture = () => ({
       ...new Set([
         policy.minimum,
         ...policy.testedLtsMajors.map((major) =>
-          major === 22
-            ? "22.23.4"
-            : major === 26
-              ? "26.12.1"
-              : policy.reference,
+          major === 22 ? "22.23.4" : major === 26 ? "26.13.0" : "24.22.1",
         ),
         policy.reference,
       ]),

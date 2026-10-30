@@ -77,7 +77,7 @@ function fixture(attempt = 1, fork = false) {
     repo = { id: 11, full_name: repository, default_branch: "main" };
   const matrix = {
     os: [...nodeSupport.platforms],
-    node: ["22.13.0", "22.23.4", "24.22.1", "26.9.0"],
+    node: ["22.13.0", "22.23.4", "24.22.1", "26.13.0"],
   };
   const snapshot = {
     commit: sha("1"),
@@ -534,10 +534,10 @@ test("mixed hosted image builds reuse the same qualified platform and preserve t
     const f = fixture();
     for (const record of f.records) {
       record.host.imageVersion =
-        record.lane.os === "ubuntu-24.04" && record.lane.node === "26.9.0"
+        record.lane.os === "ubuntu-24.04" && record.lane.node === "26.13.0"
           ? "20261026.354.1"
           : "20261023.334.3";
-      if (record.lane.os === "windows-2025" && record.lane.node === "26.9.0")
+      if (record.lane.os === "windows-2025" && record.lane.node === "26.13.0")
         record.host.image = "win25-vs2026";
     }
     for (const host of f.hosts) host.imageVersion = mainVersion;
