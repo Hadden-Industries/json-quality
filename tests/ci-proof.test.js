@@ -20,6 +20,7 @@ import {
 import { nodeSupport } from "../scripts/node-matrix.js";
 import { pythonVersion } from "../scripts/ci-host.js";
 import { budgets } from "../scripts/qualification-budgets.js";
+import { nodeMatrixFixture } from "./node-matrix-fixture.js";
 
 const noWait = async () => {};
 
@@ -75,10 +76,7 @@ function performanceFixture(source, node, os, operation) {
 function fixture(attempt = 1, fork = false) {
   const now = Date.parse("2026-10-27T12:00:00Z"),
     repo = { id: 11, full_name: repository, default_branch: "main" };
-  const matrix = {
-    os: [...nodeSupport.platforms],
-    node: ["22.13.0", "22.23.4", "24.22.1", "26.13.0"],
-  };
+  const matrix = nodeMatrixFixture();
   const snapshot = {
     commit: sha("1"),
     tree: sha("2"),
@@ -534,10 +532,14 @@ test("mixed hosted image builds reuse the same qualified platform and preserve t
     const f = fixture();
     for (const record of f.records) {
       record.host.imageVersion =
-        record.lane.os === "ubuntu-24.04" && record.lane.node === "26.13.0"
+        record.lane.os === "ubuntu-24.04" &&
+        record.lane.node === nodeSupport.reference
           ? "20261026.354.1"
           : "20261023.334.3";
-      if (record.lane.os === "windows-2025" && record.lane.node === "26.13.0")
+      if (
+        record.lane.os === "windows-2025" &&
+        record.lane.node === nodeSupport.reference
+      )
         record.host.image = "win25-vs2026";
     }
     for (const host of f.hosts) host.imageVersion = mainVersion;
@@ -574,7 +576,7 @@ test("platform, runtime and image provenance remain mandatory for reuse", async 
     ["os", "Windows"],
     ["architecture", "ARM64"],
     ["python", "3.15.2"],
-    ["node", "26.10.0"],
+    ["node", "0.0.0"],
     ["npm", "12.2.1"],
     ["image", "ubuntu22"],
     ["image", "ubuntu24-slim"],
@@ -781,7 +783,7 @@ test("changed JSON/tree inputs, matrix, platform or absent lane reject reuse", a
     (value) => {
       value.matrix = {
         ...value.matrix,
-        node: [...value.matrix.node.slice(0, -1), "26.10.0"],
+        node: [...value.matrix.node.slice(0, -1), "0.0.0"],
       };
     },
     (value) => {

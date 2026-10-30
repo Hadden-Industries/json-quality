@@ -8,6 +8,7 @@ import {
 } from "../scripts/node-matrix.js";
 import { projectNodeSupport } from "../scripts/project-node-support.js";
 import { assertNativeNpmRuntime } from "../scripts/consumer-toolchain.js";
+import { nodeMatrixFixture } from "./node-matrix-fixture.js";
 
 test("consumer qualification refuses an unsupported native npm runtime before execution", () => {
   const npm = process.env.npm_execpath;
@@ -64,6 +65,34 @@ test("matrix refuses missing floor/reference/LTS metadata and malformed releases
     releases.map((r) => ({ ...r, lts: false })),
   ])
     assert.throws(() => qualificationMatrix(value, policy));
+});
+
+test("shared offline matrices retain floor, latest-family and changed reference lanes", () => {
+  assert.deepEqual(nodeMatrixFixture(policy), {
+    os: ["ubuntu-24.04", "windows-2025"],
+    node: ["22.13.0", "22.13.1", "24.21.0"],
+  });
+  const changed = {
+    ...policy,
+    testedLtsMajors: [22, 24, 26],
+    reference: "26.3.7",
+  };
+  assert.deepEqual(nodeMatrixFixture(changed), {
+    os: ["ubuntu-24.04", "windows-2025"],
+    node: ["22.13.0", "22.13.1", "24.0.0", "26.3.7"],
+  });
+});
+
+test("negative matrix mutations cannot change another fixture or its source policy", () => {
+  const originalPolicy = structuredClone(policy);
+  const first = nodeMatrixFixture(policy);
+  const second = nodeMatrixFixture(policy);
+  const originalSecond = structuredClone(second);
+  first.os.pop();
+  first.node.pop();
+  assert.deepEqual(second, originalSecond);
+  assert.deepEqual(policy, originalPolicy);
+  assert.notDeepEqual(first, second);
 });
 
 test("the explicit imminent-LTS selection includes Node 26 before its promotion", () => {

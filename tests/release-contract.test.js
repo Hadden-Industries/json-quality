@@ -93,6 +93,7 @@ import {
 } from "../scripts/release-evidence.js";
 import { PACKAGE_VERIFICATION_CAPABILITIES } from "../src/package-payload.js";
 import { nativePackages } from "../src/native-packages.js";
+import { nodeMatrixFixture } from "./node-matrix-fixture.js";
 
 const source = "a".repeat(40),
   sha = "b".repeat(64);
@@ -170,18 +171,7 @@ const fixture = () => ({
       ].map((path) => ({ path, size: 1, sha256: sha })),
     },
   })),
-  matrix: {
-    os: ["ubuntu-24.04", "windows-2025"],
-    node: [
-      ...new Set([
-        policy.minimum,
-        ...policy.testedLtsMajors.map((major) =>
-          major === 22 ? "22.23.4" : major === 26 ? "26.13.0" : "24.22.1",
-        ),
-        policy.reference,
-      ]),
-    ],
-  },
+  matrix: nodeMatrixFixture(policy),
   policy: structuredClone(policy),
   policySha256: sha,
   toolchain: { node: policy.reference, npm: policy.producerNpm.version },
