@@ -107,6 +107,26 @@ Original tarball/source qualification and publisher provenance retain their orig
 
 ## Stage and approve
 
+The rc.3 OwlAPI publication exposed a startup failure before the publisher's error handler loaded, followed by a recovery job trying to read a draft with a read-only token.
+JSON Quality keeps these boundaries explicit:
+
+- Every release job installs the frozen producer dependencies before running release commands.
+  The workflow checker rejects missing or conditional setup, later runtime replacement, incorrect draft permissions and lost failure uploads.
+- Stage, archive and promotion workflows enter through `scripts/release-command.js`.
+  Its startup records load without installed npm packages.
+  An import failure preserves the original failure and seals a `no-request` marker for the same manifest/controller/run/attempt.
+  Existing request bytes or a changed manifest refuse that marker; an unknown outcome still requires reconciliation.
+- Draft reads stay in the GitHub writer under its protected environment.
+  Read-only admission uses the exact dispatched owner decision and native qualification artifacts.
+  A draft hidden from a read-only token is not evidence that it was deleted or is safe to recreate.
+
+The frozen package's source and signed tag retain their qualification identity when a separately reviewed controller is repaired.
+Do not move the tag, repack the version or repeat an unknown write to recover a failed controller.
+Keep the original failed run and reuse only its still-valid scoped evidence.
+
+OwlAPI's scanner-observation refresh and bundled artifact-action lock binding have no equivalent generated inputs here.
+This pipeline uses its native package and audit records rather than introducing those additional release gates.
+
 Dispatch `stage-release.yml` with `qualification_run`, `qualification_attempt`, `manifest_sha`, `review_sha`, and the exact decision text in `review_json`.
 Start staging within 30 days of qualification, while the producer archive, recipient reports and security evidence remain available.
 Expired qualification inputs require fresh qualification; a green historical run cannot replace their bytes.

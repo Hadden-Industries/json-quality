@@ -111,7 +111,7 @@
     "release:inventory": "node scripts/release-inventory.js",
     "release:security": "node scripts/release-security.js",
     "release:admit": "node scripts/release-evidence.js",
-    "release:effect": "node scripts/release-effects.js",
+    "release:effect": "node scripts/release-command.js",
     "release:registry": "node scripts/qualify-registry.js",
     "release:collect": "node scripts/release-registry-evidence.js",
     "pack:archive": "node scripts/pack.js",

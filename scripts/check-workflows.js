@@ -124,6 +124,75 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     "Scan outputs are not production components",
   );
   const promotion = workflows.get("./.github/workflows/promote-release.yml");
+  const producerSteps = actions.get("./.github/actions/setup-producer")?.runs
+    .steps;
+  assert.ok(
+    producerSteps?.some(
+      (step) => step.run === "npm run ci:install" && !step.if,
+    ),
+    "Release producer must install its frozen dependencies unconditionally",
+  );
+  assert.equal(
+    read("package.json").scripts["release:effect"],
+    "node scripts/release-command.js",
+    "Release effects must retain startup failures",
+  );
+  for (const [path, writer, environment] of [
+    ["stage-release.yml", "stage", "npm-publication"],
+    ["github-release.yml", "archive", "github-archival"],
+    ["promote-release.yml", "github", "github-release"],
+  ]) {
+    const workflow = workflows.get(`./.github/workflows/${path}`);
+    assert.equal(workflow.jobs[writer].environment, environment);
+    for (const [name, job] of Object.entries(workflow.jobs)) {
+      const steps = job.steps ?? [],
+        setup = steps.findIndex(
+          (step) => step.uses === "./.github/actions/setup-producer",
+        );
+      assert.ok(
+        setup >= 0 && !steps[setup].if,
+        `${path}/${name}: release dependency setup is required`,
+      );
+      assert.equal(
+        job.permissions.contents,
+        name === writer && writer !== "stage" ? "write" : "read",
+        `${path}/${name}: draft visibility belongs to the GitHub writer`,
+      );
+      assert.ok(
+        !steps
+          .slice(0, setup)
+          .some(
+            (step) => step.run || step.uses?.startsWith("./.github/actions/"),
+          ),
+        `${path}/${name}: release commands must follow dependency setup`,
+      );
+      assert.ok(
+        !steps
+          .slice(setup + 1)
+          .some((step) => step.uses?.startsWith("actions/setup-node@")),
+        `${path}/${name}: publisher runtime must remain the installed producer`,
+      );
+      const effect = steps.findIndex(
+        (step) => step.name === "Apply admitted release effect",
+      );
+      if (effect < 0) continue;
+      if (writer !== "github")
+        assert.ok(
+          steps[effect].run.startsWith(`npm run release:effect -- ${writer} `),
+          `${path}: effect must use the startup-safe dispatcher`,
+        );
+      assert.ok(
+        steps
+          .slice(effect + 1)
+          .some(
+            (step) =>
+              step.uses === "./.github/actions/upload-evidence" &&
+              step.if === "always()",
+          ),
+        `${path}/${name}: failed publisher evidence must be retained`,
+      );
+    }
+  }
   assert.deepEqual(Object.keys(promotion.jobs).sort(), [
     "admit",
     "complete",
@@ -164,7 +233,9 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         (step) => step.name === "Apply admitted release effect",
       );
       assert.ok(
-        effect.run.startsWith(`node scripts/promote-${service}.js `),
+        effect.run.startsWith(
+          `node scripts/release-command.js promote-${service} `,
+        ),
         "Wrong service dispatcher",
       );
       assert.ok(

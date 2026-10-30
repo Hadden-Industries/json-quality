@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseDocument } from "yaml";
 import { gh } from "../scripts/release-provider.js";
 import { budgets } from "../scripts/qualification-budgets.js";
 import { downloadEvidence } from "../scripts/download-evidence.js";
@@ -243,6 +244,112 @@ test("workflow contracts reject reuse proof whose producer expires before the pr
       }),
     /retention/,
   );
+});
+
+test("release contracts reject missing setup, wrong draft authority and lost failure evidence before publication", () => {
+  const cases = [
+    [
+      ".github/actions/setup-producer/action.yml",
+      (doc) => {
+        doc.runs.steps = doc.runs.steps.filter(
+          (step) => step.run !== "npm run ci:install",
+        );
+      },
+      /frozen dependencies/u,
+    ],
+    [
+      "package.json",
+      (doc) => {
+        doc.scripts["release:effect"] = "node scripts/release-effects.js";
+      },
+      /startup failures/u,
+    ],
+  ];
+  for (const [workflow, writer] of [
+    ["stage-release.yml", "stage"],
+    ["github-release.yml", "archive"],
+    ["promote-release.yml", "npm"],
+  ]) {
+    const path = `.github/workflows/${workflow}`;
+    cases.push(
+      [
+        path,
+        (doc) => {
+          doc.jobs[writer].steps = doc.jobs[writer].steps.filter(
+            (step) => step.uses !== "./.github/actions/setup-producer",
+          );
+        },
+        /dependency setup/u,
+      ],
+      [
+        path,
+        (doc) => {
+          doc.jobs[writer].steps.find(
+            (step) => step.uses === "./.github/actions/setup-producer",
+          ).if = "false";
+        },
+        /dependency setup/u,
+      ],
+      [
+        path,
+        (doc) => {
+          const steps = doc.jobs[writer].steps;
+          steps.unshift(
+            steps.splice(
+              steps.findIndex(
+                (step) => step.name === "Apply admitted release effect",
+              ),
+              1,
+            )[0],
+          );
+        },
+        /follow dependency setup/u,
+      ],
+      [
+        path,
+        (doc) => {
+          doc.jobs[writer].steps.push({
+            uses: "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+            with: { "node-version": "22.13.0" },
+          });
+        },
+        /installed producer/u,
+      ],
+      [
+        path,
+        (doc) => {
+          doc.jobs[writer].steps.find(
+            (step) => step.uses === "./.github/actions/upload-evidence",
+          ).if = "success()";
+        },
+        /failed publisher evidence/u,
+      ],
+    );
+  }
+  for (const [workflow, job, permission] of [
+    ["stage-release.yml", "stage", "write"],
+    ["github-release.yml", "admit", "write"],
+    ["github-release.yml", "archive", "read"],
+  ]) {
+    cases.push([
+      `.github/workflows/${workflow}`,
+      (doc) => {
+        doc.jobs[job].permissions.contents = permission;
+      },
+      /draft visibility/u,
+    ]);
+  }
+  for (const [path, mutate, message] of cases) {
+    const doc = parseDocument(
+      readFileSync(new URL(`../${path}`, import.meta.url), "utf8"),
+    ).toJS();
+    mutate(doc);
+    assert.throws(
+      () => checkWorkflows({ overrides: { [path]: JSON.stringify(doc) } }),
+      message,
+      path,
+    );
+  }
 });
 
 test("restoration reads actual bundled output and historical flat proof with exact member identities", (t) => {

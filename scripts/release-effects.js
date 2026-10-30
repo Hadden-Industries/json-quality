@@ -44,6 +44,8 @@ import { verifyNativeAssets } from "./release-asset-verification.js";
 import { verifyReleaseAttestation } from "./release-attestation-readiness.js";
 import { bundleReleaseAssets, verifyDraftAssets } from "./release-assets.js";
 export { verifyDraftAssets } from "./release-assets.js";
+import { recordNoRequest } from "./release-records.js";
+export { recordNoRequest };
 
 export function journalEffect(
   path,
@@ -624,32 +626,6 @@ export function archive(directory, scratch, env = process.env) {
   });
   completeSelectedAvailability(directory, scratch, release, env);
 }
-export function recordNoRequest(directory, phase, env) {
-  const origin = {
-    run: env.GITHUB_RUN_ID,
-    attempt: env.GITHUB_RUN_ATTEMPT,
-    ...(env.PROMOTION_SERVICE ? { service: env.PROMOTION_SERVICE } : {}),
-  };
-  assert.ok(
-    !existsSync(join(directory, effectJournal(phase, origin))) ||
-      regularBytes(join(directory, effectJournal(phase, origin))).length === 0,
-    "No-request marker conflicts with a request journal",
-  );
-  const path = join(
-      directory,
-      `no-effect-${phase}${origin.service ? `-${origin.service}` : ""}-${origin.run}-${origin.attempt}.json`,
-    ),
-    marker = {
-      schemaVersion: 1,
-      state: "no-request",
-      phase,
-      ...origin,
-      controller: env.GITHUB_SHA,
-      manifestSha256: env.MANIFEST_SHA,
-    };
-  if (existsSync(path)) assert.deepEqual(readJson(path), marker);
-  else save(path, marker);
-}
 function completeSelectedAvailability(
   directory,
   scratch,
@@ -828,29 +804,31 @@ export function applyAvailability(
   return { plan, completed: verifyCompletion() };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  assert.equal(process.argv.length, 5);
-  const [phase, directory, scratch] = process.argv.slice(2);
+export function runReleaseEffect(phase, directory, scratch, env = process.env) {
   assert.ok(
     ["stage", "archive"].includes(phase),
     "Promotion requires the service-specific entry point",
   );
   mkdirSync(scratch, { recursive: true });
   try {
-    verifyBundle(directory, process.env.MANIFEST_SHA);
-    ({ stage, archive })[phase](directory, scratch);
+    verifyBundle(directory, env.MANIFEST_SHA);
+    ({ stage, archive })[phase](directory, scratch, env);
   } catch (error) {
     const journal = join(
       directory,
       effectJournal(phase, {
-        run: process.env.GITHUB_RUN_ID,
-        attempt: process.env.GITHUB_RUN_ATTEMPT,
+        run: env.GITHUB_RUN_ID,
+        attempt: env.GITHUB_RUN_ATTEMPT,
       }),
     );
     if (!existsSync(journal) || !regularBytes(journal).length)
-      recordNoRequest(directory, phase, process.env);
+      recordNoRequest(directory, phase, env);
     throw error;
   } finally {
-    sealBundle(directory, process.env.MANIFEST_SHA);
+    sealBundle(directory, env.MANIFEST_SHA);
   }
+}
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  assert.equal(process.argv.length, 5);
+  runReleaseEffect(...process.argv.slice(2));
 }

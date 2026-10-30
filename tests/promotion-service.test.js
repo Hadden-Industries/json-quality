@@ -633,7 +633,10 @@ test("workflow validation rejects privilege recombination, wrong dispatchers and
         "environment: github-release\n    permissions:\n      id-token: write",
       ),
     (value) =>
-      value.replace("scripts/promote-npm.js", "scripts/promote-github.js"),
+      value.replace(
+        "scripts/release-command.js promote-npm",
+        "scripts/release-command.js promote-github",
+      ),
     (value) => value.replace("if: always()", "if: success()"),
   ]) {
     const changed = change(original);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Thin native GitHub reader; pagination completeness is an admission requirement. */
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { native, budgets } from "./qualification-process.js";
@@ -9,17 +9,16 @@ import { sameJobExecution } from "./github-job-execution.js";
 import {
   repository,
   regularBytes,
-  releaseArtifactBytes,
   save,
   sha256,
   workflows,
-  jsonBytes,
   effectJournal,
   readJson,
   verifyRun,
   retainedRecoveries,
   releaseTransportMaximumBytes,
 } from "./release-contract.js";
+export { evidenceIndex, sealBundle } from "./release-records.js";
 
 /** Native mutations remain one-shot; only their time budget follows the payload. */
 export function gh(args, options = {}, invoke = native) {
@@ -761,37 +760,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     })),
   });
 }
-/** Index only bounded ordinary files; artifact consumers name each retained member. */
-export function evidenceIndex(directory) {
-  const entries = readdirSync(directory, {
-    recursive: true,
-    withFileTypes: true,
-  });
-  assert.ok(
-    entries.every((entry) => entry.isFile() || entry.isDirectory()),
-    "Linked or unsupported evidence entry",
-  );
-  const files = entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => {
-      const full = join(entry.parentPath, entry.name),
-        name = full.slice(directory.length + 1).replaceAll("\\", "/");
-      const bytes = releaseArtifactBytes(full);
-      return { name, sha256: sha256(bytes), size: bytes.length };
-    });
-  assert.ok(files.length <= 4096);
-  return files;
-}
 export function recordProvider(directory, name, value) {
   save(join(directory, name), value);
-}
-export function sealBundle(directory, manifestSha) {
-  const files = evidenceIndex(directory).filter(
-    ({ name }) => name !== "evidence-index.json",
-  );
-  writeFileSync(
-    join(directory, "evidence-index.json"),
-    jsonBytes({ schemaVersion: 1, manifestSha256: manifestSha, files }),
-    { flush: true },
-  );
 }

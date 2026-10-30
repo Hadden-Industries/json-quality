@@ -116,7 +116,7 @@ jobs:
         id: npm
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/promote-npm.js "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
+        run: node scripts/release-command.js promote-npm "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         if: always()
@@ -153,7 +153,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NPM_CONTINUATION_ID: ${{ needs.npm.outputs.artifact-id }}
-        run: node scripts/promote-github.js "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
+        run: node scripts/release-command.js promote-github "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         if: always()
