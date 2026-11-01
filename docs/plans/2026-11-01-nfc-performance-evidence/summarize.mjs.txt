@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root = dirname(fileURLToPath(import.meta.url));
+const results = JSON.parse(readFileSync(join(root, 'results-google-ascii-unicode-nfc-unicode-nfd.json'), 'utf8'));
+const manifest = JSON.parse(readFileSync(join(root, 'corpus.json'), 'utf8'));
+const median = values => { const a = [...values].sort((a,b) => a-b); return a[Math.floor(a.length/2)]; };
+const summarize = values => ({ median: median(values), min: Math.min(...values), max: Math.max(...values) });
+const rows = [];
+for (const workload of ['google','ascii','unicode-nfc','unicode-nfd']) {
+  const measured = results.runs.filter(r => r.workload === workload && !r.warmup);
+  for (let round=0;round<7;round++) {
+    const a = measured.find(r => r.round===round && r.normalization==='default');
+    const b = measured.find(r => r.round===round && r.normalization==='NFC');
+    assert.deepEqual(a.findings,b.findings); assert.deepEqual(a.terminals,b.terminals); assert.deepEqual(a.identity,b.identity);
+  }
+  const row = {workload, modes:{}};
+  for (const mode of ['default','NFC','preserve']) {
+    const samples = measured.filter(r => r.normalization===mode);
+    assert.equal(samples.length,7);
+    row.modes[mode] = Object.fromEntries(['checkMs','processWallMs','cpuMs','peakRss','processMaxRssBytes','managedPeakBytes','scratchPeakBytes'].map(key => [key,summarize(samples.map(r => Number(r[key])))]));
+    row.modes[mode].findings = samples[0].findings;
+    row.modes[mode].terminals = samples[0].terminals;
+  }
+  for (const [label,from,to] of [['nfcVsPreserve','preserve','NFC'],['explicitVsDefault','default','NFC']]) {
+    const delta = [];
+    for(let round=0;round<7;round++) delta.push(measured.find(r=>r.round===round && r.normalization===to).checkMs-measured.find(r=>r.round===round && r.normalization===from).checkMs);
+    row[label] = { checkMedianDeltaMs:row.modes[to].checkMs.median-row.modes[from].checkMs.median, checkRatio: row.modes[to].checkMs.median/row.modes[from].checkMs.median, pairedDeltaMs:summarize(delta) };
+  }
+  rows.push(row);
+}
+const summary = { created: new Date().toISOString(), source:results.source, consumer:results.consumer, node:results.node.node, nodeIcu:results.node.icu,nodeUnicode:results.node.unicode, cpu:results.cpu,logicalCpus:results.logicalCpus, nativeIdentity:results.runs[0].identity, sourceBytesUnchanged:results.sourceBytesUnchanged, corpus:{files:manifest.files.length,bytes:manifest.bytes,census:manifest.census},rows };
+writeFileSync(join(root,'summary.json'),JSON.stringify(summary,null,2)+'\n');
+console.log(JSON.stringify(summary));

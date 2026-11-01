@@ -1,0 +1,798 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-01T20:53:30.681Z",
+  "source": {
+    "root": "C:/Users/maksy/GitHub/json-quality",
+    "commit": "3d4db7106b44e226607ceee6500258c9b94e14cd"
+  },
+  "consumer": {
+    "root": "C:/Users/maksy/GitHub/google",
+    "commit": "74b07e95bd8988117db9c02157291e83339c9417",
+    "status": ""
+  },
+  "exclusionRegex": "(^|\\/)(node_modules|\\.git|dist|build|coverage|vendor)(\\/|$)|fixture|malformed|invalid|oracle|frozen|(^|\\/)(package-lock|npm-shrinkwrap|yarn-lock|pnpm-lock)\\.json$|\\.(map|min)\\.json$",
+  "files": [
+    {
+      "path": ".markdown-quality-execution.json",
+      "snapshot": "snapshot/0000.json",
+      "bytes": 955,
+      "sha256": "5a4e40b30cc43c6cf1bee76caa4e33ddc0d797531fd1f4545c0ec2a46bad24b3",
+      "rawNonAscii": false
+    },
+    {
+      "path": ".markdown-quality-runtimes.json",
+      "snapshot": "snapshot/0001.json",
+      "bytes": 46,
+      "sha256": "0e57f922d1f0bd943a995c87d8f4db2e69e3fada5566ab916553ead26da69227",
+      "rawNonAscii": false
+    },
+    {
+      "path": ".markdown-quality.json",
+      "snapshot": "snapshot/0002.json",
+      "bytes": 582,
+      "sha256": "741d19e4b1771e7b907603baffaf818ac02ff84a58c790008981f6f0d3f7ec39",
+      "rawNonAscii": false
+    },
+    {
+      "path": "android/photos-original-verifier/app/schemas/com.haddenindustries.photosoriginalverifier.data.local.OriginalMediaEvidenceDatabase/1.json",
+      "snapshot": "snapshot/0003.json",
+      "bytes": 21092,
+      "sha256": "514ef97e136ffe933edf7425f679a421fb99bc34ff89ed5ab9956d2454379d2a",
+      "rawNonAscii": false
+    },
+    {
+      "path": "android/photos-original-verifier/docs/evidence-manifest.schema.json",
+      "snapshot": "snapshot/0004.json",
+      "bytes": 5742,
+      "sha256": "f9a32332d19af3c8b08b2a4596656cd336328f98e6bd1f6a5eb7bdad13811da5",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/am/messages.json",
+      "snapshot": "snapshot/0005.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/ar/messages.json",
+      "snapshot": "snapshot/0006.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/bg/messages.json",
+      "snapshot": "snapshot/0007.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/bn/messages.json",
+      "snapshot": "snapshot/0008.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/ca/messages.json",
+      "snapshot": "snapshot/0009.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/cs/messages.json",
+      "snapshot": "snapshot/0010.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/da/messages.json",
+      "snapshot": "snapshot/0011.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/de/messages.json",
+      "snapshot": "snapshot/0012.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/el/messages.json",
+      "snapshot": "snapshot/0013.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/en/messages.json",
+      "snapshot": "snapshot/0014.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/en_GB/messages.json",
+      "snapshot": "snapshot/0015.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/en_US/messages.json",
+      "snapshot": "snapshot/0016.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/es/messages.json",
+      "snapshot": "snapshot/0017.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/es_419/messages.json",
+      "snapshot": "snapshot/0018.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/et/messages.json",
+      "snapshot": "snapshot/0019.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/fa/messages.json",
+      "snapshot": "snapshot/0020.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/fi/messages.json",
+      "snapshot": "snapshot/0021.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/fil/messages.json",
+      "snapshot": "snapshot/0022.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/fr/messages.json",
+      "snapshot": "snapshot/0023.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/gu/messages.json",
+      "snapshot": "snapshot/0024.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/he/messages.json",
+      "snapshot": "snapshot/0025.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/hi/messages.json",
+      "snapshot": "snapshot/0026.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/hr/messages.json",
+      "snapshot": "snapshot/0027.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/hu/messages.json",
+      "snapshot": "snapshot/0028.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/id/messages.json",
+      "snapshot": "snapshot/0029.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/it/messages.json",
+      "snapshot": "snapshot/0030.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/ja/messages.json",
+      "snapshot": "snapshot/0031.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/kn/messages.json",
+      "snapshot": "snapshot/0032.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/ko/messages.json",
+      "snapshot": "snapshot/0033.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/lt/messages.json",
+      "snapshot": "snapshot/0034.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/lv/messages.json",
+      "snapshot": "snapshot/0035.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/ml/messages.json",
+      "snapshot": "snapshot/0036.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/mr/messages.json",
+      "snapshot": "snapshot/0037.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/ms/messages.json",
+      "snapshot": "snapshot/0038.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/nl/messages.json",
+      "snapshot": "snapshot/0039.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/no/messages.json",
+      "snapshot": "snapshot/0040.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/pl/messages.json",
+      "snapshot": "snapshot/0041.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/pt_BR/messages.json",
+      "snapshot": "snapshot/0042.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/pt_PT/messages.json",
+      "snapshot": "snapshot/0043.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/ro/messages.json",
+      "snapshot": "snapshot/0044.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/ru/messages.json",
+      "snapshot": "snapshot/0045.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/sk/messages.json",
+      "snapshot": "snapshot/0046.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/sl/messages.json",
+      "snapshot": "snapshot/0047.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/sr/messages.json",
+      "snapshot": "snapshot/0048.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/sv/messages.json",
+      "snapshot": "snapshot/0049.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/sw/messages.json",
+      "snapshot": "snapshot/0050.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/ta/messages.json",
+      "snapshot": "snapshot/0051.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/te/messages.json",
+      "snapshot": "snapshot/0052.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/th/messages.json",
+      "snapshot": "snapshot/0053.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/tr/messages.json",
+      "snapshot": "snapshot/0054.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/uk/messages.json",
+      "snapshot": "snapshot/0055.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/vi/messages.json",
+      "snapshot": "snapshot/0056.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/zh_CN/messages.json",
+      "snapshot": "snapshot/0057.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/_locales/zh_TW/messages.json",
+      "snapshot": "snapshot/0058.json",
+      "bytes": 155,
+      "sha256": "3fe839d5454911ed2f4a08c79e9783849c58216beb4e5c0ded6f189a1674394e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/3.13.2_0/manifest.json",
+      "snapshot": "snapshot/0059.json",
+      "bytes": 1988,
+      "sha256": "d0b24b803857dc958f4556d914fe46c1dacd0cd803e990f41c2f5acf1b8140b1",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/extension.build.json",
+      "snapshot": "snapshot/0060.json",
+      "bytes": 862,
+      "sha256": "c91d605db8b64ca5b8d643cbc1fe5c5701c61bd3b549c571d5941a99033fefb3",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/src/_locales/en/messages.json",
+      "snapshot": "snapshot/0061.json",
+      "bytes": 117,
+      "sha256": "c2046b5d78b48d558675040dcced6b1f4216822c26365d3165550d7b86786cc5",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/src/manifest.json",
+      "snapshot": "snapshot/0062.json",
+      "bytes": 1319,
+      "sha256": "a3c2165289c7b5eea99750d3e1206e10b12036a16ebfa284e878c02f862f5c0d",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/src/protocol/archive/records.schema.json",
+      "snapshot": "snapshot/0063.json",
+      "bytes": 3051,
+      "sha256": "2c20ca102bb7eba4cbfcd7a7f4053354e0e83a024217ddfc92546f8a5a305df8",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/src/protocol/catalog/export.schema.json",
+      "snapshot": "snapshot/0064.json",
+      "bytes": 7346,
+      "sha256": "f86151e6ce34f2e6fe8fc4c6a8d91e979cec8c7d6788e28ac8620b2ba0ca2726",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/src/protocol/catalog/provider-node.schema.json",
+      "snapshot": "snapshot/0065.json",
+      "bytes": 2689,
+      "sha256": "05bc7616c19b2037ff41fe36c77fd0a88611d249e0bff9d1314e0d9bdbeb234f",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/src/protocol/native/reply.schema.json",
+      "snapshot": "snapshot/0066.json",
+      "bytes": 4131,
+      "sha256": "9e583a11d800e086ab4cd46bddfcb5ec764e8818962dbf96b90951a4173ceef0",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/src/protocol/native/request.schema.json",
+      "snapshot": "snapshot/0067.json",
+      "bytes": 3654,
+      "sha256": "ec5d5768832583b1d5c3b66319b23bed2914dfdeef360e70ce7119e6185d2ec2",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Instagram Archiver/src/protocol/settings-request.schema.json",
+      "snapshot": "snapshot/0068.json",
+      "bytes": 3569,
+      "sha256": "ad06759305532f526ea1cb4a9bf3bcf26a84291d0b5063034d6625153bdc3f60",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/extension.build.json",
+      "snapshot": "snapshot/0069.json",
+      "bytes": 529,
+      "sha256": "c736e51b276f2891a3b7d21550859f908d55f6fb292406574152cf2d19aac521",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/iso-31073.compatibility.generated.report.json",
+      "snapshot": "snapshot/0070.json",
+      "bytes": 76595,
+      "sha256": "a76da21bc8a290eab7feeed66a5904949a34676df2962b798547e7a5832e198e",
+      "rawNonAscii": true
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/iso-31073.compatibility.generated.triples.json",
+      "snapshot": "snapshot/0071.json",
+      "bytes": 372519,
+      "sha256": "1e4d8ef48593a8ff9c4685c6e68b71945b1d676368ce4a1515afce17eb57e595",
+      "rawNonAscii": true
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/iso-31073.compatibility.json",
+      "snapshot": "snapshot/0072.json",
+      "bytes": 4801,
+      "sha256": "c785c5dec503f2d77aa0edb5fb05ad6de37fbc35a8d979b952c5e730aa0e613e",
+      "rawNonAscii": true
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/iso-31073.resource-sources.generated.report.json",
+      "snapshot": "snapshot/0073.json",
+      "bytes": 76597,
+      "sha256": "c20d8319bf743a09f2e395260e5d8e198d520aa8090108c58009394a2f832180",
+      "rawNonAscii": true
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/iso-31073.resource-sources.generated.triples.json",
+      "snapshot": "snapshot/0074.json",
+      "bytes": 382289,
+      "sha256": "3da88563234be2e674d7bd29139fd92d643e2262775f6cfbc18cdfe2c8b1bef3",
+      "rawNonAscii": true
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/iso-31073.resource-sources.json",
+      "snapshot": "snapshot/0075.json",
+      "bytes": 4803,
+      "sha256": "0a6886ec4cd054f0b5d92ea4e0497203cff62889fdf87b68a35b473b71a35ba7",
+      "rawNonAscii": true
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/package.json",
+      "snapshot": "snapshot/0076.json",
+      "bytes": 548,
+      "sha256": "e6a5841874b8aad5ff614feeff2e19175fad4df12180f838ca356c5b26920242",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/schemas/protocol-message.schema.json",
+      "snapshot": "snapshot/0077.json",
+      "bytes": 2848,
+      "sha256": "a1fef3255251df1149265f54fd5011920e661012f7778b4cacfdb9d1afe301c4",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/src/manifest.json",
+      "snapshot": "snapshot/0078.json",
+      "bytes": 920,
+      "sha256": "0ba1ba69921e300bccaba828442815de78ac890eae95cc21a4875a7dd2e049ad",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/test-results.chromium.json",
+      "snapshot": "snapshot/0079.json",
+      "bytes": 5517,
+      "sha256": "d3f42b61c2934136686c414532b7e188bd6d4e424e4c9dc36b4b419a49d91498",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/test-results.standalone.json",
+      "snapshot": "snapshot/0080.json",
+      "bytes": 381,
+      "sha256": "f7f1c98b69897e6a45da33a260aebcb93dc15ea4346719c1016925c7ab385a1e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/Terminological Entries to OWL/validation-report.json",
+      "snapshot": "snapshot/0081.json",
+      "bytes": 6607,
+      "sha256": "54135db0449561403cd2eb752511dc03d05a559c7087e26b56a10e2fd894a967",
+      "rawNonAscii": true
+    },
+    {
+      "path": "chrome/extensions/URN Dereferencer/src/manifest.json",
+      "snapshot": "snapshot/0082.json",
+      "bytes": 608,
+      "sha256": "16a4b1314ce79dfecc7749743669c24ebafc483495d300b2fb2115fc9c9012c7",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/docs/acceptance/instagram-archiver-baseline-inventory.json",
+      "snapshot": "snapshot/0083.json",
+      "bytes": 13212,
+      "sha256": "b69890856e8f823076a1d956eecb112d580462f86b3114dc909c6372500bc65f",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/docs/acceptance/instagram-archiver-native-remuxer-performance.json",
+      "snapshot": "snapshot/0084.json",
+      "bytes": 901032,
+      "sha256": "00cb6e9563c28d3370bdb50d0523ec853fb6a087c405d78be2797a6662fa9cbb",
+      "rawNonAscii": true
+    },
+    {
+      "path": "chrome/extensions/docs/acceptance/release-evidence-1.0.0.json",
+      "snapshot": "snapshot/0085.json",
+      "bytes": 11856,
+      "sha256": "8abd2f88ce537620c720a028858a0231532878a3d842c0a0ca87bb50e46dab8f",
+      "rawNonAscii": true
+    },
+    {
+      "path": "chrome/extensions/native/InstagramArchiver.NativeWriter/global.json",
+      "snapshot": "snapshot/0086.json",
+      "bytes": 105,
+      "sha256": "bd2f7421218da3954279a68a63015aeabda5b7122ec8b47a2f7585b7e284a98d",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/package.json",
+      "snapshot": "snapshot/0087.json",
+      "bytes": 3020,
+      "sha256": "f778543a9d83fea7229d9a3aaf9dd4f6218e84d4d8066d5a9419c50dfbda7fd1",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/packages/terminological-entries-to-owl/package.json",
+      "snapshot": "snapshot/0088.json",
+      "bytes": 827,
+      "sha256": "4d50faca8bdc6427aa987236a6e34e64fa56ee59c59aa33b42a48155ba7a549a",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/packages/terminological-entries-to-owl/profiles/generic-sts-literal.json",
+      "snapshot": "snapshot/0089.json",
+      "bytes": 993,
+      "sha256": "25e4669978cb03a534d77e0b2551eb687627ae08564def5f73a033098fc15894",
+      "rawNonAscii": true
+    },
+    {
+      "path": "chrome/extensions/packages/terminological-entries-to-owl/profiles/generic-sts-resource.json",
+      "snapshot": "snapshot/0090.json",
+      "bytes": 1171,
+      "sha256": "1ced840a6270aa5ecd53cf83f32ce64d5627d276f9c116d435b02208437cc067",
+      "rawNonAscii": true
+    },
+    {
+      "path": "chrome/extensions/packages/terminological-entries-to-owl/schemas/extracted-terminology-document.schema.json",
+      "snapshot": "snapshot/0091.json",
+      "bytes": 6083,
+      "sha256": "e208afc2eb23b5935ec41697eb8fbbc6026eff06eea6f0fe95e28c55e1f08dec",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/packages/terminological-entries-to-owl/schemas/extraction-report.schema.json",
+      "snapshot": "snapshot/0092.json",
+      "bytes": 4353,
+      "sha256": "f4f6ea0589c2521986e1dbd4fc7a2f6aa733d46d36b26dfaf3abcb969eb7ddd7",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/packages/terminological-entries-to-owl/schemas/output-configuration.schema.json",
+      "snapshot": "snapshot/0093.json",
+      "bytes": 1841,
+      "sha256": "e0289948742882d942bbc313e6c6c26c25d952dc602defa12f47bad1f95c710b",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/packages/terminological-entries-to-owl/schemas/profile.schema.json",
+      "snapshot": "snapshot/0094.json",
+      "bytes": 3926,
+      "sha256": "bc1b64b7877f510c4a893a14d47f6ce23405af8be266c186a2cd60b7ebc9d171",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/packages/terminological-entries-to-owl/schemas/terminology-section-snapshot.schema.json",
+      "snapshot": "snapshot/0095.json",
+      "bytes": 2657,
+      "sha256": "de9e897f6f883523bf2fc1c34974e7e6c60faa58b81b93fb6222b7ea39464b94",
+      "rawNonAscii": false
+    },
+    {
+      "path": "chrome/extensions/tests/instagram-archiver-native/global.json",
+      "snapshot": "snapshot/0096.json",
+      "bytes": 105,
+      "sha256": "4e7d5022b2a5a8d02bb951bb264a4c8613eabc332572a0af5f9743d23f23d84e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "docs/plans/2026-10-12-markdown-quality-centralization-route.json",
+      "snapshot": "snapshot/0097.json",
+      "bytes": 2667,
+      "sha256": "010814b654454c5c6a25f5dbcffbfb53c3647922cd7c1ef2dbde735cc2faf8e7",
+      "rawNonAscii": false
+    },
+    {
+      "path": "package.json",
+      "snapshot": "snapshot/0098.json",
+      "bytes": 1014,
+      "sha256": "8f1bfe7a709f84e269c4fb8b0ba539a4c2c686d0747924a551346f1b585887e2",
+      "rawNonAscii": false
+    },
+    {
+      "path": "photos/google-photos-drive-cleaner/package.json",
+      "snapshot": "snapshot/0099.json",
+      "bytes": 443,
+      "sha256": "2c2642e0ecad235a089688ea5f4ab73fdb1d72a9585009d2f01a8c449191d4c4",
+      "rawNonAscii": false
+    },
+    {
+      "path": "repository-skills.json",
+      "snapshot": "snapshot/0100.json",
+      "bytes": 182,
+      "sha256": "0a450b96c70a7b242b612c4b7f6dcf8af873374465cbae95f6103f10e2ebd01e",
+      "rawNonAscii": false
+    },
+    {
+      "path": "scripts/dev-dependencies.json",
+      "snapshot": "snapshot/0101.json",
+      "bytes": 1252,
+      "sha256": "7c132f2000e8be61a4efdfc5a93189cdd53ddcc6ef4efd498f1d90ad95b461ae",
+      "rawNonAscii": false
+    },
+    {
+      "path": "skills-lock.json",
+      "snapshot": "snapshot/0102.json",
+      "bytes": 3354,
+      "sha256": "a6d92376de929743ba9a9e2f3c53da30004eeb353bdb4926f4aaf2fc785e4ca3",
+      "rawNonAscii": false
+    },
+    {
+      "path": "tooling/markdown/package.json",
+      "snapshot": "snapshot/0103.json",
+      "bytes": 1012,
+      "sha256": "9085de01f0d3a1d2521fc77030f40dfd25a93e407092f5c174bf17b1f15018cb",
+      "rawNonAscii": false
+    },
+    {
+      "path": "tooling/markdown/source.json",
+      "snapshot": "snapshot/0104.json",
+      "bytes": 1405,
+      "sha256": "ae529dd11afbf788a9fc3ef70905460eaf49eab97768d93c57090238123cb16c",
+      "rawNonAscii": false
+    }
+  ],
+  "bytes": 1963585,
+  "census": {
+    "parseableFiles": 105,
+    "parseFailures": 0,
+    "stringsAndKeys": 68512,
+    "nonAsciiStringsAndKeys": 237,
+    "nonNfcStringsAndKeys": 0,
+    "filesWithNonAscii": 11,
+    "filesWithNonNfc": 0,
+    "normalizedKeyCollisionObjects": 0,
+    "disclaimer": "Descriptive JSON.parse census only; duplicate decoded keys collapse and numbers are converted. Native checker, not this census, owns correctness."
+  },
+  "synthetic": [
+    {
+      "name": "ascii",
+      "files": [
+        {
+          "path": "ascii.json",
+          "snapshot": "snapshot/ascii.json",
+          "bytes": 330169,
+          "sha256": "02ad0caf2fb7af68e667f7fabaa8c945093c5477505430b89966ac58806c6286"
+        }
+      ]
+    },
+    {
+      "name": "unicode-nfc",
+      "files": [
+        {
+          "path": "unicode-nfc.json",
+          "snapshot": "snapshot/unicode-nfc.json",
+          "bytes": 395705,
+          "sha256": "9443df7de7b5043daaab70f991c0a76cd1c4bb94b666eba5cd3c225938638b33"
+        }
+      ]
+    },
+    {
+      "name": "unicode-nfd",
+      "files": [
+        {
+          "path": "unicode-nfd.json",
+          "snapshot": "snapshot/unicode-nfd.json",
+          "bytes": 461241,
+          "sha256": "7797937b20b711315b0b3f8a5a08ed5b94d5e9a16c88ba95ba1ca3636d7053e8"
+        }
+      ]
+    }
+  ]
+}
