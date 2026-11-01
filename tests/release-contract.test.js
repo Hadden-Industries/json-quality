@@ -416,6 +416,15 @@ test("manual effect admission rejects every wrong context before a native reques
     ),
   );
 });
+function effectStepFixture(conclusion, started_at = "2026-10-18T00:00:00Z") {
+  return {
+    name: "Apply admitted release effect",
+    status: "completed",
+    conclusion,
+    started_at,
+    completed_at: started_at,
+  };
+}
 function providerFixture() {
   const run = {
     id: 19,
@@ -440,7 +449,16 @@ function providerFixture() {
         head_sha: source,
         run_id: 19,
         run_attempt: 2,
-        steps: [],
+        steps:
+          name === "stage"
+            ? [
+                {
+                  name: "Apply admitted release effect",
+                  status: "completed",
+                  conclusion: "skipped",
+                },
+              ]
+            : [],
       })),
     },
   };
@@ -480,13 +498,7 @@ test("durable request intent precedes native execution and unknown outcomes forb
   assert.equal(outcome.state, "completed");
   assert.equal(calls, 1);
   const p = providerFixture();
-  p.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-18T00:00:00Z",
-      conclusion: "success",
-    },
-  ];
+  p.jobs.jobs[1].steps = [effectStepFixture("success")];
   // Use the actual journal origin, independently attributed by the provider.
   p.run.id = 17;
   p.run.run_attempt = 2;
@@ -602,13 +614,7 @@ test("recovery binds original request bytes and cannot become authority to repla
   const prior = providerFixture();
   prior.run.id = 17;
   for (const job of prior.jobs.jobs) job.run_id = 17;
-  prior.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-18T00:00:00Z",
-      conclusion: "failure",
-    },
-  ];
+  prior.jobs.jobs[1].steps = [effectStepFixture("failure")];
   prior.journal = journal;
   assert.throws(() =>
     verifyEffectHistory(
@@ -1089,11 +1095,7 @@ test("owner abandonment settles only attempted old-version stages without admitt
   prior.run.id = 17;
   for (const job of prior.jobs.jobs) job.run_id = 17;
   prior.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-24T00:00:00Z",
-      conclusion: "failure",
-    },
+    effectStepFixture("failure", "2026-10-24T00:00:00Z"),
   ];
   prior.journal = journal;
   assert.throws(() =>
@@ -1329,13 +1331,7 @@ test("expired effect artifacts use signed digest-bound checkpoints without forge
     job.run_id = 17;
     job.run_attempt = 1;
   }
-  observed.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-18T00:00:00Z",
-      conclusion: "success",
-    },
-  ];
+  observed.jobs.jobs[1].steps = [effectStepFixture("success")];
   const readers = {
     pages: (path) =>
       path.includes("/artifacts?")
@@ -1808,13 +1804,7 @@ test("native predecessor download and writer-history acquisition have disjoint f
     job.run_id = 17;
     job.run_attempt = 1;
   });
-  observed.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-18T00:00:00Z",
-      conclusion: "success",
-    },
-  ];
+  observed.jobs.jobs[1].steps = [effectStepFixture("success")];
   const history = readEffectHistory({}, root, undefined, {
     pages: (path) =>
       path.includes("/artifacts?")
@@ -1981,13 +1971,7 @@ test("completed native continuations retain exact historical settlements across 
   const original = providerFixture();
   original.run.id = 17;
   original.jobs.jobs.forEach((job) => (job.run_id = 17));
-  original.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-18T00:00:00Z",
-      conclusion: "failure",
-    },
-  ];
+  original.jobs.jobs[1].steps = [effectStepFixture("failure")];
   assert.throws(() =>
     journalEffect(
       originalPath,
@@ -2007,11 +1991,7 @@ test("completed native continuations retain exact historical settlements across 
   continuation.jobs.jobs.forEach((job) => (job.run_id = 18));
   continuation.jobs.jobs[1].name = "promote";
   continuation.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-18T00:01:00Z",
-      conclusion: "success",
-    },
+    effectStepFixture("success", "2026-10-18T00:01:00Z"),
   ];
   continuation.settlements = [
     {

@@ -297,6 +297,8 @@ test("native writer history retains both service journals and refuses a missing 
     conclusion: "success",
     head_sha: f.env.GITHUB_SHA,
     path: ".github/workflows/promote-release.yml",
+    event: "workflow_dispatch",
+    head_branch: "main",
     repository: { full_name: "Hadden-Industries/json-quality" },
   };
   const jobs = ["admit", "npm", "github", "complete"].map((name, index) => ({
@@ -314,7 +316,9 @@ test("native writer history retains both service journals and refuses a missing 
       ? [
           {
             name: "Apply admitted release effect",
+            status: "completed",
             started_at: "2026-10-30T00:00:00Z",
+            completed_at: "2026-10-30T00:01:00Z",
             conclusion: "success",
           },
         ]

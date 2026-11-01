@@ -124,6 +124,12 @@ The frozen package's source and signed tag retain their qualification identity w
 Do not move the tag, repack the version or repeat an unknown write to recover a failed controller.
 Keep the original failed run and reuse only its still-valid scoped evidence.
 
+A later workflow attempt may be the writer's first execution after an upstream failure.
+Admission inspects authenticated attempt-specific job and effect-step histories instead of treating the attempt number as publication authority.
+Explicitly skipped writes permit a first execution; missing, duplicate, unresolved or inconsistent native observations do not prove absence.
+Staging, archival and both promotion services resolve retained jobs to their original runner execution and compare the retained effect step before reusing its original journal.
+Changed attempt/job labels never require an artifact from a writer that did not run again, and never erase a prior unknown outcome or authorize replay.
+
 OwlAPI's scanner-observation refresh and bundled artifact-action lock binding have no equivalent generated inputs here.
 This pipeline uses its native package and audit records rather than introducing those additional release gates.
 

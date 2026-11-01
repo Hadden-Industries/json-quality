@@ -342,6 +342,112 @@ export function decisionAsset(release, name, directory) {
   return regularBytes(join(directory, name));
 }
 const effectStep = "Apply admitted release effect";
+/** Authenticate absence as strictly as a possible write, including retained history. */
+function writerInventory(entry) {
+  const { run, jobs } = entry;
+  const phase =
+    entry.phase ??
+    Object.keys(workflows).find(
+      (name) => run.path === `.github/workflows/${workflows[name]}`,
+    );
+  assert.ok(["stage", "archive", "promote"].includes(phase));
+  assert.equal(run.repository.full_name, repository);
+  assert.equal(run.path, `.github/workflows/${workflows[phase]}`);
+  assert.equal(run.event, "workflow_dispatch");
+  assert.match(run.head_sha, /^[a-f0-9]{40}$/u);
+  id(run.id);
+  assert.ok(
+    Number.isSafeInteger(run.run_attempt) &&
+      run.run_attempt > 0 &&
+      run.run_attempt <= 100,
+  );
+  assert.equal(run.status, "completed", "Another live release producer exists");
+  assert.ok(Array.isArray(jobs.jobs) && jobs.jobs.length <= 10000);
+  assert.equal(
+    jobs.total_count,
+    jobs.jobs.length,
+    "Incomplete writer job inventory",
+  );
+  assert.equal(
+    new Set(jobs.jobs.map((job) => job.id)).size,
+    jobs.jobs.length,
+    "Duplicate writer job IDs",
+  );
+  assert.equal(
+    new Set(jobs.jobs.map((job) => job.name)).size,
+    jobs.jobs.length,
+    "Duplicate writer job names",
+  );
+  const services =
+    phase === "promote" &&
+    jobs.jobs.some((job) => ["npm", "github", "complete"].includes(job.name))
+      ? ["npm", "github"]
+      : [null];
+  const allowed = services[0]
+    ? ["admit", "npm", "github", "complete"]
+    : ["admit", phase];
+  for (const job of jobs.jobs) {
+    id(job.id);
+    assert.ok(allowed.includes(job.name), "Unexpected writer job");
+    assert.equal(job.run_id, run.id);
+    assert.equal(job.run_attempt, run.run_attempt);
+    assert.equal(job.head_sha, run.head_sha);
+    assert.equal(job.status, "completed", "Writer execution is unresolved");
+  }
+  return { phase, services };
+}
+function writerEffect(entry) {
+  const { phase, services } = writerInventory(entry);
+  assert.ok(
+    services.includes(entry.service ?? null),
+    "Writer service differs from native history",
+  );
+  const job = entry.jobs.jobs.find(
+    (job) => job.name === (entry.service ?? phase),
+  );
+  // A complete inventory can prove the writer was never created.
+  if (!job) return null;
+  const steps = job.steps?.filter((step) => step.name === effectStep);
+  if (job.conclusion === "skipped") {
+    assert.ok(
+      (steps ?? []).every(
+        (step) => step.status === "completed" && step.conclusion === "skipped",
+      ),
+      "Skipped writer contains a possible write",
+    );
+    return null;
+  }
+  assert.ok(
+    ["success", "failure", "cancelled", "timed_out"].includes(job.conclusion),
+    "Writer outcome is unresolved",
+  );
+  assert.equal(
+    steps?.length,
+    1,
+    "Writer effect history is unavailable or ambiguous",
+  );
+  const step = steps[0];
+  assert.equal(step.status, "completed", "Writer effect is unresolved");
+  if (step.conclusion === "skipped") return null;
+  assert.equal(
+    entry.run.head_branch,
+    "main",
+    "Possible writer effect is outside main",
+  );
+  assert.ok(
+    ["success", "failure", "cancelled", "timed_out"].includes(step.conclusion),
+    "Writer effect outcome is unresolved",
+  );
+  const started = Date.parse(step.started_at),
+    completed = Date.parse(step.completed_at);
+  assert.ok(
+    Number.isFinite(started) &&
+      Number.isFinite(completed) &&
+      completed >= started,
+    "Writer effect execution times are unavailable",
+  );
+  return { job, step };
+}
 export function verifyEffectHistory(
   history,
   current,
@@ -379,31 +485,7 @@ export function verifyEffectHistory(
       ),
       "Current attempt included as history",
     );
-    assert.equal(entry.jobs.total_count, entry.jobs.jobs.length);
-    assert.equal(
-      new Set(entry.jobs.jobs.map((job) => job.id)).size,
-      entry.jobs.jobs.length,
-    );
-    for (const job of entry.jobs.jobs) {
-      assert.equal(job.run_id, entry.run.id);
-      assert.equal(job.run_attempt, entry.run.run_attempt);
-    }
-    assert.equal(
-      entry.run.status,
-      "completed",
-      "Another live release producer exists",
-    );
-    const attempted = entry.jobs.jobs
-      .filter((job) => !entry.service || job.name === entry.service)
-      .some((job) =>
-        job.steps?.some(
-          (step) =>
-            step.name === effectStep &&
-            step.started_at &&
-            step.conclusion !== "skipped",
-        ),
-      );
-    if (!attempted) continue;
+    if (!writerEffect(entry)) continue;
     if (entry.noEffect) {
       assert.equal(entry.noEffect.schemaVersion, 1);
       assert.equal(entry.noEffect.state, "no-request");
@@ -558,8 +640,13 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
       const attempts = new Map();
       const readAttempt = (runId, attempt) => {
         assert.equal(runId, run.id);
-        if (!attempts.has(attempt))
-          attempts.set(attempt, observe(runId, attempt));
+        if (!attempts.has(attempt)) {
+          const observed = observe(runId, attempt);
+          assert.equal(observed.run.id, runId);
+          assert.equal(observed.run.run_attempt, attempt);
+          writerInventory({ ...observed, phase });
+          attempts.set(attempt, observed);
+        }
         return attempts.get(attempt);
       };
       assert.ok(run.run_attempt <= 100, "History attempt bound exceeded");
@@ -570,37 +657,40 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
         )
           continue;
         const observed = readAttempt(run.id, attempt);
-        const services =
-          phase === "promote" &&
-          observed.jobs.jobs.some((job) => job.name === "npm")
-            ? ["npm", "github"]
-            : [null];
+        const { services } = writerInventory({ ...observed, phase });
         for (const service of services) {
           const entry = structuredClone(observed);
           entry.phase = phase;
           if (service) entry.service = service;
-          const attempted = entry.jobs.jobs
-            .filter((job) => !service || job.name === service)
-            .some((job) =>
-              job.steps?.some(
-                (step) =>
-                  step.name === effectStep &&
-                  step.started_at &&
-                  step.conclusion !== "skipped",
-              ),
-            );
-          if (attempted) {
+          const effect = writerEffect(entry);
+          if (effect) {
             // A partial rerun can relabel a retained successful/failed job.
             // Its immutable journal was already admitted at the original attempt.
-            if (
-              service &&
-              attempt > 1 &&
-              originalJobAttempt(observed, service, readAttempt, attempts, {
-                requireSuccess: false,
-                maximumAttempts: 100,
-              }) < attempt
-            )
-              continue;
+            if (attempt > 1) {
+              const origin = originalJobAttempt(
+                observed,
+                service ?? phase,
+                readAttempt,
+                attempts,
+                {
+                  requireSuccess: false,
+                  maximumAttempts: 100,
+                },
+              );
+              if (origin < attempt) {
+                const original = writerEffect({
+                  ...readAttempt(run.id, origin),
+                  phase,
+                  ...(service ? { service } : {}),
+                });
+                assert.deepEqual(
+                  effect.step,
+                  original?.step,
+                  "Retained writer effect observation changed",
+                );
+                continue;
+              }
+            }
             const name = `effect-${phase}${service ? `-${service}` : ""}-${attempt}`;
             const artifacts = list(
               `actions/runs/${id(run.id)}/artifacts?per_page=100`,
