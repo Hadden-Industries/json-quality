@@ -162,6 +162,20 @@
     "@hadden-industries/json-quality-linux-x64": "file:native/prebuilt/linux-x64",
     "@hadden-industries/json-quality-win32-x64": "file:native/prebuilt/win32-x64"
   },
+  "overrides": {
+    "eslint": {
+      "minimatch": "11.0.3"
+    },
+    "@eslint/config-array": {
+      "minimatch": "11.0.3"
+    },
+    "readdir-glob": {
+      "minimatch": "11.0.3"
+    },
+    "archiver-utils": {
+      "glob": "14.0.3"
+    }
+  },
   "devDependencies": {
     "@actions/artifact": ">=6.3.1",
     "@eslint/js": ">=10.0.1",

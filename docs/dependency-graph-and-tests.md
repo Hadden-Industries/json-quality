@@ -27,3 +27,15 @@ The ordinary invocation executes complete selected test files, with the full sui
 It retains both native outputs and failures; a passing full run cannot erase a failed subset.
 Missing outcomes, source drift, runner errors or inconsistent common outcomes fail the operation.
 No shadow or other test mode was executed during the 2026-10-18 alignment, by explicit owner instruction.
+
+## Tooling dependency overrides
+
+The root and isolated Markdown manifests override ESLint and `@eslint/config-array` to use `minimatch` 11.0.3 for [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249).
+The root also overrides `readdir-glob`'s matcher and selects `glob` 14.0.3 beneath `archiver-utils` for [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4).
+These overrides apply to development tooling; product runtime dependencies and the pinned Markdown archives retain their existing versions and identities.
+Remove each override when its parent dependency admits a patched version and the regenerated complete graph passes `npm run check:dependency-advisories`.
+
+The major-version replacements retain the caller APIs in use: `Minimatch` construction and matching, and `glob.sync`.
+`tests/tooling-globs.test.js` exercises the actual transitive callers, selection/exclusion behavior and local Artifact SDK ZIP construction with exact entry names and bytes.
+ESLint and the installed Markdown integration tests cover their own selection and configuration paths.
+Glob's Windows expansion paths use native separators; ZIP entries must retain portable forward-slash names.
