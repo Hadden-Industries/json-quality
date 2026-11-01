@@ -72,12 +72,6 @@ export function verifyReport(report, release, lane, qualification, layout) {
   assert.equal(report.publicExports, 7);
   assert.equal(report.cliPhysicalFiles, 2);
   assert.equal(report.packageVersion, release.version);
-  validateMinimalCli(
-    report.minimalCli,
-    release.version,
-    report.installSource,
-    frozenDefaultPolicyDigest(release.archive.files),
-  );
   assert.equal(
     report.installSource,
     qualification === "public registry" ? "registry" : "producer-archive",
@@ -91,6 +85,23 @@ export function verifyReport(report, release, lane, qualification, layout) {
     version: release.version,
     integrity: expected.archive.integrity,
   });
+  validateMinimalCli(
+    report.minimalCli,
+    release.version,
+    report.installSource,
+    frozenDefaultPolicyDigest(release.archive.files),
+    {
+      name: "@hadden-industries/json-quality",
+      version: release.version,
+      integrity: release.archive.integrity,
+      sha256: release.archive.sha256,
+    },
+    {
+      name: expected.package,
+      version: release.version,
+      integrity: expected.archive.integrity,
+    },
+  );
 }
 function copyEvidence(from, to) {
   mkdirSync(to, { recursive: true });

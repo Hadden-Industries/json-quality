@@ -84,6 +84,12 @@ export function validateConsumers(
       value.packageVersion,
       consumer.installSource,
       defaultPolicySha256,
+      {
+        name: "@hadden-industries/json-quality",
+        version: value.packageVersion,
+        sha256: value.archiveSha256,
+      },
+      value.nativePackage,
     );
   const sharedMinimal = ({
     generatedLockSha256: _generatedLockSha256,
@@ -100,6 +106,8 @@ export function validateMinimalCli(
   packageVersion,
   installSource,
   expectedDefaultPolicySha256,
+  expectedCorePackage,
+  expectedNativePackage,
 ) {
   assert.equal(value.status, "passed");
   assert.equal(value.packageVersion, packageVersion);
@@ -107,6 +115,16 @@ export function validateMinimalCli(
   assert.equal(value.policy, "package-defaults");
   assert.equal(value.command, "npm exec -- json-quality");
   assert.equal(value.packageName, "@hadden-industries/json-quality");
+  assert.deepEqual(value.nativePackage, expectedNativePackage);
+  assert.match(value.corePackage.integrity, /^sha512-[A-Za-z0-9+/]+={0,2}$/u);
+  assert.deepEqual(
+    value.corePackage,
+    {
+      ...expectedCorePackage,
+      integrity: expectedCorePackage.integrity ?? value.corePackage.integrity,
+    },
+    "Minimal CLI core differs from its frozen input",
+  );
   assert.deepEqual(value.cases, MINIMAL_CLI_CASES);
   assert.deepEqual(value.commands, MINIMAL_CLI_COMMANDS);
   assert.match(value.generatedLockSha256, /^[a-f0-9]{64}$/u);

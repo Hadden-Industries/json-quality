@@ -17,7 +17,8 @@ export function snapshotControl(
   } = {},
 ) {
   let bytes = 0n,
-    nodes = 0n;
+    nodes = 0n,
+    pendingValueNodes = 1n;
   const byteLimit = maximumBytes === null ? null : BigInt(maximumBytes),
     memoryLimit =
       maximumManagedBytes === null ? null : BigInt(maximumManagedBytes),
@@ -29,7 +30,8 @@ export function snapshotControl(
       throw new Error("policy-byte-capacity");
     if (
       memoryLimit !== null &&
-      retainedManagedBytes + bytes * 5n + nodes * 256n > memoryLimit
+      retainedManagedBytes + bytes * 5n + (nodes + pendingValueNodes) * 256n >
+        memoryLimit
     )
       throw new Error("policy-managed-memory-capacity");
   };
@@ -56,6 +58,7 @@ export function snapshotControl(
     }
   };
   let result;
+  checkpoint();
   const pending = [{ input, depth: 0, parent: null, key: "", exit: false }];
   while (pending.length) {
     const task = /** @type {*} */ (pending.pop());
@@ -64,6 +67,7 @@ export function snapshotControl(
       continue;
     }
     const value = task.input;
+    pendingValueNodes--;
     nodes++;
     checkpoint();
     let copy = value;
@@ -107,16 +111,20 @@ export function snapshotControl(
         : 0;
       if (array && keys.length !== length + 1)
         throw new TypeError("policy-control-array");
+      // Reserve new children alongside all unvisited siblings before allocating
+      // their tasks. Moving a pending value into the snapshot transfers its
+      // charge; container node reservations also cover their exit markers.
       // Each property value costs at least a node and one serialized byte.
       const childCount = keys.length - (array ? 1 : 0);
       if (
         memoryLimit !== null &&
         retainedManagedBytes +
           (bytes + 2n + BigInt(childCount)) * 5n +
-          (nodes + BigInt(childCount)) * 256n >
+          (nodes + pendingValueNodes + BigInt(childCount)) * 256n >
           memoryLimit
       )
         throw new Error("policy-managed-memory-capacity");
+      pendingValueNodes += BigInt(childCount);
       add(2 + Math.max(0, childCount - 1));
       // Ordinary owned prototypes keep Ajv's JSON equality implementation
       // compatible; defineProperty below keeps __proto__ a data member.

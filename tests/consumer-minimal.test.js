@@ -5,7 +5,11 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { temporaryDirectory } from "./temporary-directory.js";
-import { installMinimalConsumer } from "../scripts/consumer-minimal.js";
+import {
+  installMinimalConsumer,
+  verifyMinimalInstalledFiles,
+} from "../scripts/consumer-minimal.js";
+import { archiveInventory, sha256 } from "../scripts/release-contract.js";
 import { isolatedNpmEnvironment } from "../scripts/release-inventory.js";
 import { readPackReport } from "../scripts/pack.js";
 import {
@@ -16,6 +20,17 @@ import {
 import { validateMinimalCli } from "../scripts/consumer-layouts.js";
 
 test("minimal CLI evidence rejects missing, duplicate, stale and substituted observations", () => {
+  const corePackage = {
+      name: "@hadden-industries/json-quality",
+      version: "1.2.3",
+      integrity: "sha512-Ynl0ZXM=",
+      sha256: "c".repeat(64),
+    },
+    nativePackage = {
+      name: "@hadden-industries/json-quality-win32-x64",
+      version: "1.2.3",
+      integrity: "sha512-Ynl0ZXM=",
+    };
   const receipt = {
     status: "passed",
     packageVersion: "1.2.3",
@@ -29,8 +44,17 @@ test("minimal CLI evidence rejects missing, duplicate, stale and substituted obs
     packageName: "@hadden-industries/json-quality",
     specifier: "file:fixture.tgz",
     routing: "npm-generated-lock-with-transported-file-archives",
+    corePackage,
+    nativePackage,
   };
-  validateMinimalCli(receipt, "1.2.3", "producer-archive", "a".repeat(64));
+  validateMinimalCli(
+    receipt,
+    "1.2.3",
+    "producer-archive",
+    "a".repeat(64),
+    corePackage,
+    nativePackage,
+  );
   for (const change of [
     (value) => value.cases.pop(),
     (value) => value.cases.push(value.cases[0]),
@@ -40,6 +64,13 @@ test("minimal CLI evidence rejects missing, duplicate, stale and substituted obs
     (value) => (value.cohortVersion = 3),
     (value) => (value.routing = "anonymous-registry"),
     (value) => (value.defaultPolicySha256 = "f".repeat(64)),
+    (value) => delete value.corePackage,
+    (value) => delete value.nativePackage,
+    (value) => (value.corePackage.integrity = "sha512-ZGlmZmVyZW50"),
+    (value) => (value.corePackage.sha256 = "f".repeat(64)),
+    (value) => (value.corePackage.version = "1.2.4"),
+    (value) => (value.nativePackage.integrity = "sha512-ZGlmZmVyZW50"),
+    (value) => (value.nativePackage.version = "1.2.4"),
   ]) {
     const corrupted = structuredClone(receipt);
     change(corrupted);
@@ -49,6 +80,8 @@ test("minimal CLI evidence rejects missing, duplicate, stale and substituted obs
         "1.2.3",
         "producer-archive",
         "a".repeat(64),
+        corePackage,
+        nativePackage,
       ),
     );
   }
@@ -67,7 +100,7 @@ test("the installed execution digest must match the exact packaged default asset
   );
 });
 
-test("native npm reconciles transported companion routing into a dependency-only generated lock", (t) => {
+test("native npm binds its dependency-only generated lock and installed bytes to frozen packages", async (t) => {
   const directory = temporaryDirectory(t, "json-minimal-lock-routing-"),
     npmCliPath = process.env.npm_execpath,
     env = isolatedNpmEnvironment(directory),
@@ -88,6 +121,8 @@ test("native npm reconciles transported companion routing into a dependency-only
       join(source, "package.json"),
       JSON.stringify({ name, version: "1.2.3", optionalDependencies }),
     );
+    writeFileSync(join(source, "payload.js"), "// frozen executable payload\n");
+    writeFileSync(join(source, "defaults.json"), "{}\n");
     const { filename } = readPackReport(
       npm(
         ["pack", "--ignore-scripts", "--json", "--pack-destination", directory],
@@ -115,13 +150,60 @@ test("native npm reconciles transported companion routing into a dependency-only
     seed,
   );
   const root = join(directory, "minimal");
-  const result = installMinimalConsumer({
-    root,
-    npmCliPath,
-    env,
-    packageName: core,
-    specifier: `file:${coreArchive}`,
-    seedLock: readFileSync(join(seed, "package-lock.json")),
+  const seedLock = readFileSync(join(seed, "package-lock.json")),
+    frozenLock = JSON.parse(seedLock),
+    frozen = await Promise.all(
+      [
+        [core, coreArchive],
+        [companion, nativeArchive],
+      ].map(async ([name, archive]) => ({
+        name,
+        version: "1.2.3",
+        integrity: frozenLock.packages[`node_modules/${name}`].integrity,
+        sha256: sha256(readFileSync(archive)),
+        files: (await archiveInventory(archive, npmCliPath)).files,
+      })),
+    ),
+    options = {
+      root,
+      npmCliPath,
+      env,
+      packageName: core,
+      specifier: `file:${coreArchive}`,
+      seedLock,
+      corePackage: frozen[0],
+      nativePackage: frozen[1],
+    };
+  // npm still resolves the real same-version archives. A different frozen SRI
+  // must fail before the offline install creates any executable package tree.
+  for (const key of ["corePackage", "nativePackage"])
+    for (const [field, substituted] of [
+      ["integrity", "sha512-ZGlmZmVyZW50"],
+      ["version", "1.2.4"],
+    ]) {
+      const refusedRoot = join(directory, `refused-${key}-${field}`);
+      assert.throws(
+        () =>
+          installMinimalConsumer({
+            ...options,
+            root: refusedRoot,
+            [key]: { ...options[key], [field]: substituted },
+          }),
+        /Minimal lock differs from frozen package/u,
+      );
+      assert.equal(existsSync(join(refusedRoot, "node_modules")), false);
+    }
+  const result = installMinimalConsumer(options);
+  assert.deepEqual(result.corePackage, {
+    name: core,
+    version: "1.2.3",
+    integrity: frozen[0].integrity,
+    sha256: frozen[0].sha256,
+  });
+  assert.deepEqual(result.nativePackage, {
+    name: companion,
+    version: "1.2.3",
+    integrity: frozen[1].integrity,
   });
   assert.equal(
     result.routing,
@@ -146,4 +228,17 @@ test("native npm reconciles transported companion routing into a dependency-only
       join(root, "node_modules", ...companion.split("/"), "package.json"),
     ),
   );
+  // Matching metadata and default bytes cannot hide changed core/native code.
+  verifyMinimalInstalledFiles(root, frozen);
+  for (const expected of frozen) {
+    const payload = join(root, "node_modules", expected.name, "payload.js"),
+      original = readFileSync(payload);
+    writeFileSync(payload, "// substituted executable payload\n");
+    assert.throws(
+      () => verifyMinimalInstalledFiles(root, frozen),
+      /Minimal installed payload differs/u,
+    );
+    writeFileSync(payload, original);
+  }
+  verifyMinimalInstalledFiles(root, frozen);
 });

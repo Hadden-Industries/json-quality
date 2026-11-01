@@ -2418,6 +2418,17 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
         packageName: "@hadden-industries/json-quality",
         specifier: release.version,
         routing: "anonymous-registry",
+        corePackage: {
+          name: "@hadden-industries/json-quality",
+          version: release.version,
+          integrity: release.archive.integrity,
+          sha256: release.archive.sha256,
+        },
+        nativePackage: {
+          name: nativePackages["win32-x64"].package,
+          version: release.version,
+          integrity: release.platformArchives[1].archive.integrity,
+        },
       },
       nativePackage: {
         name: nativePackages["win32-x64"].package,
@@ -2426,6 +2437,21 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
       },
     };
   verifyReport(report, release, lane, "public registry", "isolated");
+  for (const mutate of [
+    (value) => delete value.corePackage,
+    (value) => delete value.nativePackage,
+    (value) => (value.corePackage.integrity = "sha512-ZGlmZmVyZW50"),
+    (value) => (value.corePackage.sha256 = "f".repeat(64)),
+    (value) => (value.corePackage.version = "9.9.9"),
+    (value) => (value.nativePackage.integrity = "sha512-ZGlmZmVyZW50"),
+    (value) => (value.nativePackage.version = "9.9.9"),
+  ]) {
+    const substituted = structuredClone(report);
+    mutate(substituted.minimalCli);
+    assert.throws(() =>
+      verifyReport(substituted, release, lane, "public registry", "isolated"),
+    );
+  }
   assert.throws(
     () =>
       verifyReport(

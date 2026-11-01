@@ -203,13 +203,14 @@ try {
     throw new Error(
       "Recipient installed an unexpected optional platform payload",
     );
-  let coreFiles;
+  let coreFiles, nativeFiles;
   for (const [path, installedRoot] of [
     [archive, coreRoot],
     [nativeArchive, selectedNative.directory],
   ]) {
     const inventory = await archiveInventory(path, npm);
     if (path === archive) coreFiles = inventory.files;
+    else nativeFiles = inventory.files;
     for (const member of inventory.files) {
       const installed = readFileSync(join(installedRoot, member.path));
       if (sha256(installed) !== member.sha256)
@@ -281,6 +282,19 @@ try {
     seedLock: values.registry
       ? undefined
       : readFileSync(join(consumer, "package-lock.json")),
+    corePackage: {
+      name: provenance.name,
+      version: provenance.version,
+      integrity: provenance.integrity,
+      sha256: provenance.sha256,
+      files: coreFiles,
+    },
+    nativePackage: {
+      name: platformArchive.name,
+      version: platformArchive.version,
+      integrity: platformArchive.integrity,
+      files: nativeFiles,
+    },
   });
   const minimalCli = qualifyMinimalCli({
     root: minimalRoot,

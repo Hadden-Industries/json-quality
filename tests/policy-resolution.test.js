@@ -161,6 +161,81 @@ test("resolver enforces invocation bytes, nesting, memory and exact UTF-8 cost",
   assert.throws(() => resolveJsonQualityPolicy(deep), /nesting-capacity/u);
 });
 
+test("policy snapshots reserve outstanding siblings before expanding nested containers", () => {
+  const inner = Array(100).fill(null),
+    outer = Array(100).fill(null),
+    maximumManagedBytes = 40000;
+  outer[0] = inner;
+  const configuration = {
+    nativeSources: [
+      {
+        id: "x",
+        provider: "x",
+        owner: "x",
+        reason: "x",
+        parameters: { data: outer },
+      },
+    ],
+  };
+  // Observe the production worklist, not process heap. Its queued values alone
+  // must fit the documented 256-byte/node reservation before more are allocated.
+  const originalPush = Array.prototype.push;
+  let peakQueuedValues = 0;
+  Array.prototype.push = function (...items) {
+    const result = Reflect.apply(originalPush, this, items);
+    if (
+      items.length &&
+      items.every(
+        (item) =>
+          item &&
+          Object.hasOwn(item, "exit") &&
+          Object.hasOwn(item, "input") &&
+          Object.hasOwn(item, "depth"),
+      )
+    ) {
+      let queuedValues = 0;
+      for (const task of this) if (!task.exit) queuedValues++;
+      peakQueuedValues = Math.max(peakQueuedValues, queuedValues);
+    }
+    return result;
+  };
+  try {
+    assert.throws(
+      () =>
+        resolveJsonQualityPolicy(configuration, {
+          runtimeControls: { maxManagedMemoryBytes: maximumManagedBytes },
+        }),
+      /policy-managed-memory-capacity/u,
+    );
+  } finally {
+    Array.prototype.push = originalPush;
+  }
+  assert.ok(peakQueuedValues > 0, "The worklist was observed");
+  assert.ok(
+    peakQueuedValues * 256 <= maximumManagedBytes,
+    `${peakQueuedValues} queued values already exceed the workspace budget`,
+  );
+
+  // A queued value becomes a visited value; it must not be charged twice.
+  const measured = snapshotControl(configuration),
+    retainedManagedBytes = 4096n;
+  const exact = snapshotControl(configuration, {
+    maximumManagedBytes:
+      measured.managedReservationBytes + retainedManagedBytes,
+    retainedManagedBytes,
+  });
+  assert.deepEqual(exact, measured);
+  assert.throws(
+    () =>
+      snapshotControl(configuration, {
+        maximumManagedBytes:
+          measured.managedReservationBytes + retainedManagedBytes - 1n,
+        retainedManagedBytes,
+      }),
+    /policy-managed-memory-capacity/u,
+  );
+});
+
 test("package boundaries protect tracked dependencies and npm locks without broad exclusions", () => {
   const policy = resolveJsonQualityPolicy();
   for (const path of [

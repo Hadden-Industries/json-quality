@@ -177,6 +177,7 @@ The adapted public API uses `includeValueEvents` and `implementationIdentity`; o
 The candidate was uncommitted development source above HEAD `4401fc346e0628c0ca71461f7849ffb385d67834`.
 Later type, qualification-receipt and CLI-entry repairs did not change the measured NFC checking path.
 The startup/process-wall figures describe this captured candidate, before the symlink-entry repair; they are not final-candidate startup measurements.
+The subsequent policy-worklist repair reserves queued siblings before expanding nested containers; the pure-resolver timings below also predate that accounting fix.
 The [source-input manifest](2026-11-02-nfc-performance-evidence/source-inputs.json), covering package metadata/lock and JavaScript/schema/asset owners, has compact-tuple SHA-256 `e66b68de7aeebd9b8a79c9f57969ea1175956cfb44cd6a22d1896f22a21175a4`.
 Before/after source manifests and all snapshot hashes matched.
 Native source-input SHA-256 was `8211af33775447a9b78354058ac4ae8f61ac3bbe9cf25588e80e976b1496bbb2`, with ICU/Unicode/SQLite `79.1` / `18.0` / `3.54.1`.

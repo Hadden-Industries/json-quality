@@ -229,6 +229,17 @@ function fixture(attempt = 1, fork = false) {
               packageName: "@hadden-industries/json-quality",
               specifier: "file:fixture.tgz",
               routing: "npm-generated-lock-with-transported-file-archives",
+              corePackage: {
+                name: "@hadden-industries/json-quality",
+                version: "1.0.0-rc.1",
+                integrity: "sha512-Ynl0ZXM=",
+                sha256: "e".repeat(64),
+              },
+              nativePackage: {
+                name: `@hadden-industries/json-quality-${os.startsWith("windows") ? "win32" : "linux"}-x64`,
+                version: "1.0.0-rc.1",
+                integrity: "sha512-Ynl0ZXM=",
+              },
             },
           },
         ]),
@@ -875,6 +886,17 @@ test("incomplete layouts, obsolete proof and failed tree observations deny recei
       record.consumers.root.minimalCli.defaultPolicySha256 = "f".repeat(64);
       record.consumers.isolated.minimalCli.defaultPolicySha256 = "f".repeat(64);
     },
+    ...[
+      (value) => delete value.corePackage,
+      (value) => delete value.nativePackage,
+      (value) => (value.corePackage.sha256 = "f".repeat(64)),
+      (value) => (value.corePackage.version = "1.0.0-rc.2"),
+      (value) => (value.nativePackage.integrity = "sha512-ZGlmZmVyZW50"),
+      (value) => (value.nativePackage.version = "1.0.0-rc.2"),
+    ].map((mutate) => (record) => {
+      for (const consumer of Object.values(record.consumers))
+        mutate(consumer.minimalCli);
+    }),
     ...[
       "archiveSha256",
       "packageVersion",
