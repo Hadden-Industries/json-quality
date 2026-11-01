@@ -32,7 +32,7 @@ async function checked(
   let terminal;
   for await (const event of core.events())
     if (event.type === "terminal") terminal = event;
-  if (!terminal?.qualityPassed || !terminal.contractSatisfied)
+  if (!terminal?.formatEligible)
     throw new Error("Cannot format invalid or unsafe JSON source.");
   return source;
 }
@@ -58,8 +58,8 @@ export async function formatSource(
     temporaryDirectory,
     allowEmptyKeys,
     normalization = "NFC",
-    preserveNfcValues,
-    allowFormatWrites,
+    nfcExemptStringValues,
+    allowSourceRewrites,
     owner,
     reason,
     capacityLimits,
@@ -95,8 +95,8 @@ export async function formatSource(
       checkPresentation: false,
       normalization,
       allowEmptyKeys,
-      preserveNfcValues,
-      allowFormatWrites,
+      nfcExemptStringValues,
+      allowSourceRewrites,
       owner,
       reason,
     };

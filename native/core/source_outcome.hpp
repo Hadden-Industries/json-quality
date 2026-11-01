@@ -22,10 +22,16 @@ struct SourceOutcome {
   std::uint64_t sourceLength, findings = 0, qualityFindings = 0, presentationFindings = 0,
                               expectedIndex = 0;
   bool exactIdentity = false, diagnosticsMatch = true, finished = false,
-       presentationRepairable = true, nfcRepairable = true;
+       presentationRepairable = true, nfcRepairable = true,
+       formatEligible = true, normalizeEligible = true;
   Sha256 diagnosticHash;
   explicit SourceOutcome(const json::object &policy, std::string digest, std::uint64_t length)
       : contract(policy), sourceDigest(std::move(digest)), sourceLength(length) {
+    if (auto normalization = contract.if_contains("normalization"))
+      nfcRepairable = normalizeEligible = normalization->as_string() == "NFC";
+    if (auto pins = contract.if_contains("nfcExemptStringValues"))
+      if (!pins->as_array().empty())
+        nfcRepairable = normalizeEligible = false;
     if (auto expected = contract.if_contains("expected")) {
       const auto &object = expected->as_object();
       exactIdentity = object.at("sha256").as_string() == sourceDigest &&
@@ -43,10 +49,15 @@ struct SourceOutcome {
       return;
     ++findings;
     const bool presentation = object.at("phase") == "presentation";
-    presentationRepairable &= presentation;
-    nfcRepairable &= presentation || (object.at("phase") == "lint" &&
-                                      object.at("ruleId") == "json-quality/normalized-strings" &&
-                                      object.at("messageId") == "unnormalized");
+    const bool ordinaryNfc = object.at("phase") == "lint" &&
+                             object.at("ruleId") == "json-quality/nfc-strings" &&
+                             object.at("messageId") == "unnormalized";
+    // Original sources may need both repairs. A finished selected candidate
+    // may retain only the condition owned by the other operation.
+    presentationRepairable &= presentation || ordinaryNfc;
+    nfcRepairable &= presentation || ordinaryNfc;
+    formatEligible &= ordinaryNfc;
+    normalizeEligible &= presentation;
     auto bytes = json::serialize(object);
     require(bytes.size() <= 65536, "diagnostic-frame-capacity");
     diagnosticHash.update(
@@ -98,12 +109,14 @@ struct SourceOutcome {
     auto presentation = contract.if_contains("checkPresentation");
     terminal["presentationSelected"] = !presentation || presentation->as_bool();
     terminal["qualityPassed"] = parsed && qualityFindings == 0;
+    terminal["formatEligible"] = parsed && formatEligible;
+    terminal["normalizeEligible"] = parsed && normalizeEligible;
     terminal["expectedMatched"] =
         contract.if_contains("expected") ? json::value(matched()) : json::value(nullptr);
     terminal["contractSatisfied"] = contract.if_contains("expected")
                                         ? matched() && presentationFindings == 0
                                         : parsed && qualityFindings == 0;
-    terminal["findings"] = std::to_string(findings);
+    terminal["findingCount"] = std::to_string(findings);
     terminal["diagnosticSha256"] = Sha256::hex(diagnosticHash.finish());
   }
 };

@@ -76,7 +76,10 @@ test("materialization refusal and release preserve exact fragment access", async
     const value = events.find((event) => event.type === "value").id;
     const fields = { value, representation: "decoded-utf8" };
     await assert.rejects(
-      session.command("reserve-materialization", { ...fields, maximum: "7" }),
+      session.command("reserve-materialization", {
+        ...fields,
+        maximumBytes: "7",
+      }),
       /materialization-capacity/,
     );
     await assert.rejects(
@@ -90,7 +93,7 @@ test("materialization refusal and release preserve exact fragment access", async
     const before = (await session.command("metrics")).result.managedBytes;
     const { result } = await session.command("reserve-materialization", {
       ...fields,
-      maximum: "8",
+      maximumBytes: "8",
     });
     assert.equal(result.byteLength, "8");
     await assert.rejects(
@@ -98,7 +101,10 @@ test("materialization refusal and release preserve exact fragment access", async
       /materialization-authority/,
     );
     await assert.rejects(
-      session.command("reserve-materialization", { ...fields, maximum: "8" }),
+      session.command("reserve-materialization", {
+        ...fields,
+        maximumBytes: "8",
+      }),
       /materialization-already-reserved/,
     );
     assert.equal(
@@ -150,7 +156,7 @@ test("identified capture verifies its declared bytes before exposing values", as
 test("materialization cannot consume memory already owned by retained state", async () => {
   const session = new NativeSession();
   try {
-    await session.configure({ managedMemoryTargetBytes: "16777216" });
+    await session.configure({ maxManagedMemoryBytes: "16777216" });
     function* input() {
       yield Buffer.from('"');
       const block = Buffer.alloc(65536, 97);
@@ -160,13 +166,13 @@ test("materialization cannot consume memory already owned by retained state", as
     await session.capture(input());
     const { events, terminal } = await collect(session);
     assert.equal(terminal.qualityPassed, true);
-    assert.equal(terminal.transitions, "0");
+    assert.equal(terminal.spillTransitionCount, "0");
     const value = events.find((event) => event.type === "value").id;
     await assert.rejects(
       session.command("reserve-materialization", {
         value,
         representation: "decoded-utf8",
-        maximum: "5242880",
+        maximumBytes: "5242880",
       }),
       /materialization-budget/,
     );
@@ -203,8 +209,8 @@ test("cancellation interrupts work off the JavaScript event loop and cleans a re
   const session = new NativeSession({ temporaryDirectory: working });
   try {
     await session.configure({
-      managedMemoryTargetBytes: "16777216",
-      maxFileBytes: null,
+      maxManagedMemoryBytes: "16777216",
+      maxSourceBytes: null,
     });
     function* input() {
       yield Buffer.from('"');
@@ -213,7 +219,10 @@ test("cancellation interrupts work off the JavaScript event loop and cleans a re
       yield Buffer.from('"\n');
     }
     await session.capture(input());
-    assert.equal((await session.command("metrics")).result.transitions, "1");
+    assert.equal(
+      (await session.command("metrics")).result.spillTransitionCount,
+      "1",
+    );
     const checking = session.command("next");
     const timer = globalThis.setTimeout(() => session.cancel(), 10);
     try {

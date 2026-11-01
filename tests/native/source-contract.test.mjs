@@ -2,13 +2,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sourceContract } from "../../src/source-contract.js";
-import { admitJsonPolicy } from "../../src/configuration.js";
+import { resolveJsonQualityPolicy } from "../../src/configuration.js";
 
 const expectation = (byteLength) => ({
   expected: { byteLength, sha256: "0".repeat(64), diagnostics: [] },
 });
 
-test("cohort 3 controls accept exact decimal boundaries and reject lossy or old wire forms", () => {
+test("cohort 4 controls accept exact decimal boundaries and reject lossy or old wire forms", () => {
   assert.equal(
     sourceContract({ formatContract: "prettier-json", normalization: "NFC" })
       .normalization,
@@ -41,11 +41,11 @@ test("cohort 3 controls accept exact decimal boundaries and reject lossy or old 
   );
   assert.throws(
     () =>
-      admitJsonPolicy({
+      resolveJsonQualityPolicy({
         schemaVersion: 1,
         defaults: {
           formatContract: "prettier-json",
-          allowFormatWrites: true,
+          allowSourceRewrites: true,
           normalization: "NFC",
         },
         exceptions: [],
@@ -73,14 +73,14 @@ test("bounded control snapshot rejects getters before evaluating them", () => {
 
 test("NFC preservation keeps complete typed owner and value pin admission", () => {
   const valid = {
-    allowFormatWrites: false,
+    allowSourceRewrites: false,
     owner: "fixture owner",
     reason: "Exact protocol value.",
-    preserveNfcValues: [
+    nfcExemptStringValues: [
       { pointer: "/value", sha256: "0".repeat(64), byteLength: "3" },
     ],
   };
-  assert.equal(sourceContract(valid).preserveNfcValues[0].byteLength, "3");
+  assert.equal(sourceContract(valid).nfcExemptStringValues[0].byteLength, "3");
   assert.throws(
     () => sourceContract({ ...valid, normalization: "preserve" }),
     /Invalid protected/,
@@ -93,7 +93,9 @@ test("NFC preservation keeps complete typed owner and value pin admission", () =
     () =>
       sourceContract({
         ...valid,
-        preserveNfcValues: [{ ...valid.preserveNfcValues[0], byteLength: 3 }],
+        nfcExemptStringValues: [
+          { ...valid.nfcExemptStringValues[0], byteLength: 3 },
+        ],
       }),
     /Invalid JSON source contract/,
   );

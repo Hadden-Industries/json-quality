@@ -13,7 +13,7 @@ import { join, posix } from "node:path";
 import Ajv from "ajv/dist/2020.js";
 import { npmCli } from "./qualification-process.js";
 import {
-  PACKAGE_VERIFICATION_CAPABILITIES as packageCapabilities,
+  DEFAULT_PACKAGE_VERIFICATION_LIMITS as packageCapabilities,
   packageTarSink,
 } from "../src/package-payload.js";
 import { nativePackages } from "../src/native-packages.js";
@@ -232,6 +232,8 @@ export function verifyManifest(release) {
     "src/index.js",
     "src/cli.js",
     "schemas/configuration.schema.json",
+    "schemas/effective-policy.schema.json",
+    "assets/default-json-quality-policy.json",
     "schemas/event.schema.json",
     "schemas/source-contract.schema.json",
     "schemas/contract-cohort.json",

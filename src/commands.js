@@ -93,7 +93,7 @@ export function resourceCliControls(
 export const COMMANDS = Object.freeze({
   check:
     "Check complete repository obligations and deliver final execution evidence.",
-  source:
+  "check-source":
     "Check raw stdin bytes under an explicit source contract; no repository policy.",
   format:
     "Preflight the complete repository and explicitly format writable physical sources.",
@@ -104,8 +104,9 @@ export const CLI_OPTIONS = Object.freeze({
   ...RESOURCE_OPTIONS,
   ...RUNTIME_OPTIONS,
   "transform-controls": { type: "string" },
+  "dry-run": { type: "boolean" },
   root: { type: "string" },
-  json: { type: "boolean", default: false },
+  ndjson: { type: "boolean", default: false },
   contract: { type: "string" },
   "request-id": { type: "string" },
   help: { type: "boolean", short: "h", default: false },
@@ -120,13 +121,14 @@ export function transformCliControls(/** @type {*} */ values) {
 }
 export function commandHelp() {
   return [
-    "Usage: json-quality <check|source|format|normalize> [options] [-- literal/path.json ...]",
+    "Usage: json-quality <check|check-source|format|normalize> [options] [-- literal/path.json ...]",
     ...Object.entries(COMMANDS).map(
       ([name, description]) => "  " + name + ": " + description,
     ),
-    "Options: --root PATH, --json (versioned NDJSON), --request-id ID, --help",
-    "source reads raw stdin; --contract JSON selects its closed source contract.",
+    "Options: --root PATH, --ndjson (versioned NDJSON), --request-id ID, --help",
+    "check-source reads raw stdin; --contract JSON selects its closed source contract.",
     "Only format/normalize accept literal paths. Normalize requires explicit paths.",
+    "normalize --dry-run previews a complete selected batch without writing.",
     "--no-capacity-limits and --no-runtime-controls disable their selected quotas; integrity and cancellation remain active.",
     "Capacity controls: " +
       capacityNames

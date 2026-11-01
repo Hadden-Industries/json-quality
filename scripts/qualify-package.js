@@ -16,6 +16,8 @@ import { packCandidate } from "./pack.js";
 import { assertNativeNpmRuntime } from "./consumer-toolchain.js";
 import { native, budgets } from "./qualification-process.js";
 import { qualifyPublicApi } from "./qualify-api.js";
+import { installMinimalConsumer } from "./consumer-minimal.js";
+import { qualifyMinimalCli } from "./consumer-cli-probe.js";
 import { nodeSupport } from "./node-matrix.js";
 import { verifyArchive, archiveInventory, sha256 } from "./release-contract.js";
 import {
@@ -228,16 +230,16 @@ try {
     join(fixture, ".json-quality.json"),
     JSON.stringify(
       {
-        schemaVersion: 3,
+        schemaVersion: 4,
         defaults: {
           formatContract: "prettier-json",
-          allowFormatWrites: true,
+          allowSourceRewrites: true,
           normalization: "NFC",
         },
         exceptions: [
           {
             paths: [".git/**"],
-            exclude: true,
+            excludeUntrackedSources: true,
             owner: "Git",
             reason: "External Git metadata; tracked JSON remains checked.",
           },
@@ -266,6 +268,27 @@ try {
     provenance.integrity
   )
     throw new Error("Installed archive integrity differs.");
+  const minimalRoot =
+    values.layout === "isolated"
+      ? join(directory, "minimal-consumer", "tooling", "json")
+      : join(directory, "minimal-consumer");
+  const minimalInstallation = installMinimalConsumer({
+    root: minimalRoot,
+    npmCliPath: npm,
+    env: isolatedNpmEnvironment(directory),
+    packageName: provenance.name,
+    specifier: values.registry ? provenance.version : `file:${archive}`,
+    seedLock: values.registry
+      ? undefined
+      : readFileSync(join(consumer, "package-lock.json")),
+  });
+  const minimalCli = qualifyMinimalCli({
+    root: minimalRoot,
+    npmCliPath: npm,
+    env: isolatedNpmEnvironment(directory),
+    timeout: budgets.read,
+    packageVersion: provenance.version,
+  });
   // Replay the native lock offline before a second real public-export probe.
   native(
     process.execPath,
@@ -343,8 +366,9 @@ try {
     },
     qualification: values.registry ? "public registry" : "transported archive",
     layout: values.layout,
-    publicExports: 6,
+    publicExports: 7,
     cliPhysicalFiles: 2,
+    minimalCli: { ...minimalCli, ...minimalInstallation },
   };
   if (values.output)
     writeFileSync(values.output, JSON.stringify(report, null, 2) + "\n", {

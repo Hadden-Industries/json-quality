@@ -53,7 +53,7 @@ test("census path admission counts separators and Unicode scalar characters", as
   ]) {
     const session = new NativeSession();
     try {
-      await session.configure({ maxRequestPathCharacters: "7" });
+      await session.configure({ maxRequestPathCodePoints: "7" });
       await provider(session, "tree");
       if (accepted) await add(session, "tree", path);
       else
@@ -78,7 +78,7 @@ test("census reconciles independent physical sightings and checked source identi
     await add(session, "git", "owned.json");
     const before = (await session.command("census-status")).result;
     assert.equal(before.complete, false);
-    assert.equal(before.members, "2");
+    assert.equal(before.inventoryMemberCount, "2");
     assert.equal(before.missing, "2");
     for (const [path, text] of [
       ["owned.json", "0"],
@@ -98,7 +98,7 @@ test("census reconciles independent physical sightings and checked source identi
     const terminal = (await session.command("census-status")).result;
     assert.equal(terminal.complete, true);
     assert.equal(terminal.contractSatisfied, true);
-    assert.equal(terminal.members, "2");
+    assert.equal(terminal.inventoryMemberCount, "2");
     assert.equal(terminal.missing, "0");
     const first = (await session.command("census-next", { after: "" })).result;
     assert.equal(first.member.path, "owned.json");
@@ -111,7 +111,10 @@ test("census reconciles independent physical sightings and checked source identi
         .result.member,
       null,
     );
-    assert.equal((await session.command("metrics")).result.transitions, "0");
+    assert.equal(
+      (await session.command("metrics")).result.spillTransitionCount,
+      "0",
+    );
   } finally {
     await session.close();
   }
@@ -291,7 +294,7 @@ test("logical census rejects equal bytes detached from their enumerated containe
 test("large independent census spills once under the shared budget and retains sorted membership", async () => {
   const session = new NativeSession();
   try {
-    await session.configure({ managedMemoryTargetBytes: "16777216" });
+    await session.configure({ maxManagedMemoryBytes: "16777216" });
     await provider(session, "tree");
     const prefix = "x".repeat(120) + "/" + "y".repeat(100) + "/";
     for (let index = 9999; index >= 0; index--)
@@ -302,7 +305,7 @@ test("large independent census spills once under the shared budget and retains s
       );
     await session.command("census-close-inventory", { provider: "tree" });
     const status = (await session.command("census-status")).result;
-    assert.equal(status.members, "10000");
+    assert.equal(status.inventoryMemberCount, "10000");
     assert.equal(status.missing, "10000");
     assert.equal(status.complete, false);
     assert.equal(
@@ -315,7 +318,7 @@ test("large independent census spills once under the shared budget and retains s
       prefix + "09999.json",
     );
     const metrics = (await session.command("metrics")).result;
-    assert.equal(metrics.transitions, "1");
+    assert.equal(metrics.spillTransitionCount, "1");
     assert.ok(BigInt(metrics.managedPeakBytes) <= 16777216n);
     assert.ok(BigInt(metrics.scratchPeakBytes) > 0n);
   } finally {
@@ -327,8 +330,8 @@ test("one hundred thousand inventory identities retain exact capacity and comple
   const session = new NativeSession();
   try {
     await session.configure({
-      managedMemoryTargetBytes: "16777216",
-      maxFiles: "100000",
+      maxManagedMemoryBytes: "16777216",
+      maxPhysicalAndNativeSources: "100000",
     });
     await provider(session, "tree");
     for (let index = 0; index < 100000; index++)
@@ -338,10 +341,13 @@ test("one hundred thousand inventory identities retain exact capacity and comple
         "member-" + String(index).padStart(6, "0") + ".json",
       );
     const status = (await session.command("census-status")).result;
-    assert.equal(status.members, "100000");
+    assert.equal(status.inventoryMemberCount, "100000");
     assert.equal(status.missing, "100000");
     assert.equal(status.complete, false);
-    assert.equal((await session.command("metrics")).result.transitions, "1");
+    assert.equal(
+      (await session.command("metrics")).result.spillTransitionCount,
+      "1",
+    );
     await assert.rejects(
       add(session, "tree", "overflow.json"),
       /census-file-capacity/,

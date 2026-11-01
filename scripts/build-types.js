@@ -24,7 +24,8 @@ import { budgets } from "./qualification-process.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const exportsForSchema = {
-  configuration: "JsonQualityPolicy",
+  configuration: "JsonQualityConfiguration",
+  "effective-policy": "JsonQualityPolicy",
   "source-contract": "JsonSourceContract",
   event: "JsonQualityEvent",
 };

@@ -7,7 +7,7 @@ import {
   resolveResourceProfile,
   exceedsQuota,
 } from "./resource-profile.js";
-export const JSON_TRANSFORM_CAPABILITIES =
+export const DEFAULT_JSON_TRANSFORM_LIMITS =
   /** @type {{ readonly [K in keyof Required<import("../types/schemas/configuration.js").TransformControls>]: number }} */ (
     resourceDefaults("transformControls")
   );
@@ -16,7 +16,7 @@ export function transformResources(
   /** @type {*} */ invocation,
 ) {
   return resolveResourceProfile(
-    JSON_TRANSFORM_CAPABILITIES,
+    DEFAULT_JSON_TRANSFORM_LIMITS,
     policy,
     invocation,
   );
@@ -25,7 +25,7 @@ export function transformResources(
 /** Refuse before a UTF-8 body copy or formatter/parser is created. */
 export function admitTransformSource(
   /** @type {*} */ text,
-  /** @type {*} */ controls = JSON_TRANSFORM_CAPABILITIES,
+  /** @type {*} */ controls = DEFAULT_JSON_TRANSFORM_LIMITS,
 ) {
   if (typeof text !== "string" || !text.isWellFormed())
     throw new TypeError(
@@ -48,7 +48,7 @@ export function admitTransformSource(
  */
 export function transformWorkspaceReservation(
   /** @type {*} */ sourceBytes,
-  /** @type {*} */ controls = JSON_TRANSFORM_CAPABILITIES,
+  /** @type {*} */ controls = DEFAULT_JSON_TRANSFORM_LIMITS,
 ) {
   if (
     !Number.isSafeInteger(sourceBytes) ||
@@ -75,7 +75,7 @@ export function transformWorkspaceReservation(
 export function formatWorkspaceReservation(
   /** @type {*} */ sourceBytes,
   indexedValues = 0,
-  /** @type {*} */ controls = JSON_TRANSFORM_CAPABILITIES,
+  /** @type {*} */ controls = DEFAULT_JSON_TRANSFORM_LIMITS,
 ) {
   if (
     !Number.isSafeInteger(sourceBytes) ||
@@ -99,11 +99,16 @@ export function retainedTransformResult(
   /** @type {*} */ text,
   /** @type {*} */ capture,
   /** @type {*} */ releaseOwner,
+  /** @type {*} */ normalizationChanges = [],
 ) {
   let released = false,
     releasing;
   return Object.freeze({
     capture: Object.freeze({ ...capture }),
+    get normalizationChanges() {
+      if (released) throw new Error("released-transform");
+      return normalizationChanges;
+    },
     get text() {
       if (released) throw new Error("released-transform");
       return text;
@@ -114,6 +119,7 @@ export function retainedTransformResult(
       try {
         await releasing;
         text = undefined;
+        normalizationChanges = undefined;
         released = true;
       } catch (error) {
         releasing = undefined;

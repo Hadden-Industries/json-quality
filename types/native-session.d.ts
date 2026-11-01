@@ -39,8 +39,8 @@ export declare class NativeSession {
   read(
     /** @type {*} */ value: any,
     /** @type {*} */ representation: any,
-    offset?: string,
-    maximum?: string,
+    byteOffset?: string,
+    maximumBytes?: string,
   ): Promise<{
     result: any;
     data: any;

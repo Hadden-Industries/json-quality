@@ -30,6 +30,31 @@ No installation, deployment, activation, engine selection change, release promot
 
 The sections below retain the planning observations and technical acceptance criteria; this authorization supersedes their earlier draft-status, isolated-branch and duplicate administrative-process wording.
 
+### Implementation clarifications
+
+The implementation preserves revision 3's accepted behavior while making these source-grounded corrections explicit:
+
+- `selectByPointerStream` retains the existing runtime requirement for an exact pointer-stream `identity`; its TypeScript options now require that identity.
+  The audit's description of it as optional was inaccurate.
+  The source stream and pointer stream remain separate authorities.
+- The former `json-quality/interoperability` / `integer` finding is numeric, so its precise replacement is `json-quality/no-unsafe-integers` / `integer`.
+  It must not be reassigned to the Unicode noncharacter rule.
+  Detection, severity and integer admission remain unchanged.
+- Collision diagnostics use a scoped `containerValue` identity plus both key locations and bounded normalized hash/length metadata. This satisfies the containing-object identity/pointer requirement without emitting arbitrarily large or sensitive decoded pointers by default.
+  Value access still follows the session's retention and capability contract.
+- Preview changes include original decoded byte length and SHA-256 alongside normalized byte length and SHA-256; every preview terminal carries the native source, ICU and Unicode identities, including no-change previews and complete collision refusals.
+- Git execution event validation requires the configuration origin's commit/blob identities to agree with its qualification metadata.
+  An absent policy cannot acquire a fabricated blob identity.
+- The official Node release index now also contains prereleases.
+  The maintained stable runtime matrix skips valid prerelease records while continuing to reject malformed records; this keeps the accepted Node support policy unchanged.
+- Installed Linux qualification exposed a pre-existing entry-point defect: npm's binary symlink spelling differed from the ESM module's resolved path, so the CLI could exit without running.
+  Both public binaries now compare resolved file identities; symlink invocation and inert imports have direct regression coverage.
+- Public policy outputs use the deeply readonly `ReadonlyJsonQualityPolicy` declaration, object-name descriptors include the `key` kind, and `ResolvedResources` is exported from the supported package root.
+  Consumer qualification binds the executed defaults digest to the installed asset and then to frozen package or Git-source evidence.
+
+The owner subsequently authorized a temporary GitHub Codespace for Linux qualification using transferred local source, with no push and cleanup after use.
+Local development qualification remains distinct from release, anonymous-registry, installation or live acceptance.
+
 Make the ordinary consumer contract: install the development dependency, then use the public binary with no configuration file, npm script, JavaScript wrapper or custom provider.
 Package-owned defaults should deliver complete discovery, strict admission, useful diagnostics and safe explicit repairs.
 Configuration should express exceptional ownership and supported deviations without repeating fixed package constants.

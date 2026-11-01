@@ -1,5 +1,5 @@
 {
-  "title": "JSON Quality source contract, cohort 2",
+  "title": "JSON Quality source contract, cohort 4",
   "description": "Selected complete source quality contract. Payload bytes travel separately as a backpressured stream. No compatibility with whole-document requests.",
   "type": "object",
   "additionalProperties": false,
@@ -40,7 +40,7 @@
         "pattern": "^(?:/(?:[^~/]|~[01])*)*/$"
       }
     },
-    "allowFormatWrites": {
+    "allowSourceRewrites": {
       "const": false
     },
     "owner": {
@@ -51,31 +51,31 @@
       "type": "string",
       "pattern": "\\S"
     },
-    "preserveNfcValues": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/nfcValues"
+    "nfcExemptStringValues": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/nfcExemptStringValuePins"
     },
     "expected": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/sourceExpectation"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/sourceExpectation"
     }
   },
   "allOf": [
     {
       "if": {
         "properties": {
-          "preserveNfcValues": true
+          "nfcExemptStringValues": true
         },
         "required": [
-          "preserveNfcValues"
+          "nfcExemptStringValues"
         ]
       },
       "then": {
         "properties": {
-          "allowFormatWrites": true,
+          "allowSourceRewrites": true,
           "owner": true,
           "reason": true
         },
         "required": [
-          "allowFormatWrites",
+          "allowSourceRewrites",
           "owner",
           "reason"
         ]
@@ -83,5 +83,5 @@
     }
   ],
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Hadden-Industries/json-quality/schema/source-contract/v3"
+  "$id": "https://github.com/Hadden-Industries/json-quality/schema/source-contract/v4"
 }

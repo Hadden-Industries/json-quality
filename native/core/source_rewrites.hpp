@@ -101,10 +101,12 @@ struct SourceRewrites {
       Statement checked(
           *store.database,
           "SELECT c.sha,c.length,c.parent_source,c.parent_value,c.encoding,"
-          "s.contract_satisfied,s.quality FROM source_captures c JOIN source_closures s "
+          "s.contract_satisfied,s.quality,s.format_eligible,s.normalize_eligible "
+          "FROM source_captures c JOIN source_closures s "
           "USING(source) WHERE c.source=?");
       checked.integer(1, source);
-      require(checked.next() && checked.integer(5) && (!physical || checked.integer(6)),
+      require(checked.next() &&
+                  (physical ? checked.integer(normalize ? 8 : 7) : checked.integer(5)),
               "rewrite-candidate-not-accepted");
       sha = checked.text(0);
       length = checked.integer(1);
@@ -170,11 +172,14 @@ struct SourceRewrites {
   }
   void admit() {
     require(!admitted && dependent().is_null(), "rewrite-logical-candidates-incomplete");
-    Statement query(*store.database,
-                    "SELECT 1 FROM census_members m LEFT JOIN rewrite_candidates r USING(path) "
-                    "LEFT JOIN source_closures c ON c.source=COALESCE(r.source,m.source) "
-                    "WHERE c.contract_satisfied<>1 OR c.source IS NULL OR "
-                    "(r.selected=1 AND r.source IS NULL) LIMIT 1");
+    const std::string eligible = normalize ? "c.normalize_eligible" : "c.format_eligible";
+    const std::string sql =
+        "SELECT 1 FROM census_members m LEFT JOIN rewrite_candidates r USING(path) "
+        "LEFT JOIN source_closures c ON c.source=COALESCE(r.source,m.source) "
+        "WHERE (CASE WHEN r.selected=1 THEN " + eligible +
+        " ELSE c.contract_satisfied END)<>1 OR c.source IS NULL OR "
+        "(r.selected=1 AND r.source IS NULL) LIMIT 1";
+    Statement query(*store.database, sql.c_str());
     require(!query.next(), "rewrite-peer-preflight-failed");
     query.finish();
     admitted = true;
@@ -218,10 +223,24 @@ struct SourceRewrites {
     require(query.next(), "rewrite-count");
     const auto selected = query.integer(0), changed = query.integer(1), written = query.integer(2);
     query.finish();
+    Statement quality(
+        *store.database,
+        "SELECT COALESCE(sum(c.finding_count),0),COALESCE(min(c.quality),1) "
+        "FROM census_members m LEFT JOIN rewrite_candidates r USING(path) "
+        "LEFT JOIN source_closures c ON c.source=COALESCE(r.source,m.source)");
+    require(quality.next(), "rewrite-quality-count");
+    const auto remainingFindings = quality.integer(0);
+    const bool qualityPassed = quality.integer(1) != 0;
+    quality.finish();
     return {
-        {"type", "rewrite-status"},           {"selected", std::to_string(selected)},
-        {"changed", std::to_string(changed)}, {"written", std::to_string(written)},
-        {"preflightComplete", admitted},      {"writesComplete", admitted && changed == written}};
+        {"type", "rewrite-status"},
+        {"selectedPathCount", std::to_string(selected)},
+        {"changedPathCount", std::to_string(changed)},
+        {"writtenPathCount", std::to_string(written)},
+        {"qualityPassed", qualityPassed},
+        {"findingCount", std::to_string(remainingFindings)},
+        {"preflightComplete", admitted},
+        {"writesComplete", admitted && changed == written}};
   }
   json::value directory(const std::string &path) {
     Statement query(

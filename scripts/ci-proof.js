@@ -60,6 +60,7 @@ function context(ctx) {
   for (const key of ["commit", "tree", "workflow"])
     assert.ok(sha(ctx.snapshot?.[key]));
   assert.equal(ctx.snapshot.commit, ctx.sha);
+  assert.match(ctx.snapshot.defaultPolicySha256, /^[a-f0-9]{64}$/u);
   assert.ok(
     Array.isArray(ctx.snapshot.parents) && ctx.snapshot.parents.every(sha),
   );
@@ -285,6 +286,7 @@ function lanes(records, ctx, matrix) {
       source: ctx.sha,
       ...lane,
       npm: nodeSupport.consumerNpm,
+      defaultPolicySha256: ctx.snapshot.defaultPolicySha256,
     });
     for (const operation of ["check", "format"])
       validatePerformance(record.performance[operation], {

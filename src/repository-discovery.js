@@ -246,7 +246,11 @@ export async function discoverRepositorySources(
           directoryContract = entry.isSymbolicLink()
             ? contractFor(path + "/")
             : contract;
-        if (contract.exclude || directoryContract.exclude) continue;
+        if (
+          contract.excludeUntrackedSources ||
+          directoryContract.excludeUntrackedSources
+        )
+          continue;
         if (entry.isSymbolicLink())
           throw new Error(`Nonregular JSON discovery path: ${path}`);
         if (entry.isDirectory())
@@ -404,8 +408,9 @@ export async function recheckRepositoryWriteDiscovery(
           path = directory.path ? directory.path + "/" + name : name,
           contract = contractFor(path + (entry.isDirectory() ? "/" : ""));
         if (
-          contract.exclude ||
-          (entry.isSymbolicLink() && contractFor(path + "/").exclude)
+          contract.excludeUntrackedSources ||
+          (entry.isSymbolicLink() &&
+            contractFor(path + "/").excludeUntrackedSources)
         )
           continue;
         if (entry.isSymbolicLink())

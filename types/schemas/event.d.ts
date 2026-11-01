@@ -6,12 +6,12 @@
  */
 export type JsonQualityEvent = {
   qualification?: {
-    trustedSha: string;
-    candidateSha: string;
-    trustedPolicyBlob: string;
+    trustedCommitId: string;
+    candidateCommitId: string;
+    trustedPolicyBlobId?: string;
     scope: "immutable-git-json";
   };
-  schemaVersion: 3;
+  schemaVersion: 4;
   requestId: string;
   type:
     | "source"
@@ -24,7 +24,10 @@ export type JsonQualityEvent = {
     | "write-preflight"
     | "written"
     | "write-terminal"
-    | "write-failure";
+    | "write-failure"
+    | "nfc-key-collision-risk"
+    | "normalization-preview-change"
+    | "normalization-preview-terminal";
   path?: string;
   source?: SourceReference;
   reference?: ValueReference;
@@ -42,15 +45,7 @@ export type JsonQualityEvent = {
   nfcByteLength?: UnsignedIntegerText;
   closed?: boolean;
   nfcAvailable?: boolean;
-  valueKind?:
-    | "string"
-    | "key"
-    | "number"
-    | "true"
-    | "false"
-    | "null"
-    | "array"
-    | "object";
+  valueKind?: "key" | "string";
   kind?:
     | "string"
     | "key"
@@ -85,15 +80,14 @@ export type JsonQualityEvent = {
   expectedMatched?: boolean | null;
   domainAdmission?: "unassessed";
   domainComplete?: false;
-  findings?: UnsignedIntegerText;
+  findingCount?: UnsignedIntegerText;
   managedPeakBytes?: UnsignedIntegerText;
-  transitions?: UnsignedIntegerText;
+  spillTransitionCount?: UnsignedIntegerText;
   scratchPeakBytes?: UnsignedIntegerText;
-  members?: UnsignedIntegerText;
+  inventoryMemberCount?: UnsignedIntegerText;
   recordCount?: UnsignedIntegerText | null;
   sourceSha256?: string;
   diagnosticSha256?: string;
-  policySha256?: string;
   coreSourceInputsSha256?: string;
   linkage?: {
     containerSource: SourceReference;
@@ -102,10 +96,10 @@ export type JsonQualityEvent = {
   };
   resources?: {
     admission: {
-      maxFiles: PositiveIntegerText | null;
-      maxFileBytes: PositiveIntegerText | null;
-      maxTotalBytes: PositiveIntegerText | null;
-      maxLogicalDocuments: PositiveIntegerText | null;
+      maxPhysicalAndNativeSources: PositiveIntegerText | null;
+      maxSourceBytes: PositiveIntegerText | null;
+      maxTotalSourceBytes: PositiveIntegerText | null;
+      maxNativeLogicalAndTransformedSources: PositiveIntegerText | null;
       maxRecords: PositiveIntegerText | null;
       maxDiagnostics: PositiveIntegerText | null;
       maxPolicyBytes: PositiveIntegerText | null;
@@ -113,15 +107,12 @@ export type JsonQualityEvent = {
       maxToolOutputBytes: PositiveIntegerText | null;
       maxToolTimeMs: PositiveIntegerText | null;
       maxGitTimeMs: PositiveIntegerText | null;
-      maxAcquisitionTimeMs: PositiveIntegerText | null;
-      maxCacheLookupTimeMs: PositiveIntegerText | null;
-      maxCacheOutputBytes: PositiveIntegerText | null;
-      maxRequestIdCharacters: PositiveIntegerText | null;
+      maxRequestIdCodePoints: PositiveIntegerText | null;
       maxRequestBytes: PositiveIntegerText | null;
-      maxRequestPathCharacters: PositiveIntegerText | null;
+      maxRequestPathCodePoints: PositiveIntegerText | null;
     };
     runtime: {
-      managedMemoryTargetBytes: PositiveIntegerText | null;
+      maxManagedMemoryBytes: PositiveIntegerText | null;
       maxTemporaryBytes: PositiveIntegerText | null;
       maxNestingDepth: PositiveIntegerText | null;
       maxCheckTimeMs: PositiveIntegerText | null;
@@ -132,12 +123,53 @@ export type JsonQualityEvent = {
   truncated?: boolean;
   complete?: boolean;
   operation?: "format" | "normalize";
-  selected?: UnsignedIntegerText;
-  changed?: UnsignedIntegerText;
-  written?: UnsignedIntegerText;
+  selectedPathCount?: UnsignedIntegerText;
+  changedPathCount?: UnsignedIntegerText;
   preflightComplete?: boolean;
   writesComplete?: boolean;
   uncertainPath?: string | null;
+  writtenPathCount?: UnsignedIntegerText;
+  configurationOrigin?:
+    | {
+        kind: "repository-file";
+        path: ".json-quality.json";
+      }
+    | {
+        kind: "repository-absence";
+        path: ".json-quality.json";
+      }
+    | {
+        kind: "git-blob";
+        path: ".json-quality.json";
+        commitId: string;
+        blobId: string;
+      }
+    | {
+        kind: "git-absence";
+        path: ".json-quality.json";
+        commitId: string;
+      };
+  defaultPolicySha256?: string;
+  policyResolverInputsSha256?: string;
+  configurationBytesSha256?: string;
+  policyInputsSha256?: string;
+  configurationByteLength?: UnsignedIntegerText;
+  formatEligible?: boolean;
+  normalizeEligible?: boolean;
+  containerValue?: ValueReference;
+  priorValue?: ValueReference;
+  priorLine?: PositiveIntegerText;
+  priorColumn?: PositiveIntegerText;
+  priorEndLine?: PositiveIntegerText;
+  priorEndColumn?: PositiveIntegerText;
+  normalizedSha256?: string;
+  normalizedByteLength?: UnsignedIntegerText;
+  sourceByteLength?: UnsignedIntegerText;
+  pointer?: string;
+  icuVersion?: string;
+  unicodeVersion?: string;
+  decodedByteLength?: UnsignedIntegerText;
+  decodedSha256?: string;
 } & (
   | {
       schemaVersion?: unknown;
@@ -206,11 +238,11 @@ export type JsonQualityEvent = {
       qualityPassed: unknown;
       expectedMatched: unknown;
       contractSatisfied: unknown;
-      findings: unknown;
+      findingCount: unknown;
       diagnosticSha256: unknown;
       sourceSha256: unknown;
       managedPeakBytes: unknown;
-      transitions: unknown;
+      spillTransitionCount: unknown;
       scratchPeakBytes: unknown;
       path?: unknown;
       scope?: unknown;
@@ -218,15 +250,22 @@ export type JsonQualityEvent = {
       recordCount?: unknown;
       linkage?: unknown;
       type?: "terminal";
+      formatEligible: unknown;
+      normalizeEligible: unknown;
     }
   | {
       schemaVersion?: unknown;
       requestId?: unknown;
       resources: unknown;
-      policySha256: unknown;
       coreSourceInputsSha256: unknown;
       qualification?: unknown;
       type?: "execution";
+      configurationOrigin: unknown;
+      defaultPolicySha256: unknown;
+      policyResolverInputsSha256: unknown;
+      policyInputsSha256: unknown;
+      configurationBytesSha256?: unknown;
+      configurationByteLength?: unknown;
     }
   | {
       schemaVersion?: unknown;
@@ -237,7 +276,7 @@ export type JsonQualityEvent = {
       sourceObservationsComplete: unknown;
       diagnosticsComplete: unknown;
       domainComplete: unknown;
-      members: unknown;
+      inventoryMemberCount: unknown;
       qualityPassed: unknown;
       contractSatisfied: unknown;
       type?: "execution-terminal";
@@ -255,8 +294,8 @@ export type JsonQualityEvent = {
       requestId: unknown;
       type: "write-preflight";
       operation: unknown;
-      selected: unknown;
-      changed: unknown;
+      selectedPathCount: unknown;
+      changedPathCount: unknown;
       preflightComplete: true;
     }
   | {
@@ -273,13 +312,15 @@ export type JsonQualityEvent = {
       requestId: unknown;
       type: "write-terminal";
       operation: unknown;
-      selected: unknown;
-      changed: unknown;
-      written: unknown;
+      selectedPathCount: unknown;
+      changedPathCount: unknown;
       complete: true;
       writesComplete: true;
       preflightComplete: true;
       sourceObservationsComplete: true;
+      writtenPathCount: unknown;
+      qualityPassed: unknown;
+      findingCount: unknown;
     }
   | {
       schemaVersion: unknown;
@@ -288,9 +329,69 @@ export type JsonQualityEvent = {
       operation: unknown;
       complete: false;
       preflightComplete: unknown;
-      written: unknown;
       uncertainPath: unknown;
       message: unknown;
+      writtenPathCount: unknown;
+    }
+  | {
+      schemaVersion: unknown;
+      requestId: unknown;
+      source: unknown;
+      path?: unknown;
+      scope?: unknown;
+      linkedExpectationsComplete?: unknown;
+      record?: unknown;
+      containerValue: unknown;
+      value: unknown;
+      priorValue: unknown;
+      line: unknown;
+      column: unknown;
+      endLine: unknown;
+      endColumn: unknown;
+      priorLine: unknown;
+      priorColumn: unknown;
+      priorEndLine: unknown;
+      priorEndColumn: unknown;
+      normalizedSha256: unknown;
+      normalizedByteLength: unknown;
+      type?: "nfc-key-collision-risk";
+    }
+  | {
+      schemaVersion: unknown;
+      requestId: unknown;
+      operation: unknown;
+      path: unknown;
+      sourceSha256: unknown;
+      sourceByteLength: unknown;
+      sourceByteOffset: unknown;
+      rawByteLength: unknown;
+      pointer: unknown;
+      valueKind: unknown;
+      normalizedSha256: unknown;
+      normalizedByteLength: unknown;
+      coreSourceInputsSha256: unknown;
+      icuVersion: unknown;
+      unicodeVersion: unknown;
+      type?: "normalization-preview-change";
+      decodedByteLength: unknown;
+      decodedSha256: unknown;
+    }
+  | {
+      schemaVersion: unknown;
+      requestId: unknown;
+      operation: unknown;
+      complete: unknown;
+      preflightComplete: unknown;
+      sourceObservationsComplete: unknown;
+      selectedPathCount?: unknown;
+      changedPathCount?: unknown;
+      qualityPassed?: unknown;
+      findingCount?: unknown;
+      message?: unknown;
+      type?: "normalization-preview-terminal";
+      coreSourceInputsSha256: unknown;
+      icuVersion: unknown;
+      unicodeVersion: unknown;
     }
 );
 /**
@@ -311,9 +412,9 @@ export type PositiveIntegerText = string;
  * @minItems 1
  *
  * This interface was referenced by `undefined`'s JSON-Schema
- * via the `definition` "nfcValues".
+ * via the `definition` "nfcExemptStringValuePins".
  */
-export type NfcValues = [
+export type NfcExemptStringValuePins = [
   {
     pointer: string;
     sha256: string;
@@ -340,7 +441,7 @@ export type NfcValues = [
  */
 export interface SourceReference {
   kind: "source";
-  identity: string;
+  referenceId: string;
   byteLength?: UnsignedIntegerText;
   sha256?: string;
 }
@@ -350,7 +451,7 @@ export interface SourceReference {
  */
 export interface ValueReference {
   kind: "value";
-  identity: string;
+  referenceId: string;
   byteLength?: UnsignedIntegerText;
   sha256?: string | null;
   ordinal?: UnsignedIntegerText;
@@ -377,7 +478,7 @@ export interface ValueReference {
  * via the `definition` "runtimeControls".
  */
 export interface RuntimeControls {
-  managedMemoryTargetBytes?: number | null;
+  maxManagedMemoryBytes?: number | null;
   maxTemporaryBytes?: number | null;
   maxNestingDepth?: number | null;
   maxCheckTimeMs?: number | null;
@@ -387,10 +488,10 @@ export interface RuntimeControls {
  * via the `definition` "capacityLimits".
  */
 export interface CapacityLimits {
-  maxFiles?: number | null;
-  maxFileBytes?: number | null;
-  maxTotalBytes?: number | null;
-  maxLogicalDocuments?: number | null;
+  maxPhysicalAndNativeSources?: number | null;
+  maxSourceBytes?: number | null;
+  maxTotalSourceBytes?: number | null;
+  maxNativeLogicalAndTransformedSources?: number | null;
   maxRecords?: number | null;
   maxDiagnostics?: number | null;
   maxPolicyBytes?: number | null;
@@ -398,12 +499,9 @@ export interface CapacityLimits {
   maxToolOutputBytes?: number | null;
   maxToolTimeMs?: number | null;
   maxGitTimeMs?: number | null;
-  maxAcquisitionTimeMs?: number | null;
-  maxCacheLookupTimeMs?: number | null;
-  maxCacheOutputBytes?: number | null;
-  maxRequestIdCharacters?: number | null;
+  maxRequestIdCodePoints?: number | null;
   maxRequestBytes?: number | null;
-  maxRequestPathCharacters?: number | null;
+  maxRequestPathCodePoints?: number | null;
 }
 /**
  * This interface was referenced by `undefined`'s JSON-Schema
@@ -446,7 +544,7 @@ export interface TransformControls {
  */
 export interface ProducerControls {
   maximumDepth?: number | null;
-  maximumMembers?: number | null;
+  maximumTotalValues?: number | null;
 }
 /**
  * This interface was referenced by `undefined`'s JSON-Schema
@@ -464,4 +562,21 @@ export interface VerificationControls {
   maximumDepth?: number | null;
   maximumVerificationTimeMs?: number | null;
   maximumDecompressionRatio?: number | null;
+}
+/**
+ * This interface was referenced by `undefined`'s JSON-Schema
+ * via the `definition` "installationControls".
+ */
+export interface InstallationControls {
+  maximumPackageFamilyFiles?: number | null;
+  maximumPackageFamilyBytes?: number | null;
+  maxCacheLookupTimeMs?: number | null;
+  maxCacheOutputBytes?: number | null;
+}
+/**
+ * This interface was referenced by `undefined`'s JSON-Schema
+ * via the `definition` "acquisitionControls".
+ */
+export interface AcquisitionControls {
+  maxAcquisitionTimeMs?: number | null;
 }

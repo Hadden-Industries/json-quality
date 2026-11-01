@@ -52,8 +52,8 @@ test("bounded transport batches freeze reused producer views across tiny fragmen
     await session.close();
   }
 });
-function readSource(session, source, offset = "0", maximum = "65536") {
-  return session.command("read-source", { source, offset, maximum });
+function readSource(session, source, byteOffset = "0", maximumBytes = "65536") {
+  return session.command("read-source", { source, byteOffset, maximumBytes });
 }
 
 test("raw source bytes are frozen before grammar and survive subsequent sources", async () => {
@@ -107,7 +107,7 @@ test("insufficient scratch for the owner marker fails before creating a director
   const session = new NativeSession();
   try {
     await session.configure({
-      managedMemoryTargetBytes: "16777216",
+      maxManagedMemoryBytes: "16777216",
       maxTemporaryBytes: "1",
     });
     function* source() {

@@ -1,0 +1,20 @@
+import assert from "node:assert/strict";
+import { readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { resolveJsonQualityPolicy } from "file:///C:/Users/maksy/GitHub/json-quality/src/configuration.js";
+const here = new URL("./",import.meta.url);
+const inputs=JSON.parse(readFileSync(new URL("source-inputs.json",here)));
+const hashesMatch=()=>inputs.every(([path,digest])=>createHash("sha256").update(readFileSync("C:/Users/maksy/GitHub/json-quality/"+path)).digest("hex")===digest);
+assert.ok(hashesMatch());
+const runs=[],iterations=100,modes=["absent","empty"];
+for(let round=-1;round<7;round++)for(const mode of round%2===0?[...modes].reverse():modes) {
+ let result;const began=performance.now();
+ for(let index=0;index<iterations;index++)result=resolveJsonQualityPolicy(mode==="absent"?undefined:{});
+ const elapsedMs=performance.now()-began;
+ assert.equal(result.schemaVersion,4);assert.equal(result.defaults.normalization,"NFC");assert.ok(Object.isFrozen(result.defaults));
+ runs.push({round,mode,warmup:round<0,iterations,elapsedMs,perCallMs:elapsedMs/iterations});
+}
+assert.ok(hashesMatch());
+const result={schemaVersion:1,status:"development-uncommitted-pure-resolver-microbenchmark",node:process.version,sourceInputsUnchanged:true,method:"One Node process after module import. One100-call warmup per mode discarded, seven alternating100-call batches per mode. Per-call elapsed includes immutable snapshot/resolution/freezing only, not filesystem absence observation, native bootstrap/reservations, discovery, npm, startup or domain parsing. Caller retains final result only. No affinity/cache/GC controls.",runs};
+writeFileSync(new URL("resolver-results.json",here),JSON.stringify(result,null,2)+"\n");
+console.log(JSON.stringify(result));

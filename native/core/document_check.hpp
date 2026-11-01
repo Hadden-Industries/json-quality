@@ -157,14 +157,14 @@ struct Checker {
         maxDiagnostics(s.maxDiagnostics), events(s), rootValue(s.nextValueId),
         sourceUtf8Admitted(utf8Admitted), includeValueEvents(values) {
     retainTree = values || retained || contract.if_contains("allowEmptyKeys") ||
-                 contract.if_contains("preserveNfcValues");
+                 contract.if_contains("nfcExemptStringValues");
     if (record)
       observer.line = record;
     if (auto item = contract.if_contains("normalization"))
       normalization = item->as_string() != "preserve";
     if (auto item = contract.if_contains("checkPresentation"))
       checkPresentation = item->as_bool();
-    if (auto item = contract.if_contains("preserveNfcValues")) {
+    if (auto item = contract.if_contains("nfcExemptStringValues")) {
       pinsSeen.resize(item->as_array().size());
       recordSelections.resize(item->as_array().size());
       for (const auto &pin : item->as_array())
@@ -391,7 +391,7 @@ struct Checker {
       if (result.subnormal)
         finding(current, "json/no-unsafe-values", "subnormal");
       if (result.exactInteger)
-        finding(current, "json-quality/interoperability", "integer");
+        finding(current, "json-quality/no-unsafe-integers", "integer");
     } else {
       bool allTrim = true, firstTrim = false, lastTrim = false, first = true;
       std::set<Point> noncharacters;
@@ -408,7 +408,7 @@ struct Checker {
       // Every ASCII sequence is already NFC. This certificate covers the
       // decoded bytes (including escapes), not the source's spelling or size.
       // Keep the same inspection and collision checks over the shared stream.
-      if (normalization && !scalarAscii)
+      if ((normalization || key) && !scalarAscii)
         current.normalized = normalize(streams, current.decoded, inspect);
       else {
         if (scalarAscii)
@@ -422,7 +422,7 @@ struct Checker {
         const auto length =
             std::snprintf(label, sizeof(label), "U+%04X", static_cast<unsigned>(point));
         require(length >= 6 && length <= 8, "code-point-label");
-        finding(current, "json-quality/interoperability", "noncharacter", "lint",
+        finding(current, "json-quality/no-unicode-noncharacters", "noncharacter", "lint",
                 {{"codePoint", std::string(label, static_cast<std::size_t>(length))}});
       }
       if (key && (allTrim || firstTrim || lastTrim)) {
@@ -432,17 +432,14 @@ struct Checker {
             for (const auto &pointer : items->as_array())
               if (pointerMatches(current, pointer.as_string()))
                 allowed = true;
-        if (!allowed) {
-          bool exceptions = contract.if_contains("allowEmptyKeys") &&
-                            !contract.at("allowEmptyKeys").as_array().empty();
-          finding(current,
-                  allTrim && !exceptions ? "json/no-empty-keys" : "json-quality/meaningful-keys",
-                  allTrim ? (exceptions ? "empty" : "emptyKey") : "whitespace");
-        }
+        if (!allowed)
+          finding(current, allTrim ? "json-quality/no-empty-keys"
+                                   : "json-quality/no-surrounding-key-whitespace",
+                  allTrim ? "emptyKey" : "whitespace");
       }
       bool preserved = false;
       if (!key && !recordPreservation)
-        if (auto items = contract.if_contains("preserveNfcValues"))
+        if (auto items = contract.if_contains("nfcExemptStringValues"))
           for (std::size_t i = 0; i < items->as_array().size(); ++i) {
             const auto &pin = items->as_array()[i].as_object();
             if (pointerMatches(current, pin.at("pointer").as_string())) {
@@ -451,7 +448,7 @@ struct Checker {
                   exactInteger(pin.at("byteLength")) == current.decoded.length)
                 preserved = true;
               else
-                finding(current, "json-quality/normalized-strings", "preservationMismatch");
+                finding(current, "json-quality/nfc-strings", "preservationMismatch");
             }
           }
       if (normalization) {
@@ -465,28 +462,31 @@ struct Checker {
             require(!insert.next(), "nfc-pending-insert");
             insert.finish();
           } else
-            finding(current, "json-quality/normalized-strings", "unnormalized");
+            finding(current, "json-quality/nfc-strings", "unnormalized");
         }
       }
       if (key) {
         // Digest narrows candidates; exact decoded/NFC bytes decide identity.
         std::string normalizedDigest = current.digest;
-        if (normalization && current.normalized.id != current.decoded.id) {
+        if (current.normalized.id != current.decoded.id) {
           Sha256 digest;
           for (std::uint64_t p = 0; p < current.normalized.length; p += 65536)
             digest.update(streams.read(current.normalized, p));
           normalizedDigest = Sha256::hex(digest.finish());
         }
+        const auto normalizedSha256 = normalizedDigest;
         normalizedDigest = indexDigest(normalizedDigest);
         std::uint64_t after = 0;
-        bool repeated = false, latestNormalizedDifferent = false;
+        bool repeated = false, normalizedDifferent = false;
+        json::object collisionArguments;
         while (true) {
           Value prior;
           {
             Statement query(
                 *streams.store.database,
                 "SELECT "
-                "value,decoded,length,decoded_begin,normalized,normalized_length,normalized_begin "
+                "value,decoded,length,decoded_begin,normalized,normalized_length,normalized_begin,"
+                "line,column_number,end_line,end_column "
                 "FROM keys_index WHERE parent=? AND digest=? AND value>? ORDER BY value LIMIT 1");
             query.integer(1, current.parent);
             query.text(2, normalizedDigest);
@@ -495,6 +495,8 @@ struct Checker {
               prior.id = query.integer(0);
               prior.decoded = {query.integer(1), query.integer(2), query.integer(3)};
               prior.normalized = {query.integer(4), query.integer(5), query.integer(6)};
+              prior.location = {query.integer(7), query.integer(8), query.integer(9),
+                                query.integer(10)};
             }
             query.finish();
           }
@@ -503,21 +505,47 @@ struct Checker {
           after = prior.id;
           bool sameDecoded = streams.equal(current.decoded, prior.decoded);
           repeated |= sameDecoded;
-          if (normalization && streams.equal(current.normalized, prior.normalized))
-            latestNormalizedDifferent = !sameDecoded;
+          if (!sameDecoded && streams.equal(current.normalized, prior.normalized)) {
+            json::object context{{"priorValue", std::to_string(prior.id)},
+                                 {"containerValue", std::to_string(current.parent)},
+                                 {"priorLine", std::to_string(prior.location.line)},
+                                 {"priorColumn", std::to_string(prior.location.column)},
+                                 {"priorEndLine", std::to_string(prior.location.endLine)},
+                                 {"priorEndColumn", std::to_string(prior.location.endColumn)},
+                                 {"normalizedSha256", normalizedSha256},
+                                 {"normalizedByteLength", std::to_string(current.normalized.length)}};
+            if (!normalizedDifferent)
+              collisionArguments = context;
+            normalizedDifferent = true;
+            if (!normalization) {
+              require(streams.allocatedFindings < maxDiagnostics, "diagnostic-capacity");
+              ++streams.allocatedFindings;
+              context["type"] = "nfc-key-collision-risk";
+              context["value"] = std::to_string(current.id);
+              context["line"] = std::to_string(current.location.line);
+              context["column"] = std::to_string(current.location.column);
+              context["endLine"] = std::to_string(current.location.endLine);
+              context["endColumn"] = std::to_string(current.location.endColumn);
+              if (record)
+                context["record"] = std::to_string(record);
+              event(std::move(context));
+            }
+          }
         }
         if (repeated) {
           finding(current, "json/no-duplicate-keys", "duplicateKey");
           duplicate = true;
         }
-        if (latestNormalizedDifferent)
-          finding(current, "json-quality/normalized-strings", "collision");
+        if (normalization && normalizedDifferent)
+          finding(current, "json-quality/nfc-strings", "collision", "lint",
+                  std::move(collisionArguments));
         streams.store.prepare(32768);
         Statement insert(
             *streams.store.database,
             "INSERT INTO "
             "keys_index(parent,digest,raw_digest,value,decoded,decoded_begin,length,normalized,"
-            "normalized_begin,normalized_length) VALUES(?,?,?,?,?,?,?,?,?,?)");
+            "normalized_begin,normalized_length,line,column_number,end_line,end_column) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
         insert.integer(1, current.parent);
         insert.text(2, normalizedDigest);
         insert.text(3, indexDigest(current.digest));
@@ -528,6 +556,10 @@ struct Checker {
         insert.integer(8, current.normalized.id);
         insert.integer(9, current.normalized.begin);
         insert.integer(10, current.normalized.length);
+        insert.integer(11, current.location.line);
+        insert.integer(12, current.location.column);
+        insert.integer(13, current.location.endLine);
+        insert.integer(14, current.location.endColumn);
         require(!insert.next(), "key-insert");
         insert.finish();
         require(!stack.empty() && stack.back().kind == '{', "key-scope");
@@ -660,7 +692,7 @@ struct Checker {
   }
   void finalizePins() {
     if (recordPreservation) {
-      const auto &pins = contract.at("preserveNfcValues").as_array();
+      const auto &pins = contract.at("nfcExemptStringValues").as_array();
       for (std::size_t i = 0; i < pins.size(); ++i) {
         const auto &pin = pins[i].as_object();
         const auto &selection = pin.at("record").as_object();
@@ -682,7 +714,7 @@ struct Checker {
           insert.finish();
         } else
           finding(target && target->kind == "string" ? *target : descriptor(rootValue),
-                  "json-quality/normalized-strings", "preservationMismatch");
+                  "json-quality/nfc-strings", "preservationMismatch");
       }
       std::uint64_t after = 0;
       while (true) {
@@ -705,12 +737,12 @@ struct Checker {
           break;
         after = value;
         if (!preserved)
-          finding(descriptor(value), "json-quality/normalized-strings", "unnormalized");
+          finding(descriptor(value), "json-quality/nfc-strings", "unnormalized");
       }
     } else
       for (bool seen : pinsSeen)
         if (!seen)
-          finding(descriptor(rootValue), "json-quality/normalized-strings", "preservationMismatch");
+          finding(descriptor(rootValue), "json-quality/nfc-strings", "preservationMismatch");
   }
   json::value next() {
     while (!events.ready() && !ended)
@@ -752,7 +784,7 @@ struct Checker {
                         {"diagnosticsComplete", true},
                         {"domainAdmission", "unassessed"},
                         {"qualityPassed", false},
-                        {"findings", std::to_string(findings)}};
+                        {"findingCount", std::to_string(findings)}};
   }
 };
 inline bool Handler::on_array_begin(error_code &) {

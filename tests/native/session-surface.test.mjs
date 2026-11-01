@@ -25,6 +25,12 @@ test("source facade keeps capabilities after terminal and closes them explicitly
   try {
     assert.equal(session.projectRepositoryEvents, undefined);
     assert.equal(session.core, undefined);
+    assert.equal(session.identity, undefined);
+    assert.match(
+      session.implementationIdentity.coreSourceInputsSha256,
+      /^[a-f0-9]{64}$/u,
+    );
+    assert.ok(Object.isFrozen(session.implementationIdentity.components));
     let reference;
     for await (const event of session.check(source('"retained"'), contract)) {
       if (event.type === "source") reference = event.source;
@@ -32,6 +38,13 @@ test("source facade keeps capabilities after terminal and closes them explicitly
         assert.equal(event.contractSatisfied, true);
     }
     const value = await session.select(reference);
+    assert.equal(typeof reference.referenceId, "string");
+    assert.equal(typeof value.referenceId, "string");
+    assert.equal(reference.identity, undefined);
+    const byteRange = await session.read(value, "decoded-utf8", "1", "2");
+    assert.equal(byteRange.byteOffset, "1");
+    assert.equal(byteRange.bytes.toString(), "et");
+    assert.equal(byteRange.offset, undefined);
     assert.equal(
       (await session.readSource(reference)).bytes.toString(),
       '"retained"',
@@ -110,7 +123,7 @@ test("scratch parent admission precedes opening source bytes", async () => {
 test("versioned event delivery preserves caller correlation and snapshotted flags across complete structural delivery", async () => {
   const session = await createSourceSession(verifiedComponent, options),
     consumption = {
-      includeValues: true,
+      includeValueEvents: true,
       requestId: "independent-request",
       retainValues: true,
     };
@@ -120,14 +133,14 @@ test("versioned event delivery preserves caller correlation and snapshotted flag
       contract,
       consumption,
     );
-    consumption.includeValues = false;
+    consumption.includeValueEvents = false;
     consumption.requestId = "changed-later";
     let values = 0,
       reference,
       root;
     for await (const event of iterator) {
       assert.equal(validateJsonQualityEvent(event), true);
-      assert.equal(event.schemaVersion, 3);
+      assert.equal(event.schemaVersion, 4);
       assert.equal(event.requestId, "independent-request");
       if (event.type === "source") reference = event.source;
       if (event.type === "value") {
@@ -153,7 +166,7 @@ test("versioned event delivery preserves caller correlation and snapshotted flag
     );
     assert.equal(
       validateJsonQualityEvent({
-        schemaVersion: 3,
+        schemaVersion: 4,
         requestId: "incomplete",
         type: "terminal",
         qualityPassed: true,
@@ -172,11 +185,15 @@ test("source facade rejects obsolete options and coerced consumption flags", asy
   );
   const session = await createSourceSession(verifiedComponent, options);
   try {
-    for (const name of ["includeValues", "retainValues"])
+    for (const name of ["includeValueEvents", "retainValues"])
       assert.throws(
         () => session.check(source("0"), contract, { [name]: "true" }),
         /boolean/,
       );
+    assert.throws(
+      () => session.check(source("0"), contract, { includeValues: true }),
+      /includeValueEvents/u,
+    );
     session.check(source("0"), contract);
     await session.close();
     assert.throws(() => session.check(source("0"), contract), /closed-session/);
@@ -229,10 +246,10 @@ test("repository facade consumes one census and retains scoped reads until close
       join(root, ".json-quality.json"),
       JSON.stringify(
         {
-          schemaVersion: 3,
+          schemaVersion: 4,
           defaults: {
             formatContract: "prettier-json",
-            allowFormatWrites: true,
+            allowSourceRewrites: true,
             normalization: "NFC",
           },
           exceptions: [],
@@ -247,13 +264,13 @@ test("repository facade consumes one census and retains scoped reads until close
       root,
     });
     let reference, terminal;
-    for await (const event of session.events()) {
+    for await (const event of session.check()) {
       if (event.type === "execution") {
         const unknown = structuredClone(event);
         unknown.resources.runtime.unknownBudget = "1";
         assert.equal(validateJsonQualityEvent(unknown), false);
         const missing = structuredClone(event);
-        delete missing.resources.admission.maxFileBytes;
+        delete missing.resources.admission.maxSourceBytes;
         assert.equal(validateJsonQualityEvent(missing), false);
         const disabledRuntime = structuredClone(event);
         disabledRuntime.resources.runtime.maxCheckTimeMs = null;
@@ -267,7 +284,8 @@ test("repository facade consumes one census and retains scoped reads until close
       if (event.type === "execution-terminal") terminal = event;
     }
     assert.equal(terminal.contractSatisfied, true);
-    assert.throws(() => session.events(), /execution-events-already-consumed/);
+    assert.equal(session.events, undefined);
+    assert.throws(() => session.check(), /execution-events-already-consumed/);
     const value = await session.select(reference);
     assert.equal(
       (await session.read(value, "decoded-utf8")).bytes.toString(),
@@ -277,4 +295,20 @@ test("repository facade consumes one census and retains scoped reads until close
     await session?.close();
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("cancellation preserves an arbitrary caller reason and awaits explicit close", async () => {
+  const session = await createSourceSession(verifiedComponent, options);
+  const reason = { caller: "cancelled", attempt: 1 };
+  try {
+    session.cancel(reason);
+    assert.equal(session.signal.reason, reason);
+    assert.equal(session.signal.aborted, true);
+  } finally {
+    await session.close();
+  }
+  await assert.rejects(
+    session.select({ kind: "source", referenceId: "forged" }),
+    /closed-session/u,
+  );
 });

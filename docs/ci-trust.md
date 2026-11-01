@@ -1,18 +1,19 @@
 # Trusted consumer CI
 
-`json-quality-qualify` and the `qualifyJsonConsumer` asynchronous iterator check immutable candidate Git JSON under the policy from an independently selected immutable trusted commit.
+`json-quality-qualify-git` and the `qualifyGitJsonSources` asynchronous iterator check immutable candidate Git JSON under the policy from an independently selected immutable trusted commit.
 The reusable [workflow](https://github.com/Hadden-Industries/json-quality/blob/main/.github/workflows/json-quality.yml) must be pinned to a reviewed full producer commit.
 
 ```sh
-json-quality-qualify --trusted-root /trusted --candidate-root /candidate \
-  --trusted-sha FULL_COMMIT --candidate-sha FULL_COMMIT
+json-quality-qualify-git --trusted-root /trusted --candidate-root /candidate \
+  --trusted-commit-id FULL_COMMIT --candidate-commit-id FULL_COMMIT
 ```
 
 Both identities must be full 40-character commit object IDs.
-The scope is explicitly `immutable-git-json`: checkout/HEAD cleanliness is not a qualification claim. The command reads the selected objects, leaving dirty or transformed working bytes untouched. A missing commit, non-commit identity or absent/nonregular trusted policy refuses completion.
+The scope is explicitly `immutable-git-json`: checkout/HEAD cleanliness is not a qualification claim. The command reads the selected objects, leaving dirty or transformed working bytes untouched. A missing/non-commit identity or nonregular/unreadable trusted policy refuses completion; proven policy absence at the exact trusted commit selects package defaults.
 
 The producer's installed component and local schemas own admission.
-A bounded native/Ajv bootstrap reads the trusted `.json-quality.json` from its Git blob, verifies exact bytes and transfers the admitted frozen control charge into the main core.
+A bounded native/Ajv bootstrap reads a present trusted `.json-quality.json` from its Git blob, verifies exact bytes and transfers the resolved frozen policy charge into the main core.
+Verified absence has its own immutable Git origin and still owns the resolved-policy reservation.
 Candidate policy is ordinary checked candidate data; it never selects the governing policy or loads code.
 
 Raw native Git metadata and blob streams supply the candidate census.
@@ -28,8 +29,9 @@ Source-only qualification refuses policy requirements for native sources, origin
 Use the complete trusted repository adapter to discharge those obligations.
 It also makes no application-domain, archive-meaning or installation-integrity claim.
 
-Output is cohort-3 NDJSON, with correlated `execution`, source/finding/terminal events and final `execution-terminal`.
-Execution metadata names the trusted/candidate commits, trusted policy blob, policy SHA-256, core source identity and `immutable-git-json` scope.
+Output is cohort-4 NDJSON, with correlated `execution`, source/finding/terminal events and final `execution-terminal`.
+Execution metadata names trusted/candidate commits, configuration origin and policy-input digests, core source identity and `immutable-git-json` scope.
+`trustedPolicyBlobId` is present only for `git-blob` and equals its origin blob ID; `git-absence` omits it.
 Only the final terminal closes inventory, diagnostic and source-observation obligations.
 `domainComplete` stays false.
 The terminal is delivered after owned native storage and Git subprocesses settle.
@@ -39,7 +41,7 @@ Shared contract failure returns 1.
 Acquisition, resource, identity, cancellation, cleanup or output failure returns 2 and provides no successful final verdict.
 Exact expected negatives can satisfy their pinned contracts while intrinsic `qualityPassed` is false; findings remain visible.
 
-The API takes `{ trustedRoot, candidateRoot, trustedSha, candidateSha, capacityLimits, runtimeControls, temporaryDirectory, signal, requestId }`.
+The API takes `{ trustedRoot, candidateRoot, trustedCommitId, candidateCommitId, capacityLimits, runtimeControls, temporaryDirectory, signal, requestId }`.
 Consume the iterator to completion or cancel/return it. CLI resource/runtime flags share the ordinary vocabulary and environment contracts in the [resource guide](resource-limits.md).
 
 The reusable workflow retains read-only repository permissions and no publication/OIDC authority.

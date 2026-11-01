@@ -14,7 +14,7 @@ export declare function resourceCliControls(
 };
 export declare const COMMANDS: Readonly<{
   check: "Check complete repository obligations and deliver final execution evidence.";
-  source: "Check raw stdin bytes under an explicit source contract; no repository policy.";
+  "check-source": "Check raw stdin bytes under an explicit source contract; no repository policy.";
   format: "Preflight the complete repository and explicitly format writable physical sources.";
   normalize: "Preflight complete candidate obligations and NFC-repair explicit physical paths.";
 }>;

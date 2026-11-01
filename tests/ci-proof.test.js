@@ -21,6 +21,10 @@ import { nodeSupport } from "../scripts/node-matrix.js";
 import { pythonVersion } from "../scripts/ci-host.js";
 import { budgets } from "../scripts/qualification-budgets.js";
 import { nodeMatrixFixture } from "./node-matrix-fixture.js";
+import {
+  MINIMAL_CLI_CASES,
+  MINIMAL_CLI_COMMANDS,
+} from "../scripts/consumer-cli-probe.js";
 
 const noWait = async () => {};
 
@@ -82,6 +86,7 @@ function fixture(attempt = 1, fork = false) {
     tree: sha("2"),
     parents: [sha("3"), sha("4")],
     workflow: sha("5"),
+    defaultPolicySha256: "a".repeat(64),
   };
   const pr = {
     number: 17,
@@ -207,10 +212,24 @@ function fixture(attempt = 1, fork = false) {
               version: "1.0.0-rc.1",
               integrity: "sha512-Ynl0ZXM=",
             },
-            publicExports: 6,
+            publicExports: 7,
             cliPhysicalFiles: 2,
             qualification: "transported archive",
             installSource: "producer-archive",
+            minimalCli: {
+              status: "passed",
+              packageVersion: "1.0.0-rc.1",
+              cohortVersion: 4,
+              policy: "package-defaults",
+              defaultPolicySha256: "a".repeat(64),
+              command: "npm exec -- json-quality",
+              cases: [...MINIMAL_CLI_CASES],
+              commands: structuredClone(MINIMAL_CLI_COMMANDS),
+              generatedLockSha256: "b".repeat(64),
+              packageName: "@hadden-industries/json-quality",
+              specifier: "file:fixture.tgz",
+              routing: "npm-generated-lock-with-transported-file-archives",
+            },
           },
         ]),
       ),
@@ -851,6 +870,10 @@ test("incomplete layouts, obsolete proof and failed tree observations deny recei
     },
     (record) => {
       record.consumers.extra = record.consumers.root;
+    },
+    (record) => {
+      record.consumers.root.minimalCli.defaultPolicySha256 = "f".repeat(64);
+      record.consumers.isolated.minimalCli.defaultPolicySha256 = "f".repeat(64);
     },
     ...[
       "archiveSha256",

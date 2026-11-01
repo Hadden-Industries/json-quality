@@ -82,7 +82,7 @@ test("benchmark isolates inherited Git authority and records rewrite phases/nati
     );
     const report = JSON.parse(await readFile(reportPath, "utf8")),
       sample = report.samples[0];
-    assert.equal(sample.terminal.written, "1");
+    assert.equal(sample.terminal.writtenPathCount, "1");
     assert.ok(sample.phases.census["execution-terminal"]);
     assert.ok(sample.phases.rewrite["write-terminal"]);
     assert.match(sample.identity.coreSourceInputsSha256, /^[a-f0-9]{64}$/u);

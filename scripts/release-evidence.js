@@ -2,6 +2,10 @@
 /** Complete provider/report closure before a privileged job may consume a bundle. */
 import assert from "node:assert/strict";
 import {
+  validateMinimalCli,
+  frozenDefaultPolicyDigest,
+} from "./consumer-layouts.js";
+import {
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -65,9 +69,15 @@ export function verifyReport(report, release, lane, qualification, layout) {
   assert.equal(report.nativeToolchain.npm, release.policy.consumerNpm);
   assert.equal(report.qualification, qualification);
   assert.equal(report.layout, layout);
-  assert.equal(report.publicExports, 6);
+  assert.equal(report.publicExports, 7);
   assert.equal(report.cliPhysicalFiles, 2);
   assert.equal(report.packageVersion, release.version);
+  validateMinimalCli(
+    report.minimalCli,
+    release.version,
+    report.installSource,
+    frozenDefaultPolicyDigest(release.archive.files),
+  );
   assert.equal(
     report.installSource,
     qualification === "public registry" ? "registry" : "producer-archive",

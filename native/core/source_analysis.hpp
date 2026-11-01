@@ -12,12 +12,15 @@ inline SourceAnalysis analyzeRetainedSource(Streams &streams, std::uint64_t sour
   SourceAnalysis result{};
   {
     Statement query(*streams.store.database,
-                    "SELECT s.length,c.root,c.parsed,c.quality,c.retained FROM "
+                    "SELECT s.length,c.root,c.parsed,c.quality,c.retained,c.format_eligible FROM "
                     "source_captures s JOIN source_closures c ON c.source=s.source "
                     "WHERE s.source=?");
     query.integer(1, source);
     require(query.next(), "source-not-admitted");
-    require(query.integer(2) == 1 && (!positiveQuality || query.integer(3) == 1) &&
+    // Formatting may retain ordinary NFC drift. Only the completed native
+    // outcome can grant that allowance; arbitrary source errors stay refused.
+    require(query.integer(2) == 1 &&
+                (!positiveQuality || query.integer(3) == 1 || query.integer(5) == 1) &&
                 query.integer(4) == 1 && query.integer(1) > 0,
             "source-not-positive-retained-document");
     result.length = query.integer(0);

@@ -33,7 +33,7 @@
   ],
   "bin": {
     "json-quality": "src/cli.js",
-    "json-quality-qualify": "src/qualification-cli.js"
+    "json-quality-qualify-git": "src/qualification-cli.js"
   },
   "exports": {
     ".": {
@@ -47,7 +47,8 @@
     "./configuration-schema": "./schemas/configuration.schema.json",
     "./source-contract-schema": "./schemas/source-contract.schema.json",
     "./event-schema": "./schemas/event.schema.json",
-    "./contract-cohort": "./schemas/contract-cohort.json"
+    "./contract-cohort": "./schemas/contract-cohort.json",
+    "./effective-policy-schema": "./schemas/effective-policy.schema.json"
   },
   "files": [
     "src/",
@@ -77,7 +78,9 @@
     "docs/markdown-quality.md",
     "docs/release-operations.md",
     "docs/rules/",
-    "examples/"
+    "examples/",
+    "assets/default-json-quality-policy.json",
+    "assets/json-quality-policy-inputs.json"
   ],
   "types": "./types/index.d.ts",
   "scripts": {
@@ -88,13 +91,12 @@
     "check:perf": "npm run bench:check && npm run bench:format",
     "test": "node --test --test-concurrency=1 tests/*.test.js tests/native/*.test.mjs",
     "check:affected": "node scripts/affected-tests.js",
-    "check:full": "npm run check:node && npm run check:ci && npm run check:resources && npm run check:architecture && npm run check:schemas && npm run check:types && npm run check:types:generated && npm run check:release && npm run check:package && npm run check:security && npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
+    "check:full": "npm run check:node && npm run check:ci && npm run check:resources && npm run check:architecture && npm run check:schemas && npm run check:policy && npm run check:types && npm run check:types:generated && npm run check:release && npm run check:package && npm run check:dependency-advisories && npm test && npm run lint && npm run format:check && npm run qualify:package && npm run check:json",
     "check:schemas": "node scripts/check-schemas.js",
     "check:types": "tsc -p tsconfig.json --noEmit",
     "build:types": "node scripts/build-types.js",
     "check:types:generated": "node scripts/build-types.js --check",
     "check:package": "node scripts/check-package.js",
-    "check:security": "node scripts/check-security.js",
     "check:resources": "node scripts/project-resource-limits.js",
     "sync:resources": "node scripts/project-resource-limits.js --write",
     "check:release": "node scripts/release-check.js",
@@ -128,16 +130,18 @@
     "inspect:markdown": "npm --prefix tooling/markdown run --silent inspect --",
     "test:markdown": "node --test tests/markdown-quality.test.js",
     "check:json": "node src/cli.js check --root .",
-    "inventory:json": "node src/cli.js check --root . --json",
     "lint:json": "node src/cli.js check --root .",
     "format:json": "node src/cli.js format --root .",
-    "format:json:check": "node src/cli.js check --root .",
     "normalize:json": "node src/cli.js normalize --root .",
     "qualify:package": "node scripts/qualify-package.js",
     "test:native": "node --test --test-concurrency=1 tests/native/*.test.mjs",
     "native:build": "node scripts/build-native.js",
     "native:stage": "python native/stage.py",
-    "check:ci": "node scripts/check-workflows.js"
+    "check:ci": "node scripts/check-workflows.js",
+    "check:json:ndjson": "node src/cli.js check --root . --ndjson",
+    "check:dependency-advisories": "node scripts/check-security.js",
+    "sync:policy": "node scripts/project-policy-inputs.js --write",
+    "check:policy": "node scripts/project-policy-inputs.js"
   },
   "publishConfig": {
     "access": "public"

@@ -18,6 +18,10 @@ import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { native, budgets } from "../scripts/qualification-process.js";
 import {
+  MINIMAL_CLI_CASES,
+  MINIMAL_CLI_COMMANDS,
+} from "../scripts/consumer-cli-probe.js";
+import {
   archiveInventory,
   isPrerelease,
   manualControl,
@@ -91,7 +95,7 @@ import {
   verifyStageFamily,
   controllerReviewFor,
 } from "../scripts/release-evidence.js";
-import { PACKAGE_VERIFICATION_CAPABILITIES } from "../src/package-payload.js";
+import { DEFAULT_PACKAGE_VERIFICATION_LIMITS } from "../src/package-payload.js";
 import { nativePackages } from "../src/native-packages.js";
 import { nodeMatrixFixture } from "./node-matrix-fixture.js";
 
@@ -132,6 +136,8 @@ const requiredFiles = [
   "src/index.js",
   "src/cli.js",
   "schemas/configuration.schema.json",
+  "schemas/effective-policy.schema.json",
+  "assets/default-json-quality-policy.json",
   "schemas/event.schema.json",
   "schemas/source-contract.schema.json",
   "schemas/contract-cohort.json",
@@ -211,19 +217,19 @@ test("release evidence admits bounded native archives above the metadata limit",
   assert.throws(() => evidenceIndex(directory), /oversized evidence/u);
   truncateSync(
     archive,
-    PACKAGE_VERIFICATION_CAPABILITIES.maximumArchiveBytes + 1,
+    DEFAULT_PACKAGE_VERIFICATION_LIMITS.maximumArchiveBytes + 1,
   );
   assert.throws(() => releaseArtifactBytes(archive), /oversized evidence/u);
   release.archive.size =
-    PACKAGE_VERIFICATION_CAPABILITIES.maximumArchiveBytes + 1;
+    DEFAULT_PACKAGE_VERIFICATION_LIMITS.maximumArchiveBytes + 1;
   assert.throws(() => verifyManifest(release), /package transport capability/u);
   release.archive.size = entry.size;
   release.archive.files[0].size =
-    PACKAGE_VERIFICATION_CAPABILITIES.maximumMemberBytes + 1;
+    DEFAULT_PACKAGE_VERIFICATION_LIMITS.maximumMemberBytes + 1;
   assert.throws(() => verifyManifest(release), /member exceeds/u);
   release.archive.files = Array.from({ length: 5 }, (_, index) => ({
     path: `large-${index}`,
-    size: PACKAGE_VERIFICATION_CAPABILITIES.maximumMemberBytes,
+    size: DEFAULT_PACKAGE_VERIFICATION_LIMITS.maximumMemberBytes,
     sha256: sha,
   }));
   assert.throws(() => verifyManifest(release), /expanded bytes exceed/u);
@@ -2395,10 +2401,24 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
       nativeToolchain: { npm: policy.consumerNpm },
       qualification: "public registry",
       layout: "isolated",
-      publicExports: 6,
+      publicExports: 7,
       cliPhysicalFiles: 2,
       packageVersion: release.version,
       installSource: "registry",
+      minimalCli: {
+        status: "passed",
+        packageVersion: release.version,
+        cohortVersion: 4,
+        policy: "package-defaults",
+        defaultPolicySha256: sha,
+        command: "npm exec -- json-quality",
+        cases: [...MINIMAL_CLI_CASES],
+        commands: structuredClone(MINIMAL_CLI_COMMANDS),
+        generatedLockSha256: "b".repeat(64),
+        packageName: "@hadden-industries/json-quality",
+        specifier: release.version,
+        routing: "anonymous-registry",
+      },
       nativePackage: {
         name: nativePackages["win32-x64"].package,
         version: release.version,
@@ -2406,6 +2426,45 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
       },
     };
   verifyReport(report, release, lane, "public registry", "isolated");
+  assert.throws(
+    () =>
+      verifyReport(
+        {
+          ...report,
+          minimalCli: {
+            ...report.minimalCli,
+            defaultPolicySha256: "f".repeat(64),
+          },
+        },
+        release,
+        lane,
+        "public registry",
+        "isolated",
+      ),
+    /default policy/iu,
+  );
+  for (const files of [
+    release.archive.files.filter(
+      ({ path }) => path !== "assets/default-json-quality-policy.json",
+    ),
+    [
+      ...release.archive.files,
+      release.archive.files.find(
+        ({ path }) => path === "assets/default-json-quality-policy.json",
+      ),
+    ],
+  ])
+    assert.throws(
+      () =>
+        verifyReport(
+          report,
+          { ...release, archive: { ...release.archive, files } },
+          lane,
+          "public registry",
+          "isolated",
+        ),
+      /default policy asset/iu,
+    );
   for (const [key, value] of Object.entries({
     sourceCommit: "e".repeat(40),
     node: "22.13.0",

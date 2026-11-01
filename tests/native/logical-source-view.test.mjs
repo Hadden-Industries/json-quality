@@ -17,11 +17,11 @@ test("a trusted logical factory reads captured metadata through one ledger and l
       join(root, ".json-quality.json"),
       JSON.stringify(
         {
-          schemaVersion: 3,
+          schemaVersion: 4,
           defaults: {
             formatContract: "prettier-json",
             normalization: "NFC",
-            allowFormatWrites: true,
+            allowSourceRewrites: true,
           },
           exceptions: [
             {
@@ -45,7 +45,7 @@ test("a trusted logical factory reads captured metadata through one ledger and l
     session = await openJsonRepositorySession({
       root,
       retainValues: false,
-      runtimeControls: { managedMemoryTargetBytes: 16777216 },
+      runtimeControls: { maxManagedMemoryBytes: 16777216 },
       logicalProviders: [
         {
           definition: {
@@ -60,7 +60,7 @@ test("a trusted logical factory reads captured metadata through one ledger and l
               /logical-container-scope/u,
             );
             assert.equal(
-              access.resources.runtime.managedMemoryTargetBytes,
+              access.resources.runtime.maxManagedMemoryBytes,
               "16777216",
             );
             for (const name of [
@@ -133,7 +133,7 @@ test("a trusted logical factory reads captured metadata through one ledger and l
       ],
     });
     let terminal;
-    for await (const event of session.events()) {
+    for await (const event of session.check()) {
       if (event.type === "source" && event.path === "unneeded.json")
         unneeded = event.source;
       if (event.type === "source" && event.path === "container.json")

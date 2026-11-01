@@ -70,7 +70,12 @@ test("empty-key exception is restricted to the exact decoded pointer", async () 
     Buffer.from('{"packages":{"":{}},"":0}'),
     { allowEmptyKeys: ["/packages/"] },
   );
-  assert.ok(rejected.findings.some((f) => f.messageId === "empty"));
+  assert.ok(
+    rejected.findings.some(
+      (f) =>
+        f.ruleId === "json-quality/no-empty-keys" && f.messageId === "emptyKey",
+    ),
+  );
 });
 test("NFC repair changes string tokens while retaining number lexemes and order", async () => {
   const before = '{"z":1.00e+2,"e\\u0301":"e\\u0301","a":["x",2]}';

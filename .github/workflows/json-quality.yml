@@ -1,17 +1,17 @@
-name: Shared trusted JSON qualification
+name: Trusted Git JSON source qualification
 on:
   workflow_call:
     inputs:
       trusted-repository:
         type: string
         required: true
-      trusted-sha:
+      trusted-commit-id:
         type: string
         required: true
       candidate-repository:
         type: string
         required: true
-      candidate-sha:
+      candidate-commit-id:
         type: string
         required: true
       capacity-limits:
@@ -42,10 +42,10 @@ jobs:
         env:
           PRODUCER_REPOSITORY: ${{ job.workflow_repository }}
           PRODUCER_SHA: ${{ job.workflow_sha }}
-          TRUSTED_SHA: ${{ inputs.trusted-sha }}
-          CANDIDATE_SHA: ${{ inputs.candidate-sha }}
+          TRUSTED_COMMIT_ID: ${{ inputs.trusted-commit-id }}
+          CANDIDATE_COMMIT_ID: ${{ inputs.candidate-commit-id }}
         run: |
-          node --input-type=module -e 'if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(process.env.PRODUCER_REPOSITORY ?? "")) throw new Error("Producer repository is required"); for (const key of ["PRODUCER_SHA", "TRUSTED_SHA", "CANDIDATE_SHA"]) if (!/^[a-f0-9]{40}$/u.test(process.env[key] ?? "")) throw new Error("Full immutable commits are required")'
+          node --input-type=module -e 'if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(process.env.PRODUCER_REPOSITORY ?? "")) throw new Error("Producer repository is required"); for (const key of ["PRODUCER_SHA", "TRUSTED_COMMIT_ID", "CANDIDATE_COMMIT_ID"]) if (!/^[a-f0-9]{40}$/u.test(process.env[key] ?? "")) throw new Error("Full immutable commits are required")'
           git config --global core.autocrlf false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,21 +78,21 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.trusted-repository }}
-          ref: ${{ inputs.trusted-sha }}
+          ref: ${{ inputs.trusted-commit-id }}
           path: trusted
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.candidate-repository }}
-          ref: ${{ inputs.candidate-sha }}
+          ref: ${{ inputs.candidate-commit-id }}
           path: candidate
           persist-credentials: false
       - name: Qualify candidate JSON as data under trusted policy
         env:
           JSON_QUALITY_TRUSTED_ROOT: ${{ github.workspace }}/trusted
           JSON_QUALITY_CANDIDATE_ROOT: ${{ github.workspace }}/candidate
-          JSON_QUALITY_TRUSTED_SHA: ${{ inputs.trusted-sha }}
-          JSON_QUALITY_CANDIDATE_SHA: ${{ inputs.candidate-sha }}
+          JSON_QUALITY_TRUSTED_COMMIT_ID: ${{ inputs.trusted-commit-id }}
+          JSON_QUALITY_CANDIDATE_COMMIT_ID: ${{ inputs.candidate-commit-id }}
           JSON_QUALITY_RUNTIME_CONTROLS: '{"maxCheckTimeMs":600000}'
           NODE_OPTIONS: ""
           NODE_PATH: ""

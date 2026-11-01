@@ -45,6 +45,20 @@ export function gitSnapshot(directory = process.cwd()) {
       .filter((line) => line.startsWith("parent "))
       .map((line) => line.slice(7)),
     workflow: git("rev-parse", `HEAD:${workflow}`),
+    defaultPolicySha256: createHash("sha256")
+      .update(
+        execFileSync(
+          "git",
+          ["cat-file", "blob", "HEAD:assets/default-json-quality-policy.json"],
+          {
+            cwd: directory,
+            windowsHide: true,
+            timeout: budgets.read,
+            maxBuffer: 2 * 1024 * 1024,
+          },
+        ),
+      )
+      .digest("hex"),
   };
 }
 function context() {
@@ -193,6 +207,7 @@ async function main(mode) {
         node: process.versions.node,
         npm: nodeSupport.consumerNpm,
         os: process.env.CI_OS,
+        defaultPolicySha256: ctx.snapshot.defaultPolicySha256,
       },
     );
     const transport = await reader()(

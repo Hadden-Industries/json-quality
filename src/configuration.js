@@ -2,6 +2,14 @@
 // Typed policy admission and sparse contract resolution. Parsing belongs to the
 // shared reader; Ajv owns the complete closed control schema.
 import configurationSchema from "../schemas/configuration.schema.json" with { type: "json" };
+import effectiveSchema from "../schemas/effective-policy.schema.json" with { type: "json" };
+import packagedDefaults from "../assets/default-json-quality-policy.json" with { type: "json" };
+import {
+  freezeControl,
+  readControlOptions,
+  snapshotControl,
+} from "./control-snapshot.js";
+import { resolveExecutionResources } from "./execution-resources.js";
 import { Ajv2020 as Ajv } from "ajv/dist/2020.js";
 import { isDeepStrictEqual } from "node:util";
 import { posix } from "node:path";
@@ -11,16 +19,92 @@ import {
 } from "./json-paths.js";
 
 // Closed local schema: no remote references, defaults or coercion.
-/** @type {import("ajv").ValidateFunction<import("./api-types.js").JsonQualityPolicy>} */
-const validatePolicy = new Ajv({ strict: true, allErrors: true }).compile(
+const ajv = new Ajv({ strict: true, allErrors: true }).addSchema(
   configurationSchema,
 );
+const validateConfiguration =
+  /** @type {import('ajv').ValidateFunction<import('./api-types.js').JsonQualityConfiguration>} */ (
+    ajv.getSchema(configurationSchema.$id)
+  );
+const validatePolicy =
+  /** @type {import('ajv').ValidateFunction<import('./api-types.js').JsonQualityPolicy>} */ (
+    ajv.compile(effectiveSchema)
+  );
+
+/** Package-owned immutable value, distinct from every resolved caller snapshot. */
+const defaultsSnapshot = snapshotControl(packagedDefaults);
+/** @type {import('./api-types.js').ReadonlyJsonQualityPolicy} */
+export const defaultJsonQualityPolicy = freezeControl(defaultsSnapshot.value);
+export const defaultPolicyReservationBytes =
+  defaultsSnapshot.managedReservationBytes;
+
+/** Resolve sparse plain configuration without I/O or caller-code execution.
+ * Invocation-owned limits apply before untrusted configuration can select its
+ * later execution limits. Workspace estimates bound this call, not JS heap.
+ * @param {unknown} [configuration]
+ * @param {{capacityLimits?: import('./api-types.js').CapacityLimits, runtimeControls?: import('./api-types.js').RuntimeControls}} [options]
+ * @returns {import('./api-types.js').ReadonlyJsonQualityPolicy}
+ */
+export function resolveJsonQualityPolicy(configuration, options = {}) {
+  return resolvePolicySnapshot(configuration, options).policy;
+}
+
+/** Internal accounting result used by the native bootstrap owner. */
+export function resolvePolicySnapshot(
+  /** @type {*} */ configuration,
+  /** @type {*} */ options = {},
+) {
+  const began = performance.now(),
+    safeOptions = readControlOptions(options, [
+      "capacityLimits",
+      "runtimeControls",
+    ]),
+    resources = resolveExecutionResources({}, safeOptions),
+    limits = {
+      maximumBytes: resources.admission.maxPolicyBytes,
+      maximumDepth: resources.runtime.maxNestingDepth,
+      maximumManagedBytes: resources.runtime.maxManagedMemoryBytes,
+      deadline:
+        resources.runtime.maxCheckTimeMs === null
+          ? Infinity
+          : began + resources.runtime.maxCheckTimeMs,
+    },
+    input = snapshotControl(
+      configuration === undefined ? {} : configuration,
+      limits,
+    );
+  if (!validateConfiguration(input.value))
+    throw new TypeError(
+      `Invalid JSON configuration; use contract cohort 4 and current option names: ${JSON.stringify(validateConfiguration.errors)}`,
+    );
+  const merged = {
+    ...defaultJsonQualityPolicy,
+    ...input.value,
+    defaults: { ...defaultJsonQualityPolicy.defaults, ...input.value.defaults },
+  };
+  // The intermediate merge references only the owned input and frozen defaults.
+  // Charge its distinct root/default nodes as well as the input while copying.
+  const effective = snapshotControl(merged, {
+    ...limits,
+    retainedManagedBytes: input.managedReservationBytes + 512n,
+  });
+  assertValidJsonQualityPolicy(effective.value);
+  if (performance.now() > limits.deadline)
+    throw new Error("policy-check-time-capacity");
+  freezeControl(effective.value);
+  return {
+    policy: effective.value,
+    managedReservationBytes: effective.managedReservationBytes,
+    workspaceReservationBytes:
+      input.managedReservationBytes + effective.managedReservationBytes + 512n,
+  };
+}
 
 /** Input is already strictly parsed or caller-owned typed control data.
  * @param {unknown} policy
  * @returns {import("./api-types.js").JsonQualityPolicy}
  */
-export function admitJsonPolicy(policy) {
+function assertValidJsonQualityPolicy(policy) {
   if (!validatePolicy(policy))
     throw new Error(
       `Invalid JSON policy structure: ${JSON.stringify(validatePolicy.errors)}`,
@@ -31,18 +115,14 @@ export function admitJsonPolicy(policy) {
     if (
       (rule.expected || rule.formatContract === "preserved-bytes") &&
       (!rule.expected ||
-        rule.allowFormatWrites !== false ||
+        rule.allowSourceRewrites !== false ||
         rule.paths.length !== 1 ||
         /[*?[\]{}()]/u.test(rule.paths[0]))
     )
       throw new Error(
         "Preserved bytes and expected diagnostics require one exact protected path and independent byte identity.",
       );
-    if (rule.normalization === "preserve" && rule.allowFormatWrites !== false)
-      throw new Error(
-        "A normalization preservation exception must prohibit generic writes.",
-      );
-    if (rule.preserveNfcValues) {
+    if (rule.nfcExemptStringValues) {
       assertNfcPreservationContract(rule);
       if (rule.paths.length !== 1 || /[*?[\]{}()]/u.test(rule.paths[0]))
         throw new Error(
@@ -50,7 +130,7 @@ export function admitJsonPolicy(policy) {
         );
       const records = isJsonLinesPath(rule.paths[0]);
       const identities = new Set();
-      for (const pin of rule.preserveNfcValues) {
+      for (const pin of rule.nfcExemptStringValues) {
         if (Boolean(pin.record) !== records)
           throw new Error(
             "JSONL NFC preservation requires a record selector; document preservation forbids it.",
@@ -68,9 +148,12 @@ export function admitJsonPolicy(policy) {
     }
     assertPolicyPatterns(rule.paths);
     if (
-      rule.exclude &&
+      rule.excludeUntrackedSources &&
       Object.keys(rule).some(
-        (key) => !["paths", "owner", "reason", "exclude"].includes(key),
+        (key) =>
+          !["paths", "owner", "reason", "excludeUntrackedSources"].includes(
+            key,
+          ),
       )
     )
       throw new Error("An external boundary cannot also redefine JSON checks.");
@@ -93,17 +176,50 @@ function assertPolicyPatterns(/** @type {*} */ patterns) {
 
 /** Sparse exceptions amend mandatory defaults; contradictory overlaps fail closed.
  * @param {string} path
- * @param {import("./api-types.js").JsonQualityPolicy} policy
+ * @param {import("./api-types.js").ReadonlyJsonQualityPolicy} policy
  * @param {{tracked?: boolean}} [options]
  * @returns {import("./api-types.js").JsonContract}
  */
-export function jsonContract(path, policy, { tracked = false } = {}) {
+export function resolveJsonSourceContract(
+  path,
+  policy,
+  { tracked = false } = {},
+) {
   const /** @type {any} */ contract = {
       path,
       ...policy.defaults,
-      exclude: false,
+      excludeUntrackedSources: false,
       exceptions: [],
     };
+  const parts = path.split("/");
+  const external = parts.some((part) =>
+    ["node_modules", ".git"].includes(
+      process.platform === "win32" ? part.toLowerCase() : part,
+    ),
+  );
+  if (external) {
+    contract.excludeUntrackedSources = true;
+    contract.exceptions.push({
+      owner: "Dependency/VCS installation",
+      reason: "Package-owned external source boundary.",
+    });
+  }
+  const basename =
+    process.platform === "win32"
+      ? (parts.at(-1) ?? "").toLowerCase()
+      : (parts.at(-1) ?? "");
+  const npmLock = ["package-lock.json", "npm-shrinkwrap.json"].includes(
+    basename,
+  );
+  if (npmLock) {
+    contract.formatContract = "producer-json-indent";
+    contract.allowSourceRewrites = false;
+    contract.allowEmptyKeys = ["/packages/"];
+    contract.exceptions.push({
+      owner: "npm",
+      reason: "npm owns lockfile serialization and source rewrites.",
+    });
+  }
   const explicit = new Map();
   for (const rule of policy.exceptions) {
     if (
@@ -115,10 +231,10 @@ export function jsonContract(path, policy, { tracked = false } = {}) {
     contract.exceptions.push({ owner: rule.owner, reason: rule.reason });
     for (const key of /** @type {const} */ ([
       "formatContract",
-      "allowFormatWrites",
-      "exclude",
+      "allowSourceRewrites",
+      "excludeUntrackedSources",
       "normalization",
-      "preserveNfcValues",
+      "nfcExemptStringValues",
       "allowEmptyKeys",
       "expected",
     ])) {
@@ -131,10 +247,11 @@ export function jsonContract(path, policy, { tracked = false } = {}) {
       contract[key] = value;
     }
   }
+  if (npmLock) contract.allowSourceRewrites = false;
   // Installed-tree boundaries never conceal a repository-owned tracked file.
-  if (tracked && contract.exclude) {
-    contract.exclude = false;
-    contract.allowFormatWrites = false;
+  if (tracked && contract.excludeUntrackedSources) {
+    contract.excludeUntrackedSources = false;
+    contract.allowSourceRewrites = false;
   }
   // JSON Lines has a framing-owned single-line presentation and is never
   // rewritten by a document formatter. Only deviations need classification.
@@ -143,17 +260,17 @@ export function jsonContract(path, policy, { tracked = false } = {}) {
       path,
       explicit.has("formatContract") ? contract.formatContract : undefined,
     );
-    contract.allowFormatWrites = false;
+    contract.allowSourceRewrites = false;
   }
   // A producer's presentation contract assigns writes to that producer even
   // when its sparse exception does not repeat the default write setting.
   if (contract.formatContract !== "prettier-json")
-    contract.allowFormatWrites = false;
+    contract.allowSourceRewrites = false;
   return contract;
 }
 
 const validateNfcValues = new Ajv({ strict: true }).compile({
-  ...configurationSchema.$defs.nfcValues,
+  ...configurationSchema.$defs.nfcExemptStringValuePins,
   $defs: configurationSchema.$defs,
 });
 
@@ -161,10 +278,10 @@ const validateNfcValues = new Ajv({ strict: true }).compile({
  * write-protected. It cannot coexist with whole-file or expected-negative waivers.
  */
 export function assertNfcPreservationContract(/** @type {*} */ contract) {
-  if (!contract.preserveNfcValues) return;
+  if (!contract.nfcExemptStringValues) return;
   if (
-    !validateNfcValues(contract.preserveNfcValues) ||
-    contract.allowFormatWrites !== false ||
+    !validateNfcValues(contract.nfcExemptStringValues) ||
+    contract.allowSourceRewrites !== false ||
     contract.normalization === "preserve" ||
     contract.expected?.diagnostics?.length ||
     !(

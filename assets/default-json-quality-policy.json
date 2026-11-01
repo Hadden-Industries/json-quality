@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 4,
+  "defaults": {
+    "formatContract": "prettier-json",
+    "allowSourceRewrites": true,
+    "normalization": "NFC"
+  },
+  "exceptions": []
+}

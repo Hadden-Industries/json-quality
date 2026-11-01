@@ -59,12 +59,37 @@ test("matrix refuses missing floor/reference/LTS metadata and malformed releases
     [],
     {},
     [{ version: "v24.0.0" }],
-    [...releases, { version: "v26.13.0-rc.1" }],
+    [...releases, { version: "v26.13.0-rc..1" }],
     releases.filter((r) => r.version !== "v22.13.0"),
     releases.filter((r) => r.version !== "v24.21.0"),
     releases.map((r) => ({ ...r, lts: false })),
   ])
     assert.throws(() => qualificationMatrix(value, policy));
+});
+
+test("official prerelease metadata does not replace the latest stable supported families", () => {
+  const forward = {
+    ...policy,
+    testedLtsMajors: [22, 24, 26],
+    preLtsMajors: [26],
+    reference: "26.13.0",
+  };
+  assert.deepEqual(
+    qualificationMatrix(
+      [
+        ...releases,
+        { version: "v26.13.0", lts: false },
+        { version: "v27.0.0-alpha.0.0.0", lts: false },
+        { version: "v26.99.0-rc.1", lts: false },
+        { version: "v24.99.0-rc.1", lts: "Krypton" },
+      ],
+      forward,
+    ),
+    {
+      os: ["ubuntu-24.04", "windows-2025"],
+      node: ["22.13.0", "22.23.4", "24.22.1", "26.13.0"],
+    },
+  );
 });
 
 test("shared offline matrices retain floor, latest-family and changed reference lanes", () => {

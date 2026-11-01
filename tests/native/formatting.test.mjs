@@ -13,7 +13,10 @@ test("retained formatter uses native preflight, Prettier guard and complete same
     expected =
       '{\n  "number": 1,\n  "text": "é",\n  "values": [\n    true,\n    null,\n    false\n  ]\n}\n';
   assert.equal(
-    await formatSource(input, { ...options, capacityLimits: { maxFiles: 1 } }),
+    await formatSource(input, {
+      ...options,
+      capacityLimits: { maxPhysicalAndNativeSources: 1 },
+    }),
     expected,
   );
   assert.equal(await formatSource(expected, options), expected);
@@ -24,11 +27,11 @@ test("writer refuses unsafe input or insufficient working space without returnin
     formatSource('{"same":0,"same":1}', options),
     /Cannot format/,
   );
-  await assert.rejects(formatSource('"é"', options), /Cannot format/);
+  assert.equal(await formatSource('"é"', options), '"é"\n');
   await assert.rejects(
     formatSource("0", {
       ...options,
-      runtimeControls: { managedMemoryTargetBytes: 16777216 },
+      runtimeControls: { maxManagedMemoryBytes: 16777216 },
     }),
     /control-state-budget/,
   );

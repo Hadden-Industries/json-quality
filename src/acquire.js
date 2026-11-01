@@ -4,28 +4,22 @@ import { tmpdir } from "node:os";
 import { join, relative, isAbsolute, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
+import { types } from "node:util";
 
-// BEGIN GENERATED RESOURCE DEFAULTS
-export const ACQUISITION_RESOURCE_DEFAULTS = Object.freeze({
-  maxFiles: 50000,
-  maxFileBytes: 33554432,
-  maxTotalBytes: 268435456,
-  maxLogicalDocuments: 100000,
-  maxRecords: 100000,
-  maxDiagnostics: 10000,
-  maxPolicyBytes: 1048576,
-  maxGitOutputBytes: 67108864,
-  maxToolOutputBytes: 67108864,
-  maxToolTimeMs: 120000,
-  maxGitTimeMs: 120000,
-  maxAcquisitionTimeMs: 1200000,
+// BEGIN GENERATED INSTALLATION DEFAULTS
+export const INSTALLATION_RESOURCE_DEFAULTS = Object.freeze({
+  maximumPackageFamilyFiles: 50000,
+  maximumPackageFamilyBytes: 268435456,
   maxCacheLookupTimeMs: 60000,
   maxCacheOutputBytes: 1048576,
-  maxRequestIdCharacters: 1024,
-  maxRequestBytes: 50331648,
-  maxRequestPathCharacters: 32768,
 });
-// END GENERATED RESOURCE DEFAULTS
+// END GENERATED INSTALLATION DEFAULTS
+
+// BEGIN GENERATED ACQUISITION DEFAULTS
+export const ACQUISITION_RESOURCE_DEFAULTS = Object.freeze({
+  maxAcquisitionTimeMs: 1200000,
+});
+// END GENERATED ACQUISITION DEFAULTS
 
 // BEGIN GENERATED VERIFICATION DEFAULTS
 export const VERIFICATION_RESOURCE_DEFAULTS = Object.freeze({
@@ -54,31 +48,64 @@ export function capacityLimitsEnvironment() {
 
 /** Native cleanup retry strategy is independently configurable, including zero retries. */
 export function acquisitionCleanupOptions(
-  overrides = JSON.parse(process.env.JSON_QUALITY_CLEANUP ?? "{}"),
+  overrides = JSON.parse(process.env.JSON_QUALITY_ACQUISITION_CLEANUP ?? "{}"),
 ) {
+  if (process.env.JSON_QUALITY_CLEANUP !== undefined)
+    throw new TypeError(
+      "Use JSON_QUALITY_ACQUISITION_CLEANUP; JSON_QUALITY_CLEANUP is not supported.",
+    );
   if (
     !overrides ||
     typeof overrides !== "object" ||
     Array.isArray(overrides) ||
-    Object.entries(overrides).some(
-      ([name, value]) =>
-        !["maxRetries", "retryDelay"].includes(name) ||
-        !Number.isSafeInteger(value) ||
-        value < 0,
-    )
+    types.isProxy(overrides)
   )
     throw new TypeError("Invalid acquisition cleanup retry options.");
-  return { maxRetries: 3, retryDelay: 100, ...overrides };
+  const descriptors = Object.getOwnPropertyDescriptors(overrides);
+  const /** @type {Record<string, number>} */ result = {
+      maxRetries: 3,
+      retryDelay: 100,
+    };
+  for (const name of Reflect.ownKeys(descriptors)) {
+    if (typeof name !== "string")
+      throw new TypeError("Invalid acquisition cleanup retry options.");
+    const descriptor = descriptors[name];
+    if (
+      typeof name !== "string" ||
+      !Object.hasOwn(result, name) ||
+      !Object.hasOwn(descriptor, "value") ||
+      !descriptor.enumerable ||
+      !Number.isSafeInteger(descriptor.value) ||
+      descriptor.value < 0
+    )
+      throw new TypeError("Invalid acquisition cleanup retry options.");
+    result[name] = descriptor.value;
+  }
+  return result;
 }
 
 /** The cold bootstrap cannot import the not-yet-installed package/schema.
  * Its defaults are a checked projection; native validation matches the closed
- * positive-safe-integer resource object. Only capacity controls are accepted.
+ * positive-safe-integer resource object. Each operation owns its controls.
  */
 export function acquisitionResourceLimits(
-  overrides = JSON.parse(capacityLimitsEnvironment() ?? "{}"),
+  overrides = JSON.parse(process.env.JSON_QUALITY_ACQUISITION_CONTROLS ?? "{}"),
 ) {
   return coldResourceLimits(ACQUISITION_RESOURCE_DEFAULTS, overrides);
+}
+export function installationResourceLimits(
+  overrides = JSON.parse(
+    process.env.JSON_QUALITY_INSTALLATION_CONTROLS ?? "{}",
+  ),
+) {
+  return coldResourceLimits(INSTALLATION_RESOURCE_DEFAULTS, overrides);
+}
+export function verificationResourceLimits(
+  overrides = JSON.parse(
+    process.env.JSON_QUALITY_VERIFICATION_CONTROLS ?? "{}",
+  ),
+) {
+  return coldResourceLimits(VERIFICATION_RESOURCE_DEFAULTS, overrides);
 }
 function coldResourceLimits(
   /** @type {Record<string, number>} */ defaults,
@@ -93,42 +120,47 @@ function coldResourceLimits(
     !overrides ||
     typeof overrides !== "object" ||
     Array.isArray(overrides) ||
-    Object.entries(overrides).some(
-      ([name, value]) =>
-        !Object.hasOwn(defaults, name) ||
-        (value !== null && (!Number.isSafeInteger(value) || value < 1)),
-    )
+    types.isProxy(overrides)
   )
     throw new TypeError("Invalid JSON resource-limit overrides.");
-  return {
-    ...defaults,
-    ...Object.fromEntries(
-      Object.entries(overrides).map(([name, value]) => [
-        name,
-        value === null ? Infinity : value,
-      ]),
-    ),
-  };
+  const result = { ...defaults },
+    descriptors = Object.getOwnPropertyDescriptors(overrides);
+  for (const name of Reflect.ownKeys(descriptors)) {
+    if (typeof name !== "string")
+      throw new TypeError("Invalid JSON resource-limit overrides.");
+    const descriptor = descriptors[name];
+    if (
+      typeof name !== "string" ||
+      !Object.hasOwn(defaults, name) ||
+      !Object.hasOwn(descriptor, "value") ||
+      !descriptor.enumerable ||
+      (descriptor.value !== null &&
+        (!Number.isSafeInteger(descriptor.value) || descriptor.value < 1))
+    )
+      throw new TypeError("Invalid JSON resource-limit overrides.");
+    result[name] = descriptor.value === null ? Infinity : descriptor.value;
+  }
+  return result;
 }
 
 /** Resolve native cache policy once for acquisition and payload checking. */
 export function nativeQualityCachePath(
   /** @type {*} */ toolingRoot,
-  /** @type {*} */ npmExecutable,
+  /** @type {*} */ npmCliPath,
   /** @type {*} */ overrides,
 ) {
-  const capacityLimits = acquisitionResourceLimits(overrides);
+  const installationControls = installationResourceLimits(overrides);
   return execFileSync(
     process.execPath,
-    [npmExecutable, "config", "get", "cache"],
+    [npmCliPath, "config", "get", "cache"],
     {
       cwd: toolingRoot,
       encoding: "utf8",
       windowsHide: true,
-      timeout: Number.isFinite(capacityLimits.maxCacheLookupTimeMs)
-        ? capacityLimits.maxCacheLookupTimeMs
+      timeout: Number.isFinite(installationControls.maxCacheLookupTimeMs)
+        ? installationControls.maxCacheLookupTimeMs
         : 0,
-      maxBuffer: capacityLimits.maxCacheOutputBytes,
+      maxBuffer: installationControls.maxCacheOutputBytes,
     },
   ).trim();
 }
@@ -140,19 +172,22 @@ async function acquire() {
   const npm = process.env.npm_execpath;
   if (!npm)
     throw new Error("Run npm run install:markdown or npm run install:json.");
-  const overrides = JSON.parse(capacityLimitsEnvironment() ?? "{}");
-  const capacityLimits = acquisitionResourceLimits(overrides);
+  const installationControls = JSON.parse(
+    process.env.JSON_QUALITY_INSTALLATION_CONTROLS ?? "{}",
+  );
+  installationResourceLimits(installationControls);
+  const acquisitionControls = acquisitionResourceLimits();
   const cleanup = acquisitionCleanupOptions();
   const verificationControls = JSON.parse(
     process.env.JSON_QUALITY_VERIFICATION_CONTROLS ?? "{}",
   );
-  coldResourceLimits(VERIFICATION_RESOURCE_DEFAULTS, verificationControls);
+  verificationResourceLimits(verificationControls);
   const toolingRoot = fileURLToPath(
     new URL(`../tooling/${kind}/`, import.meta.url),
   );
   const jsonCache =
     kind === "json"
-      ? nativeQualityCachePath(toolingRoot, npm, overrides)
+      ? nativeQualityCachePath(toolingRoot, npm, installationControls)
       : null;
   const scratch = mkdtempSync(join(tmpdir(), "repository-quality-install-"));
   const cachePath = jsonCache ?? join(scratch, "cache");
@@ -213,8 +248,8 @@ async function acquire() {
         env,
         stdio: "inherit",
         windowsHide: true,
-        timeout: Number.isFinite(capacityLimits.maxAcquisitionTimeMs)
-          ? capacityLimits.maxAcquisitionTimeMs
+        timeout: Number.isFinite(acquisitionControls.maxAcquisitionTimeMs)
+          ? acquisitionControls.maxAcquisitionTimeMs
           : 0,
       },
     );
@@ -231,7 +266,7 @@ async function acquire() {
         ),
         cachePath,
         bootstrapPath: fileURLToPath(import.meta.url),
-        capacityLimits: overrides,
+        installationControls,
         verificationControls,
       });
     }

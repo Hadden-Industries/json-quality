@@ -28,7 +28,7 @@ declare class ValueSession {
     /** @type {*} */ contract?: any,
     /** @type {*} */ {
       identity,
-      includeValues,
+      includeValueEvents,
       retainValues,
       signal,
       transformOf,
@@ -68,9 +68,9 @@ declare class ValueSession {
    * without a complete JS string or a giant control frame. The raw pointer and
    * decoded lookup segment use the same accounted adaptive native store.
    */
-  selectStream(
+  selectByPointerStream(
     /** @type {*} */ source: any,
-    /** @type {*} */ chunks: any,
+    /** @type {*} */ pointerByteChunks: any,
     /** @type {*} */ { identity, record, signal }?: any,
   ): Promise<any>;
   /** Read a bounded range of raw JSON, decoded UTF-8, NFC UTF-8 or JSON Pointer
@@ -79,11 +79,11 @@ declare class ValueSession {
   read(
     /** @type {*} */ value: any,
     /** @type {*} */ representation: any,
-    offset?: string,
-    maximum?: string,
+    byteOffset?: string,
+    maximumBytes?: string,
   ): Promise<{
     bytes: any;
-    offset: any;
+    byteOffset: any;
     totalByteLength: any;
   }>;
   /** Read identified original source bytes, including whitespace and rejected
@@ -91,11 +91,11 @@ declare class ValueSession {
    */
   readSource(
     /** @type {*} */ source: any,
-    offset?: string,
-    maximum?: string,
+    byteOffset?: string,
+    maximumBytes?: string,
   ): Promise<{
     bytes: any;
-    offset: any;
+    byteOffset: any;
     totalByteLength: any;
   }>;
   sourceFragments(
@@ -113,7 +113,7 @@ declare class ValueSession {
   materialize(
     /** @type {*} */ value: any,
     /** @type {*} */ representation: any,
-    /** @type {*} */ maximum: any,
+    /** @type {*} */ maximumBytes: any,
   ): Promise<
     Readonly<{
       managedReservationBytes: any;
@@ -129,7 +129,7 @@ declare class ValueSession {
    */
   materializeControl(
     /** @type {*} */ value: any,
-    /** @type {*} */ maximum: any,
+    /** @type {*} */ maximumBytes: any,
     /** @type {*} */ validate: any,
   ): Promise<
     Readonly<{

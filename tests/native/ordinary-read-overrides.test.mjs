@@ -49,7 +49,7 @@ test("unlimited ordinary checking and pointer selection cross 4096 containers", 
 test("an explicit 1 KiB budget remains binding beside otherwise unlimited reads", async () => {
   const session = await openJsonSourceSession({
     ...unlimited,
-    capacityLimits: { maxFileBytes: 1024 },
+    capacityLimits: { maxSourceBytes: 1024 },
   });
   let successfulTerminal = false;
   try {
@@ -126,7 +126,7 @@ test("unlimited aggregate quotas retain finite buffers and the adaptive working 
       if (event.type === "terminal") terminal = event;
     assert.equal(terminal?.contractSatisfied, true);
     const metrics = (await session.command("metrics")).result;
-    assert.equal(metrics.transitions, "1");
+    assert.equal(metrics.spillTransitionCount, "1");
     assert.ok(BigInt(metrics.scratchPeakBytes) > 0n);
     assert.ok(BigInt(metrics.managedPeakBytes) < 40n * 1048576n);
     console.log(

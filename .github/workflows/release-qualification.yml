@@ -65,7 +65,7 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          npm run check:security -- "${{ runner.temp }}/security"
+          npm run check:dependency-advisories -- "${{ runner.temp }}/security"
           npm run release:security -- "${{ runner.temp }}/frozen" "${{ runner.temp }}/security"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5

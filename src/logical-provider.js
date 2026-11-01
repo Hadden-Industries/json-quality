@@ -58,9 +58,9 @@ export async function* checkLogicalProvider(
         ...contractFor(entry.path, { definition, identity: entry }),
         path: entry.path,
         format: jsonSourceFormat(entry.path),
-        allowFormatWrites: false,
+        allowSourceRewrites: false,
       };
-      if (contract.exclude)
+      if (contract.excludeUntrackedSources)
         throw new Error(
           `Logical provider obligation is excluded: ${entry.path}`,
         );

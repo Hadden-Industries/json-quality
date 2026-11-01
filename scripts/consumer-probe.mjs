@@ -16,6 +16,7 @@ import { createRequire } from "node:module";
 import * as api from "@hadden-industries/json-quality";
 import plugin from "@hadden-industries/json-quality/eslint";
 import configuration from "@hadden-industries/json-quality/configuration-schema" with { type: "json" };
+import effectivePolicy from "@hadden-industries/json-quality/effective-policy-schema" with { type: "json" };
 import sourceContract from "@hadden-industries/json-quality/source-contract-schema" with { type: "json" };
 import eventContract from "@hadden-industries/json-quality/event-schema" with { type: "json" };
 import cohort from "@hadden-industries/json-quality/contract-cohort" with { type: "json" };
@@ -41,7 +42,7 @@ async function repository(options = {}, operation, files) {
   const session = await api.openJsonRepositorySession({ root, ...options }),
     events = [];
   try {
-    for await (const event of session.events()) {
+    for await (const event of session.check()) {
       assert.equal(api.validateJsonQualityEvent(event), true);
       events.push(event);
     }
@@ -68,7 +69,11 @@ try {
     cohort.eventSchemaVersion,
   );
   assert.equal(sourceContract.additionalProperties, false);
-  assert.equal(cohort.eventSchemaVersion, 3);
+  assert.equal(
+    effectivePolicy.properties.schemaVersion.const,
+    cohort.configurationSchemaVersion,
+  );
+  assert.equal(cohort.eventSchemaVersion, 4);
   for (const name of [
     "runJsonQuality",
     "checkJsonDocument",
@@ -76,6 +81,15 @@ try {
     "inspectJsonInventory",
     "formatJsonDocument",
     "readJsonPolicy",
+    "admitJsonPolicy",
+    "jsonContract",
+    "assertIsolatedJsonQuality",
+    "jsonQualityAcquisitionBootstrap",
+    "jsonQualitySourceCoordinate",
+    "qualifyJsonConsumer",
+    "JSON_TRANSFORM_CAPABILITIES",
+    "JSON_PRODUCER_CAPABILITIES",
+    "PACKAGE_VERIFICATION_CAPABILITIES",
   ])
     assert.equal(Object.hasOwn(api, name), false, name);
   for (const suffix of [
@@ -92,6 +106,19 @@ try {
     "function",
   );
   assert.equal((await repository()).at(-1).contractSatisfied, true);
+  const oneShot = await api.openJsonRepositorySession({ root });
+  try {
+    for await (const event of oneShot.check())
+      assert.equal(api.validateJsonQualityEvent(event), true);
+    await assert.rejects(
+      (async () => {
+        for await (const event of oneShot.check()) void event;
+      })(),
+      /already|claim|check/iu,
+    );
+  } finally {
+    await oneShot.close();
+  }
 
   for (const text of [
     '{"a":1,"\\u0061":2}',
@@ -119,6 +146,30 @@ try {
     }))
       if (event.type === "source") source = event.source;
     value = await session.select(source, "/v");
+    assert.equal(typeof value.referenceId, "string");
+    assert.equal(
+      typeof session.implementationIdentity.components.unicode,
+      "string",
+    );
+    assert.equal((await session.read(value, "number-lexeme")).byteOffset, "0");
+    const streamedPointer = await session.selectByPointerStream(
+      source,
+      stream(Buffer.from("/v")),
+      { identity: pin(Buffer.from("/v")) },
+    );
+    assert.equal(session.sameReference(value, streamedPointer), true);
+    await assert.rejects(session.select({ ...source }), /reference/iu);
+    await assert.rejects(
+      session.select(JSON.parse(JSON.stringify(source))),
+      /reference/iu,
+    );
+    const foreign = await api.openJsonSourceSession();
+    try {
+      await assert.rejects(foreign.read(value, "number-lexeme"), /reference/iu);
+      foreign.cancel(new Error("packed consumer cancellation"));
+    } finally {
+      await foreign.close();
+    }
     assert.equal(
       (await session.read(value, "number-lexeme")).bytes.toString(),
       "1.00",
@@ -130,6 +181,20 @@ try {
     );
     assert.deepEqual(materialized.value, { v: 1 });
     await materialized.release();
+    assert.throws(() => materialized.value, /lease|released/iu);
+    const transferable = await session.materializeControl(
+      await session.select(source),
+      "1024",
+      () => true,
+    );
+    const transferred = await transferable.transfer();
+    assert.deepEqual(transferred.value, { v: 1 });
+    assert.match(transferred.managedReservationBytes, /^(0|[1-9][0-9]*)$/u);
+    assert.throws(() => transferable.value, /lease|released/iu);
+    assert.equal(
+      (await session.describe(await session.select(source))).valueKind,
+      "object",
+    );
   } finally {
     await session.close();
   }
@@ -151,14 +216,14 @@ try {
   );
   assert.match(readFileSync(join(root, "source.json"), "utf8"), /é/u);
   assert.equal((await repository()).at(-1).contractSatisfied, true);
-  assert.equal((await repository({}, "format")).at(-1).written, "0");
+  assert.equal((await repository({}, "format")).at(-1).writtenPathCount, "0");
   const normalized = readFileSync(join(root, "source.json"));
   assert.equal((await repository()).at(-1).contractSatisfied, true);
   assert.deepEqual(readFileSync(join(root, "source.json")), normalized);
 
-  policy.exceptions.push({
+  (policy.exceptions ??= []).push({
     paths: ["protected/**"],
-    allowFormatWrites: false,
+    allowSourceRewrites: false,
     owner: "Fixture owner",
     reason: "Protected source preservation.",
   });
@@ -168,7 +233,7 @@ try {
   writeFileSync(join(root, "protected", "data.json"), protectedBytes);
   const protectedEvents = await repository({}, "format");
   assert.equal(protectedEvents.at(-1).type, "write-failure");
-  assert.equal(protectedEvents.at(-1).written, "0");
+  assert.equal(protectedEvents.at(-1).writtenPathCount, "0");
   assert.deepEqual(
     readFileSync(join(root, "protected", "data.json")),
     protectedBytes,
@@ -180,7 +245,7 @@ try {
   writeFileSync(join(root, "source.json"), collision);
   const refused = await repository({}, "normalize", ["source.json"]);
   assert.equal(refused.at(-1).type, "write-failure");
-  assert.equal(refused.at(-1).written, "0");
+  assert.equal(refused.at(-1).writtenPathCount, "0");
   assert.deepEqual(readFileSync(join(root, "source.json")), collision);
   writeFileSync(join(root, "source.json"), "{}\n");
 
@@ -250,7 +315,7 @@ try {
 
   const events = execFileSync(
     process.execPath,
-    [cli, "check", "--root", root, "--json"],
+    [cli, "check", "--root", root, "--ndjson"],
     { windowsHide: true, encoding: "utf8", timeout: 15000, maxBuffer: 2097152 },
   )
     .trim()
@@ -258,7 +323,7 @@ try {
     .map((line) => JSON.parse(line));
   assert.equal(events.at(-1).type, "execution-terminal");
   assert.equal(events.at(-1).contractSatisfied, true);
-  assert.equal(events.at(-1).members, "2");
+  assert.equal(events.at(-1).inventoryMemberCount, "2");
   for (const event of events)
     assert.equal(api.validateJsonQualityEvent(event), true);
 } finally {

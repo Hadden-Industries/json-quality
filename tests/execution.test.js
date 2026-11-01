@@ -13,16 +13,16 @@ const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 function repository(t) {
   const root = temporaryRepository(t, "json-quality-test-"),
     policy = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       defaults: {
         formatContract: "prettier-json",
-        allowFormatWrites: true,
+        allowSourceRewrites: true,
         normalization: "NFC",
       },
       exceptions: [
         {
           paths: [".git/**", "**/node_modules/**"],
-          exclude: true,
+          excludeUntrackedSources: true,
           owner: "Git and npm",
           reason: "External installations; tracked JSON remains included.",
         },
@@ -62,9 +62,9 @@ test("many sibling external boundaries reconcile through the bounded adaptive ce
   }
   const events = await repositoryEvents({
     root,
-    runtimeControls: { managedMemoryTargetBytes: 16777216 },
+    runtimeControls: { maxManagedMemoryBytes: 16777216 },
   });
-  assert.equal(events.at(-1).members, String(peers + 1));
+  assert.equal(events.at(-1).inventoryMemberCount, String(peers + 1));
   assert.equal(events.at(-1).contractSatisfied, true);
   assert.equal(
     events.some((event) => event.path?.includes("node_modules")),
@@ -109,7 +109,7 @@ test("tracked hidden JSON in a pruned ancestor is checked and cannot acquire wri
   });
   const events = await repositoryEvents({ root }, "format");
   assert.equal(events.at(-1).type, "write-failure");
-  assert.equal(events.at(-1).written, "0");
+  assert.equal(events.at(-1).writtenPathCount, "0");
   assert.ok(
     events.some(
       (event) =>
@@ -155,7 +155,7 @@ test(
     );
     const events = await repositoryEvents({ root }, "format");
     assert.equal(events.at(-1).type, "write-failure");
-    assert.equal(events.at(-1).written, "0");
+    assert.equal(events.at(-1).writtenPathCount, "0");
     assert.equal(readFileSync(join(root, actualPath), "utf8"), original);
   },
 );
@@ -184,7 +184,7 @@ test("explicit formatting repairs valid authored bytes with fixed package option
   writeFileSync(join(root, "source.json"), '{"x":1.00e+2}');
   const events = await repositoryEvents({ root }, "format");
   assert.equal(events.at(-1).type, "write-terminal");
-  assert.equal(events.at(-1).written, "1");
+  assert.equal(events.at(-1).writtenPathCount, "1");
   assert.equal(
     readFileSync(join(root, "source.json"), "utf8"),
     '{\n  "x": 1.00e+2\n}\n',
@@ -196,7 +196,7 @@ test("an invalid unselected peer blocks every formatting write", async (t) => {
   writeFileSync(join(root, "peer.json"), '{"x":1,"x":2}');
   const events = await repositoryEvents({ root }, "format", ["source.json"]);
   assert.equal(events.at(-1).type, "write-failure");
-  assert.equal(events.at(-1).written, "0");
+  assert.equal(events.at(-1).writtenPathCount, "0");
   assert.equal(readFileSync(join(root, "source.json"), "utf8"), '{"x":1}');
 });
 test("producer presentation protects both formatting and normalization effects", async (t) => {
@@ -215,24 +215,21 @@ test("producer presentation protects both formatting and normalization effects",
       "producer.json",
     ]);
     assert.equal(events.at(-1).type, "write-failure");
-    assert.equal(events.at(-1).written, "0");
+    assert.equal(events.at(-1).writtenPathCount, "0");
     assert.match(events.at(-1).message, /Protected/u);
     assert.equal(readFileSync(join(root, "producer.json"), "utf8"), bytes);
   }
 });
 test("policy and invocation byte capacities can be raised or bypassed without changing runtime controls", async (t) => {
   const { root, policy, save } = repository(t);
-  policy.capacityLimits = { maxFiles: 1 };
+  policy.capacityLimits = { maxPhysicalAndNativeSources: 1 };
   save();
   writeFileSync(join(root, "source.json"), "{}\n");
   await assert.rejects(repositoryEvents({ root }), /file-capacity/u);
-  for (const capacityLimits of [{ maxFiles: 2 }, false]) {
+  for (const capacityLimits of [{ maxPhysicalAndNativeSources: 2 }, false]) {
     const events = await repositoryEvents({ root, capacityLimits });
     assert.equal(events.at(-1).contractSatisfied, true);
-    assert.equal(
-      events[0].resources.runtime.managedMemoryTargetBytes,
-      "33554432",
-    );
+    assert.equal(events[0].resources.runtime.maxManagedMemoryBytes, "33554432");
   }
 });
 test("a real source above 32 MiB is streamed only after raising source byte capacity", async (t) => {
@@ -242,13 +239,13 @@ test("a real source above 32 MiB is streamed only after raising source byte capa
   await assert.rejects(repositoryEvents({ root }), /source-byte-capacity/u);
   const events = await repositoryEvents({
     root,
-    capacityLimits: { maxFileBytes: bytes.length },
+    capacityLimits: { maxSourceBytes: bytes.length },
   });
   assert.equal(events.at(-1).contractSatisfied, true);
   const terminal = events.find(
     (event) => event.type === "terminal" && event.path === "large.json",
   );
-  assert.equal(terminal.transitions, "1");
+  assert.equal(terminal.spillTransitionCount, "1");
   assert.ok(BigInt(terminal.managedPeakBytes) <= 33554432n);
 });
 test("literal brackets in selected filenames cannot become tool globs", async (t) => {
@@ -269,7 +266,7 @@ test("malformed UTF-8 never authorizes normalization or replaces original bytes"
   writeFileSync(join(root, "data.json"), bytes);
   const events = await repositoryEvents({ root }, "normalize", ["data.json"]);
   assert.equal(events.at(-1).type, "write-failure");
-  assert.equal(events.at(-1).written, "0");
+  assert.equal(events.at(-1).writtenPathCount, "0");
   assert.deepEqual(readFileSync(join(root, "data.json")), bytes);
 });
 test("late peer mutation reports earlier writes and leaves subsequent files untouched", async (t) => {
@@ -279,7 +276,7 @@ test("late peer mutation reports earlier writes and leaves subsequent files unto
   const session = await openJsonRepositorySession({ root });
   let terminal;
   try {
-    for await (const event of session.events()) terminal = event;
+    for await (const event of session.check()) terminal = event;
     for await (const event of session.rewrite("format")) {
       if (event.type === "written" && event.path === "a.json")
         writeFileSync(join(root, "b.json"), '{"changed":true}');
@@ -289,7 +286,7 @@ test("late peer mutation reports earlier writes and leaves subsequent files unto
     await session.close();
   }
   assert.equal(terminal.type, "write-failure");
-  assert.equal(terminal.written, "1");
+  assert.equal(terminal.writtenPathCount, "1");
   assert.equal(terminal.preflightComplete, true);
   assert.equal(readFileSync(join(root, "a.json"), "utf8"), '{\n  "x": 1\n}\n');
   assert.equal(readFileSync(join(root, "b.json"), "utf8"), '{"changed":true}');
@@ -331,7 +328,7 @@ test("exact expected container findings require every pinned logical linkage", a
       {
         severity: "error",
         phase: "lint",
-        ruleId: "json-quality/interoperability",
+        ruleId: "json-quality/no-unicode-noncharacters",
         messageId: "noncharacter",
         codePoint: "U+FDD0",
         line,
@@ -344,7 +341,7 @@ test("exact expected container findings require every pinned logical linkage", a
   policy.exceptions.push(
     {
       paths: ["bundle.json"],
-      allowFormatWrites: false,
+      allowSourceRewrites: false,
       owner: "Negative-vector oracle",
       reason: "Exact original negative source and actual container.",
       expected: {
@@ -362,7 +359,7 @@ test("exact expected container findings require every pinned logical linkage", a
     },
     {
       paths: [member.path],
-      allowFormatWrites: false,
+      allowSourceRewrites: false,
       owner: "Negative-vector oracle",
       reason: "Intentional Unicode counterexample.",
       expected: expected(bytes, "2", "8", "11"),

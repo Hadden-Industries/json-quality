@@ -1,0 +1,285 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "preserveSourcePresentation": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "paths",
+          "owner",
+          "reason"
+        ],
+        "properties": {
+          "paths": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "\\S"
+          }
+        }
+      }
+    },
+    "capacityLimits": {
+      "description": "Caller-owned admission quotas. False removes all quotas, true selects configured/default quotas, and an object overrides only named fields. Null removes an individual quota. Invocation controls govern bootstrap.",
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/capacityLimits"
+        }
+      ]
+    },
+    "schemaVersion": {
+      "const": 4
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "formatContract": {
+          "const": "prettier-json"
+        },
+        "allowSourceRewrites": {
+          "const": true
+        },
+        "normalization": {
+          "enum": [
+            "NFC",
+            "preserve"
+          ]
+        }
+      },
+      "required": [
+        "formatContract",
+        "allowSourceRewrites",
+        "normalization"
+      ]
+    },
+    "exceptions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "paths",
+          "owner",
+          "reason"
+        ],
+        "minProperties": 4,
+        "properties": {
+          "paths": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "excludeUntrackedSources": {
+            "const": true
+          },
+          "allowSourceRewrites": {
+            "const": false
+          },
+          "normalization": {
+            "enum": [
+              "NFC",
+              "preserve"
+            ]
+          },
+          "nfcExemptStringValues": {
+            "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/nfcExemptStringValuePins"
+          },
+          "allowEmptyKeys": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^(?:/(?:[^~/]|~[01])*)*/$"
+            }
+          },
+          "formatContract": {
+            "enum": [
+              "prettier-json",
+              "producer-json-body",
+              "producer-json-indent",
+              "producer-json-indent-body",
+              "producer-json-compact",
+              "producer-json-compact-body",
+              "preserved-bytes"
+            ]
+          },
+          "expected": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sha256",
+              "byteLength",
+              "diagnostics"
+            ],
+            "properties": {
+              "linkedDocuments": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "path",
+                    "pointer",
+                    "encoding",
+                    "sha256",
+                    "byteLength"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "pointer": {
+                      "type": "string",
+                      "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                    },
+                    "encoding": {
+                      "enum": [
+                        "utf8",
+                        "base64"
+                      ]
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "byteLength": {
+                      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
+                    }
+                  }
+                }
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "byteLength": {
+                "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
+              },
+              "diagnostics": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/diagnosticIdentity"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "nativeSources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "provider",
+          "owner",
+          "reason"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "parameters": {
+            "type": "object"
+          },
+          "minimumDocuments": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "formatContract": {
+            "enum": [
+              "prettier-json",
+              "producer-json-body",
+              "producer-json-indent",
+              "producer-json-indent-body",
+              "producer-json-compact",
+              "producer-json-compact-body"
+            ]
+          }
+        }
+      }
+    },
+    "runtimeControls": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/runtimeControls"
+        }
+      ]
+    },
+    "transformControls": {
+      "description": "Caller-owned quotas for this operation. False removes every quota; null removes an individual quota; an object overrides only its named fields.",
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/transformControls"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hadden-Industries/json-quality/schema/effective-policy/v4",
+  "title": "Resolved JSON Quality policy, cohort 4",
+  "required": [
+    "schemaVersion",
+    "defaults",
+    "exceptions"
+  ]
+}

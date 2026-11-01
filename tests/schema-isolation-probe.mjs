@@ -4,7 +4,7 @@ import {
   openJsonRepositorySession,
   openJsonSourceSession,
   validateJsonQualityEvent,
-  admitJsonPolicy,
+  resolveJsonQualityPolicy,
 } from "../src/index.js";
 import eventSchema from "../schemas/event.schema.json" with { type: "json" };
 import configurationSchema from "../schemas/configuration.schema.json" with { type: "json" };
@@ -17,7 +17,7 @@ if (process.argv[2] === "events") {
   ).required.length = 0;
   assert.equal(
     validateJsonQualityEvent({
-      schemaVersion: 3,
+      schemaVersion: 4,
       requestId: "fixture",
       type: "execution",
     }),
@@ -26,7 +26,7 @@ if (process.argv[2] === "events") {
   const session = await openJsonRepositorySession({ root: process.argv[3] });
   try {
     let terminal;
-    for await (const event of session.events()) terminal = event;
+    for await (const event of session.check()) terminal = event;
     assert.equal(terminal.type, "execution-terminal");
     assert.equal(terminal.contractSatisfied, true);
   } finally {
@@ -53,11 +53,11 @@ if (process.argv[2] === "events") {
     );
     assert.throws(
       () =>
-        admitJsonPolicy({
-          schemaVersion: 3,
+        resolveJsonQualityPolicy({
+          schemaVersion: 4,
           defaults: {
             formatContract: "prettier-json",
-            allowFormatWrites: true,
+            allowSourceRewrites: true,
             normalization: "NFC",
           },
           exceptions: [
@@ -69,7 +69,7 @@ if (process.argv[2] === "events") {
             },
           ],
         }),
-      /policy structure/u,
+      /Invalid JSON configuration/u,
     );
   } finally {
     await session.close();

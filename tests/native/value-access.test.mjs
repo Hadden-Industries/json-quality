@@ -215,7 +215,7 @@ test("ordinary checks refuse unretained selections without losing their root", a
 test("a finding under a giant key has a bounded, exact pointer across spill", async () => {
   const session = new NativeSession();
   try {
-    await session.configure({ managedMemoryTargetBytes: "16777216" });
+    await session.configure({ maxManagedMemoryBytes: "16777216" });
     const repetitions = 2 * 1024 * 1024,
       blockRepetitions = 8192;
     function* source() {
@@ -230,7 +230,7 @@ test("a finding under a giant key has a bounded, exact pointer across spill", as
     assert.equal(terminal.parserComplete, true);
     assert.equal(terminal.rulesComplete, true);
     assert.equal(terminal.qualityPassed, false);
-    assert.equal(terminal.transitions, "0");
+    assert.equal(terminal.spillTransitionCount, "0");
     const finding = events.find(
       (event) => event.type === "finding" && event.messageId === "unnormalized",
     );
@@ -240,11 +240,14 @@ test("a finding under a giant key has a bounded, exact pointer across spill", as
       session.command("reserve-materialization", {
         value: finding.value,
         representation: "json-pointer",
-        maximum: "8",
+        maximumBytes: "8",
       }),
       /materialization-capacity/,
     );
-    assert.equal((await session.command("metrics")).result.transitions, "0");
+    assert.equal(
+      (await session.command("metrics")).result.spillTransitionCount,
+      "0",
+    );
     const expected = createHash("sha256").update("/outer/");
     const escaped = Buffer.from("a~1~0".repeat(blockRepetitions));
     for (let index = 0; index < repetitions / blockRepetitions; index++)
@@ -267,7 +270,7 @@ test("a finding under a giant key has a bounded, exact pointer across spill", as
     assert.equal(total, BigInt(7 + 5 * repetitions));
     assert.equal(actual.digest("hex"), expected.digest("hex"));
     const metrics = (await session.command("metrics")).result;
-    assert.equal(metrics.transitions, "1");
+    assert.equal(metrics.spillTransitionCount, "1");
     assert.ok(BigInt(metrics.managedPeakBytes) <= 16777216n);
     assert.equal(
       (await session.read(finding.value, "decoded-utf8")).data.toString(),

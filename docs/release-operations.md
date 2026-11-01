@@ -15,7 +15,7 @@ The existing `--archive` and `--provenance` inputs identify the core and its fro
 Linux executable mode is checked in the actual native archive.
 The local `.provenance.json` records all three byte identities; authenticated registry provenance comes from native npm verification.
 The published `1.0.0-rc.1` uses configuration/event/native cohort 2.
-The resource-override source candidate is `1.0.0-rc.2`, with cohort 3; preparing that version does not publish it or select it in consumers.
+The current source candidate remains `1.0.0-rc.2` with cohort 4 and zero-configuration policy resolution; preparing source does not publish it or select it in consumers.
 Formal release publication and HISEW adoption require their owner's separate decisions.
 Public API/schema exports, executable artifacts, CLI entrypoints and consumer Node floors remain separate compatibility contracts.
 

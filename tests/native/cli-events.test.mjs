@@ -34,8 +34,8 @@ const cli = fileURLToPath(new URL("../../src/cli.js", import.meta.url)),
 test("CLI consumes raw source bytes and delivers correlated complete NDJSON", () => {
   const result = run(
       [
-        "source",
-        "--json",
+        "check-source",
+        "--ndjson",
         "--request-id",
         "cli-request",
         "--contract",
@@ -54,7 +54,7 @@ test("CLI consumes raw source bytes and delivers correlated complete NDJSON", ()
 
 test("CLI JSONL byte rejection never publishes admitted record counts", () => {
   const result = run(
-      ["source", "--json", "--contract", '{"format":"jsonl"}'],
+      ["check-source", "--ndjson", "--contract", '{"format":"jsonl"}'],
       Buffer.concat([Buffer.from("0\n"), Buffer.from([255])]),
     ),
     delivered = events(result);
@@ -65,9 +65,15 @@ test("CLI JSONL byte rejection never publishes admitted record counts", () => {
 
 test("CLI rejects obsolete envelopes/flags and keeps finite controls active under admission bypass", () => {
   for (const args of [
-    ["source", "--json", "--request", "-"],
-    ["source", "--json", "--contract", '{"contentBase64":"MA=="}'],
-    ["source", "--json", "--no-capacity-limits", "--max-concurrency", "2"],
+    ["check-source", "--ndjson", "--request", "-"],
+    ["check-source", "--ndjson", "--contract", '{"contentBase64":"MA=="}'],
+    [
+      "check-source",
+      "--ndjson",
+      "--no-capacity-limits",
+      "--max-concurrency",
+      "2",
+    ],
   ]) {
     const result = run(args),
       delivered = events(result);
@@ -81,7 +87,10 @@ test("CLI rejects obsolete envelopes/flags and keeps finite controls active unde
 });
 
 test("CLI source capacity failure cannot return success or a parser verdict", () => {
-  const result = run(["source", "--json", "--max-file-bytes", "2"], "123\n"),
+  const result = run(
+      ["check-source", "--ndjson", "--max-source-bytes", "2"],
+      "123\n",
+    ),
     delivered = events(result);
   assert.equal(result.status, 2, result.stderr || result.stdout);
   assert.equal(delivered.at(-1).type, "failure");
@@ -99,16 +108,16 @@ test("CLI formats through the installed fixed component with a final write termi
       join(root, ".json-quality.json"),
       JSON.stringify(
         {
-          schemaVersion: 3,
+          schemaVersion: 4,
           defaults: {
             formatContract: "prettier-json",
             normalization: "NFC",
-            allowFormatWrites: true,
+            allowSourceRewrites: true,
           },
           exceptions: [
             {
               paths: [".git/**"],
-              exclude: true,
+              excludeUntrackedSources: true,
               owner: "Git",
               reason: "Metadata",
             },
@@ -123,14 +132,14 @@ test("CLI formats through the installed fixed component with a final write termi
         "format",
         "--root",
         root,
-        "--json",
+        "--ndjson",
         "--",
         "value.json",
       ]),
       delivered = events(result);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(delivered.at(-1).type, "write-terminal");
-    assert.equal(delivered.at(-1).written, "1");
+    assert.equal(delivered.at(-1).writtenPathCount, "1");
     assert.equal(
       await readFile(join(root, "value.json"), "utf8"),
       '{\n  "v": 1\n}\n',
@@ -145,8 +154,8 @@ test("failed CLI output delivery closes its source session and exits incomplete"
     process.execPath,
     [
       cli,
-      "source",
-      "--json",
+      "check-source",
+      "--ndjson",
       "--contract",
       '{"formatContract":"producer-json-compact-body"}',
     ],

@@ -1,6 +1,6 @@
 # Documentation
 
-Use the current contracts and runbooks below when developing or consuming cohort 3.
+Use the current contracts and runbooks below when developing or consuming cohort 4.
 Dated [plans](https://github.com/Hadden-Industries/json-quality/tree/main/docs/plans) describe decisions and historical proposals; they do not establish implemented or hosted acceptance.
 
 | Need                                 | Reference                                                                                   |

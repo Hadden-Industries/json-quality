@@ -27,7 +27,8 @@ const project = dirname(dirname(fileURLToPath(import.meta.url))),
   changed = Number(values.changed),
   records = Number(values.records),
   repetitions = Number(values.repetitions),
-  maximumDocuments = resolveExecutionResources().admission.maxFiles - 1;
+  maximumDocuments =
+    resolveExecutionResources().admission.maxPhysicalAndNativeSources - 1;
 if (
   !["check", "format", "normalize"].includes(values.workload) ||
   ![files, changed, records, repetitions].every(Number.isSafeInteger) ||
@@ -151,16 +152,16 @@ try {
   const policy =
     JSON.stringify(
       {
-        schemaVersion: 3,
+        schemaVersion: 4,
         defaults: {
           formatContract: "prettier-json",
           normalization: "NFC",
-          allowFormatWrites: true,
+          allowSourceRewrites: true,
         },
         exceptions: [
           {
             paths: [".git/**"],
-            exclude: true,
+            excludeUntrackedSources: true,
             owner: "Git",
             reason: "Metadata",
           },

@@ -41,8 +41,8 @@ function writerOptions(/** @type {*} */ options = {}) {
         ![
           "normalization",
           "allowEmptyKeys",
-          "preserveNfcValues",
-          "allowFormatWrites",
+          "nfcExemptStringValues",
+          "allowSourceRewrites",
           "owner",
           "reason",
         ].includes(name),

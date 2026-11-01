@@ -26,3 +26,10 @@ Producer-only ICU Windows data-generation tools are not a consumer runtime depen
 
 These notices describe source and payload ownership.
 Final rights review, complete transported notices/source delivery, platform qualification and release authorization remain separate acceptance obligations.
+
+## Unicode normalization conformance data
+
+`tests/fixtures/unicode/NormalizationTest-18.0.0.txt` retains the exact Unicode 18.0.0 normalization test data supplied in the pinned official ICU 79.1 source archive.
+The data is copyright © 2026 Unicode, Inc. and is distributed under Unicode License V3 (`Unicode-3.0`).
+The associated copyright and permission notice is retained in `tests/fixtures/unicode/LICENSE.txt`; acquisition and byte identities are documented in that fixture directory.
+This test data is development evidence and is not included in the npm runtime package.

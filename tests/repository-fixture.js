@@ -9,7 +9,7 @@ export async function repositoryEvents(options, operation, files) {
   const session = await openJsonRepositorySession(options),
     events = [];
   try {
-    for await (const event of session.events()) events.push(event);
+    for await (const event of session.check()) events.push(event);
     if (operation)
       for await (const event of session.rewrite(
         operation,

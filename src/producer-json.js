@@ -2,16 +2,16 @@
 // Native serialization of an already materialized, caller-owned producer value.
 // This finite convenience is never used by scalable source checking.
 import { encodeNativeControl } from "./native-control.js";
-import { JSON_TRANSFORM_CAPABILITIES } from "./transform-capabilities.js";
+import { DEFAULT_JSON_TRANSFORM_LIMITS } from "./transform-capabilities.js";
 import {
   resourceDefaults,
   resolveResourceProfile,
   exceedsQuota,
 } from "./resource-profile.js";
 
-export const JSON_PRODUCER_CAPABILITIES = Object.freeze({
+export const DEFAULT_JSON_PRODUCER_LIMITS = Object.freeze({
   ...resourceDefaults("producerControls"),
-  maximumEncodedBytes: JSON_TRANSFORM_CAPABILITIES.maximumSourceBytes,
+  maximumEncodedBytes: DEFAULT_JSON_TRANSFORM_LIMITS.maximumSourceBytes,
 });
 
 /** Admit plain JSON data without evaluating accessors/custom serialization or
@@ -22,7 +22,7 @@ export const JSON_PRODUCER_CAPABILITIES = Object.freeze({
 export function serializeProducerJson(
   /** @type {*} */ value,
   /** @type {*} */ producerControls,
-  /** @type {*} */ transformControls = JSON_TRANSFORM_CAPABILITIES,
+  /** @type {*} */ transformControls = DEFAULT_JSON_TRANSFORM_LIMITS,
 ) {
   const selected = resolveResourceProfile(
       resourceDefaults("producerControls"),
@@ -34,10 +34,12 @@ export function serializeProducerJson(
       maximumEncodedBytes: transformControls.maximumSourceBytes,
     };
   const ancestors = new Set();
-  let members = 0;
+  let totalValues = 0;
   const inspect = (/** @type {*} */ item, /** @type {*} */ depth) => {
-    if (exceedsQuota(++members, capabilities.maximumMembers))
-      throw new Error("producer-member-capacity");
+    // Charge each serialized occurrence, including containers and the root.
+    // Property names are metadata; shared acyclic objects are visited again.
+    if (exceedsQuota(++totalValues, capabilities.maximumTotalValues))
+      throw new Error("producer-value-capacity");
     if (exceedsQuota(depth, capabilities.maximumDepth))
       throw new Error("producer-depth-capacity");
     if (item === null || typeof item === "boolean") return;
@@ -65,16 +67,19 @@ export function serializeProducerJson(
       throw new TypeError("Expected plain JSON producer data.");
     if (
       array &&
-      capabilities.maximumMembers !== null &&
-      item.length > capabilities.maximumMembers - members
+      capabilities.maximumTotalValues !== null &&
+      item.length > capabilities.maximumTotalValues - totalValues
     )
-      throw new Error("producer-member-capacity");
+      throw new Error("producer-value-capacity");
     const keys = Reflect.ownKeys(item);
+    // Each child costs at least one future visit. These lower bounds do not
+    // charge children, and the array length descriptor is not a JSON value.
     if (
-      capabilities.maximumMembers !== null &&
-      keys.length > capabilities.maximumMembers - members + (array ? 1 : 0)
+      capabilities.maximumTotalValues !== null &&
+      keys.length >
+        capabilities.maximumTotalValues - totalValues + (array ? 1 : 0)
     )
-      throw new Error("producer-member-capacity");
+      throw new Error("producer-value-capacity");
     if (array && keys.length !== item.length + 1)
       throw new TypeError("Sparse or extended arrays are not JSON data.");
     ancestors.add(item);

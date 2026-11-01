@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import { createValueSession } from "../../src/value-session.js";
-import { admitJsonPolicy } from "../../src/configuration.js";
+import { resolveJsonQualityPolicy } from "../../src/configuration.js";
 import { NativeSession } from "./client.mjs";
 const contract = { formatContract: "producer-json-compact-body" };
 async function checked(session, text) {
@@ -118,7 +118,7 @@ test("child iteration keeps duplicate members distinct across actual spill witho
   const core = new NativeSession(),
     session = createValueSession(core);
   try {
-    await core.configure({ managedMemoryTargetBytes: "16777216" });
+    await core.configure({ maxManagedMemoryBytes: "16777216" });
     async function* chunks() {
       yield Buffer.from('{"a":0,"a":1,"tail":["');
       const part = Buffer.alloc(65536, 120);
@@ -136,7 +136,10 @@ test("child iteration keeps duplicate members distinct across actual spill witho
     assert.equal(terminal.parserComplete, true);
     assert.equal(terminal.contractSatisfied, false);
     assert.equal(duplicate, true);
-    assert.equal((await core.command("metrics")).result.transitions, "1");
+    assert.equal(
+      (await core.command("metrics")).result.spillTransitionCount,
+      "1",
+    );
     const names = [],
       ordinals = [],
       values = [];
@@ -217,7 +220,7 @@ test("an early reference remains readable after a giant source forces actual spi
   const core = new NativeSession(),
     session = createValueSession(core);
   try {
-    await core.configure({ managedMemoryTargetBytes: "16777216" });
+    await core.configure({ maxManagedMemoryBytes: "16777216" });
     const early = await session.select(await checked(session, '"early"'));
     async function* chunks() {
       yield Buffer.from('"');
@@ -231,7 +234,10 @@ test("an early reference remains readable after a giant source forces actual spi
       if (event.type === "terminal")
         assert.equal(event.contractSatisfied, true);
     }
-    assert.equal((await core.command("metrics")).result.transitions, "1");
+    assert.equal(
+      (await core.command("metrics")).result.spillTransitionCount,
+      "1",
+    );
     assert.equal(
       (await session.read(early, "decoded-utf8")).bytes.toString(),
       "early",
@@ -257,7 +263,7 @@ test("a giant escaped pointer selects its exact retained value through bounded s
     fragment = Buffer.alloc(65536, 120),
     count = 192;
   try {
-    await core.configure({ managedMemoryTargetBytes: "16777216" });
+    await core.configure({ maxManagedMemoryBytes: "16777216" });
     async function* document() {
       yield Buffer.from('{"');
       for (let index = 0; index < count; index++) yield fragment;
@@ -278,7 +284,7 @@ test("a giant escaped pointer selects its exact retained value through bounded s
       // Escape pairs deliberately cross transport fragment boundaries.
       for (const part of ["~", "1", "~", "0"]) yield Buffer.from(part);
     }
-    const selected = await session.selectStream(source, pointer(), {
+    const selected = await session.selectByPointerStream(source, pointer(), {
       identity: {
         byteLength: String(1 + count * fragment.length + 4),
         sha256: hash.digest("hex"),
@@ -288,7 +294,10 @@ test("a giant escaped pointer selects its exact retained value through bounded s
       (await session.read(selected, "source-json")).bytes.toString(),
       "0",
     );
-    assert.equal((await core.command("metrics")).result.transitions, "1");
+    assert.equal(
+      (await core.command("metrics")).result.spillTransitionCount,
+      "1",
+    );
   } finally {
     await session.close();
   }
@@ -309,7 +318,7 @@ test("malformed streamed pointers refuse selection while completed values stay r
       [Buffer.from([47, 0xc3]), /truncated-utf8/],
     ]) {
       await assert.rejects(
-        session.selectStream(source, [bytes], {
+        session.selectByPointerStream(source, [bytes], {
           identity: {
             byteLength: String(bytes.length),
             sha256: createHash("sha256").update(bytes).digest("hex"),
@@ -327,6 +336,29 @@ test("malformed streamed pointers refuse selection while completed values stay r
   }
 });
 
+test("pointer-byte identity is required before opening its producer", async () => {
+  const core = new NativeSession(),
+    session = createValueSession(core);
+  let opened = false;
+  try {
+    await core.configure();
+    const source = await checked(session, "0");
+    await assert.rejects(
+      session.selectByPointerStream(
+        source,
+        (async function* () {
+          opened = true;
+          yield Buffer.from("");
+        })(),
+      ),
+      /identity/u,
+    );
+    assert.equal(opened, false);
+  } finally {
+    await session.close();
+  }
+});
+
 test("bounded policy materialization runs complete Ajv admission before explicit ownership transfer", async () => {
   const core = new NativeSession(),
     session = createValueSession(core),
@@ -335,10 +367,14 @@ test("bounded policy materialization runs complete Ajv admission before explicit
     await core.configure();
     const source = await checked(
         session,
-        '{"schemaVersion":3,"defaults":{"formatContract":"prettier-json","allowFormatWrites":true,"normalization":"NFC"},"exceptions":[]}',
+        '{"schemaVersion":4,"defaults":{"formatContract":"prettier-json","allowSourceRewrites":true,"normalization":"NFC"},"exceptions":[]}',
       ),
       value = await session.select(source),
-      lease = await session.materializeControl(value, "1024", admitJsonPolicy);
+      lease = await session.materializeControl(
+        value,
+        "1024",
+        resolveJsonQualityPolicy,
+      );
     assert.equal(lease.value.defaults.normalization, "NFC");
     const owned = await lease.transfer();
     assert.throws(() => lease.value, /released-materialization/);
@@ -347,7 +383,7 @@ test("bounded policy materialization runs complete Ajv admission before explicit
     await next.command("adopt-control-state", {
       byteLength: owned.managedReservationBytes,
     });
-    assert.equal(owned.value.schemaVersion, 3);
+    assert.equal(owned.value.schemaVersion, 4);
     await next.capture([Buffer.from("0")], contract);
     for await (const event of next.events())
       if (event.type === "terminal")
@@ -371,8 +407,8 @@ test("invalid policy domains release their reservation without becoming a qualit
       await checked(session, '{"schemaVersion":999}'),
     );
     await assert.rejects(
-      session.materializeControl(value, "1024", admitJsonPolicy),
-      /Invalid JSON policy structure/,
+      session.materializeControl(value, "1024", resolveJsonQualityPolicy),
+      /Invalid JSON configuration/,
     );
     assert.equal(
       (await session.read(value, "source-json")).bytes.toString(),
@@ -389,7 +425,7 @@ test("a finite metadata subtree excludes unrelated sibling nodes from its reserv
   const core = new NativeSession(),
     session = createValueSession(core);
   try {
-    await core.configure({ managedMemoryTargetBytes: "16777216" });
+    await core.configure({ maxManagedMemoryBytes: "16777216" });
     const text =
       '{"metadata":{"path":"member.json"},"other":[' +
       "0,".repeat(39999) +
@@ -446,7 +482,7 @@ test("large control-object reservation refuses before invoking its JS domain mat
   const core = new NativeSession(),
     session = createValueSession(core);
   try {
-    await core.configure({ managedMemoryTargetBytes: "16777216" });
+    await core.configure({ maxManagedMemoryBytes: "16777216" });
     const text =
         "{" +
         Array.from({ length: 40000 }, (_, index) => `"k${index}":0`).join(",") +
@@ -465,7 +501,7 @@ test("large control-object reservation refuses before invoking its JS domain mat
       "{",
     );
     const metrics = (await core.command("metrics")).result;
-    assert.equal(metrics.transitions, "1");
+    assert.equal(metrics.spillTransitionCount, "1");
     assert.ok(BigInt(metrics.managedPeakBytes) <= 16777216n);
   } finally {
     await session.close();

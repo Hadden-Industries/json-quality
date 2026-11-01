@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { qualifyJsonConsumer } from "./qualification.js";
+import { isMainModule } from "./module-entry.js";
+import { qualifyGitJsonSources } from "./qualification.js";
 import {
   RESOURCE_OPTIONS,
   RUNTIME_OPTIONS,
@@ -16,7 +15,7 @@ import { resolveExecutionResources } from "./execution-resources.js";
 import { createExecutionDeadline } from "./execution-deadline.js";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 
-/** Stream cohort-3 NDJSON with backpressure and a final cleaned-up verdict.
+/** Stream cohort-4 NDJSON with backpressure and a final cleaned-up verdict.
  * Output failure, cancellation or missing execution-terminal returns 2. The
  * source-only scope is declared in execution events; no candidate code runs.
  */
@@ -65,6 +64,13 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       await write(bytes);
     };
   try {
+    if (
+      process.env.JSON_QUALITY_TRUSTED_SHA !== undefined ||
+      process.env.JSON_QUALITY_CANDIDATE_SHA !== undefined
+    )
+      throw new TypeError(
+        "Use JSON_QUALITY_TRUSTED_COMMIT_ID and JSON_QUALITY_CANDIDATE_COMMIT_ID.",
+      );
     const parsed = parseArgs({
       args,
       allowNegative: true,
@@ -75,16 +81,16 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
         "request-id": { type: "string" },
         "trusted-root": { type: "string" },
         "candidate-root": { type: "string" },
-        "trusted-sha": { type: "string" },
-        "candidate-sha": { type: "string" },
+        "trusted-commit-id": { type: "string" },
+        "candidate-commit-id": { type: "string" },
       },
     });
     const /** @type {Record<string, any>} */ values = parsed.values;
     if (values.help) {
       await write(
         Buffer.from(
-          "Usage: json-quality-qualify --trusted-root PATH --candidate-root PATH --trusted-sha SHA --candidate-sha SHA\n" +
-            "Checks immutable Git JSON under the trusted commit policy; emits cohort-3 NDJSON.\n" +
+          "Usage: json-quality-qualify-git --trusted-root PATH --candidate-root PATH --trusted-commit-id COMMIT --candidate-commit-id COMMIT\n" +
+            "Checks immutable Git JSON under the trusted commit policy; emits cohort-4 NDJSON.\n" +
             "No candidate scripts, installs, native/logical providers or domain validation.\n" +
             "Resource options: " +
             Object.keys({ ...RESOURCE_OPTIONS, ...RUNTIME_OPTIONS })
@@ -106,7 +112,7 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       { began },
     );
     signal = deadline.signal;
-    for await (const event of qualifyJsonConsumer({
+    for await (const event of qualifyGitJsonSources({
       ...controls,
       signal,
       requestId,
@@ -114,9 +120,12 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
         values["trusted-root"] ?? process.env.JSON_QUALITY_TRUSTED_ROOT,
       candidateRoot:
         values["candidate-root"] ?? process.env.JSON_QUALITY_CANDIDATE_ROOT,
-      trustedSha: values["trusted-sha"] ?? process.env.JSON_QUALITY_TRUSTED_SHA,
-      candidateSha:
-        values["candidate-sha"] ?? process.env.JSON_QUALITY_CANDIDATE_SHA,
+      trustedCommitId:
+        values["trusted-commit-id"] ??
+        process.env.JSON_QUALITY_TRUSTED_COMMIT_ID,
+      candidateCommitId:
+        values["candidate-commit-id"] ??
+        process.env.JSON_QUALITY_CANDIDATE_COMMIT_ID,
     })) {
       if (event.type === "execution") {
         if (!event.resources) throw new Error("execution-resources-missing");
@@ -162,8 +171,5 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
   return exitCode;
 }
 
-if (
-  process.argv[1] &&
-  pathToFileURL(resolve(process.argv[1])).href === import.meta.url
-)
+if (isMainModule(import.meta.url))
   process.exitCode = await runJsonQualificationCli(process.argv.slice(2));

@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { PACKAGE_VERIFICATION_CAPABILITIES as packageCapabilities } from "../src/package-payload.js";
+import { DEFAULT_PACKAGE_VERIFICATION_LIMITS as packageCapabilities } from "../src/package-payload.js";
 
 export function effectJournal(phase, origin) {
   assert.ok(["stage", "archive", "promote"].includes(phase));

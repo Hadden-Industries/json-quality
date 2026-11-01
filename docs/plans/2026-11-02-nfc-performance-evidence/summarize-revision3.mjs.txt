@@ -1,0 +1,49 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+const here=dirname(fileURLToPath(import.meta.url));
+const repository="C:/Users/maksy/GitHub/json-quality";
+const destination=process.argv[2]??join(repository,"docs/plans/2026-11-02-nfc-performance-evidence");
+const read=(path)=>JSON.parse(readFileSync(path));
+const captured=read(join(here,"results.json"));
+const resolver=captured.resolver??read(join(here,"resolver-results.json"));
+// Retained compact samples carry stable outcomes once, rather than repeating
+// them in every process record. Accept that representation for recalculation.
+const results=captured.stableOutcomes?{
+ ...captured,
+ ...captured.environment,
+ node:{node:captured.environment.node,icu:captured.environment.nodeIcu,unicode:captured.environment.nodeUnicode},
+ baselineCorpusSha256:captured.integrity.baselineCorpusSha256,
+ harnessSha256:captured.integrity.harnessSha256,
+ snapshotHashesUnchanged:captured.integrity.snapshotHashesUnchanged,
+ sourceInputsUnchanged:captured.integrity.sourceInputsUnchanged,
+ workloads:captured.workloads.map(workload=>typeof workload.files==="number"?{...workload,files:read(join(repository,"docs/plans/2026-11-01-nfc-performance-evidence/corpus.json")).files}:workload),
+ runs:captured.runs.map(sample=>({...sample,...captured.stableOutcomes.find(outcome=>outcome.workload===sample.workload).modes[sample.normalization],implementationIdentity:captured.nativeIdentity})),
+}:captured;
+const baselinePath=join(repository,"docs/plans/2026-11-01-nfc-performance-evidence/summary.json"),baseline=read(baselinePath);
+const hash=bytes=>createHash("sha256").update(bytes).digest("hex");
+const rounded=number=>Number(number.toFixed(6));
+const stats=values=>{const sorted=[...values].sort((a,b)=>a-b);return {median:rounded(sorted[Math.floor(sorted.length/2)]),min:rounded(sorted[0]),max:rounded(sorted.at(-1))};};
+const modes=["default","NFC","preserve"];
+const fields=["checkMs","processWallMs","cpuMs","importMs","openMs","closeMs","peakRss","processMaxRssBytes","managedPeakBytes","scratchPeakBytes"];
+const rows=results.workloads.map(workload=>{
+ const samples=results.runs.filter(r=>r.workload===workload.name&&!r.warmup),row={workload:workload.name,files:workload.files.length,bytes:workload.files.reduce((n,f)=>n+f.bytes,0),modes:{}};
+ for(const mode of modes){
+  const selected=samples.filter(r=>r.normalization===mode);assert.equal(selected.length,7);
+  for(const sample of selected){assert.deepEqual(sample.findings,selected[0].findings);assert.deepEqual(sample.terminals,selected[0].terminals);assert.equal(sample.advisories,selected[0].advisories);assert.deepEqual(sample.implementationIdentity,results.runs[0].implementationIdentity);}
+  const earlier=baseline.rows.find(r=>r.workload===workload.name)?.modes[mode];
+  row.modes[mode]={...Object.fromEntries(fields.map(key=>[key,stats(selected.map(r=>Number(r[key])))])),terminals:selected[0].terminals,findings:selected[0].findings,advisories:selected[0].advisories,...(earlier?{priorRunComparison:{baselineMedianCheckMs:earlier.checkMs.median,checkMedianDifferenceMs:rounded(stats(selected.map(r=>r.checkMs)).median-earlier.checkMs.median),checkMedianRatio:rounded(stats(selected.map(r=>r.checkMs)).median/earlier.checkMs.median)}}:{})};
+ }
+ for(let round=0;round<7;round++) {const a=samples.find(r=>r.round===round&&r.normalization==="default"),b=samples.find(r=>r.round===round&&r.normalization==="NFC");assert.deepEqual(a.findings,b.findings);assert.deepEqual(a.terminals,b.terminals);assert.equal(a.advisories,b.advisories);}
+ for(const [name,from,to]of[["explicitVsDefault","default","NFC"],["nfcVsPreserve","preserve","NFC"]])row[name]={differenceOfMediansMs:rounded(row.modes[to].checkMs.median-row.modes[from].checkMs.median),ratioOfMedians:rounded(row.modes[to].checkMs.median/row.modes[from].checkMs.median),pairedDifferenceMs:stats(Array.from({length:7},(_,round)=>samples.find(r=>r.round===round&&r.normalization===to).checkMs-samples.find(r=>r.round===round&&r.normalization===from).checkMs))};
+ return row;
+});
+const summary={schemaVersion:1,status:results.status,started:results.started,completed:results.completed,source:results.source,nativeIdentity:results.runs[0].implementationIdentity,environment:{node:results.node.node,nodeIcu:results.node.icu,nodeUnicode:results.node.unicode,platform:results.platform,architecture:results.architecture,cpu:results.cpu,logicalCpus:results.logicalCpus},integrity:{snapshotHashesUnchanged:results.snapshotHashesUnchanged,sourceInputsUnchanged:results.sourceInputsUnchanged,baselineCorpusSha256:results.baselineCorpusSha256,baselineSummarySha256:hash(readFileSync(baselinePath)),harnessSha256:results.harnessSha256},measuredProcesses:results.runs.filter(r=>!r.warmup).length,warmupProcesses:results.runs.filter(r=>r.warmup).length,method:results.method,priorRunCaveat:"Earlier benchmark was a different uncommitted/committed source and different clock time/load. Fixed corpus, host/runtime, sampling scheme match; direct deltas are observations, not isolated causal overhead or a paired historical test.",rows,resolver:{...resolver,summary:Object.fromEntries(["absent","empty"].map(mode=>[mode,stats(resolver.runs.filter(r=>r.mode===mode&&!r.warmup).map(r=>r.perCallMs))]))}};
+const compact={schemaVersion:1,status:results.status,started:results.started,completed:results.completed,source:results.source,nativeIdentity:results.runs[0].implementationIdentity,environment:summary.environment,integrity:summary.integrity,method:results.method,workloads:results.workloads.map(workload=>workload.name==="google"?{name:workload.name,files:105,bytes:1963585,manifest:"../2026-11-01-nfc-performance-evidence/corpus.json"}:workload),runs:results.runs.map(({implementationIdentity: _implementationIdentity,findings: _findings,terminals: _terminals,advisories: _advisories,...run})=>({...run,...Object.fromEntries(fields.filter(field=>typeof run[field]==="number").map(field=>[field,rounded(run[field])]))})),stableOutcomes:rows.map(({workload,modes})=>({workload,modes:Object.fromEntries(Object.entries(modes).map(([mode,{findings,terminals,advisories}])=>[mode,{findings,terminals,advisories}]))})),resolver};
+mkdirSync(destination,{recursive:true});
+for(const [name,value]of[["summary.json",summary],["results.json",compact]])writeFileSync(join(destination,name),JSON.stringify(value,null,2)+"\n");
+copyFileSync(join(here,"source-inputs.json"),join(destination,"source-inputs.json"));
+for(const path of ["nfc-revision3.mjs","resolver-benchmark.mjs","summarize-revision3.mjs"])copyFileSync(join(here,path),join(destination,path+".txt"));
+console.log(JSON.stringify({rows:rows.map(r=>({workload:r.workload,bytes:r.bytes,modes:Object.fromEntries(Object.entries(r.modes).map(([mode,m])=>[mode,{check:m.checkMs,wall:m.processWallMs,managed:m.managedPeakBytes,rss:m.processMaxRssBytes,scratch:m.scratchPeakBytes,findings:m.findings,terminals:m.terminals,advisories:m.advisories,comparison:m.priorRunComparison}])),explicitVsDefault:r.explicitVsDefault,nfcVsPreserve:r.nfcVsPreserve})),resolver:summary.resolver.summary}));

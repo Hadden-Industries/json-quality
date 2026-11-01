@@ -151,7 +151,7 @@ test("provisional values from an invalid container cannot become linked sources"
 test("giant linked base64 uses bounded fragments and the same adaptive store", async () => {
   const session = new NativeSession();
   try {
-    await session.configure({ managedMemoryTargetBytes: "16777216" });
+    await session.configure({ maxManagedMemoryBytes: "16777216" });
     const groups = 2 * 1024 * 1024;
     function* encoded() {
       yield Buffer.from('"ImFh');
@@ -162,7 +162,7 @@ test("giant linked base64 uses bounded fragments and the same adaptive store", a
     await session.capture(encoded(), contract);
     const parent = await collect(session);
     assert.equal(parent.terminal.qualityPassed, true);
-    assert.equal(parent.terminal.transitions, "1");
+    assert.equal(parent.terminal.spillTransitionCount, "1");
     const value = parent.events.find((event) => event.type === "value");
     const expectedHash = createHash("sha256").update('"aa');
     const decoded = Buffer.alloc(3 * 16384, 97);
@@ -183,7 +183,7 @@ test("giant linked base64 uses bounded fragments and the same adaptive store", a
     const { events, terminal } = await collect(session);
     assert.equal(terminal.qualityPassed, true);
     assert.equal(terminal.sourceSha256, identity.sha256);
-    assert.equal(terminal.transitions, "1");
+    assert.equal(terminal.spillTransitionCount, "1");
     assert.ok(BigInt(terminal.managedPeakBytes) <= 16777216n);
     const child = events.find((event) => event.type === "value");
     assert.equal(child.byteLength, String(3 * groups + 3));

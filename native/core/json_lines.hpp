@@ -29,7 +29,7 @@ struct RecordChecker {
     presentationChecked = name != "preserved-bytes";
     if (auto selected = contract.if_contains("checkPresentation"))
       presentationChecked &= selected->as_bool();
-    if (auto pins = contract.if_contains("preserveNfcValues")) {
+    if (auto pins = contract.if_contains("nfcExemptStringValues")) {
       pinMatches.resize(pins->as_array().size());
       for (const auto &pin : pins->as_array())
         require(pin.as_object().if_contains("record") != nullptr, "json-lines-pin-needs-record");
@@ -162,7 +162,7 @@ struct RecordChecker {
                         {"domainAdmission", "unassessed"},
                         {"qualityPassed", false},
                         {"presentationChecked", presentationChecked && parsed},
-                        {"findings", std::to_string(findings)},
+                        {"findingCount", std::to_string(findings)},
                         {"recordCount", admitted ? json::value(std::to_string(recordCount))
                                                  : json::value(nullptr)}};
   }

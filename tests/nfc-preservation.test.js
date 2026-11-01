@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeJsonSource, admitJsonPolicy } from "../src/index.js";
+import { normalizeJsonSource, resolveJsonQualityPolicy } from "../src/index.js";
 import { checkFixture } from "./source-fixture.js";
 
 // Independent SHA-256 identity of the decoded UTF-8 Kelvin-sign language tag.
@@ -11,12 +11,12 @@ const pin = {
   byteLength: "6",
 };
 const contract = {
-  allowFormatWrites: false,
+  allowSourceRewrites: false,
   normalization: "NFC",
   formatContract: "producer-json-compact-body",
   owner: "Language fixture owner",
   reason: "Retain the intentional non-ASCII language tag.",
-  preserveNfcValues: [pin],
+  nfcExemptStringValues: [pin],
 };
 const nativeFindings = async (text) =>
   (await checkFixture(Buffer.from(text), contract)).findings;
@@ -63,8 +63,8 @@ test("preserving one value cannot waive other values, keys or NFC collisions", a
     normalizeJsonSource('{"language":"en-K"}', {
       contract: {
         normalization: contract.normalization,
-        allowFormatWrites: false,
-        preserveNfcValues: contract.preserveNfcValues,
+        allowSourceRewrites: false,
+        nfcExemptStringValues: contract.nfcExemptStringValues,
         owner: contract.owner,
         reason: contract.reason,
       },
@@ -78,7 +78,7 @@ test("JSONL pins use one unique record identity and survive record reordering", 
     ...contract,
     path: "vectors.jsonl",
     format: "jsonl",
-    preserveNfcValues: [
+    nfcExemptStringValues: [
       { ...pin, record: { pointer: "/id", value: "intentional" } },
     ],
   };
@@ -117,29 +117,30 @@ test("JSONL pins use one unique record identity and survive record reordering", 
 test("policy admission requires exact protected paths, attributable ownership and unique document/record locations", () => {
   const rule = {
     paths: ["fixture.json"],
-    allowFormatWrites: false,
+    allowSourceRewrites: false,
     owner: "Fixture owner",
     reason: "Retain intentional input spelling",
-    preserveNfcValues: [pin],
+    nfcExemptStringValues: [pin],
   };
   const policyFor = (entry) => ({
-    schemaVersion: 3,
+    schemaVersion: 4,
     defaults: {
       formatContract: "prettier-json",
-      allowFormatWrites: true,
+      allowSourceRewrites: true,
       normalization: "NFC",
     },
     exceptions: [entry],
   });
-  admitJsonPolicy(policyFor(rule));
+  resolveJsonQualityPolicy(policyFor(rule));
   for (const change of [
     (value) => delete value.owner,
-    (value) => delete value.allowFormatWrites,
+    (value) => delete value.allowSourceRewrites,
     (value) => (value.paths = ["**/*.json"]),
     (value) => (value.normalization = "preserve"),
-    (value) => value.preserveNfcValues.push({ ...pin, sha256: "a".repeat(64) }),
     (value) =>
-      (value.preserveNfcValues[0].record = {
+      value.nfcExemptStringValues.push({ ...pin, sha256: "a".repeat(64) }),
+    (value) =>
+      (value.nfcExemptStringValues[0].record = {
         pointer: "/id",
         value: "fixture",
       }),
@@ -147,6 +148,6 @@ test("policy admission requires exact protected paths, attributable ownership an
   ]) {
     const changed = structuredClone(rule);
     change(changed);
-    assert.throws(() => admitJsonPolicy(policyFor(changed)));
+    assert.throws(() => resolveJsonQualityPolicy(policyFor(changed)));
   }
 });

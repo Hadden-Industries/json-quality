@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { publint } from "publint";
 import { stageCore } from "./package-stage.js";
+import { projectPolicyInputs } from "./project-policy-inputs.js";
 
 export async function checkPackage(
   directory,
@@ -27,7 +28,7 @@ export async function checkPackage(
   assert.equal(metadata.engines.node, ">=22.13.0");
   assert.deepEqual(metadata.bin, {
     "json-quality": "src/cli.js",
-    "json-quality-qualify": "src/qualification-cli.js",
+    "json-quality-qualify-git": "src/qualification-cli.js",
   });
   assert.equal(metadata.types, "./types/index.d.ts");
   assert.deepEqual(
@@ -36,6 +37,7 @@ export async function checkPackage(
       ".",
       "./eslint",
       "./configuration-schema",
+      "./effective-policy-schema",
       "./source-contract-schema",
       "./event-schema",
       "./contract-cohort",
@@ -84,11 +86,14 @@ export async function checkPackage(
     "README.md",
     "types/index.d.ts",
     "types/eslint/index.d.ts",
+    "assets/default-json-quality-policy.json",
+    "assets/json-quality-policy-inputs.json",
   ])
     assert.ok(
       files.some((file) => file.path === required),
       `Required package member missing: ${required}`,
     );
+  projectPolicyInputs(directory);
   const { messages } = await publint({
     pkgDir: directory,
     strict: true,

@@ -20,18 +20,18 @@ async function fixture(documents, run, executionOptions = {}) {
       join(root, ".json-quality.json"),
       JSON.stringify(
         {
-          schemaVersion: 3,
+          schemaVersion: 4,
           defaults: {
             formatContract: "prettier-json",
             normalization: "NFC",
-            allowFormatWrites: true,
+            allowSourceRewrites: true,
           },
           exceptions: [
             {
               paths: [".git/**"],
               owner: "Git",
               reason: "Repository metadata",
-              exclude: true,
+              excludeUntrackedSources: true,
             },
           ],
         },
@@ -76,8 +76,8 @@ test("no-op repository formatting streams multiple ignore batches without per-fi
       ))
         terminal = event;
       assert.equal(terminal.type, "write-terminal", terminal.message);
-      assert.equal(terminal.selected, "258");
-      assert.equal(terminal.written, "0");
+      assert.equal(terminal.selectedPathCount, "258");
+      assert.equal(terminal.writtenPathCount, "0");
       assert.equal(ignoreChildren, 2);
     } finally {
       unsubscribe("child_process", observe);
@@ -102,7 +102,7 @@ test("an ignore-rule change after preflight refuses the pending physical write",
       }
       assert.equal(terminal.type, "write-failure");
       assert.match(terminal.message, /Write permission changed/);
-      assert.equal(terminal.written, "0");
+      assert.equal(terminal.writtenPathCount, "0");
       assert.equal(await readFile(join(root, "a.json"), "utf8"), '{"value":1}');
     },
   );
@@ -120,7 +120,7 @@ test("repository formatting admits all peers before replacing multiple sources",
       ))
         events.push(event);
       assert.equal(events.at(-1).type, "write-terminal", events.at(-1).message);
-      assert.equal(events.at(-1).written, "2");
+      assert.equal(events.at(-1).writtenPathCount, "2");
       assert.ok(
         events.findIndex((event) => event.type === "write-preflight") <
           events.findIndex((event) => event.type === "written"),
@@ -145,12 +145,12 @@ test("advanced facade delivers versioned candidate and write completion events",
     });
     try {
       assert.throws(() => session.rewrite("format"), /check-required/);
-      for await (const event of session.events()) void event;
+      for await (const event of session.check()) void event;
       let terminal;
       for await (const event of session.rewrite("format")) terminal = event;
       assert.equal(terminal.type, "write-terminal", terminal.message);
-      assert.equal(terminal.schemaVersion, 3);
-      assert.equal(terminal.written, "1");
+      assert.equal(terminal.schemaVersion, 4);
+      assert.equal(terminal.writtenPathCount, "1");
       assert.throws(() => session.rewrite("format"), /already-consumed/);
     } finally {
       await session.close();
@@ -171,7 +171,7 @@ test("a bad unselected peer prevents every otherwise valid replacement", async (
       ))
         terminal = event;
       assert.equal(terminal.type, "write-failure");
-      assert.equal(terminal.written, "0");
+      assert.equal(terminal.writtenPathCount, "0");
       assert.equal(terminal.preflightComplete, false);
       assert.equal(await readFile(join(root, "a.json"), "utf8"), '{"a":1}');
     },
@@ -272,7 +272,7 @@ test("Git ignore protects explicit writes while its JSON remains a checked peer"
       ))
         terminal = event;
       assert.equal(terminal.type, "write-failure");
-      assert.equal(terminal.written, "0");
+      assert.equal(terminal.writtenPathCount, "0");
       assert.match(terminal.message, /Protected/);
       assert.equal(await readFile(join(root, "ignored.json"), "utf8"), "0\n");
     },
@@ -292,7 +292,7 @@ test("late peer mutation yields truthful partial completion", async () => {
       terminal = event;
     }
     assert.equal(terminal.type, "write-failure");
-    assert.equal(terminal.written, "1");
+    assert.equal(terminal.writtenPathCount, "1");
     assert.equal(terminal.preflightComplete, true);
     assert.equal(await readFile(join(root, "a.json"), "utf8"), "0\n");
     assert.equal(await readFile(join(root, "b.json"), "utf8"), "2");
@@ -314,7 +314,7 @@ test("new JSON membership after an owned rename cannot hide behind changed direc
       terminal = event;
     }
     assert.equal(terminal.type, "write-failure");
-    assert.equal(terminal.written, "1");
+    assert.equal(terminal.writtenPathCount, "1");
     assert.match(terminal.message, /New directory/);
   });
 });

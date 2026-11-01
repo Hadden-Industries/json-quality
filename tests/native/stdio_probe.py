@@ -227,9 +227,9 @@ def scalar(executable, parent, manifest, mib):
     try:
         configured = host.request(
             "configure",
-            managedMemoryTargetBytes="16777216",
-            maxFileBytes=None,
-            maxTotalBytes=None,
+            maxManagedMemoryBytes="16777216",
+            maxSourceBytes=None,
+            maxTotalSourceBytes=None,
         )
         assert configured["type"] == "configured"
         ready = host.request(
@@ -281,14 +281,14 @@ def scalar(executable, parent, manifest, mib):
                 data=True,
                 value=value,
                 representation="decoded-utf8",
-                offset=str(offset),
-                maximum=str(maximum),
+                byteOffset=str(offset),
+                maximumBytes=str(maximum),
             )
             assert response["byteLength"] == str(maximum)
             assert payload == fragment[:maximum]
         metrics = host.request("metrics")
         assert int(metrics["managedPeakBytes"]) <= 16777216
-        assert metrics["transitions"] == ("1" if mib else "0")
+        assert metrics["spillTransitionCount"] == ("1" if mib else "0")
         assert (int(metrics["scratchPeakBytes"]) > 0) == bool(mib)
         if not mib:
             assert not host.scratch.exists()
@@ -459,8 +459,8 @@ def ordinary(executable, parent, manifest):
             data=True,
             value=selected["id"],
             representation="number-lexeme",
-            offset="0",
-            maximum="1",
+            byteOffset="0",
+            maximumBytes="1",
         )
         assert response["byteLength"] == "1" and value == b"0"
         host.close()
