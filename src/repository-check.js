@@ -17,6 +17,7 @@ import {
 } from "./native-provider.js";
 import { checkLogicalProvider } from "./logical-provider.js";
 import { isLogicalContainer } from "./logical-inventory.js";
+import { recheckPolicyObservation } from "./policy-bootstrap.js";
 
 /** Linkage is an execution obligation. The core checks the source byte and
  * diagnostic expectations; this owner discharges the separate indexed linkage.
@@ -118,8 +119,8 @@ export async function* checkRepository(
   signal?.throwIfAborted();
   signal?.addEventListener("abort", cancel, { once: true });
   try {
-    if (policyObservation)
-      await recheckRepositorySource({
+    if (policyObservation !== undefined)
+      await recheckPolicyObservation({
         root,
         member: policyObservation,
         signal,
@@ -215,8 +216,8 @@ export async function* checkRepository(
         await recheckRepositorySource({ root, member, signal });
     }
     await recheckNativeAuthorities({ root, session, signal });
-    if (policyObservation)
-      await recheckRepositorySource({
+    if (policyObservation !== undefined)
+      await recheckPolicyObservation({
         root,
         member: policyObservation,
         signal,
@@ -238,7 +239,7 @@ export async function* checkRepository(
       sourceObservationsComplete: true,
       diagnosticsComplete: true,
       domainComplete: false,
-      members: status.members,
+      inventoryMemberCount: status.inventoryMemberCount,
       qualityPassed: status.qualityPassed,
       contractSatisfied: status.contractSatisfied,
     };

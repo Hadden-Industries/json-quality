@@ -23,8 +23,8 @@ test("binary authority capture is immutable raw evidence without a JSON quality 
     assert.equal(captured.sha256, identity(bytes).sha256);
     const read = await session.command("read-source", {
       source: captured.source,
-      offset: "0",
-      maximum: "65536",
+      byteOffset: "0",
+      maximumBytes: "65536",
     });
     assert.deepEqual(read.data, bytes);
     const checked = await session.capture([Buffer.from("0")], {
@@ -200,7 +200,7 @@ test("native origin cannot forge the independent authority digest", async () => 
 test("a giant native member preserves independent authority bytes through actual spill", async () => {
   const session = new NativeSession();
   try {
-    await session.configure({ managedMemoryTargetBytes: "16777216" });
+    await session.configure({ maxManagedMemoryBytes: "16777216" });
     await session.command("census-provider", {
       id: "storage",
       kind: "native",
@@ -261,13 +261,16 @@ test("a giant native member preserves independent authority bytes through actual
       (await session.command("census-status")).result.complete,
       true,
     );
-    assert.equal((await session.command("metrics")).result.transitions, "1");
+    assert.equal(
+      (await session.command("metrics")).result.spillTransitionCount,
+      "1",
+    );
     assert.deepEqual(
       (
         await session.command("read-source", {
           source: authority.source,
-          offset: "0",
-          maximum: "65536",
+          byteOffset: "0",
+          maximumBytes: "65536",
         })
       ).data,
       bytes,

@@ -108,8 +108,8 @@ jobs:
           JSON_QUALITY_EXPECTED_NODE: ${{ matrix.node }}
           JSON_QUALITY_CONSUMER_NPM: ${{ runner.temp }}/consumer-npm/node_modules/npm/bin/npm-cli.js
           JSON_QUALITY_ARCHIVE_DIRECTORY: ${{ runner.temp }}/json-quality-archive
-          JSON_QUALITY_REPORT: ${{ runner.temp }}/consumer-result.json
-          JSON_QUALITY_RELEASE_OUTPUT: ${{ inputs.release-mode && format('{0}/release-lane', runner.temp) || '' }}
+          JSON_QUALITY_LAYOUT_OUTPUT: ${{ runner.temp }}/release-lane
+          JSON_QUALITY_RELEASE_EVIDENCE: ${{ inputs.release-mode && format('{0}/release-lane', runner.temp) || '' }}
           GH_TOKEN: ${{ github.token }}
           JSON_QUALITY_VALIDATOR_ROOT: ${{ runner.temp }}/validation-tool
         run: node scripts/qualify-runtime.js
@@ -124,7 +124,7 @@ jobs:
         env:
           CI_OS: ${{ matrix.os }}
           CI_ARCHIVE_ID: ${{ needs.producer.outputs.archive-id }}
-          JSON_QUALITY_REPORT: ${{ runner.temp }}/consumer-result.json
+          JSON_QUALITY_LAYOUT_OUTPUT: ${{ runner.temp }}/release-lane
           GH_TOKEN: ${{ github.token }}
         run: node scripts/ci-command.js lane
       - name: Retain only the compact proof needed by acceptance

@@ -1,0 +1,3210 @@
+{
+  "schemaVersion": 1,
+  "started": "2026-11-01T20:53:42.383Z",
+  "node": {
+    "node": "26.13.0",
+    "acorn": "8.19.0",
+    "ada": "4.0.0",
+    "amaro": "1.1.11",
+    "ares": "1.34.9",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.3",
+    "libffi": "3.8.0",
+    "lief": "1.0.0",
+    "llhttp": "9.4.3",
+    "merve": "1.2.2",
+    "modules": "147",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.70.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "3.5.9",
+    "simdjson": "5.0.3",
+    "simdutf": "7.7.0",
+    "sqlite": "3.54.0",
+    "tz": "2026e",
+    "undici": "8.12.2",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "14.6.202.34-node.40",
+    "zlib": "1.3.2.1-motley-456ae73",
+    "zstd": "1.5.7"
+  },
+  "platform": "win32",
+  "architecture": "x64",
+  "cpu": "12th Gen Intel(R) Core(TM) i9-12900K",
+  "logicalCpus": 24,
+  "totalMemoryBytes": 34053869568,
+  "source": {
+    "root": "C:/Users/maksy/GitHub/json-quality",
+    "commit": "3d4db7106b44e226607ceee6500258c9b94e14cd"
+  },
+  "consumer": {
+    "root": "C:/Users/maksy/GitHub/google",
+    "commit": "74b07e95bd8988117db9c02157291e83339c9417",
+    "status": ""
+  },
+  "corpusSha256": "45a6b53af11be0ae7ce11360bd9b6e16f127d5429508a2d6e51863597f3b2491",
+  "harnessSha256": "7287b5dd92f0c2c846b1f54599464ef202ab766dd6e87f5ec91abf4872ff71a1",
+  "method": "Fresh process per workload/mode; one warm-up per mode discarded; seven rotated paired rounds by default; source-session checks include snapshot reads/hash, exclude discovery/config/npm. Each run serial. No source writes. OS cache not flushed; desktop contention uncontrolled.",
+  "runs": [
+    {
+      "round": -1,
+      "warmup": true,
+      "processWallMs": 512.9195,
+      "workload": "google",
+      "normalization": "default",
+      "importMs": 144.6027,
+      "openMs": 67.8423,
+      "checkMs": 235.4314,
+      "closeMs": 2.3582000000000107,
+      "totalMs": 450.2364,
+      "cpuMs": 219,
+      "peakRss": 123600896,
+      "processMaxRssBytes": 123613184,
+      "managedPeakBytes": "27855512",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": -1,
+      "warmup": true,
+      "processWallMs": 522.1564000000001,
+      "workload": "google",
+      "normalization": "NFC",
+      "importMs": 145.5316,
+      "openMs": 66.53970000000001,
+      "checkMs": 245.7432,
+      "closeMs": 2.507000000000005,
+      "totalMs": 460.3233,
+      "cpuMs": 251,
+      "peakRss": 121970688,
+      "processMaxRssBytes": 121978880,
+      "managedPeakBytes": "27855620",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": -1,
+      "warmup": true,
+      "processWallMs": 520.9618,
+      "workload": "google",
+      "normalization": "preserve",
+      "importMs": 151.9594,
+      "openMs": 68.9306,
+      "checkMs": 232.49609999999998,
+      "closeMs": 2.0137000000000285,
+      "totalMs": 455.40150000000006,
+      "cpuMs": 188,
+      "peakRss": 123248640,
+      "processMaxRssBytes": 123256832,
+      "managedPeakBytes": "27851236",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 0,
+      "warmup": false,
+      "processWallMs": 480.80600000000004,
+      "workload": "google",
+      "normalization": "default",
+      "importMs": 138.22230000000002,
+      "openMs": 69.61159999999998,
+      "checkMs": 226.3995,
+      "closeMs": 2.309400000000039,
+      "totalMs": 436.5447,
+      "cpuMs": 204,
+      "peakRss": 122798080,
+      "processMaxRssBytes": 122810368,
+      "managedPeakBytes": "27855512",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 0,
+      "warmup": false,
+      "processWallMs": 550.4357,
+      "workload": "google",
+      "normalization": "NFC",
+      "importMs": 204.14249999999998,
+      "openMs": 66.56370000000004,
+      "checkMs": 221.33879999999994,
+      "closeMs": 2.3573000000000093,
+      "totalMs": 494.40409999999997,
+      "cpuMs": 203,
+      "peakRss": 122933248,
+      "processMaxRssBytes": 122937344,
+      "managedPeakBytes": "27855620",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 0,
+      "warmup": false,
+      "processWallMs": 482.51039999999966,
+      "workload": "google",
+      "normalization": "preserve",
+      "importMs": 142.5811,
+      "openMs": 63.835499999999996,
+      "checkMs": 227.21200000000002,
+      "closeMs": 2.3220999999999776,
+      "totalMs": 435.9527,
+      "cpuMs": 219,
+      "peakRss": 123277312,
+      "processMaxRssBytes": 123351040,
+      "managedPeakBytes": "27851236",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 1,
+      "warmup": false,
+      "processWallMs": 477.1519999999996,
+      "workload": "google",
+      "normalization": "NFC",
+      "importMs": 138.8731,
+      "openMs": 64.18010000000001,
+      "checkMs": 224.4861,
+      "closeMs": 2.247000000000014,
+      "totalMs": 429.788,
+      "cpuMs": 203,
+      "peakRss": 123097088,
+      "processMaxRssBytes": 123109376,
+      "managedPeakBytes": "27855620",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 1,
+      "warmup": false,
+      "processWallMs": 488.8969000000002,
+      "workload": "google",
+      "normalization": "preserve",
+      "importMs": 145.3155,
+      "openMs": 66.28630000000001,
+      "checkMs": 227.3747,
+      "closeMs": 2.2450000000000045,
+      "totalMs": 441.2233,
+      "cpuMs": 219,
+      "peakRss": 122949632,
+      "processMaxRssBytes": 122966016,
+      "managedPeakBytes": "27851236",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 1,
+      "warmup": false,
+      "processWallMs": 474.33339999999953,
+      "workload": "google",
+      "normalization": "default",
+      "importMs": 138.7621,
+      "openMs": 65.3158,
+      "checkMs": 224.59759999999997,
+      "closeMs": 2.435100000000034,
+      "totalMs": 431.1124,
+      "cpuMs": 219,
+      "peakRss": 123092992,
+      "processMaxRssBytes": 123101184,
+      "managedPeakBytes": "27855512",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 2,
+      "warmup": false,
+      "processWallMs": 475.90300000000025,
+      "workload": "google",
+      "normalization": "preserve",
+      "importMs": 139.509,
+      "openMs": 64.2139,
+      "checkMs": 222.77640000000002,
+      "closeMs": 2.257599999999968,
+      "totalMs": 428.7591,
+      "cpuMs": 219,
+      "peakRss": 123236352,
+      "processMaxRssBytes": 123240448,
+      "managedPeakBytes": "27851236",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 2,
+      "warmup": false,
+      "processWallMs": 475.86109999999917,
+      "workload": "google",
+      "normalization": "default",
+      "importMs": 139.6874,
+      "openMs": 66.0986,
+      "checkMs": 222.5117,
+      "closeMs": 2.2918000000000234,
+      "totalMs": 430.5913,
+      "cpuMs": 219,
+      "peakRss": 122966016,
+      "processMaxRssBytes": 122978304,
+      "managedPeakBytes": "27855512",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 2,
+      "warmup": false,
+      "processWallMs": 476.4956000000002,
+      "workload": "google",
+      "normalization": "NFC",
+      "importMs": 140.32399999999998,
+      "openMs": 64.27890000000002,
+      "checkMs": 228.0226,
+      "closeMs": 2.3682999999999765,
+      "totalMs": 434.9956,
+      "cpuMs": 156,
+      "peakRss": 123064320,
+      "processMaxRssBytes": 123076608,
+      "managedPeakBytes": "27855620",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 3,
+      "warmup": false,
+      "processWallMs": 521.9162000000006,
+      "workload": "google",
+      "normalization": "default",
+      "importMs": 148.549,
+      "openMs": 70.74969999999999,
+      "checkMs": 253.94140000000002,
+      "closeMs": 2.276200000000017,
+      "totalMs": 475.5181,
+      "cpuMs": 188,
+      "peakRss": 123396096,
+      "processMaxRssBytes": 123400192,
+      "managedPeakBytes": "27855512",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 3,
+      "warmup": false,
+      "processWallMs": 552.5771000000004,
+      "workload": "google",
+      "normalization": "NFC",
+      "importMs": 180.0142,
+      "openMs": 75.97340000000003,
+      "checkMs": 238.26279999999997,
+      "closeMs": 2.3021999999999707,
+      "totalMs": 496.5544,
+      "cpuMs": 234,
+      "peakRss": 122359808,
+      "processMaxRssBytes": 122372096,
+      "managedPeakBytes": "27855620",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 3,
+      "warmup": false,
+      "processWallMs": 478.54110000000037,
+      "workload": "google",
+      "normalization": "preserve",
+      "importMs": 143.3621,
+      "openMs": 64.65199999999999,
+      "checkMs": 223.92849999999999,
+      "closeMs": 2.636000000000024,
+      "totalMs": 434.5815,
+      "cpuMs": 188,
+      "peakRss": 123269120,
+      "processMaxRssBytes": 123273216,
+      "managedPeakBytes": "27851236",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 4,
+      "warmup": false,
+      "processWallMs": 491.0029000000004,
+      "workload": "google",
+      "normalization": "NFC",
+      "importMs": 144.6409,
+      "openMs": 66.57570000000001,
+      "checkMs": 233.5465,
+      "closeMs": 2.3636999999999944,
+      "totalMs": 447.1285,
+      "cpuMs": 203,
+      "peakRss": 123408384,
+      "processMaxRssBytes": 123420672,
+      "managedPeakBytes": "27855620",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 4,
+      "warmup": false,
+      "processWallMs": 488.3744999999999,
+      "workload": "google",
+      "normalization": "preserve",
+      "importMs": 144.54950000000002,
+      "openMs": 68.75649999999999,
+      "checkMs": 228.7962,
+      "closeMs": 2.309000000000026,
+      "totalMs": 444.413,
+      "cpuMs": 203,
+      "peakRss": 120639488,
+      "processMaxRssBytes": 120709120,
+      "managedPeakBytes": "27851236",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 4,
+      "warmup": false,
+      "processWallMs": 480.961299999999,
+      "workload": "google",
+      "normalization": "default",
+      "importMs": 141.77229999999997,
+      "openMs": 67.28900000000002,
+      "checkMs": 225.7066,
+      "closeMs": 2.290899999999965,
+      "totalMs": 437.0605,
+      "cpuMs": 188,
+      "peakRss": 123072512,
+      "processMaxRssBytes": 123080704,
+      "managedPeakBytes": "27855512",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 5,
+      "warmup": false,
+      "processWallMs": 480.3820000000014,
+      "workload": "google",
+      "normalization": "preserve",
+      "importMs": 137.4855,
+      "openMs": 65.54560000000001,
+      "checkMs": 224.2937,
+      "closeMs": 2.8706999999999994,
+      "totalMs": 430.19730000000004,
+      "cpuMs": 218,
+      "peakRss": 123428864,
+      "processMaxRssBytes": 123498496,
+      "managedPeakBytes": "27851236",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 5,
+      "warmup": false,
+      "processWallMs": 491.8827000000001,
+      "workload": "google",
+      "normalization": "default",
+      "importMs": 140.29739999999998,
+      "openMs": 66.34140000000002,
+      "checkMs": 236.0937,
+      "closeMs": 2.6246999999999616,
+      "totalMs": 445.3592,
+      "cpuMs": 204,
+      "peakRss": 123314176,
+      "processMaxRssBytes": 123326464,
+      "managedPeakBytes": "27855512",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 5,
+      "warmup": false,
+      "processWallMs": 491.3287999999993,
+      "workload": "google",
+      "normalization": "NFC",
+      "importMs": 140.1226,
+      "openMs": 63.928799999999995,
+      "checkMs": 219.5552,
+      "closeMs": 2.2987999999999715,
+      "totalMs": 425.9072,
+      "cpuMs": 188,
+      "peakRss": 121987072,
+      "processMaxRssBytes": 121991168,
+      "managedPeakBytes": "27855620",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 6,
+      "warmup": false,
+      "processWallMs": 484.52700000000004,
+      "workload": "google",
+      "normalization": "default",
+      "importMs": 138.9553,
+      "openMs": 63.671400000000006,
+      "checkMs": 227.7434,
+      "closeMs": 2.28449999999998,
+      "totalMs": 432.6567,
+      "cpuMs": 204,
+      "peakRss": 122585088,
+      "processMaxRssBytes": 122593280,
+      "managedPeakBytes": "27855512",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 6,
+      "warmup": false,
+      "processWallMs": 494.8775000000005,
+      "workload": "google",
+      "normalization": "NFC",
+      "importMs": 139.48440000000002,
+      "openMs": 66.297,
+      "checkMs": 243.0171,
+      "closeMs": 2.3374999999999773,
+      "totalMs": 451.1379,
+      "cpuMs": 234,
+      "peakRss": 122236928,
+      "processMaxRssBytes": 122241024,
+      "managedPeakBytes": "27855620",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": 6,
+      "warmup": false,
+      "processWallMs": 488.73229999999967,
+      "workload": "google",
+      "normalization": "preserve",
+      "importMs": 141.20620000000002,
+      "openMs": 68.34039999999999,
+      "checkMs": 231.46050000000002,
+      "closeMs": 2.740799999999979,
+      "totalMs": 443.7496,
+      "cpuMs": 203,
+      "peakRss": 123084800,
+      "processMaxRssBytes": 123105280,
+      "managedPeakBytes": "27851236",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 105,
+        "qualityPassed": 25,
+        "parserComplete": 105
+      },
+      "findings": {
+        "presentation/format-contract": 80
+      }
+    },
+    {
+      "round": -1,
+      "warmup": true,
+      "processWallMs": 262.3313999999991,
+      "workload": "ascii",
+      "normalization": "default",
+      "importMs": 139.7191,
+      "openMs": 64.2106,
+      "checkMs": 13.443399999999997,
+      "closeMs": 0.4701000000000022,
+      "totalMs": 217.8452,
+      "cpuMs": 16,
+      "peakRss": 99246080,
+      "processMaxRssBytes": 100851712,
+      "managedPeakBytes": "9092026",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": -1,
+      "warmup": true,
+      "processWallMs": 263.45889999999963,
+      "workload": "ascii",
+      "normalization": "NFC",
+      "importMs": 139.7391,
+      "openMs": 65.8774,
+      "checkMs": 12.769000000000005,
+      "closeMs": 0.46800000000001774,
+      "totalMs": 218.8555,
+      "cpuMs": 16,
+      "peakRss": 99192832,
+      "processMaxRssBytes": 100827136,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": -1,
+      "warmup": true,
+      "processWallMs": 277.7711999999992,
+      "workload": "ascii",
+      "normalization": "preserve",
+      "importMs": 143.4795,
+      "openMs": 66.15950000000001,
+      "checkMs": 13.6353,
+      "closeMs": 0.5512999999999977,
+      "totalMs": 223.82750000000001,
+      "cpuMs": 0,
+      "peakRss": 99205120,
+      "processMaxRssBytes": 100896768,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 0,
+      "warmup": false,
+      "processWallMs": 272.41729999999916,
+      "workload": "ascii",
+      "normalization": "default",
+      "importMs": 144.6195,
+      "openMs": 65.1816,
+      "checkMs": 13.287900000000008,
+      "closeMs": 0.4771000000000072,
+      "totalMs": 223.56789999999998,
+      "cpuMs": 15,
+      "peakRss": 97726464,
+      "processMaxRssBytes": 99373056,
+      "managedPeakBytes": "9092026",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 0,
+      "warmup": false,
+      "processWallMs": 281.0714000000007,
+      "workload": "ascii",
+      "normalization": "NFC",
+      "importMs": 137.927,
+      "openMs": 63.35329999999999,
+      "checkMs": 12.673100000000005,
+      "closeMs": 0.4907000000000039,
+      "totalMs": 214.4459,
+      "cpuMs": 16,
+      "peakRss": 99491840,
+      "processMaxRssBytes": 101195776,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 0,
+      "warmup": false,
+      "processWallMs": 265.6743000000006,
+      "workload": "ascii",
+      "normalization": "preserve",
+      "importMs": 140.7511,
+      "openMs": 64.53450000000001,
+      "checkMs": 13.174700000000001,
+      "closeMs": 0.5448999999999842,
+      "totalMs": 219.007,
+      "cpuMs": 16,
+      "peakRss": 97476608,
+      "processMaxRssBytes": 99106816,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 1,
+      "warmup": false,
+      "processWallMs": 267.90790000000015,
+      "workload": "ascii",
+      "normalization": "NFC",
+      "importMs": 139.2945,
+      "openMs": 66.60050000000001,
+      "checkMs": 13.394999999999982,
+      "closeMs": 0.47100000000000364,
+      "totalMs": 219.763,
+      "cpuMs": 15,
+      "peakRss": 98942976,
+      "processMaxRssBytes": 100761600,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 1,
+      "warmup": false,
+      "processWallMs": 272.7356,
+      "workload": "ascii",
+      "normalization": "preserve",
+      "importMs": 136.5319,
+      "openMs": 65.2723,
+      "checkMs": 12.645899999999983,
+      "closeMs": 0.5133000000000152,
+      "totalMs": 214.9651,
+      "cpuMs": 15,
+      "peakRss": 99057664,
+      "processMaxRssBytes": 100630528,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 1,
+      "warmup": false,
+      "processWallMs": 265.7579999999998,
+      "workload": "ascii",
+      "normalization": "default",
+      "importMs": 142.3576,
+      "openMs": 66.0745,
+      "checkMs": 12.582599999999985,
+      "closeMs": 0.5130000000000052,
+      "totalMs": 221.52949999999998,
+      "cpuMs": 16,
+      "peakRss": 99270656,
+      "processMaxRssBytes": 101023744,
+      "managedPeakBytes": "9092026",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 2,
+      "warmup": false,
+      "processWallMs": 266.92449999999917,
+      "workload": "ascii",
+      "normalization": "preserve",
+      "importMs": 140.84459999999999,
+      "openMs": 65.54760000000002,
+      "checkMs": 12.831799999999987,
+      "closeMs": 0.4171000000000049,
+      "totalMs": 219.6436,
+      "cpuMs": 16,
+      "peakRss": 99053568,
+      "processMaxRssBytes": 100765696,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 2,
+      "warmup": false,
+      "processWallMs": 264.10169999999925,
+      "workload": "ascii",
+      "normalization": "default",
+      "importMs": 144.8293,
+      "openMs": 63.89609999999999,
+      "checkMs": 12.637500000000017,
+      "closeMs": 0.4065999999999974,
+      "totalMs": 221.7713,
+      "cpuMs": 16,
+      "peakRss": 97226752,
+      "processMaxRssBytes": 99000320,
+      "managedPeakBytes": "9092026",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 2,
+      "warmup": false,
+      "processWallMs": 256.8064000000013,
+      "workload": "ascii",
+      "normalization": "NFC",
+      "importMs": 137.103,
+      "openMs": 64.6815,
+      "checkMs": 12.834100000000007,
+      "closeMs": 0.44129999999998404,
+      "totalMs": 215.0617,
+      "cpuMs": 16,
+      "peakRss": 99237888,
+      "processMaxRssBytes": 101064704,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 3,
+      "warmup": false,
+      "processWallMs": 265.46169999999984,
+      "workload": "ascii",
+      "normalization": "default",
+      "importMs": 138.02640000000002,
+      "openMs": 67.54929999999999,
+      "checkMs": 13.284099999999995,
+      "closeMs": 0.49150000000000205,
+      "totalMs": 219.35330000000002,
+      "cpuMs": 16,
+      "peakRss": 98902016,
+      "processMaxRssBytes": 100511744,
+      "managedPeakBytes": "9092026",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 3,
+      "warmup": false,
+      "processWallMs": 265.3087000000014,
+      "workload": "ascii",
+      "normalization": "NFC",
+      "importMs": 139.2555,
+      "openMs": 68.1497,
+      "checkMs": 13.450500000000005,
+      "closeMs": 0.4650999999999783,
+      "totalMs": 221.3225,
+      "cpuMs": 16,
+      "peakRss": 99115008,
+      "processMaxRssBytes": 100794368,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 3,
+      "warmup": false,
+      "processWallMs": 272.9375,
+      "workload": "ascii",
+      "normalization": "preserve",
+      "importMs": 142.8352,
+      "openMs": 65.4513,
+      "checkMs": 13.121800000000007,
+      "closeMs": 0.4595999999999947,
+      "totalMs": 221.8696,
+      "cpuMs": 16,
+      "peakRss": 98979840,
+      "processMaxRssBytes": 100765696,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 4,
+      "warmup": false,
+      "processWallMs": 272.6944000000003,
+      "workload": "ascii",
+      "normalization": "NFC",
+      "importMs": 138.8674,
+      "openMs": 65.0067,
+      "checkMs": 12.728700000000003,
+      "closeMs": 0.5046000000000106,
+      "totalMs": 217.10930000000002,
+      "cpuMs": 16,
+      "peakRss": 97619968,
+      "processMaxRssBytes": 99168256,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 4,
+      "warmup": false,
+      "processWallMs": 261.69570000000203,
+      "workload": "ascii",
+      "normalization": "preserve",
+      "importMs": 139.5827,
+      "openMs": 65.0387,
+      "checkMs": 13.333100000000002,
+      "closeMs": 0.5264999999999986,
+      "totalMs": 218.483,
+      "cpuMs": 16,
+      "peakRss": 97820672,
+      "processMaxRssBytes": 99340288,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 4,
+      "warmup": false,
+      "processWallMs": 261.0385000000024,
+      "workload": "ascii",
+      "normalization": "default",
+      "importMs": 137.6197,
+      "openMs": 67.38919999999999,
+      "checkMs": 13.573000000000008,
+      "closeMs": 0.42210000000000036,
+      "totalMs": 219.00629999999998,
+      "cpuMs": 15,
+      "peakRss": 98873344,
+      "processMaxRssBytes": 100659200,
+      "managedPeakBytes": "9092026",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 5,
+      "warmup": false,
+      "processWallMs": 273.4939999999988,
+      "workload": "ascii",
+      "normalization": "preserve",
+      "importMs": 139.1438,
+      "openMs": 65.06450000000001,
+      "checkMs": 14.024699999999996,
+      "closeMs": 1.29170000000002,
+      "totalMs": 219.52659999999997,
+      "cpuMs": 16,
+      "peakRss": 97525760,
+      "processMaxRssBytes": 99201024,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 5,
+      "warmup": false,
+      "processWallMs": 271.5666000000019,
+      "workload": "ascii",
+      "normalization": "default",
+      "importMs": 145.0816,
+      "openMs": 66.89680000000001,
+      "checkMs": 13.009299999999996,
+      "closeMs": 0.565100000000001,
+      "totalMs": 225.5547,
+      "cpuMs": 16,
+      "peakRss": 98951168,
+      "processMaxRssBytes": 100757504,
+      "managedPeakBytes": "9092026",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 5,
+      "warmup": false,
+      "processWallMs": 269.16309999999794,
+      "workload": "ascii",
+      "normalization": "NFC",
+      "importMs": 139.5436,
+      "openMs": 65.13739999999999,
+      "checkMs": 13.115300000000019,
+      "closeMs": 0.5367999999999995,
+      "totalMs": 218.3349,
+      "cpuMs": 16,
+      "peakRss": 99258368,
+      "processMaxRssBytes": 100995072,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 6,
+      "warmup": false,
+      "processWallMs": 261.26420000000144,
+      "workload": "ascii",
+      "normalization": "default",
+      "importMs": 140.317,
+      "openMs": 64.8757,
+      "checkMs": 13.191400000000016,
+      "closeMs": 0.4779000000000053,
+      "totalMs": 218.8638,
+      "cpuMs": 16,
+      "peakRss": 98811904,
+      "processMaxRssBytes": 100511744,
+      "managedPeakBytes": "9092026",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 6,
+      "warmup": false,
+      "processWallMs": 259.3163999999997,
+      "workload": "ascii",
+      "normalization": "NFC",
+      "importMs": 136.2049,
+      "openMs": 65.81559999999999,
+      "checkMs": 13.040500000000009,
+      "closeMs": 0.44130000000001246,
+      "totalMs": 215.50390000000002,
+      "cpuMs": 15,
+      "peakRss": 99065856,
+      "processMaxRssBytes": 100786176,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 6,
+      "warmup": false,
+      "processWallMs": 262.9051999999974,
+      "workload": "ascii",
+      "normalization": "preserve",
+      "importMs": 137.3192,
+      "openMs": 66.39249999999998,
+      "checkMs": 13.239100000000008,
+      "closeMs": 0.46410000000000196,
+      "totalMs": 217.4166,
+      "cpuMs": 16,
+      "peakRss": 99377152,
+      "processMaxRssBytes": 101122048,
+      "managedPeakBytes": "9092134",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": -1,
+      "warmup": true,
+      "processWallMs": 286.1290000000008,
+      "workload": "unicode-nfc",
+      "normalization": "default",
+      "importMs": 140.9555,
+      "openMs": 64.95999999999998,
+      "checkMs": 35.6114,
+      "closeMs": 0.5396000000000072,
+      "totalMs": 242.06839999999997,
+      "cpuMs": 31,
+      "peakRss": 99299328,
+      "processMaxRssBytes": 100933632,
+      "managedPeakBytes": "9157712",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": -1,
+      "warmup": true,
+      "processWallMs": 289.4887000000017,
+      "workload": "unicode-nfc",
+      "normalization": "NFC",
+      "importMs": 140.25400000000002,
+      "openMs": 69.73349999999999,
+      "checkMs": 35.734399999999994,
+      "closeMs": 0.5079000000000065,
+      "totalMs": 246.2317,
+      "cpuMs": 31,
+      "peakRss": 99401728,
+      "processMaxRssBytes": 101085184,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": -1,
+      "warmup": true,
+      "processWallMs": 257.6270000000004,
+      "workload": "unicode-nfc",
+      "normalization": "preserve",
+      "importMs": 136.7149,
+      "openMs": 64.12979999999999,
+      "checkMs": 13.685200000000009,
+      "closeMs": 0.4655999999999949,
+      "totalMs": 214.9972,
+      "cpuMs": 0,
+      "peakRss": 99557376,
+      "processMaxRssBytes": 101326848,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 0,
+      "warmup": false,
+      "processWallMs": 299.08770000000004,
+      "workload": "unicode-nfc",
+      "normalization": "default",
+      "importMs": 144.8499,
+      "openMs": 72.9291,
+      "checkMs": 35.330400000000026,
+      "closeMs": 0.533299999999997,
+      "totalMs": 253.6446,
+      "cpuMs": 47,
+      "peakRss": 99233792,
+      "processMaxRssBytes": 100859904,
+      "managedPeakBytes": "9157712",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 0,
+      "warmup": false,
+      "processWallMs": 294.70780000000013,
+      "workload": "unicode-nfc",
+      "normalization": "NFC",
+      "importMs": 145.32119999999998,
+      "openMs": 68.6695,
+      "checkMs": 36.88040000000001,
+      "closeMs": 0.5366000000000213,
+      "totalMs": 251.40950000000004,
+      "cpuMs": 47,
+      "peakRss": 99266560,
+      "processMaxRssBytes": 100990976,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 0,
+      "warmup": false,
+      "processWallMs": 313.10189999999784,
+      "workload": "unicode-nfc",
+      "normalization": "preserve",
+      "importMs": 171.2039,
+      "openMs": 68.1291,
+      "checkMs": 14.40319999999997,
+      "closeMs": 0.4941000000000031,
+      "totalMs": 254.23209999999997,
+      "cpuMs": 16,
+      "peakRss": 99536896,
+      "processMaxRssBytes": 101253120,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 1,
+      "warmup": false,
+      "processWallMs": 294.2910000000011,
+      "workload": "unicode-nfc",
+      "normalization": "NFC",
+      "importMs": 145.55349999999999,
+      "openMs": 66.37299999999999,
+      "checkMs": 35.60509999999999,
+      "closeMs": 0.5313000000000443,
+      "totalMs": 248.06469999999996,
+      "cpuMs": 30,
+      "peakRss": 99971072,
+      "processMaxRssBytes": 101519360,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 1,
+      "warmup": false,
+      "processWallMs": 269.333499999997,
+      "workload": "unicode-nfc",
+      "normalization": "preserve",
+      "importMs": 142.61180000000002,
+      "openMs": 67.1351,
+      "checkMs": 14.176400000000001,
+      "closeMs": 0.5515999999999792,
+      "totalMs": 224.4768,
+      "cpuMs": 16,
+      "peakRss": 99282944,
+      "processMaxRssBytes": 100962304,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 1,
+      "warmup": false,
+      "processWallMs": 291.01220000000103,
+      "workload": "unicode-nfc",
+      "normalization": "default",
+      "importMs": 143.0598,
+      "openMs": 65.91729999999998,
+      "checkMs": 35.780399999999986,
+      "closeMs": 0.4781000000000404,
+      "totalMs": 245.2375,
+      "cpuMs": 31,
+      "peakRss": 99377152,
+      "processMaxRssBytes": 101117952,
+      "managedPeakBytes": "9157712",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 2,
+      "warmup": false,
+      "processWallMs": 277.0343999999968,
+      "workload": "unicode-nfc",
+      "normalization": "preserve",
+      "importMs": 154.5772,
+      "openMs": 66.03280000000001,
+      "checkMs": 14.039799999999985,
+      "closeMs": 0.4858000000000118,
+      "totalMs": 235.1376,
+      "cpuMs": 16,
+      "peakRss": 99184640,
+      "processMaxRssBytes": 100982784,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 2,
+      "warmup": false,
+      "processWallMs": 301.85429999999906,
+      "workload": "unicode-nfc",
+      "normalization": "default",
+      "importMs": 146.9958,
+      "openMs": 70.69279999999998,
+      "checkMs": 36.29419999999999,
+      "closeMs": 0.6011000000000308,
+      "totalMs": 254.5859,
+      "cpuMs": 31,
+      "peakRss": 97837056,
+      "processMaxRssBytes": 99377152,
+      "managedPeakBytes": "9157712",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 2,
+      "warmup": false,
+      "processWallMs": 312.2704999999987,
+      "workload": "unicode-nfc",
+      "normalization": "NFC",
+      "importMs": 143.2672,
+      "openMs": 67.33689999999999,
+      "checkMs": 36.05579999999998,
+      "closeMs": 0.6051000000000499,
+      "totalMs": 247.2669,
+      "cpuMs": 32,
+      "peakRss": 99303424,
+      "processMaxRssBytes": 100872192,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 3,
+      "warmup": false,
+      "processWallMs": 295.38930000000255,
+      "workload": "unicode-nfc",
+      "normalization": "default",
+      "importMs": 144.2549,
+      "openMs": 69.30879999999999,
+      "checkMs": 35.97640000000004,
+      "closeMs": 0.5033999999999992,
+      "totalMs": 250.0454,
+      "cpuMs": 31,
+      "peakRss": 99233792,
+      "processMaxRssBytes": 100933632,
+      "managedPeakBytes": "9157712",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 3,
+      "warmup": false,
+      "processWallMs": 293.28830000000016,
+      "workload": "unicode-nfc",
+      "normalization": "NFC",
+      "importMs": 143.43630000000002,
+      "openMs": 69.62049999999999,
+      "checkMs": 35.870600000000024,
+      "closeMs": 0.49509999999997945,
+      "totalMs": 249.4244,
+      "cpuMs": 31,
+      "peakRss": 99803136,
+      "processMaxRssBytes": 101437440,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 3,
+      "warmup": false,
+      "processWallMs": 270.75220000000263,
+      "workload": "unicode-nfc",
+      "normalization": "preserve",
+      "importMs": 144.9967,
+      "openMs": 66.179,
+      "checkMs": 13.689400000000006,
+      "closeMs": 0.49109999999998877,
+      "totalMs": 225.358,
+      "cpuMs": 16,
+      "peakRss": 99737600,
+      "processMaxRssBytes": 101220352,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 4,
+      "warmup": false,
+      "processWallMs": 289.04409999999916,
+      "workload": "unicode-nfc",
+      "normalization": "NFC",
+      "importMs": 139.9614,
+      "openMs": 65.5316,
+      "checkMs": 37.128600000000006,
+      "closeMs": 0.5355999999999881,
+      "totalMs": 243.15890000000002,
+      "cpuMs": 32,
+      "peakRss": 99520512,
+      "processMaxRssBytes": 101212160,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 4,
+      "warmup": false,
+      "processWallMs": 291.14429999999993,
+      "workload": "unicode-nfc",
+      "normalization": "preserve",
+      "importMs": 158.1378,
+      "openMs": 71.87199999999999,
+      "checkMs": 14.689900000000023,
+      "closeMs": 0.761099999999999,
+      "totalMs": 245.46299999999997,
+      "cpuMs": 16,
+      "peakRss": 99950592,
+      "processMaxRssBytes": 101429248,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 4,
+      "warmup": false,
+      "processWallMs": 314.78679999999804,
+      "workload": "unicode-nfc",
+      "normalization": "default",
+      "importMs": 158.3853,
+      "openMs": 73.70750000000001,
+      "checkMs": 36.14950000000002,
+      "closeMs": 0.6211999999999875,
+      "totalMs": 268.8655,
+      "cpuMs": 32,
+      "peakRss": 99508224,
+      "processMaxRssBytes": 101167104,
+      "managedPeakBytes": "9157712",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 5,
+      "warmup": false,
+      "processWallMs": 269.9743000000017,
+      "workload": "unicode-nfc",
+      "normalization": "preserve",
+      "importMs": 143.0884,
+      "openMs": 66.68879999999999,
+      "checkMs": 13.968700000000013,
+      "closeMs": 0.4877999999999929,
+      "totalMs": 224.2357,
+      "cpuMs": 16,
+      "peakRss": 98144256,
+      "processMaxRssBytes": 99844096,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 5,
+      "warmup": false,
+      "processWallMs": 287.23549999999886,
+      "workload": "unicode-nfc",
+      "normalization": "default",
+      "importMs": 140.1258,
+      "openMs": 65.47660000000002,
+      "checkMs": 36.755499999999984,
+      "closeMs": 0.481899999999996,
+      "totalMs": 242.84170000000003,
+      "cpuMs": 47,
+      "peakRss": 99500032,
+      "processMaxRssBytes": 101179392,
+      "managedPeakBytes": "9157712",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 5,
+      "warmup": false,
+      "processWallMs": 289.69620000000214,
+      "workload": "unicode-nfc",
+      "normalization": "NFC",
+      "importMs": 140.1608,
+      "openMs": 65.2388,
+      "checkMs": 35.379699999999985,
+      "closeMs": 0.5679000000000087,
+      "totalMs": 241.3492,
+      "cpuMs": 31,
+      "peakRss": 99315712,
+      "processMaxRssBytes": 100978688,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 6,
+      "warmup": false,
+      "processWallMs": 284.0655999999981,
+      "workload": "unicode-nfc",
+      "normalization": "default",
+      "importMs": 134.954,
+      "openMs": 64.46690000000001,
+      "checkMs": 36.1507,
+      "closeMs": 0.5942999999999756,
+      "totalMs": 236.1679,
+      "cpuMs": 32,
+      "peakRss": 99573760,
+      "processMaxRssBytes": 101281792,
+      "managedPeakBytes": "9157712",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 6,
+      "warmup": false,
+      "processWallMs": 327.36699999999837,
+      "workload": "unicode-nfc",
+      "normalization": "NFC",
+      "importMs": 167.6596,
+      "openMs": 70.0498,
+      "checkMs": 35.72249999999997,
+      "closeMs": 0.505800000000022,
+      "totalMs": 273.9399,
+      "cpuMs": 47,
+      "peakRss": 98156544,
+      "processMaxRssBytes": 99647488,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 6,
+      "warmup": false,
+      "processWallMs": 266.01800000000003,
+      "workload": "unicode-nfc",
+      "normalization": "preserve",
+      "importMs": 142.7002,
+      "openMs": 64.55350000000001,
+      "checkMs": 13.477599999999995,
+      "closeMs": 0.47749999999999204,
+      "totalMs": 221.2106,
+      "cpuMs": 16,
+      "peakRss": 99278848,
+      "processMaxRssBytes": 101048320,
+      "managedPeakBytes": "9157820",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": -1,
+      "warmup": true,
+      "processWallMs": 312.9976999999999,
+      "workload": "unicode-nfd",
+      "normalization": "default",
+      "importMs": 144.52710000000002,
+      "openMs": 63.90189999999998,
+      "checkMs": 38.07560000000004,
+      "closeMs": 0.537399999999991,
+      "totalMs": 247.0439,
+      "cpuMs": 47,
+      "peakRss": 101060608,
+      "processMaxRssBytes": 101416960,
+      "managedPeakBytes": "9666296",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": -1,
+      "warmup": true,
+      "processWallMs": 284.08260000000155,
+      "workload": "unicode-nfd",
+      "normalization": "NFC",
+      "importMs": 136.0007,
+      "openMs": 65.09389999999999,
+      "checkMs": 38.59570000000002,
+      "closeMs": 0.5033999999999992,
+      "totalMs": 240.1956,
+      "cpuMs": 48,
+      "peakRss": 100319232,
+      "processMaxRssBytes": 101335040,
+      "managedPeakBytes": "9666404",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": -1,
+      "warmup": true,
+      "processWallMs": 273.398799999999,
+      "workload": "unicode-nfd",
+      "normalization": "preserve",
+      "importMs": 136.2553,
+      "openMs": 63.34099999999998,
+      "checkMs": 14.45490000000001,
+      "closeMs": 0.5202999999999918,
+      "totalMs": 214.5733,
+      "cpuMs": 16,
+      "peakRss": 99577856,
+      "processMaxRssBytes": 101339136,
+      "managedPeakBytes": "9223356",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 0,
+      "warmup": false,
+      "processWallMs": 304.8171000000002,
+      "workload": "unicode-nfd",
+      "normalization": "default",
+      "importMs": 139.694,
+      "openMs": 76.28830000000002,
+      "checkMs": 40.40409999999997,
+      "closeMs": 0.5485000000000468,
+      "totalMs": 256.937,
+      "cpuMs": 46,
+      "peakRss": 100044800,
+      "processMaxRssBytes": 101212160,
+      "managedPeakBytes": "9666296",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 0,
+      "warmup": false,
+      "processWallMs": 287.51530000000275,
+      "workload": "unicode-nfd",
+      "normalization": "NFC",
+      "importMs": 141.1688,
+      "openMs": 63.6122,
+      "checkMs": 38.30269999999996,
+      "closeMs": 0.49610000000001264,
+      "totalMs": 243.58159999999998,
+      "cpuMs": 31,
+      "peakRss": 100167680,
+      "processMaxRssBytes": 101265408,
+      "managedPeakBytes": "9666404",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 0,
+      "warmup": false,
+      "processWallMs": 261.21050000000105,
+      "workload": "unicode-nfd",
+      "normalization": "preserve",
+      "importMs": 138.1204,
+      "openMs": 66.55850000000001,
+      "checkMs": 14.522199999999998,
+      "closeMs": 0.45139999999997826,
+      "totalMs": 219.6548,
+      "cpuMs": 16,
+      "peakRss": 97591296,
+      "processMaxRssBytes": 99426304,
+      "managedPeakBytes": "9223356",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 1,
+      "warmup": false,
+      "processWallMs": 282.0097999999998,
+      "workload": "unicode-nfd",
+      "normalization": "NFC",
+      "importMs": 134.2454,
+      "openMs": 65.08850000000001,
+      "checkMs": 38.60419999999999,
+      "closeMs": 0.5060000000000002,
+      "totalMs": 238.4459,
+      "cpuMs": 32,
+      "peakRss": 100081664,
+      "processMaxRssBytes": 101273600,
+      "managedPeakBytes": "9666404",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 1,
+      "warmup": false,
+      "processWallMs": 270.3166999999994,
+      "workload": "unicode-nfd",
+      "normalization": "preserve",
+      "importMs": 140.1771,
+      "openMs": 63.06209999999999,
+      "checkMs": 14.722200000000015,
+      "closeMs": 0.4265999999999792,
+      "totalMs": 218.38979999999998,
+      "cpuMs": 0,
+      "peakRss": 99581952,
+      "processMaxRssBytes": 101363712,
+      "managedPeakBytes": "9223356",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 1,
+      "warmup": false,
+      "processWallMs": 294.68329999999696,
+      "workload": "unicode-nfd",
+      "normalization": "default",
+      "importMs": 137.7269,
+      "openMs": 64.8544,
+      "checkMs": 38.06869999999998,
+      "closeMs": 0.5810999999999922,
+      "totalMs": 241.23289999999997,
+      "cpuMs": 31,
+      "peakRss": 100204544,
+      "processMaxRssBytes": 101408768,
+      "managedPeakBytes": "9666296",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 2,
+      "warmup": false,
+      "processWallMs": 265.8944999999985,
+      "workload": "unicode-nfd",
+      "normalization": "preserve",
+      "importMs": 140.5519,
+      "openMs": 62.6259,
+      "checkMs": 14.3202,
+      "closeMs": 0.4341000000000008,
+      "totalMs": 217.9339,
+      "cpuMs": 0,
+      "peakRss": 99389440,
+      "processMaxRssBytes": 101113856,
+      "managedPeakBytes": "9223356",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 2,
+      "warmup": false,
+      "processWallMs": 281.0121999999974,
+      "workload": "unicode-nfd",
+      "normalization": "default",
+      "importMs": 136.5903,
+      "openMs": 63.8981,
+      "checkMs": 37.890299999999996,
+      "closeMs": 0.5612999999999886,
+      "totalMs": 238.9419,
+      "cpuMs": 32,
+      "peakRss": 100007936,
+      "processMaxRssBytes": 101212160,
+      "managedPeakBytes": "9666296",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 2,
+      "warmup": false,
+      "processWallMs": 294.39310000000114,
+      "workload": "unicode-nfd",
+      "normalization": "NFC",
+      "importMs": 140.44109999999998,
+      "openMs": 67.27040000000002,
+      "checkMs": 38.9135,
+      "closeMs": 0.49979999999999336,
+      "totalMs": 247.12689999999998,
+      "cpuMs": 32,
+      "peakRss": 100581376,
+      "processMaxRssBytes": 101752832,
+      "managedPeakBytes": "9666404",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 3,
+      "warmup": false,
+      "processWallMs": 295.57180000000153,
+      "workload": "unicode-nfd",
+      "normalization": "default",
+      "importMs": 144.47109999999998,
+      "openMs": 66.4692,
+      "checkMs": 39.529000000000025,
+      "closeMs": 0.5748999999999569,
+      "totalMs": 251.04630000000003,
+      "cpuMs": 32,
+      "peakRss": 99164160,
+      "processMaxRssBytes": 100147200,
+      "managedPeakBytes": "9666296",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 3,
+      "warmup": false,
+      "processWallMs": 294.32760000000053,
+      "workload": "unicode-nfd",
+      "normalization": "NFC",
+      "importMs": 140.0084,
+      "openMs": 70.03979999999999,
+      "checkMs": 39.90350000000001,
+      "closeMs": 0.568300000000022,
+      "totalMs": 250.5223,
+      "cpuMs": 31,
+      "peakRss": 100876288,
+      "processMaxRssBytes": 101339136,
+      "managedPeakBytes": "9666404",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 3,
+      "warmup": false,
+      "processWallMs": 257.99419999999736,
+      "workload": "unicode-nfd",
+      "normalization": "preserve",
+      "importMs": 136.6546,
+      "openMs": 62.34030000000001,
+      "checkMs": 14.273300000000006,
+      "closeMs": 0.4218999999999937,
+      "totalMs": 213.6918,
+      "cpuMs": 15,
+      "peakRss": 99573760,
+      "processMaxRssBytes": 101392384,
+      "managedPeakBytes": "9223356",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 4,
+      "warmup": false,
+      "processWallMs": 277.0429000000004,
+      "workload": "unicode-nfd",
+      "normalization": "NFC",
+      "importMs": 133.0292,
+      "openMs": 63.85050000000001,
+      "checkMs": 38.43779999999998,
+      "closeMs": 0.536500000000018,
+      "totalMs": 235.85590000000002,
+      "cpuMs": 31,
+      "peakRss": 100003840,
+      "processMaxRssBytes": 101109760,
+      "managedPeakBytes": "9666404",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 4,
+      "warmup": false,
+      "processWallMs": 255.83480000000054,
+      "workload": "unicode-nfd",
+      "normalization": "preserve",
+      "importMs": 135.0703,
+      "openMs": 62.45769999999999,
+      "checkMs": 14.7894,
+      "closeMs": 0.4165000000000134,
+      "totalMs": 212.7357,
+      "cpuMs": 16,
+      "peakRss": 99663872,
+      "processMaxRssBytes": 101363712,
+      "managedPeakBytes": "9223356",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 4,
+      "warmup": false,
+      "processWallMs": 281.31579999999667,
+      "workload": "unicode-nfd",
+      "normalization": "default",
+      "importMs": 134.49360000000001,
+      "openMs": 67.0865,
+      "checkMs": 37.2987,
+      "closeMs": 0.5682999999999936,
+      "totalMs": 239.44910000000002,
+      "cpuMs": 46,
+      "peakRss": 100040704,
+      "processMaxRssBytes": 101105664,
+      "managedPeakBytes": "9666296",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 5,
+      "warmup": false,
+      "processWallMs": 254.46199999999953,
+      "workload": "unicode-nfd",
+      "normalization": "preserve",
+      "importMs": 134.0117,
+      "openMs": 62.09970000000001,
+      "checkMs": 14.403699999999986,
+      "closeMs": 0.47400000000001796,
+      "totalMs": 210.9909,
+      "cpuMs": 15,
+      "peakRss": 99856384,
+      "processMaxRssBytes": 101494784,
+      "managedPeakBytes": "9223356",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    },
+    {
+      "round": 5,
+      "warmup": false,
+      "processWallMs": 281.95430000000124,
+      "workload": "unicode-nfd",
+      "normalization": "default",
+      "importMs": 135.88049999999998,
+      "openMs": 64.85130000000001,
+      "checkMs": 38.90820000000002,
+      "closeMs": 0.5126999999999953,
+      "totalMs": 240.1546,
+      "cpuMs": 31,
+      "peakRss": 99958784,
+      "processMaxRssBytes": 101183488,
+      "managedPeakBytes": "9666296",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 5,
+      "warmup": false,
+      "processWallMs": 285.04160000000047,
+      "workload": "unicode-nfd",
+      "normalization": "NFC",
+      "importMs": 140.0305,
+      "openMs": 62.198500000000024,
+      "checkMs": 38.26139999999998,
+      "closeMs": 0.4977999999999838,
+      "totalMs": 240.991,
+      "cpuMs": 31,
+      "peakRss": 100012032,
+      "processMaxRssBytes": 101023744,
+      "managedPeakBytes": "9666404",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 6,
+      "warmup": false,
+      "processWallMs": 291.13080000000264,
+      "workload": "unicode-nfd",
+      "normalization": "default",
+      "importMs": 139.96089999999998,
+      "openMs": 68.23000000000002,
+      "checkMs": 38.87700000000001,
+      "closeMs": 0.5842999999999847,
+      "totalMs": 247.65409999999997,
+      "cpuMs": 31,
+      "peakRss": 100339712,
+      "processMaxRssBytes": 101105664,
+      "managedPeakBytes": "9666296",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 6,
+      "warmup": false,
+      "processWallMs": 287.89990000000034,
+      "workload": "unicode-nfd",
+      "normalization": "NFC",
+      "importMs": 138.3473,
+      "openMs": 67.40270000000001,
+      "checkMs": 39.32619999999997,
+      "closeMs": 0.5148000000000366,
+      "totalMs": 245.5929,
+      "cpuMs": 47,
+      "peakRss": 100298752,
+      "processMaxRssBytes": 101302272,
+      "managedPeakBytes": "9666404",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 0,
+        "parserComplete": 1
+      },
+      "findings": {
+        "json-quality/normalized-strings/unnormalized": 64
+      }
+    },
+    {
+      "round": 6,
+      "warmup": false,
+      "processWallMs": 273.3832000000002,
+      "workload": "unicode-nfd",
+      "normalization": "preserve",
+      "importMs": 137.3139,
+      "openMs": 62.767600000000016,
+      "checkMs": 14.576899999999995,
+      "closeMs": 0.4393000000000029,
+      "totalMs": 215.0994,
+      "cpuMs": 16,
+      "peakRss": 99745792,
+      "processMaxRssBytes": 101519360,
+      "managedPeakBytes": "9223356",
+      "scratchPeakBytes": "0",
+      "identity": {
+        "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+        "nodeApiVersion": 9,
+        "components": {
+          "icu": "79.1",
+          "unicode": "18.0",
+          "sqlite": "3.54.1"
+        }
+      },
+      "terminals": {
+        "count": 1,
+        "qualityPassed": 1,
+        "parserComplete": 1
+      },
+      "findings": {}
+    }
+  ],
+  "completed": "2026-11-01T20:54:14.438Z",
+  "sourceBytesUnchanged": true
+}

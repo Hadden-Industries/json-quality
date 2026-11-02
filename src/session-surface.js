@@ -35,7 +35,7 @@ const sourceOptions = [
   ],
   valueMethods = [
     "select",
-    "selectStream",
+    "selectByPointerStream",
     "describe",
     "children",
     "sameReference",
@@ -64,7 +64,7 @@ function admitOptions(/** @type {*} */ options, /** @type {*} */ names) {
     throw new TypeError("Expected retainValues boolean.");
   if (options.requestId !== undefined)
     correlate(options.requestId, {
-      admission: { maxRequestIdCharacters: null },
+      admission: { maxRequestIdCodePoints: null },
     });
   if (
     options.temporaryDirectory !== undefined &&
@@ -85,7 +85,7 @@ function correlate(requestId = randomUUID(), /** @type {*} */ resources) {
   if (typeof requestId !== "string" || !requestId || !requestId.isWellFormed())
     throw new TypeError("Expected a nonempty well-formed requestId string.");
   encodeNativeControl({ requestId });
-  const maximum = resources.admission.maxRequestIdCharacters;
+  const maximum = resources.admission.maxRequestIdCodePoints;
   if (maximum !== null) {
     let characters = 0;
     for (const point of requestId) {
@@ -127,7 +127,9 @@ function surface(
   const facade = Object.fromEntries(
       valueMethods.map((name) => [name, values[name].bind(values)]),
     ),
-    cancel = (reason = new Error("JSON session cancelled.")) => {
+    cancel = (
+      /** @type {unknown} */ reason = new Error("JSON session cancelled."),
+    ) => {
       context.abort(reason);
       values.cancel();
     },
@@ -177,15 +179,22 @@ function surface(
         declared?.value === undefined
           ? undefined
           : JSON.parse(encodeNativeControl(declared.value).toString("utf8"));
+      if (options && Object.hasOwn(options, "includeValues"))
+        throw new TypeError(
+          "Use includeValueEvents; includeValues is not supported.",
+        );
       if (
         !options ||
         typeof options !== "object" ||
         Array.isArray(options) ||
         Object.keys(options).some(
           (key) =>
-            !["signal", "includeValues", "retainValues", "requestId"].includes(
-              key,
-            ),
+            ![
+              "signal",
+              "includeValueEvents",
+              "retainValues",
+              "requestId",
+            ].includes(key),
         )
       )
         throw new TypeError("Invalid source consumption options.");
@@ -194,7 +203,7 @@ function surface(
         !(options.signal instanceof AbortSignal)
       )
         throw new TypeError("Expected AbortSignal.");
-      for (const name of ["includeValues", "retainValues"])
+      for (const name of ["includeValueEvents", "retainValues"])
         if (options[name] !== undefined && typeof options[name] !== "boolean")
           throw new TypeError(`Expected ${name} boolean.`);
       const sourceSignal = options.signal
@@ -203,7 +212,7 @@ function surface(
       const selectedContract = sourceContract(contract);
       const correlation = correlate(options.requestId, resources);
       const consumption = {
-        includeValues: options.includeValues,
+        includeValueEvents: options.includeValueEvents,
         retainValues: options.retainValues,
       };
       return track(async function* () {
@@ -225,7 +234,7 @@ function surface(
       }, correlation);
     };
   if (events)
-    facade.events = () => {
+    facade.check = () => {
       if (closed) throw new Error("closed-session");
       if (eventsClaimed) throw new Error("execution-events-already-consumed");
       eventsClaimed = true;
@@ -286,7 +295,7 @@ function surface(
   };
   facade.signal = signal;
   facade.resources = resources;
-  facade.identity = Object.freeze({
+  facade.implementationIdentity = Object.freeze({
     coreSourceInputsSha256: component.manifest.sourceInputsSha256,
     nodeApiVersion: component.manifest.nodeApiVersion,
     components: Object.freeze({

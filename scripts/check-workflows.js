@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDocument } from "yaml";
 import { budgets } from "./qualification-budgets.js";
+import { securityScans } from "./security-scans.js";
 
 const repository = fileURLToPath(new URL("../", import.meta.url));
 const transferBudgets = new Map([
@@ -92,6 +93,167 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           `${path}: missing required input ${key}`,
         );
   }
+  const scans = workflows.get("./.github/workflows/security.yml").jobs.codeql;
+  assert.deepEqual(
+    scans.strategy.matrix.include,
+    securityScans,
+    "Security scan projection drift",
+  );
+  assert.equal(scans.name, "Scan ${{ matrix.key }}");
+  assert.equal(scans["runs-on"], "${{ matrix.os }}");
+  const init = scans.steps.findIndex((step) =>
+    step.uses?.startsWith("github/codeql-action/init@"),
+  );
+  const build = scans.steps.findIndex((step) =>
+    step.run?.includes("python native/build.py"),
+  );
+  const analyze = scans.steps.findIndex((step) =>
+    step.uses?.startsWith("github/codeql-action/analyze@"),
+  );
+  assert.ok(
+    init >= 0 && build > init && analyze > build,
+    "CodeQL must trace a clean native build",
+  );
+  assert.equal(
+    scans.steps[init].with["build-mode"],
+    "${{ matrix.build-mode }}",
+  );
+  assert.equal(scans.steps[analyze].with.category, "${{ matrix.category }}");
+  assert.ok(
+    !scans.steps.some((step) => step.run?.includes("native/stage.py")),
+    "Scan outputs are not production components",
+  );
+  const promotion = workflows.get("./.github/workflows/promote-release.yml");
+  const producerSteps = actions.get("./.github/actions/setup-producer")?.runs
+    .steps;
+  assert.ok(
+    producerSteps?.some(
+      (step) => step.run === "npm run ci:install" && !step.if,
+    ),
+    "Release producer must install its frozen dependencies unconditionally",
+  );
+  assert.equal(
+    read("package.json").scripts["release:effect"],
+    "node scripts/release-command.js",
+    "Release effects must retain startup failures",
+  );
+  for (const [path, writer, environment] of [
+    ["stage-release.yml", "stage", "npm-publication"],
+    ["github-release.yml", "archive", "github-archival"],
+    ["promote-release.yml", "github", "github-release"],
+  ]) {
+    const workflow = workflows.get(`./.github/workflows/${path}`);
+    assert.equal(workflow.jobs[writer].environment, environment);
+    for (const [name, job] of Object.entries(workflow.jobs)) {
+      const steps = job.steps ?? [],
+        setup = steps.findIndex(
+          (step) => step.uses === "./.github/actions/setup-producer",
+        );
+      assert.ok(
+        setup >= 0 && !steps[setup].if,
+        `${path}/${name}: release dependency setup is required`,
+      );
+      assert.equal(
+        job.permissions.contents,
+        name === writer && writer !== "stage" ? "write" : "read",
+        `${path}/${name}: draft visibility belongs to the GitHub writer`,
+      );
+      assert.ok(
+        !steps
+          .slice(0, setup)
+          .some(
+            (step) => step.run || step.uses?.startsWith("./.github/actions/"),
+          ),
+        `${path}/${name}: release commands must follow dependency setup`,
+      );
+      assert.ok(
+        !steps
+          .slice(setup + 1)
+          .some((step) => step.uses?.startsWith("actions/setup-node@")),
+        `${path}/${name}: publisher runtime must remain the installed producer`,
+      );
+      const effect = steps.findIndex(
+        (step) => step.name === "Apply admitted release effect",
+      );
+      if (effect < 0) continue;
+      if (writer !== "github")
+        assert.ok(
+          steps[effect].run.startsWith(`npm run release:effect -- ${writer} `),
+          `${path}: effect must use the startup-safe dispatcher`,
+        );
+      assert.ok(
+        steps
+          .slice(effect + 1)
+          .some(
+            (step) =>
+              step.uses === "./.github/actions/upload-evidence" &&
+              step.if === "always()",
+          ),
+        `${path}/${name}: failed publisher evidence must be retained`,
+      );
+    }
+  }
+  assert.deepEqual(Object.keys(promotion.jobs).sort(), [
+    "admit",
+    "complete",
+    "github",
+    "npm",
+  ]);
+  assert.equal(promotion.concurrency["cancel-in-progress"], false);
+  for (const service of ["admit", "npm", "github", "complete"]) {
+    const job = promotion.jobs[service];
+    assert.equal(
+      job.permissions.contents,
+      service === "github" ? "write" : "read",
+    );
+    assert.equal(
+      job.permissions["id-token"],
+      service === "npm" ? "write" : undefined,
+    );
+    assert.ok(
+      !Object.keys({ ...promotion.env, ...job.env }).some((key) =>
+        /^(?:NPM_TOKEN|NODE_AUTH_TOKEN|ACTIONS_ID_TOKEN_REQUEST_)/u.test(key),
+      ),
+      "Promotion cannot inject service credentials",
+    );
+    const steps = job.steps ?? [];
+    assert.ok(
+      !steps.some((step) =>
+        Object.keys(step.env ?? {}).some((key) =>
+          /^(?:NPM_TOKEN|NODE_AUTH_TOKEN|ACTIONS_ID_TOKEN_REQUEST_)/u.test(key),
+        ),
+      ),
+    );
+    if (["npm", "github"].includes(service)) {
+      assert.equal(
+        job.environment,
+        service === "npm" ? "npm-promotion" : "github-release",
+      );
+      const effect = steps.find(
+        (step) => step.name === "Apply admitted release effect",
+      );
+      assert.ok(
+        effect.run.startsWith(
+          `node scripts/release-command.js promote-${service} `,
+        ),
+        "Wrong service dispatcher",
+      );
+      assert.ok(
+        !steps.some((step) => step.run && step !== effect),
+        "Additional promotion command needs explicit authority review",
+      );
+      assert.equal(steps.find((step) => step.id === "effect").if, "always()");
+      assert.equal(
+        steps.find((step) => step.id === "effect").with["retention-days"],
+        90,
+      );
+    }
+  }
+  assert.equal(
+    promotion.jobs.github.if,
+    "needs.npm.result == 'success' && needs.npm.outputs.availability == 'npm-and-github'",
+  );
+  assert.deepEqual(promotion.jobs.complete.needs, ["npm", "github"]);
   const receipt = workflows
     .get("./.github/workflows/ci.yml")
     ?.jobs.acceptance.steps.find(

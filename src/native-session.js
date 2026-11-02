@@ -232,14 +232,14 @@ export class NativeSession {
   read(
     /** @type {*} */ value,
     /** @type {*} */ representation,
-    offset = "0",
-    maximum = "65536",
+    byteOffset = "0",
+    maximumBytes = "65536",
   ) {
     return this.command("read-value", {
       value,
       representation,
-      offset,
-      maximum,
+      byteOffset,
+      maximumBytes,
     });
   }
   cancel() {

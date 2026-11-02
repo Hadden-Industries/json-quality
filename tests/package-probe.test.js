@@ -13,16 +13,16 @@ test("maintained consumer corpus exercises the current public cohort before tran
     join(root, ".json-quality.json"),
     JSON.stringify(
       {
-        schemaVersion: 3,
+        schemaVersion: 4,
         defaults: {
           formatContract: "prettier-json",
-          allowFormatWrites: true,
+          allowSourceRewrites: true,
           normalization: "NFC",
         },
         exceptions: [
           {
             paths: [".git/**"],
-            exclude: true,
+            excludeUntrackedSources: true,
             owner: "Git",
             reason: "External Git state.",
           },

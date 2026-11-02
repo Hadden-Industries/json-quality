@@ -6,36 +6,40 @@ import { NativeSession } from "./client.mjs";
 
 test("resource resolution preserves admission precedence and independent runtime controls", async () => {
   const policy = {
-      capacityLimits: { maxFileBytes: 1024 },
-      runtimeControls: { managedMemoryTargetBytes: 16777216 },
+      capacityLimits: { maxSourceBytes: 1024 },
+      runtimeControls: { maxManagedMemoryBytes: 16777216 },
     },
     selected = resolveExecutionResources(policy, {
-      capacityLimits: { maxFileBytes: 2048 },
+      capacityLimits: { maxSourceBytes: 2048 },
     }),
     bypassed = resolveExecutionResources(policy, { capacityLimits: false });
-  assert.equal(selected.admission.maxFileBytes, 2048);
-  assert.equal(selected.native.maxFileBytes, "2048");
-  assert.equal(selected.runtime.managedMemoryTargetBytes, 16777216);
+  assert.equal(selected.admission.maxSourceBytes, 2048);
+  assert.equal(selected.native.maxSourceBytes, "2048");
+  assert.equal(selected.runtime.maxManagedMemoryBytes, 16777216);
   assert.ok(Object.values(bypassed.admission).every((value) => value === null));
-  assert.equal(bypassed.runtime.managedMemoryTargetBytes, 16777216);
+  assert.equal(bypassed.runtime.maxManagedMemoryBytes, 16777216);
   assert.equal(
-    resolveExecutionResources({ capacityLimits: false }).admission.maxFiles,
+    resolveExecutionResources({ capacityLimits: false }).admission
+      .maxPhysicalAndNativeSources,
     null,
   );
   assert.equal(
     resolveExecutionResources(
       { capacityLimits: false },
       { capacityLimits: true },
-    ).admission.maxFiles,
+    ).admission.maxPhysicalAndNativeSources,
     50000,
   );
   const core = new NativeSession();
   try {
     const actual = (await core.configure(selected.native)).result.resources;
-    assert.equal(actual.admission.maxFileBytes, selected.native.maxFileBytes);
     assert.equal(
-      actual.runtime.managedMemoryTargetBytes,
-      selected.native.managedMemoryTargetBytes,
+      actual.admission.maxSourceBytes,
+      selected.native.maxSourceBytes,
+    );
+    assert.equal(
+      actual.runtime.maxManagedMemoryBytes,
+      selected.native.maxManagedMemoryBytes,
     );
   } finally {
     await core.close();
@@ -46,9 +50,9 @@ test("resource options reject removed names, coercion and nonfinite numeric quot
   for (const invocation of [
     { limits: false },
     { runtimeControls: null },
-    { runtimeControls: { managedMemoryTargetBytes: Infinity } },
+    { runtimeControls: { maxManagedMemoryBytes: Infinity } },
     { runtimeControls: { maxConcurrency: 2 } },
-    { capacityLimits: { maxFiles: "1" } },
+    { capacityLimits: { maxPhysicalAndNativeSources: "1" } },
     { capacityLimits: { unknown: 1 } },
   ])
     assert.throws(() => resolveExecutionResources({}, invocation), TypeError);

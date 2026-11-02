@@ -1,18 +1,19 @@
 # Trusted consumer CI
 
-`json-quality-qualify` and the `qualifyJsonConsumer` asynchronous iterator check immutable candidate Git JSON under the policy from an independently selected immutable trusted commit.
+`json-quality-qualify-git` and the `qualifyGitJsonSources` asynchronous iterator check immutable candidate Git JSON under the policy from an independently selected immutable trusted commit.
 The reusable [workflow](https://github.com/Hadden-Industries/json-quality/blob/main/.github/workflows/json-quality.yml) must be pinned to a reviewed full producer commit.
 
 ```sh
-json-quality-qualify --trusted-root /trusted --candidate-root /candidate \
-  --trusted-sha FULL_COMMIT --candidate-sha FULL_COMMIT
+json-quality-qualify-git --trusted-root /trusted --candidate-root /candidate \
+  --trusted-commit-id FULL_COMMIT --candidate-commit-id FULL_COMMIT
 ```
 
 Both identities must be full 40-character commit object IDs.
-The scope is explicitly `immutable-git-json`: checkout/HEAD cleanliness is not a qualification claim. The command reads the selected objects, leaving dirty or transformed working bytes untouched. A missing commit, non-commit identity or absent/nonregular trusted policy refuses completion.
+The scope is explicitly `immutable-git-json`: checkout/HEAD cleanliness is not a qualification claim. The command reads the selected objects, leaving dirty or transformed working bytes untouched. A missing/non-commit identity or nonregular/unreadable trusted policy refuses completion; proven policy absence at the exact trusted commit selects package defaults.
 
 The producer's installed component and local schemas own admission.
-A bounded native/Ajv bootstrap reads the trusted `.json-quality.json` from its Git blob, verifies exact bytes and transfers the admitted frozen control charge into the main core.
+A bounded native/Ajv bootstrap reads a present trusted `.json-quality.json` from its Git blob, verifies exact bytes and transfers the resolved frozen policy charge into the main core.
+Verified absence has its own immutable Git origin and still owns the resolved-policy reservation.
 Candidate policy is ordinary checked candidate data; it never selects the governing policy or loads code.
 
 Raw native Git metadata and blob streams supply the candidate census.
@@ -28,8 +29,9 @@ Source-only qualification refuses policy requirements for native sources, origin
 Use the complete trusted repository adapter to discharge those obligations.
 It also makes no application-domain, archive-meaning or installation-integrity claim.
 
-Output is cohort-3 NDJSON, with correlated `execution`, source/finding/terminal events and final `execution-terminal`.
-Execution metadata names the trusted/candidate commits, trusted policy blob, policy SHA-256, core source identity and `immutable-git-json` scope.
+Output is cohort-4 NDJSON, with correlated `execution`, source/finding/terminal events and final `execution-terminal`.
+Execution metadata names trusted/candidate commits, configuration origin and policy-input digests, core source identity and `immutable-git-json` scope.
+`trustedPolicyBlobId` is present only for `git-blob` and equals its origin blob ID; `git-absence` omits it.
 Only the final terminal closes inventory, diagnostic and source-observation obligations.
 `domainComplete` stays false.
 The terminal is delivered after owned native storage and Git subprocesses settle.
@@ -39,7 +41,7 @@ Shared contract failure returns 1.
 Acquisition, resource, identity, cancellation, cleanup or output failure returns 2 and provides no successful final verdict.
 Exact expected negatives can satisfy their pinned contracts while intrinsic `qualityPassed` is false; findings remain visible.
 
-The API takes `{ trustedRoot, candidateRoot, trustedSha, candidateSha, capacityLimits, runtimeControls, temporaryDirectory, signal, requestId }`.
+The API takes `{ trustedRoot, candidateRoot, trustedCommitId, candidateCommitId, capacityLimits, runtimeControls, temporaryDirectory, signal, requestId }`.
 Consume the iterator to completion or cancel/return it. CLI resource/runtime flags share the ordinary vocabulary and environment contracts in the [resource guide](resource-limits.md).
 
 The reusable workflow retains read-only repository permissions and no publication/OIDC authority.
@@ -53,6 +55,13 @@ The PR wrapper runs only for `pull_request: ready_for_review` into `main`.
 Feature pushes and `synchronize` do not launch full qualification.
 The source/base head must match the checked-out integration and frozen matrix.
 Required `CI / acceptance` admits product/native/dependency/CodeQL results and every packed-consumer receipt; skipped, incomplete, foreign or failed mandatory jobs remain blocking.
+Every ordinary and release lane runs the source suite once and qualifies both root and isolated installed layouts from the same transported core/native tuple.
+Reference-runtime API/type/tooling checks run in both layouts; minimum-runtime lanes retain native engine checks without producer-only tooling.
+`JSON_QUALITY_LAYOUT_OUTPUT` names the directory containing exclusively created `root-result.json` and `isolated-result.json`.
+`JSON_QUALITY_RELEASE_EVIDENCE` separately enables release audits, inventories and SBOMs; ordinary qualification leaves it unset.
+Lane and aggregate proof schema 2 requires both keyed layout results with matching source, controller, Node/npm, core archive and native package identities.
+Old single-layout proof produces `FULL_REQUIRED`; it is never padded with an inferred isolated success.
+Schema-2 performance reports also require complete per-sample process observation and cleanup, including the warmup.
 The owner reviews changes to workflow code, tests and trust policy, then deliberately chooses whether to merge.
 CODEOWNERS routes that review without requiring an additional maintainer or reporting App.
 The native Actions App restriction authenticates the check source; it does not prove that candidate-edited workflow code reports honestly.
@@ -101,6 +110,19 @@ Only missing expected entries or pending jobs with no conclusion can settle this
 Both the latest projection and the current attempt must become complete before original producing-attempt admission, and no product job is rerun by this wait.
 
 ## Recovery and retention
+
+The shared scan inventory in `scripts/security-scans.js` requires five observations: Actions, JavaScript/TypeScript, Python, C/C++ on Ubuntu 24.04, and C/C++ on Windows 2025.
+The native categories are `/language:c-cpp/platform:linux` and `/language:c-cpp/platform:windows`; the other categories remain `/language:LANGUAGE`.
+Each native scan initializes CodeQL before a clean `native/build.py` build of both executable and Node-API bindings, including generated headers and verified dependencies.
+Scan outputs stay in their separate external workspace and never replace production components or sanitizer qualification.
+Workflow validation checks the complete matrix against that inventory; CI job admission, schema-2 release security and promotion refresh require the same meanings.
+Exact-source admission selects the newest analysis ID for each required category and checks workflow, language/platform, query/tool identity, findings, warnings and errors.
+Historical two-language proof cannot admit a current release continuation.
+
+After separately authorized source publication, deliberately run the frozen matrix and inspect each native CodeQL database's extraction diagnostics, first-party translation units and generated/header coverage on its actual platform.
+Confirm the provider's matrix environment (`key`, `language`, `os`) and category identities against the checked inventory.
+Record layout phase cost, scan-build cost, critical-path elapsed time and artifact size independently.
+Until these hosted observations pass, local source checks establish neither extraction completeness nor activated hosted qualification.
 
 `npm run check:ci` checks the complete local workflow/action graph before the candidate policy job starts expensive fan-out.
 The same owner, `scripts/check-workflows.js`, follows [OwlAPI's workflow governance](https://github.com/Hadden-Industries/owlapi/blob/36e28374447d94d9734960aaed6d3ab4be52ca17/scripts/workflow-governance.mjs): it validates YAML, native action entries, required/declared inputs, immutable external action references and transfer deadlines against the shared budget module.

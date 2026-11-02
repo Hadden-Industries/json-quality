@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeSource } from "../../src/native-normalization.js";
-import { JSON_TRANSFORM_CAPABILITIES } from "../../src/transform-capabilities.js";
+import { DEFAULT_JSON_TRANSFORM_LIMITS } from "../../src/transform-capabilities.js";
 import { nativeTemporaryRoot, verifiedComponent } from "./client.mjs";
 const options = {
   component: verifiedComponent,
@@ -38,7 +38,7 @@ test("normalization collision, unsafe numbers and preservation cannot acquire ou
 test("materializing writer capability refuses before a component or body copy is needed", async () => {
   await assert.rejects(
     normalizeSource(
-      "x".repeat(JSON_TRANSFORM_CAPABILITIES.maximumSourceBytes + 1),
+      "x".repeat(DEFAULT_JSON_TRANSFORM_LIMITS.maximumSourceBytes + 1),
     ),
     /transform-source-capacity/,
   );
@@ -52,7 +52,7 @@ test("normalization refuses finite workspace exhaustion before checking source b
   await assert.rejects(
     normalizeSource('"' + "é".repeat(349000) + '"', {
       ...options,
-      runtimeControls: { managedMemoryTargetBytes: 16777216 },
+      runtimeControls: { maxManagedMemoryBytes: 16777216 },
     }),
     /control-state-budget/,
   );
@@ -61,7 +61,7 @@ test("normalization refuses finite workspace exhaustion before checking source b
 test("normalization changes have an independent finite retained-metadata ceiling", async () => {
   const text =
     "[" +
-    Array(JSON_TRANSFORM_CAPABILITIES.maximumNormalizationChanges + 1)
+    Array(DEFAULT_JSON_TRANSFORM_LIMITS.maximumNormalizationChanges + 1)
       .fill('"e\\u0301"')
       .join(",") +
     "]";

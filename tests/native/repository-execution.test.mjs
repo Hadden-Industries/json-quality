@@ -20,10 +20,10 @@ async function fixture(extra, run) {
       join(root, ".json-quality.json"),
       JSON.stringify(
         {
-          schemaVersion: 3,
+          schemaVersion: 4,
           defaults: {
             formatContract: "prettier-json",
-            allowFormatWrites: true,
+            allowSourceRewrites: true,
             normalization: "NFC",
           },
           exceptions: [],
@@ -54,16 +54,16 @@ test("complete execution bootstraps immutable policy and reports exact resources
     }))
       events.push(event);
     assert.equal(events[0].type, "execution");
-    assert.equal(events[0].resources.admission.maxFiles, null);
     assert.equal(
-      events[0].resources.runtime.managedMemoryTargetBytes,
-      "33554432",
+      events[0].resources.admission.maxPhysicalAndNativeSources,
+      null,
     );
+    assert.equal(events[0].resources.runtime.maxManagedMemoryBytes, "33554432");
     assert.throws(() => {
-      events[0].resources.admission.maxFiles = "1";
+      events[0].resources.admission.maxPhysicalAndNativeSources = "1";
     }, TypeError);
     assert.equal(events.at(-1).type, "execution-terminal");
-    assert.equal(events.at(-1).members, "2");
+    assert.equal(events.at(-1).inventoryMemberCount, "2");
     assert.equal(events.at(-1).contractSatisfied, true);
     assert.equal(events.at(-1).domainComplete, false);
   });
@@ -154,7 +154,7 @@ test("injected native obligations retain original presentation only after indepe
         final = event;
       assert.equal(closed, true);
       assert.equal(final.type, "execution-terminal");
-      assert.equal(final.members, "3");
+      assert.equal(final.inventoryMemberCount, "3");
       assert.equal(final.contractSatisfied, true);
     },
   );
@@ -246,7 +246,7 @@ for (const member of ["member.json", "member.d.ts.map"])
             owner: "Original source-map producer",
             reason: "Exact compact native source with no final newline.",
             formatContract: "producer-json-compact-body",
-            allowFormatWrites: false,
+            allowSourceRewrites: false,
           },
         ],
       },

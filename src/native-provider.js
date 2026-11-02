@@ -143,9 +143,9 @@ export async function* checkNativeProvider(
         ...contractFor(document.path, { definition, identity: member }),
         path: document.path,
         format: nativeJsonSourceFormat(document.path, member),
-        allowFormatWrites: false,
+        allowSourceRewrites: false,
       };
-      if (contract.exclude)
+      if (contract.excludeUntrackedSources)
         throw new Error(
           `Native provider obligation is excluded: ${document.path}`,
         );

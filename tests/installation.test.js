@@ -10,6 +10,7 @@ import {
   copyFileSync,
   rmSync,
   renameSync,
+  statSync,
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
@@ -17,8 +18,8 @@ import { temporaryDirectory } from "./temporary-directory.js";
 import { createRequire } from "node:module";
 import { gzipSync } from "node:zlib";
 import {
-  jsonQualitySourceCoordinate,
-  jsonQualityAcquisitionBootstrap,
+  parseJsonQualityRegistrySpecifier,
+  readJsonQualityAcquisitionBootstrapSource,
   verifyJsonQualityInstallation,
 } from "../src/installation.js";
 import { readPackReport } from "../scripts/pack.js";
@@ -35,14 +36,17 @@ assert.ok(npm, "Run the maintained tests through npm.");
 const npmRequire = createRequire(npm);
 
 test("source coordinates admit exact published versions and aliases only", () => {
-  assert.deepEqual(jsonQualitySourceCoordinate("1.2.3"), {
+  assert.deepEqual(parseJsonQualityRegistrySpecifier("1.2.3"), {
     kind: "registry",
     version: "1.2.3",
   });
-  assert.deepEqual(jsonQualitySourceCoordinate(`npm:${name}@1.2.3-rc.1`), {
-    kind: "registry",
-    version: "1.2.3-rc.1",
-  });
+  assert.deepEqual(
+    parseJsonQualityRegistrySpecifier(`npm:${name}@1.2.3-rc.1`),
+    {
+      kind: "registry",
+      version: "1.2.3-rc.1",
+    },
+  );
   for (const value of [
     "*",
     ">=1.2.3",
@@ -56,7 +60,7 @@ test("source coordinates admit exact published versions and aliases only", () =>
     "git+https://github.com/example/other.git#" + "a".repeat(40),
     "npm:other@1.2.3",
   ])
-    assert.throws(() => jsonQualitySourceCoordinate(value));
+    assert.throws(() => parseJsonQualityRegistrySpecifier(value));
 });
 
 async function installation(
@@ -102,7 +106,7 @@ async function installation(
   mkdirSync(join(producer, "src"));
   writeFileSync(
     join(producer, "src/acquire.js"),
-    jsonQualityAcquisitionBootstrap(),
+    readJsonQualityAcquisitionBootstrapSource(),
   );
   const packed = readPackReport(
     execFileSync(
@@ -136,7 +140,7 @@ async function installation(
     copyFileSync(binary, join(installedRoot, "native-component.node"));
   writeFileSync(
     join(installedRoot, "src/acquire.js"),
-    jsonQualityAcquisitionBootstrap(),
+    readJsonQualityAcquisitionBootstrapSource(),
   );
   writeFileSync(
     join(toolingRoot, "package.json"),
@@ -218,7 +222,7 @@ async function installation(
 test("native packed fixture validates cached bytes independently of installed files", async (t) => {
   const context = await installation(t);
   const result = await verifyJsonQualityInstallation(context);
-  assert.equal(result.files, 5);
+  assert.equal(result.fileCount, 5);
   writeFileSync(
     join(context.installedRoot, "index.js"),
     "export const approved = false;\n",
@@ -244,24 +248,24 @@ test("verification quotas can be removed individually and together without weake
         ...context,
         verificationControls: { maximumArchiveBytes: null },
       })
-    ).files,
+    ).fileCount,
     5,
   );
   assert.equal(
     (
       await verifyJsonQualityInstallation({
         ...context,
-        capacityLimits: false,
+        installationControls: false,
         verificationControls: false,
       })
-    ).files,
+    ).fileCount,
     5,
   );
   writeFileSync(join(context.installedRoot, "index.js"), "changed\n");
   await assert.rejects(
     verifyJsonQualityInstallation({
       ...context,
-      capacityLimits: false,
+      installationControls: false,
       verificationControls: false,
     }),
     /payload differs/,
@@ -284,7 +288,7 @@ test("unlimited verification reads metadata past the former fixed allocation", a
         ...context,
         verificationControls: false,
       })
-    ).files,
+    ).fileCount,
     5,
   );
 });
@@ -293,7 +297,7 @@ test("the selected optional package has independent locked archive and installed
   const context = await installation(t);
   const result = await verifyJsonQualityInstallation(context);
   assert.equal(result.native.name, nativePlatformSpec().spec.package);
-  assert.equal(result.native.files, 2);
+  assert.equal(result.native.fileCount, 2);
   writeFileSync(
     join(context.nativeRoot, "binding.txt"),
     "changed native payload\n",
@@ -366,15 +370,15 @@ test("a mismatched optional package version cannot load as the selected core's n
   );
 });
 
-test("a real native binary member is streamed independently of the JSON file-byte admission", async (t) => {
+test("a real native binary member is streamed under package transport quotas", async (t) => {
   const context = await installation(t, "1.2.3", { nativeBinary: true });
   assert.equal(
     (
       await verifyJsonQualityInstallation({
         ...context,
-        capacityLimits: { maxFileBytes: 1 },
+        installationControls: { maximumPackageFamilyBytes: null },
       })
-    ).files,
+    ).fileCount,
     6,
   );
   const binary = join(context.installedRoot, "native-component.node");
@@ -382,12 +386,26 @@ test("a real native binary member is streamed independently of the JSON file-byt
   bytes[0] ^= 1;
   writeFileSync(binary, bytes);
   await assert.rejects(
-    verifyJsonQualityInstallation({ ...context, capacityLimits: false }),
+    verifyJsonQualityInstallation({ ...context, installationControls: false }),
     /payload differs/,
   );
 });
 
 test("installation verification rejects unknown controls and honors pre-aborted cancellation", async () => {
+  await assert.rejects(
+    verifyJsonQualityInstallation({
+      toolingRoot: "absent",
+      npmExecutable: "npm",
+    }),
+    /Use npmCliPath/,
+  );
+  await assert.rejects(
+    verifyJsonQualityInstallation({
+      toolingRoot: "absent",
+      capacityLimits: false,
+    }),
+    /Use installationControls/,
+  );
   await assert.rejects(
     verifyJsonQualityInstallation({ toolingRoot: "absent", backend: "other" }),
     /verification options/,
@@ -401,6 +419,44 @@ test("installation verification rejects unknown controls and honors pre-aborted 
     }),
     /deliberate stop/,
   );
+});
+
+test("family quotas admit two payloads exactly once and constrain the remaining archive", async (t) => {
+  const context = await installation(t),
+    bytes = [
+      join(context.installedRoot, "package.json"),
+      join(context.installedRoot, "index.js"),
+      join(context.installedRoot, "src/acquire.js"),
+      join(context.nativeRoot, "package.json"),
+      join(context.nativeRoot, "binding.txt"),
+    ].reduce((total, path) => total + statSync(path).size, 0);
+  for (const installationControls of [
+    { maximumPackageFamilyFiles: 5, maximumPackageFamilyBytes: bytes },
+    { maximumPackageFamilyFiles: null, maximumPackageFamilyBytes: bytes },
+    true,
+    false,
+  ])
+    assert.equal(
+      (
+        await verifyJsonQualityInstallation({
+          ...context,
+          installationControls,
+        })
+      ).fileCount,
+      5,
+    );
+  for (const installationControls of [
+    { maximumPackageFamilyFiles: 4 },
+    { maximumPackageFamilyBytes: bytes - 1 },
+  ])
+    await assert.rejects(
+      verifyJsonQualityInstallation({
+        ...context,
+        installationControls,
+        verificationControls: false,
+      }),
+      /resource limit/,
+    );
 });
 
 test("a Git source is refused even when a matching packed cache fixture exists", async (t) => {
@@ -450,19 +506,24 @@ test("a registry declaration rejects Git and non-registry resolved archives", as
 test("default verification follows the same native cache policy as acquisition", async (t) => {
   const context = await installation(t);
   const previous = process.env.npm_config_cache;
+  const previousInstallation = process.env.JSON_QUALITY_INSTALLATION_CONTROLS;
   process.env.npm_config_cache = context.cachePath;
+  process.env.JSON_QUALITY_INSTALLATION_CONTROLS = '{"maxCacheOutputBytes":1}';
   try {
     assert.equal(
       (
         await verifyJsonQualityInstallation({
           toolingRoot: context.toolingRoot,
         })
-      ).files,
+      ).fileCount,
       5,
     );
   } finally {
     if (previous === undefined) delete process.env.npm_config_cache;
     else process.env.npm_config_cache = previous;
+    if (previousInstallation === undefined)
+      delete process.env.JSON_QUALITY_INSTALLATION_CONTROLS;
+    else process.env.JSON_QUALITY_INSTALLATION_CONTROLS = previousInstallation;
   }
 });
 
@@ -471,15 +532,16 @@ test("consumer bootstraps are generated from one shared source and drift fails",
   const bootstrapPath = join(context.toolingRoot, "bootstrap.mjs");
   writeFileSync(
     bootstrapPath,
-    jsonQualityAcquisitionBootstrap().replaceAll("\r\n", "\n"),
+    readJsonQualityAcquisitionBootstrapSource().replaceAll("\r\n", "\n"),
   );
   assert.equal(
-    (await verifyJsonQualityInstallation({ ...context, bootstrapPath })).files,
+    (await verifyJsonQualityInstallation({ ...context, bootstrapPath }))
+      .fileCount,
     5,
   );
   writeFileSync(
     bootstrapPath,
-    jsonQualityAcquisitionBootstrap() + "\n// unreviewed change\n",
+    readJsonQualityAcquisitionBootstrapSource() + "\n// unreviewed change\n",
   );
   await assert.rejects(
     verifyJsonQualityInstallation({ ...context, bootstrapPath }),
@@ -531,7 +593,7 @@ test("payload bounds can be raised or bypassed without waiving file identity", a
   await assert.rejects(
     verifyJsonQualityInstallation({
       ...context,
-      capacityLimits: { maxFiles: 1 },
+      installationControls: { maximumPackageFamilyFiles: 1 },
     }),
     /resource limit/u,
   );
@@ -539,19 +601,23 @@ test("payload bounds can be raised or bypassed without waiving file identity", a
     (
       await verifyJsonQualityInstallation({
         ...context,
-        capacityLimits: { maxFiles: 10 },
+        installationControls: { maximumPackageFamilyFiles: 10 },
       })
-    ).files,
+    ).fileCount,
     5,
   );
   assert.equal(
-    (await verifyJsonQualityInstallation({ ...context, capacityLimits: false }))
-      .files,
+    (
+      await verifyJsonQualityInstallation({
+        ...context,
+        installationControls: false,
+      })
+    ).fileCount,
     5,
   );
   writeFileSync(join(context.installedRoot, "unexpected.js"), "unexpected\n");
   await assert.rejects(
-    verifyJsonQualityInstallation({ ...context, capacityLimits: false }),
+    verifyJsonQualityInstallation({ ...context, installationControls: false }),
     /payload differs/u,
   );
 });
@@ -597,7 +663,7 @@ for (const type of ["SolarisACL", "SparseFile", "ExtendedHeader"]) {
     await assert.rejects(
       verifyJsonQualityInstallation({
         ...context,
-        capacityLimits: { maxFileBytes: 8192, maxTotalBytes: 8192 },
+        installationControls: false,
       }),
       /Unsupported or oversized package archive member/u,
     );

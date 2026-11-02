@@ -6,6 +6,7 @@ import { relative, sep } from "node:path";
 import { encodeNativeControl } from "./native-control.js";
 import { repositoryMembers } from "./repository-check.js";
 import { recheckRepositorySource } from "./repository-source.js";
+import { recheckPolicyObservation } from "./policy-bootstrap.js";
 import { recheckNativeAuthorities } from "./native-provider.js";
 import {
   recheckRepositoryDiscovery,
@@ -33,12 +34,18 @@ function selection(
     typeof options !== "object" ||
     Array.isArray(options) ||
     Object.keys(options).some(
-      (key) => !["files", "transformControls"].includes(key),
+      (key) => !["files", "transformControls", "dryRun"].includes(key),
     )
   )
     throw new TypeError(
       "Expected an explicit format/normalize operation and optional files.",
     );
+  if (
+    options.dryRun !== undefined &&
+    (typeof options.dryRun !== "boolean" ||
+      (options.dryRun && operation !== "normalize"))
+  )
+    throw new TypeError("A true dryRun belongs only to normalize.");
   if (
     operation === "normalize" &&
     (!Array.isArray(options.files) || !options.files.length)
@@ -75,13 +82,16 @@ async function policyAllowsWrite(
   });
   if (
     member.kind !== "physical" ||
-    contract.allowFormatWrites !== true ||
+    contract.allowSourceRewrites !== true ||
     isJsonLinesPath(member.path)
   )
     return false;
   const parts = member.path.split("/");
   for (let length = 1; length < parts.length; length++)
-    if (execution.contractFor(parts.slice(0, length).join("/") + "/").exclude)
+    if (
+      execution.contractFor(parts.slice(0, length).join("/") + "/")
+        .excludeUntrackedSources
+    )
       return false;
   // Windows Git/index spelling can differ from the actual directory entry.
   // Permission must also survive matching the canonical filesystem spelling;
@@ -98,12 +108,12 @@ async function policyAllowsWrite(
     const actualContract = execution.contractFor(actual, {
       tracked: member.provider === "git",
     });
-    if (actualContract.allowFormatWrites !== true) return false;
+    if (actualContract.allowSourceRewrites !== true) return false;
     const actualParts = actual.split("/");
     for (let length = 1; length < actualParts.length; length++)
       if (
         execution.contractFor(actualParts.slice(0, length).join("/") + "/")
-          .exclude
+          .excludeUntrackedSources
       )
         return false;
   }
@@ -157,6 +167,7 @@ async function selectWritablePaths(
   /** @type {*} */ execution,
   /** @type {*} */ selected,
   /** @type {*} */ gitExecutable,
+  /** @type {*} */ operation,
 ) {
   return withGitIgnoreReservation(
     execution,
@@ -198,6 +209,15 @@ async function selectWritablePaths(
       }
       for await (const member of members()) {
         execution.signal?.throwIfAborted();
+        if (
+          operation === "normalize" &&
+          execution.contractFor(member.path, {
+            tracked: member.provider === "git",
+          }).normalization !== "NFC"
+        )
+          throw new TypeError(
+            `Normalization is forbidden by preservation policy: ${member.path}`,
+          );
         if (!(await policyAllowsWrite(root, member, execution))) {
           if (selected)
             throw new Error(
@@ -230,8 +250,8 @@ async function* sourceBytes(
     signal?.throwIfAborted();
     const range = await core.command("read-source", {
       source,
-      offset: String(offset),
-      maximum: "65536",
+      byteOffset: String(offset),
+      maximumBytes: "65536",
     });
     if (range.data?.length) yield range.data;
     offset += BigInt(range.data?.length ?? 0);
@@ -292,7 +312,7 @@ async function fresh(
   const policy = (
     await core.command("rewrite-get", { path: ".json-quality.json" })
   ).result.candidate;
-  await recheckRepositorySource({
+  await recheckPolicyObservation({
     root,
     member: policy?.written
       ? { ...execution.policyObservation, ...policy }
@@ -352,7 +372,13 @@ export async function* rewriteRepository(
   try {
     await core.command("rewrite-start", { operation });
     await fresh(root, execution, gitExecutable, false);
-    await selectWritablePaths(root, execution, selected, gitExecutable);
+    await selectWritablePaths(
+      root,
+      execution,
+      selected,
+      gitExecutable,
+      operation,
+    );
     for await (const candidate of candidates(core, execution.signal)) {
       const member = (
           await core.command("census-get", { path: candidate.path })
@@ -379,7 +405,8 @@ export async function* rewriteRepository(
               signal: execution.signal,
               allowEmptyKeys: contract.allowEmptyKeys,
               normalization: contract.normalization,
-              preserveNfcValues: contract.preserveNfcValues,
+              nfcExemptStringValues: contract.nfcExemptStringValues,
+              preview: options.dryRun === true,
             },
           );
       // Selected complete policy applies again after transformation. Preflight
@@ -421,6 +448,17 @@ export async function* rewriteRepository(
         path: member.path,
         source: captured.source,
       });
+      if (options.dryRun)
+        for (const change of transformed.normalizationChanges)
+          yield {
+            type: "normalization-preview-change",
+            operation,
+            path: member.path,
+            sourceSha256: member.sha256,
+            sourceByteLength: member.byteLength,
+            ...change,
+            ...execution.implementationIdentity,
+          };
       text = undefined;
       await transformed.release();
       transformed = undefined;
@@ -474,10 +512,26 @@ export async function* rewriteRepository(
     yield {
       type: "write-preflight",
       operation,
-      selected: admitted.selected,
-      changed: admitted.changed,
+      selectedPathCount: admitted.selectedPathCount,
+      changedPathCount: admitted.changedPathCount,
       preflightComplete: true,
     };
+    if (options.dryRun) {
+      const status = (await core.command("rewrite-status")).result;
+      yield {
+        type: "normalization-preview-terminal",
+        operation,
+        ...execution.implementationIdentity,
+        selectedPathCount: status.selectedPathCount,
+        changedPathCount: status.changedPathCount,
+        complete: true,
+        preflightComplete: true,
+        sourceObservationsComplete: true,
+        qualityPassed: status.qualityPassed,
+        findingCount: status.findingCount,
+      };
+      return;
+    }
     // Re-read indexed candidates for effects, with the mutable policy last.
     for (const policyLast of [false, true])
       for await (const candidate of candidates(core, execution.signal)) {
@@ -539,21 +593,47 @@ export async function* rewriteRepository(
     yield {
       type: "write-terminal",
       operation,
-      selected: status.selected,
-      changed: status.changed,
-      written: status.written,
+      selectedPathCount: status.selectedPathCount,
+      changedPathCount: status.changedPathCount,
+      writtenPathCount: status.writtenPathCount,
+      qualityPassed: status.qualityPassed,
+      findingCount: status.findingCount,
       complete: true,
       writesComplete: true,
       preflightComplete: true,
       sourceObservationsComplete: true,
     };
   } catch (error) {
+    // Native request-refused responses carry a code; direct binding faults
+    // carry the same exact native identity as their Error message.
+    const refusalCode =
+      /** @type {NodeJS.ErrnoException} */ (error).code ??
+      (error instanceof Error ? error.message : "");
+    if (
+      options.dryRun &&
+      [
+        "rewrite-unsafe-source",
+        "rewrite-candidate-not-accepted",
+        "rewrite-peer-preflight-failed",
+      ].includes(refusalCode)
+    ) {
+      yield {
+        type: "normalization-preview-terminal",
+        operation,
+        ...execution.implementationIdentity,
+        complete: true,
+        preflightComplete: false,
+        sourceObservationsComplete: true,
+        message: String(/** @type {Error} */ (error).message),
+      };
+      return;
+    }
     yield {
       type: "write-failure",
       operation,
       complete: false,
       preflightComplete,
-      written: String(written),
+      writtenPathCount: String(written),
       uncertainPath,
       message: String(error instanceof Error ? error.message : error).slice(
         0,

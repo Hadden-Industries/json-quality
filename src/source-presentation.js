@@ -26,7 +26,7 @@ export function sourcePresentationContract(
   if (!selected.length) return contract;
   return {
     ...contract,
-    allowFormatWrites: false,
+    allowSourceRewrites: false,
     formatContract: "preserved-bytes",
     exceptions: [...contract.exceptions, ...selected],
     expected: contract.expected ?? {

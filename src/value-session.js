@@ -34,7 +34,7 @@ class ValueSession {
     const reference = Object.freeze({
       ...metadata,
       kind,
-      identity: `${this.#scope}:${kind}:${id}`,
+      referenceId: `${this.#scope}:${kind}:${id}`,
     });
     references.set(reference, { owner: this, kind, id });
     return reference;
@@ -71,6 +71,12 @@ class ValueSession {
         value: { ...argument, reference: this.#value(id) },
       };
     }
+    if (event.arguments?.containerValue || event.arguments?.priorValue) {
+      result.arguments = { ...(result.arguments ?? event.arguments) };
+      for (const key of ["containerValue", "priorValue"])
+        if (Object.hasOwn(event.arguments, key))
+          result.arguments[key] = this.#value(event.arguments[key]);
+    }
     if (event.linkage)
       result.linkage = {
         ...event.linkage,
@@ -80,6 +86,10 @@ class ValueSession {
         ),
         value: this.#value(event.linkage.value),
       };
+    if (event.type === "nfc-key-collision-risk") {
+      result.containerValue = this.#value(event.containerValue);
+      result.priorValue = this.#value(event.priorValue);
+    }
     return result;
   }
   /** Logical identity remains stable across repeated projections and backing
@@ -118,7 +128,8 @@ class ValueSession {
           throw new Error("source-event-correlation");
         if (
           event.type === "execution-terminal" ||
-          event.type === "write-terminal"
+          event.type === "write-terminal" ||
+          event.type === "normalization-preview-terminal"
         )
           completed = true;
         yield this.#project(event, event.source ? source : undefined);
@@ -139,7 +150,7 @@ class ValueSession {
     /** @type {*} */ contract = {},
     /** @type {*} */ {
       identity,
-      includeValues = false,
+      includeValueEvents = false,
       retainValues = true,
       signal,
       transformOf,
@@ -155,7 +166,7 @@ class ValueSession {
     try {
       const captured = await this.#core.capture(chunks, contract, {
         identity,
-        includeValueEvents: includeValues,
+        includeValueEvents,
         retainValues,
         transformOf:
           transformOf === undefined
@@ -255,9 +266,9 @@ class ValueSession {
    * without a complete JS string or a giant control frame. The raw pointer and
    * decoded lookup segment use the same accounted adaptive native store.
    */
-  async selectStream(
+  async selectByPointerStream(
     /** @type {*} */ source,
-    /** @type {*} */ chunks,
+    /** @type {*} */ pointerByteChunks,
     /** @type {*} */ { identity, record, signal } = {},
   ) {
     const id = this.#resolve(source, "source");
@@ -269,7 +280,7 @@ class ValueSession {
     signal?.addEventListener("abort", cancel, { once: true });
     try {
       captured = await this.#core.capture(
-        chunks,
+        pointerByteChunks,
         {},
         {
           identity,
@@ -298,19 +309,19 @@ class ValueSession {
   async read(
     /** @type {*} */ value,
     /** @type {*} */ representation,
-    offset = "0",
-    maximum = "65536",
+    byteOffset = "0",
+    maximumBytes = "65536",
   ) {
     const id = this.#resolve(value, "value"),
       { result, data } = await this.#core.read(
         id,
         representation,
-        offset,
-        maximum,
+        byteOffset,
+        maximumBytes,
       );
     return {
       bytes: data,
-      offset: result.offset,
+      byteOffset: result.byteOffset,
       totalByteLength: result.totalByteLength,
     };
   }
@@ -318,16 +329,20 @@ class ValueSession {
   /** Read identified original source bytes, including whitespace and rejected
    * input. Source access makes no claim that parsing or domain checks passed.
    */
-  async readSource(/** @type {*} */ source, offset = "0", maximum = "65536") {
+  async readSource(
+    /** @type {*} */ source,
+    byteOffset = "0",
+    maximumBytes = "65536",
+  ) {
     const id = this.#resolve(source, "source"),
       { result, data } = await this.#core.command("read-source", {
         source: id,
-        offset,
-        maximum,
+        byteOffset,
+        maximumBytes,
       });
     return {
       bytes: data,
-      offset: result.offset,
+      byteOffset: result.byteOffset,
       totalByteLength: result.totalByteLength,
     };
   }
@@ -362,26 +377,26 @@ class ValueSession {
   async materialize(
     /** @type {*} */ value,
     /** @type {*} */ representation,
-    /** @type {*} */ maximum,
+    /** @type {*} */ maximumBytes,
   ) {
     return this.#materialize(
       value,
       representation,
-      maximum,
+      maximumBytes,
       "reserve-materialization",
     );
   }
   async #materialize(
     /** @type {*} */ value,
     /** @type {*} */ representation,
-    /** @type {*} */ maximum,
+    /** @type {*} */ maximumBytes,
     /** @type {*} */ command,
   ) {
     const id = this.#resolve(value, "value"),
       { result } = await this.#core.command(command, {
         value: id,
         representation,
-        maximum,
+        maximumBytes,
       });
     let /** @type {any} */ bytes,
       released = false,
@@ -441,7 +456,7 @@ class ValueSession {
    */
   async materializeControl(
     /** @type {*} */ value,
-    /** @type {*} */ maximum,
+    /** @type {*} */ maximumBytes,
     /** @type {*} */ validate,
   ) {
     if (typeof validate !== "function")
@@ -449,7 +464,7 @@ class ValueSession {
     const lease = await this.#materialize(
       value,
       "source-json",
-      maximum,
+      maximumBytes,
       "reserve-control-materialization",
     );
     let /** @type {any} */ object;

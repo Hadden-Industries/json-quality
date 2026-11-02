@@ -1,5 +1,5 @@
 {
-  "title": "JSON Quality event, cohort 3",
+  "title": "JSON Quality event, cohort 4",
   "description": "One delivered event. Absence of the applicable terminal means incomplete delivery. Serialized reference identities are labels, never access capabilities.",
   "type": "object",
   "additionalProperties": false,
@@ -13,21 +13,20 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "trustedSha",
-        "candidateSha",
-        "trustedPolicyBlob",
+        "trustedCommitId",
+        "candidateCommitId",
         "scope"
       ],
       "properties": {
-        "trustedSha": {
+        "trustedCommitId": {
           "type": "string",
           "pattern": "^[a-f0-9]{40}$"
         },
-        "candidateSha": {
+        "candidateCommitId": {
           "type": "string",
           "pattern": "^[a-f0-9]{40}$"
         },
-        "trustedPolicyBlob": {
+        "trustedPolicyBlobId": {
           "type": "string",
           "pattern": "^[a-f0-9]{40}$"
         },
@@ -37,7 +36,7 @@
       }
     },
     "schemaVersion": {
-      "const": 3
+      "const": 4
     },
     "requestId": {
       "type": "string",
@@ -55,7 +54,10 @@
         "write-preflight",
         "written",
         "write-terminal",
-        "write-failure"
+        "write-failure",
+        "nfc-key-collision-risk",
+        "normalization-preview-change",
+        "normalization-preview-terminal"
       ]
     },
     "path": {
@@ -108,7 +110,7 @@
       "type": "boolean"
     },
     "byteLength": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     },
     "sha256": {
       "anyOf": [
@@ -122,19 +124,19 @@
       ]
     },
     "ordinal": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     },
     "record": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
     },
     "rawByteLength": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     },
     "sourceByteOffset": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     },
     "nfcByteLength": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     },
     "closed": {
       "type": "boolean"
@@ -144,14 +146,8 @@
     },
     "valueKind": {
       "enum": [
-        "string",
         "key",
-        "number",
-        "true",
-        "false",
-        "null",
-        "array",
-        "object"
+        "string"
       ]
     },
     "kind": {
@@ -193,16 +189,16 @@
       "type": "object"
     },
     "line": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
     },
     "column": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
     },
     "endLine": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
     },
     "endColumn": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
     },
     "parserComplete": {
       "type": "boolean"
@@ -246,25 +242,25 @@
     "domainComplete": {
       "const": false
     },
-    "findings": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+    "findingCount": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     },
     "managedPeakBytes": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     },
-    "transitions": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+    "spillTransitionCount": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     },
     "scratchPeakBytes": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     },
-    "members": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+    "inventoryMemberCount": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     },
     "recordCount": {
       "anyOf": [
         {
-          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
         },
         {
           "type": "null"
@@ -276,10 +272,6 @@
       "pattern": "^[a-f0-9]{64}$"
     },
     "diagnosticSha256": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "policySha256": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"
     },
@@ -322,10 +314,10 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "maxFiles",
-            "maxFileBytes",
-            "maxTotalBytes",
-            "maxLogicalDocuments",
+            "maxPhysicalAndNativeSources",
+            "maxSourceBytes",
+            "maxTotalSourceBytes",
+            "maxNativeLogicalAndTransformedSources",
             "maxRecords",
             "maxDiagnostics",
             "maxPolicyBytes",
@@ -333,48 +325,45 @@
             "maxToolOutputBytes",
             "maxToolTimeMs",
             "maxGitTimeMs",
-            "maxAcquisitionTimeMs",
-            "maxCacheLookupTimeMs",
-            "maxCacheOutputBytes",
-            "maxRequestIdCharacters",
+            "maxRequestIdCodePoints",
             "maxRequestBytes",
-            "maxRequestPathCharacters"
+            "maxRequestPathCodePoints"
           ],
           "properties": {
-            "maxFiles": {
+            "maxPhysicalAndNativeSources": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
                 }
               ]
             },
-            "maxFileBytes": {
+            "maxSourceBytes": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
                 }
               ]
             },
-            "maxTotalBytes": {
+            "maxTotalSourceBytes": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
                 }
               ]
             },
-            "maxLogicalDocuments": {
+            "maxNativeLogicalAndTransformedSources": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -384,7 +373,7 @@
             "maxRecords": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -394,7 +383,7 @@
             "maxDiagnostics": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -404,7 +393,7 @@
             "maxPolicyBytes": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -414,7 +403,7 @@
             "maxGitOutputBytes": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -424,7 +413,7 @@
             "maxToolOutputBytes": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -434,7 +423,7 @@
             "maxToolTimeMs": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -444,47 +433,17 @@
             "maxGitTimeMs": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
                 }
               ]
             },
-            "maxAcquisitionTimeMs": {
+            "maxRequestIdCodePoints": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "maxCacheLookupTimeMs": {
-              "anyOf": [
-                {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "maxCacheOutputBytes": {
-              "anyOf": [
-                {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "maxRequestIdCharacters": {
-              "anyOf": [
-                {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -494,17 +453,17 @@
             "maxRequestBytes": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
                 }
               ]
             },
-            "maxRequestPathCharacters": {
+            "maxRequestPathCodePoints": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -517,16 +476,16 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "managedMemoryTargetBytes",
+            "maxManagedMemoryBytes",
             "maxTemporaryBytes",
             "maxNestingDepth",
             "maxCheckTimeMs"
           ],
           "properties": {
-            "managedMemoryTargetBytes": {
+            "maxManagedMemoryBytes": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -536,7 +495,7 @@
             "maxTemporaryBytes": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -546,7 +505,7 @@
             "maxNestingDepth": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -556,7 +515,7 @@
             "maxCheckTimeMs": {
               "anyOf": [
                 {
-                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
                 },
                 {
                   "type": "null"
@@ -589,14 +548,11 @@
         "normalize"
       ]
     },
-    "selected": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+    "selectedPathCount": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     },
-    "changed": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
-    },
-    "written": {
-      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+    "changedPathCount": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     },
     "preflightComplete": {
       "type": "boolean"
@@ -614,6 +570,164 @@
           "type": "null"
         }
       ]
+    },
+    "writtenPathCount": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
+    },
+    "configurationOrigin": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "repository-file"
+            },
+            "path": {
+              "const": ".json-quality.json"
+            }
+          },
+          "required": [
+            "kind",
+            "path"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "repository-absence"
+            },
+            "path": {
+              "const": ".json-quality.json"
+            }
+          },
+          "required": [
+            "kind",
+            "path"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "git-blob"
+            },
+            "path": {
+              "const": ".json-quality.json"
+            },
+            "commitId": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            },
+            "blobId": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          },
+          "required": [
+            "kind",
+            "path",
+            "commitId",
+            "blobId"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "git-absence"
+            },
+            "path": {
+              "const": ".json-quality.json"
+            },
+            "commitId": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          },
+          "required": [
+            "kind",
+            "path",
+            "commitId"
+          ]
+        }
+      ]
+    },
+    "defaultPolicySha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "policyResolverInputsSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "configurationBytesSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "policyInputsSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "configurationByteLength": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
+    },
+    "formatEligible": {
+      "type": "boolean"
+    },
+    "normalizeEligible": {
+      "type": "boolean"
+    },
+    "containerValue": {
+      "$ref": "#/$defs/valueReference"
+    },
+    "priorValue": {
+      "$ref": "#/$defs/valueReference"
+    },
+    "priorLine": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
+    },
+    "priorColumn": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
+    },
+    "priorEndLine": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
+    },
+    "priorEndColumn": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
+    },
+    "normalizedSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "normalizedByteLength": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
+    },
+    "sourceByteLength": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
+    },
+    "pointer": {
+      "type": "string",
+      "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+    },
+    "icuVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "unicodeVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decodedByteLength": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
+    },
+    "decodedSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "oneOf": [
@@ -734,11 +848,11 @@
         "qualityPassed": true,
         "expectedMatched": true,
         "contractSatisfied": true,
-        "findings": true,
+        "findingCount": true,
         "diagnosticSha256": true,
         "sourceSha256": true,
         "managedPeakBytes": true,
-        "transitions": true,
+        "spillTransitionCount": true,
         "scratchPeakBytes": true,
         "path": true,
         "scope": true,
@@ -747,7 +861,9 @@
         "linkage": true,
         "type": {
           "const": "terminal"
-        }
+        },
+        "formatEligible": true,
+        "normalizeEligible": true
       },
       "required": [
         "source",
@@ -761,12 +877,14 @@
         "qualityPassed",
         "expectedMatched",
         "contractSatisfied",
-        "findings",
+        "findingCount",
         "diagnosticSha256",
         "sourceSha256",
         "managedPeakBytes",
-        "transitions",
-        "scratchPeakBytes"
+        "spillTransitionCount",
+        "scratchPeakBytes",
+        "formatEligible",
+        "normalizeEligible"
       ]
     },
     {
@@ -775,17 +893,74 @@
         "schemaVersion": true,
         "requestId": true,
         "resources": true,
-        "policySha256": true,
         "coreSourceInputsSha256": true,
         "qualification": true,
         "type": {
           "const": "execution"
-        }
+        },
+        "configurationOrigin": true,
+        "defaultPolicySha256": true,
+        "policyResolverInputsSha256": true,
+        "policyInputsSha256": true,
+        "configurationBytesSha256": true,
+        "configurationByteLength": true
       },
       "required": [
         "resources",
-        "policySha256",
-        "coreSourceInputsSha256"
+        "coreSourceInputsSha256",
+        "configurationOrigin",
+        "defaultPolicySha256",
+        "policyResolverInputsSha256",
+        "policyInputsSha256"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "configurationOrigin": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "repository-file",
+                      "git-blob"
+                    ]
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "configurationBytesSha256",
+              "configurationByteLength"
+            ],
+            "properties": {
+              "configurationBytesSha256": true,
+              "configurationByteLength": true
+            }
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "configurationBytesSha256"
+                  ]
+                },
+                {
+                  "required": [
+                    "configurationByteLength"
+                  ]
+                }
+              ],
+              "properties": {
+                "configurationBytesSha256": true,
+                "configurationByteLength": true
+              }
+            }
+          }
+        }
       ]
     },
     {
@@ -799,7 +974,7 @@
         "sourceObservationsComplete": true,
         "diagnosticsComplete": true,
         "domainComplete": true,
-        "members": true,
+        "inventoryMemberCount": true,
         "qualityPassed": true,
         "contractSatisfied": true,
         "type": {
@@ -812,7 +987,7 @@
         "sourceObservationsComplete",
         "diagnosticsComplete",
         "domainComplete",
-        "members",
+        "inventoryMemberCount",
         "qualityPassed",
         "contractSatisfied"
       ]
@@ -845,8 +1020,8 @@
           "const": "write-preflight"
         },
         "operation": true,
-        "selected": true,
-        "changed": true,
+        "selectedPathCount": true,
+        "changedPathCount": true,
         "preflightComplete": {
           "const": true
         }
@@ -856,8 +1031,8 @@
         "requestId",
         "type",
         "operation",
-        "selected",
-        "changed",
+        "selectedPathCount",
+        "changedPathCount",
         "preflightComplete"
       ]
     },
@@ -895,9 +1070,8 @@
           "const": "write-terminal"
         },
         "operation": true,
-        "selected": true,
-        "changed": true,
-        "written": true,
+        "selectedPathCount": true,
+        "changedPathCount": true,
         "complete": {
           "const": true
         },
@@ -909,20 +1083,25 @@
         },
         "sourceObservationsComplete": {
           "const": true
-        }
+        },
+        "writtenPathCount": true,
+        "qualityPassed": true,
+        "findingCount": true
       },
       "required": [
         "schemaVersion",
         "requestId",
         "type",
         "operation",
-        "selected",
-        "changed",
-        "written",
+        "selectedPathCount",
+        "changedPathCount",
+        "writtenPathCount",
         "complete",
         "writesComplete",
         "preflightComplete",
-        "sourceObservationsComplete"
+        "sourceObservationsComplete",
+        "qualityPassed",
+        "findingCount"
       ]
     },
     {
@@ -939,9 +1118,9 @@
           "const": false
         },
         "preflightComplete": true,
-        "written": true,
         "uncertainPath": true,
-        "message": true
+        "message": true,
+        "writtenPathCount": true
       },
       "required": [
         "schemaVersion",
@@ -950,32 +1129,155 @@
         "operation",
         "complete",
         "preflightComplete",
-        "written",
+        "writtenPathCount",
         "uncertainPath",
         "message"
+      ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "source": true,
+        "path": true,
+        "scope": true,
+        "linkedExpectationsComplete": true,
+        "record": true,
+        "containerValue": true,
+        "value": true,
+        "priorValue": true,
+        "line": true,
+        "column": true,
+        "endLine": true,
+        "endColumn": true,
+        "priorLine": true,
+        "priorColumn": true,
+        "priorEndLine": true,
+        "priorEndColumn": true,
+        "normalizedSha256": true,
+        "normalizedByteLength": true,
+        "type": {
+          "const": "nfc-key-collision-risk"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "source",
+        "containerValue",
+        "value",
+        "priorValue",
+        "line",
+        "column",
+        "endLine",
+        "endColumn",
+        "priorLine",
+        "priorColumn",
+        "priorEndLine",
+        "priorEndColumn",
+        "normalizedSha256",
+        "normalizedByteLength"
+      ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "operation": true,
+        "path": true,
+        "sourceSha256": true,
+        "sourceByteLength": true,
+        "sourceByteOffset": true,
+        "rawByteLength": true,
+        "pointer": true,
+        "valueKind": true,
+        "normalizedSha256": true,
+        "normalizedByteLength": true,
+        "coreSourceInputsSha256": true,
+        "icuVersion": true,
+        "unicodeVersion": true,
+        "type": {
+          "const": "normalization-preview-change"
+        },
+        "decodedByteLength": true,
+        "decodedSha256": true
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "operation",
+        "path",
+        "sourceSha256",
+        "sourceByteLength",
+        "sourceByteOffset",
+        "rawByteLength",
+        "pointer",
+        "valueKind",
+        "normalizedSha256",
+        "normalizedByteLength",
+        "coreSourceInputsSha256",
+        "icuVersion",
+        "unicodeVersion",
+        "decodedByteLength",
+        "decodedSha256"
+      ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "operation": true,
+        "complete": true,
+        "preflightComplete": true,
+        "sourceObservationsComplete": true,
+        "selectedPathCount": true,
+        "changedPathCount": true,
+        "qualityPassed": true,
+        "findingCount": true,
+        "message": true,
+        "type": {
+          "const": "normalization-preview-terminal"
+        },
+        "coreSourceInputsSha256": true,
+        "icuVersion": true,
+        "unicodeVersion": true
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "operation",
+        "complete",
+        "preflightComplete",
+        "sourceObservationsComplete",
+        "coreSourceInputsSha256",
+        "icuVersion",
+        "unicodeVersion"
       ]
     }
   ],
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Hadden-Industries/json-quality/schema/event/v3",
+  "$id": "https://github.com/Hadden-Industries/json-quality/schema/event/v4",
   "$defs": {
     "valueReference": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "kind",
-        "identity"
+        "referenceId"
       ],
       "properties": {
         "kind": {
           "const": "value"
         },
-        "identity": {
+        "referenceId": {
           "type": "string",
           "pattern": "^[a-f0-9-]{36}:value:[1-9][0-9]*$"
         },
         "byteLength": {
-          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
         },
         "sha256": {
           "anyOf": [
@@ -989,19 +1291,19 @@
           ]
         },
         "ordinal": {
-          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
         },
         "record": {
-          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/positiveIntegerText"
+          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
         },
         "rawByteLength": {
-          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
         },
         "sourceByteOffset": {
-          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
         },
         "nfcByteLength": {
-          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
         },
         "closed": {
           "type": "boolean"
@@ -1028,18 +1330,18 @@
       "additionalProperties": false,
       "required": [
         "kind",
-        "identity"
+        "referenceId"
       ],
       "properties": {
         "kind": {
           "const": "source"
         },
-        "identity": {
+        "referenceId": {
           "type": "string",
           "pattern": "^[a-f0-9-]{36}:source:[1-9][0-9]*$"
         },
         "byteLength": {
-          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v3#/$defs/unsignedIntegerText"
+          "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
         },
         "sha256": {
           "type": "string",

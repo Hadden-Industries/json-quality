@@ -12,15 +12,16 @@ import {
   verifyManifest,
 } from "./release-contract.js";
 import { api, pages } from "./release-provider.js";
+import { securityScans } from "./security-scans.js";
 
 export function verifyCodeql(analyses, source) {
   assert.match(source, /^[a-f0-9]{40}$/u);
-  return ["actions", "javascript-typescript"].map((language) => {
+  return securityScans.map(({ key, language, os, category }) => {
     const matches = analyses.filter(
       (analysis) =>
         analysis.commit_sha === source &&
         analysis.ref === "refs/heads/main" &&
-        analysis.category === `/language:${language}` &&
+        analysis.category === category &&
         [
           "security.yml",
           "release-qualification.yml",
@@ -32,8 +33,17 @@ export function verifyCodeql(analyses, source) {
         ) &&
         analysis.tool?.name === "CodeQL",
     );
-    assert.ok(matches.length, `Missing exact-source CodeQL ${language}`);
-    const analysis = matches[0];
+    assert.ok(matches.length, `Missing exact-source CodeQL ${key}`);
+    assert.ok(
+      matches.every((value) => Number.isSafeInteger(value.id) && value.id > 0),
+    );
+    const analysis = [...matches].sort((a, b) => b.id - a.id)[0];
+    for (const duplicate of matches.filter((value) => value.id === analysis.id))
+      assert.deepEqual(
+        duplicate,
+        analysis,
+        "Conflicting CodeQL analysis identity",
+      );
     assert.equal(analysis.error, "");
     assert.equal(analysis.warning, "");
     assert.equal(
@@ -44,7 +54,12 @@ export function verifyCodeql(analyses, source) {
     assert.ok(
       Number.isSafeInteger(analysis.rules_count) && analysis.rules_count > 0,
     );
-    assert.equal(JSON.parse(analysis.environment).language, language);
+    const environment = JSON.parse(analysis.environment);
+    assert.equal(environment.language, language);
+    if (language === "c-cpp") {
+      assert.equal(environment.key, key);
+      assert.equal(environment.os, os);
+    }
     return analysis;
   });
 }
@@ -83,7 +98,7 @@ export function qualifySecurity(release, manifestBytes) {
   );
   const selected = verifyCodeql(analyses, release.source.commit);
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     source: release.source.commit,
     manifestSha256: sha256(manifestBytes),
     run: process.env.GITHUB_RUN_ID,

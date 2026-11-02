@@ -141,7 +141,7 @@ for (const owner of ["source", "repository"])
         }
         const options = {
           temporaryDirectory: directory,
-          runtimeControls: { managedMemoryTargetBytes: 16777216 },
+          runtimeControls: { maxManagedMemoryBytes: 16777216 },
         };
         let events;
         if (owner === "source") {
@@ -162,10 +162,10 @@ for (const owner of ["source", "repository"])
             join(root, ".json-quality.json"),
             JSON.stringify(
               {
-                schemaVersion: 3,
+                schemaVersion: 4,
                 defaults: {
                   formatContract: "prettier-json",
-                  allowFormatWrites: true,
+                  allowSourceRewrites: true,
                   normalization: "NFC",
                 },
                 exceptions: [],
@@ -184,7 +184,7 @@ for (const owner of ["source", "repository"])
             ...options,
             root,
           });
-          events = session.events();
+          events = session.check();
         }
         let terminal;
         for await (const event of events) {

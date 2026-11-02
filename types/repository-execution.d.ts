@@ -20,13 +20,18 @@ export declare function createRepositoryExecution(
   }: any,
 ): Promise<{
   core: NativeSession;
+  implementationIdentity: {
+    coreSourceInputsSha256: any;
+    icuVersion: any;
+    unicodeVersion: any;
+  };
   contractFor: (
     path: any,
     source?: any,
   ) => import("./api-types.js").JsonContract;
   policyObservation: any;
   policyTransformControls: any;
-  controlStateBytes: any;
+  controlStateBytes: string;
   numericResources: {
     admission: any;
     runtime: any;

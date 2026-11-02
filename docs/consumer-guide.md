@@ -1,22 +1,36 @@
-# Consumer guide: cohort 3
+# Consumer guide: cohort 4
 
-Contract cohort 3 retains streamed checking and lossless access while making every resource quota caller-overridable.
-Upgrade the core and platform packages together, migrate policy `schemaVersion` to 3, and remove `maxConcurrency`.
+Contract cohort 4 supplies package-owned defaults for ordinary Git repositories, sparse configuration and separate presentation/NFC repairs while retaining streamed checking and lossless access.
+Upgrade the core and platform packages together; old explicit policy/schema names require migration.
 Move consumers together to the configuration, source-contract, event and native-protocol versions in `./contract-cohort`.
 There is no old-reader backend or size-dependent dispatch.
 Historical artifacts retain their original bytes and versions.
 
 ## Acquisition and public exports
 
-Install the package in an isolated tooling graph with lifecycle scripts disabled.
-Declare the published package version in the tooling project's `devDependencies` and commit the native npm lockfile.
-The owner-selected release candidate is `@hadden-industries/json-quality@1.0.0-rc.1`; source preparation does not itself establish registry availability.
-Use `npm ci --ignore-scripts` for clean installations after the release is publicly qualified.
-`jsonQualitySourceCoordinate` admits exact registry versions or exact aliases of this package; ranges, Git dependencies, file archives and alternate packages are refused.
+Ordinary consumers install a qualified package version as a development dependency and invoke its public binary:
+
+```sh
+npm install --save-dev --save-exact @hadden-industries/json-quality
+npm exec -- json-quality check
+npm exec -- json-quality format -- authored.json
+npm exec -- json-quality normalize --dry-run -- authored.json
+npm exec -- json-quality normalize -- authored.json
+```
+
+No wrapper, copied repository exclusions or `.json-quality.json` is required.
+Commit the npm-generated lockfile and use `npm ci` for clean installs.
+These cohort-4 source examples do not establish matching registry publication or installed qualification.
+
+### Advanced installation verification
+
+An isolated tooling graph remains supported for consumers requiring independently verified acquisition and package-family integrity.
+Declare the qualified exact package version in that graph and keep lifecycle scripts disabled when its admission workflow requires it.
+`parseJsonQualityRegistrySpecifier` admits exact registry versions or exact aliases of this package; ranges, Git dependencies, file archives and alternate packages are refused.
 The producer owns native compilation, packaging and distribution; consumers do not copy release archives into their repositories.
 Source commits identify review and CI inputs separately from the registry archive's immutable integrity.
 
-`jsonQualityAcquisitionBootstrap()` generates the maintained cold adapter.
+`readJsonQualityAcquisitionBootstrapSource()` generates the maintained cold adapter.
 Copy its returned source verbatim into the consumer's installer.
 After installation, `verifyJsonQualityInstallation({ toolingRoot, bootstrapPath })` verifies selector/lock identity, generated-bootstrap agreement and every installed package member against the independently cached locked payload.
 It performs no extraction or download.
@@ -24,7 +38,7 @@ Run through the selected npm toolchain and keep its native cache available.
 The cache is populated by native npm acquisition from the locked registry artifact.
 Git dependencies do not guarantee a portable packed-archive digest and cannot supply this proof.
 
-`assertIsolatedJsonQuality(toolingRoot)` prevents a tooling bridge from silently resolving a parent installation.
+`assertJsonQualityInstallationRoot(toolingRoot)` prevents a tooling bridge from silently resolving a parent installation.
 The core declares exact-version optional packages for Windows x64 and Linux x64 glibc, matching Markdown Quality's distribution pattern.
 Native npm installs the matching package; keep optional dependencies enabled.
 The installed checker resolves that package and requires its version to match the core.
@@ -36,8 +50,8 @@ The root export supplies:
 
 - `openJsonSourceSession`, `openJsonRepositorySession` and `validateJsonQualityEvent`;
 - `formatJsonSource`, `formatJsonValue`, `normalizeJsonSource` and their declared capability objects;
-- `admitJsonPolicy`, `jsonContract` and `jsonFormatOptions`;
-- `runJsonQualityCli`, `qualifyJsonConsumer` and acquisition/installation helpers.
+- `resolveJsonQualityPolicy`, `resolveJsonSourceContract` and `jsonFormatOptions`;
+- `runJsonQualityCli`, `qualifyGitJsonSources` and acquisition/installation helpers.
 
 Closed schemas are available through `./configuration-schema`, `./source-contract-schema`, `./event-schema` and `./contract-cohort`.
 `./eslint` exports the JavaScript identity guard; consumers install their own supported ESLint.
@@ -49,7 +63,7 @@ Private source paths and retired schema exports are denied.
 import { openJsonSourceSession } from "@hadden-industries/json-quality";
 
 const session = await openJsonSourceSession({
-  runtimeControls: { managedMemoryTargetBytes: 33554432 },
+  runtimeControls: { maxManagedMemoryBytes: 33554432 },
 });
 try {
   let source;
@@ -77,7 +91,7 @@ Contracts are validated before the opener is invoked.
 Supplying arrays, objects, a materialized document or a caller-selected backend is not this source contract.
 
 `select` accepts a decoded JSON Pointer.
-`selectStream` supports an identified streamed pointer for oversized keys.
+`selectByPointerStream` supports an identified streamed pointer for oversized keys.
 JSONL selection requires its exact physical `record` number in canonical decimal form.
 `describe`, `sameReference`, `read`, `fragments`, `readSource` and `sourceFragments` operate within the same session and store.
 `children(container)` asynchronously yields immediate children in source order as `{ value, name, ordinal }`, one descriptor at a time.
@@ -87,12 +101,12 @@ Byte offsets, lengths and counts use decimal strings; references are opaque capa
 Serialized reference labels do not grant access or survive closure.
 
 Read representations include `source-json`, `decoded-utf8`, `number-lexeme`, `nfc-utf8` and `json-pointer`, where applicable to the selected kind.
-Range reads return `bytes`, `offset` and `totalByteLength`.
+Range reads return `bytes`, `byteOffset` and `totalByteLength`.
 Consume fragments before requesting the next fragment.
 Retaining returned events, bytes or references adds consumer-owned state.
 
 `materialize` explicitly leases bounded representation bytes.
-`materializeControl(value, maximum, validator)` first reserves conservative byte/node workspace, then parses and invokes a complete caller-owned validator.
+`materializeControl(value, maximumBytes, validator)` first reserves conservative byte/node workspace, then parses and invokes a complete caller-owned validator.
 The entire retained source must have completed positive shared checking, including when only a finite subtree is converted.
 A subtree reservation excludes unrelated sibling nodes.
 Inspect `lease.value` while live, and `await lease.release()` afterwards.
@@ -108,14 +122,15 @@ Concurrent exchanges within one session are refused; independent sessions retain
 ```js
 const session = await openJsonRepositorySession({ root: repositoryRoot });
 try {
-  for await (const event of session.events()) consume(event);
+  for await (const event of session.check()) consume(event);
 } finally {
   await session.close();
 }
 ```
 
-The repository owns a strictly admitted, bounded `.json-quality.json` with `schemaVersion: 3`.
-Bootstrap is checked by the same core, materialized under a reservation, validated with the package's local Ajv schema, frozen, and charged to the configured execution.
+Proven policy absence selects an independent package-default snapshot.
+An optional `.json-quality.json` can contain `{}`, sparse overrides, or an explicit current `schemaVersion: 4` declaration.
+Present configuration is checked by the same core, materialized under a reservation, resolved with the package's local schemas, frozen, and charged to the execution.
 Invocation controls govern bootstrap; effective policy controls govern the main operation.
 
 Checking reconciles Git, actual owned-tree discovery, required generated outputs, native providers and logical providers.
@@ -147,7 +162,7 @@ Check-only executions retain full value indexes for those containers and exact p
 Explicit `retainValues: true` additionally retains values for the caller's later access.
 The factory runs after physical/native capture and receives a read-only view of the same execution's captured sources, value operations, effective resources and cancellation signal.
 Use `access.capturedSource(path)` and `select`/`describe`/`read`/`fragments` to locate actual container metadata without parsing a second complete container object.
-For one finite metadata record, `access.materializeControl(value, maximum, validator)` uses the shared byte/node reservation and caller-owned domain validator; release its lease before requesting another.
+For one finite metadata record, `access.materializeControl(value, maximumBytes, validator)` uses the shared byte/node reservation and caller-owned domain validator; release its lease before requesting another.
 Provider settlement releases any remaining borrowed lease.
 Explicit small `materialize` leases charge that same execution and must be released after use; factory settlement releases its outstanding leases and invalidates its borrowed references.
 The view exposes no source upload, checker, raw native ID, backend, close or write authority.
@@ -167,7 +182,9 @@ Collisions, unpinned values and other shared rules remain checked.
 The pure writers return finite text and never write a file.
 `formatJsonSource(text)` preserves decoded values, order and numeric lexemes under fixed package Prettier options.
 Default quality admission refuses unsafe or non-NFC content.
-Explicit source preservation can be selected through a closed `contract`, for example `{ normalization: "preserve", allowFormatWrites: false, owner, reason }`.
+Explicit decoded-Unicode preservation can be selected through a closed `contract`, for example `{ normalization: "preserve" }`, or sparse repository configuration `{ defaults: { normalization: "preserve" } }`.
+Formatting can preserve those sequences while repairing presentation; normalization refuses a preserved target.
+Use separate owner/rewrite or protected-byte controls when source bytes belong to another producer.
 This is an attributable contract choice, not automatic normalization.
 
 `formatJsonValue(value)` accepts an already materialized plain producer object.
@@ -179,7 +196,11 @@ Transform defaults are 2 MiB source/output and 4096 normalization changes; `tran
 Ordinary source checking does not inherit these materializing-operation defaults.
 Existing semantic hashing/canonicalization protocols must not be replaced by formatting.
 
-For repository effects, consume `session.events()` to completion, then iterate `session.rewrite("format", { files })` or `session.rewrite("normalize", { files })`.
+For repository effects, consume `session.check()` to completion, then iterate `session.rewrite("format", { files })` or `session.rewrite("normalize", { files })`.
+Normalize preview uses `session.rewrite("normalize", { files, dryRun: true })` and completes the same no-write batch preflight.
+NFC collisions refuse the entire selection before any write; owners must reconcile colliding keys explicitly.
+Format can leave ordinary NFC drift; normalize can leave presentation findings.
+`qualityPassed` and `findingCount` report the remaining quality separately from success of the selected operation.
 Normalization requires explicit paths; formatting can select all writable physical sources.
 One rewrite is permitted per retained session.
 A session opened with `retainValues: false` cannot rewrite.
@@ -198,12 +219,12 @@ The policy is replaced last.
 
 ## CLI and migration
 
-| Command                                        | Input and completion                                             |
-| ---------------------------------------------- | ---------------------------------------------------------------- |
-| `check --root PATH --json`                     | Complete repository, NDJSON ending in `execution-terminal`.      |
-| `source --json --contract JSON`                | Raw stdin, closed source contract, final source `terminal`.      |
-| `format --root PATH --json -- literal.json`    | Complete preflight, selected explicit writes, final write event. |
-| `normalize --root PATH --json -- literal.json` | Complete preflight and explicit NFC write selection.             |
+| Command                                          | Input and completion                                             |
+| ------------------------------------------------ | ---------------------------------------------------------------- |
+| `check --root PATH --ndjson`                     | Complete repository, NDJSON ending in `execution-terminal`.      |
+| `check-source --ndjson --contract JSON`          | Raw stdin, closed source contract, final source `terminal`.      |
+| `format --root PATH --ndjson -- literal.json`    | Complete preflight, selected explicit writes, final write event. |
+| `normalize --root PATH --ndjson -- literal.json` | Complete preflight and explicit NFC write selection.             |
 
 CLI success requires the applicable final terminal and exit 0.
 Shared quality/contract failure returns 1 for read-only checks.

@@ -1,4 +1,4 @@
-export declare const JSON_TRANSFORM_CAPABILITIES: {
+export declare const DEFAULT_JSON_TRANSFORM_LIMITS: {
   readonly [
     K in keyof Required<
       import("../types/schemas/configuration.js").TransformControls
@@ -40,8 +40,10 @@ export declare function retainedTransformResult(
   /** @type {*} */ text: any,
   /** @type {*} */ capture: any,
   /** @type {*} */ releaseOwner: any,
+  /** @type {*} */ normalizationChanges?: any,
 ): Readonly<{
   capture: any;
+  readonly normalizationChanges: any;
   readonly text: any;
   release(): Promise<void>;
 }>;

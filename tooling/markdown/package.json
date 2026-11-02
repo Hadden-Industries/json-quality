@@ -16,6 +16,12 @@
     "@hadden-industries/markdown-quality-linux-x64": "file:archives/hadden-industries-markdown-quality-linux-x64-1.0.3-2e1440c7b33771553a82ca42ba3f8205e5a9f6b3.tgz"
   },
   "overrides": {
+    "eslint": {
+      "minimatch": "11.0.3"
+    },
+    "@eslint/config-array": {
+      "minimatch": "11.0.3"
+    },
     "micromark-extension-math": {
       "katex": "0.19.0"
     }

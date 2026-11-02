@@ -4,7 +4,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import Ajv from "ajv/dist/2020.js";
 
-export const publicSchemaNames = ["configuration", "source-contract", "event"];
+export const publicSchemaNames = [
+  "configuration",
+  "effective-policy",
+  "source-contract",
+  "event",
+];
 export const readSchema = (name) =>
   JSON.parse(
     readFileSync(
@@ -25,7 +30,7 @@ export function checkSchemas() {
     );
     assert.match(
       schema.$id,
-      /^https:\/\/github\.com\/Hadden-Industries\/json-quality\/schema\/[a-z-]+\/v3$/u,
+      /^https:\/\/github\.com\/Hadden-Industries\/json-quality\/schema\/[a-z-]+\/v4$/u,
     );
     assert.ok(!identities.has(schema.$id), "Duplicate public schema identity");
     identities.add(schema.$id);
@@ -34,10 +39,10 @@ export function checkSchemas() {
   for (const schema of schemas) assert.ok(ajv.getSchema(schema.$id));
   const policy = ajv.getSchema(schemas[0].$id);
   const valid = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     defaults: {
       formatContract: "prettier-json",
-      allowFormatWrites: true,
+      allowSourceRewrites: true,
       normalization: "NFC",
     },
     exceptions: [],

@@ -1,4 +1,4 @@
-export declare const JSON_PRODUCER_CAPABILITIES: Readonly<{
+export declare const DEFAULT_JSON_PRODUCER_LIMITS: Readonly<{
   maximumEncodedBytes: number;
 }>;
 /** Admit plain JSON data without evaluating accessors/custom serialization or

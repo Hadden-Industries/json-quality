@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { assertNativeNpmRuntime } from "./consumer-toolchain.js";
 import { budgets, native } from "./qualification-process.js";
+import { requiredLayouts } from "./consumer-layouts.js";
 
 const expected = process.env.JSON_QUALITY_EXPECTED_NODE;
 const npm = process.env.JSON_QUALITY_CONSUMER_NPM;
@@ -76,9 +77,11 @@ native(process.execPath, ["--test", "--test-concurrency=1", ...tests], {
   phase: "consumer-source-suite",
   env: { ...process.env, npm_execpath: npm },
 });
-const releaseOutput = process.env.JSON_QUALITY_RELEASE_OUTPUT;
-if (releaseOutput) mkdirSync(releaseOutput, { recursive: true });
-for (const layout of releaseOutput ? ["root", "isolated"] : ["root"])
+const output = process.env.JSON_QUALITY_LAYOUT_OUTPUT;
+const releaseEvidence = process.env.JSON_QUALITY_RELEASE_EVIDENCE;
+assert.ok(output, "A layout result directory is required");
+mkdirSync(output, { recursive: true });
+for (const layout of requiredLayouts)
   native(
     process.execPath,
     [
@@ -94,12 +97,10 @@ for (const layout of releaseOutput ? ["root", "isolated"] : ["root"])
       "--expected-npm",
       policy.consumerNpm,
       "--output",
-      releaseOutput
-        ? join(releaseOutput, `${layout}-result.json`)
-        : process.env.JSON_QUALITY_REPORT,
+      join(output, `${layout}-result.json`),
       "--layout",
       layout,
-      ...(releaseOutput ? ["--evidence", releaseOutput] : []),
+      ...(releaseEvidence ? ["--evidence", releaseEvidence] : []),
     ],
     {
       stdio: "inherit",

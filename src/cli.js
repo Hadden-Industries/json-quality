@@ -4,7 +4,7 @@
 import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { isMainModule } from "./module-entry.js";
 import {
   openJsonSourceSession,
   openJsonRepositorySession,
@@ -24,6 +24,19 @@ import { sourceContract } from "./source-contract.js";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 
 function textView(/** @type {*} */ event) {
+  if (event.type === "nfc-key-collision-risk")
+    return (
+      (event.path ?? "<stdin>") +
+      ":" +
+      event.line +
+      ":" +
+      event.column +
+      " NFC key collision risk with " +
+      event.priorLine +
+      ":" +
+      event.priorColumn +
+      "; decoded keys remain preserved.\n"
+    );
   if (event.type === "finding")
     return (
       (event.path ?? "<stdin>") +
@@ -41,7 +54,7 @@ function textView(/** @type {*} */ event) {
   if (event.type === "write-failure")
     return (
       "Incomplete replacement; confirmed writes " +
-      event.written +
+      event.writtenPathCount +
       (event.uncertainPath ? ", uncertain path " + event.uncertainPath : "") +
       ": " +
       event.message +
@@ -49,7 +62,31 @@ function textView(/** @type {*} */ event) {
     );
   if (event.type === "failure") return event.code + ": " + event.message + "\n";
   if (event.type === "write-terminal")
-    return "Replacement complete; written " + event.written + "\n";
+    return (
+      "Replacement complete; written " +
+      event.writtenPathCount +
+      "; shared quality " +
+      (event.qualityPassed ? "passed" : "has findings") +
+      "; remaining findings " +
+      event.findingCount +
+      "\n"
+    );
+  if (event.type === "normalization-preview-terminal")
+    return (
+      (event.complete
+        ? event.preflightComplete
+          ? "Normalization preview complete"
+          : "Normalization preview refused"
+        : "Normalization preview incomplete") +
+      (event.changedPathCount === undefined
+        ? ""
+        : "; changed paths " + event.changedPathCount) +
+      (event.findingCount === undefined
+        ? ""
+        : "; remaining findings " + event.findingCount) +
+      (event.message === undefined ? "" : "; " + event.message) +
+      "\n"
+    );
   if (event.type === "execution-terminal" || event.type === "terminal")
     return (
       "Contract " +
@@ -69,7 +106,7 @@ export async function runJsonQualityCli(
   /** @type {string[]} */ args,
   /** @type {import("./api-types.js").CliContext | (() => import("./api-types.js").CliContext | Promise<import("./api-types.js").CliContext>)} */ context = {},
 ) {
-  let machine = Array.isArray(args) && args.includes("--json"),
+  let machine = Array.isArray(args) && args.includes("--ndjson"),
     requestId = randomUUID(),
     /** @type {any} */ session,
     pendingTerminal,
@@ -165,22 +202,26 @@ export async function runJsonQualityCli(
     });
     const /** @type {Record<string, any>} */ values = parsed.values;
     const positionals = parsed.positionals;
-    machine = values.json;
+    machine = values.ndjson;
     const [operation, ...files] = positionals;
     if ((!operation || Object.hasOwn(COMMANDS, operation)) && values.help) {
-      if (machine) throw new TypeError("Help is human-readable; omit --json.");
+      if (machine)
+        throw new TypeError("Help is human-readable; omit --ndjson.");
       await write(Buffer.from(commandHelp()), process.stdout, caller.signal);
       exitCode = 0;
     } else {
       if (!Object.hasOwn(COMMANDS, operation))
-        throw new TypeError("Select check, source, format or normalize.");
+        throw new TypeError("Select check, check-source, format or normalize.");
       if (values["request-id"] !== undefined) {
         const selected = values["request-id"];
         if (!selected || !selected.isWellFormed())
           throw new TypeError("Expected a well-formed request ID.");
         requestId = selected;
       }
-      if ((operation === "check" || operation === "source") && files.length)
+      if (
+        (operation === "check" || operation === "check-source") &&
+        files.length
+      )
         throw new TypeError(
           "Read-only scope is complete; literal paths select explicit writes.",
         );
@@ -188,7 +229,9 @@ export async function runJsonQualityCli(
         throw new TypeError(
           "Normalization requires explicit physical source paths.",
         );
-      if (operation !== "source" && values.contract !== undefined)
+      if (values["dry-run"] === true && operation !== "normalize")
+        throw new TypeError("--dry-run belongs to normalize.");
+      if (operation !== "check-source" && values.contract !== undefined)
         throw new TypeError("--contract belongs to raw stdin source checking.");
       if (typeof context === "function") context = await context();
       if (
@@ -209,11 +252,11 @@ export async function runJsonQualityCli(
       const controls = resourceCliControls(values);
       const transformControls = transformCliControls(values);
       if (
-        ["check", "source"].includes(operation) &&
+        ["check", "check-source"].includes(operation) &&
         transformControls !== undefined
       )
         throw new TypeError("Transform controls belong to format/normalize.");
-      if (operation === "source") {
+      if (operation === "check-source") {
         if (values.root !== undefined || Object.keys(context).length)
           throw new TypeError(
             "Raw source checking cannot replace trusted repository obligations.",
@@ -285,7 +328,7 @@ export async function runJsonQualityCli(
         reportSignal = reportDeadline.signal;
         outputCeiling = session.resources.admission.maxToolOutputBytes;
         reportSignal.addEventListener("abort", stop, { once: true });
-        for await (const event of session.events()) {
+        for await (const event of session.check()) {
           if (event.type === "execution-terminal" && operation === "check")
             pendingTerminal = event;
           else await emit(event);
@@ -294,10 +337,12 @@ export async function runJsonQualityCli(
           for await (const event of session.rewrite(operation, {
             files: files.length ? files : undefined,
             transformControls,
+            dryRun: values["dry-run"],
           })) {
             if (
               event.type === "write-terminal" ||
-              event.type === "write-failure"
+              event.type === "write-failure" ||
+              event.type === "normalization-preview-terminal"
             )
               pendingTerminal = event;
             else await emit(event);
@@ -310,12 +355,18 @@ export async function runJsonQualityCli(
       session = undefined;
       await emit(pendingTerminal);
       exitCode =
-        pendingTerminal.type === "write-failure"
-          ? 2
-          : pendingTerminal.type === "write-terminal" ||
-              pendingTerminal.contractSatisfied
-            ? 0
-            : 1;
+        pendingTerminal.type === "normalization-preview-terminal"
+          ? !pendingTerminal.complete
+            ? 2
+            : pendingTerminal.preflightComplete
+              ? 0
+              : 1
+          : pendingTerminal.type === "write-failure"
+            ? 2
+            : pendingTerminal.type === "write-terminal" ||
+                pendingTerminal.contractSatisfied
+              ? 0
+              : 1;
     }
   } catch (error) {
     exitCode = 2;
@@ -336,8 +387,5 @@ export async function runJsonQualityCli(
   }
   return outputFailure ? 2 : exitCode;
 }
-if (
-  process.argv[1] &&
-  pathToFileURL(resolve(process.argv[1])).href === import.meta.url
-)
+if (isMainModule(import.meta.url))
   process.exitCode = await runJsonQualityCli(process.argv.slice(2));

@@ -38,16 +38,16 @@ function suppliedStreams(supplied) {
 function fixture(t, archive = false) {
   const root = temporaryRepository(t, "json-quality-native-"),
     policy = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       defaults: {
         formatContract: "prettier-json",
-        allowFormatWrites: true,
+        allowSourceRewrites: true,
         normalization: "NFC",
       },
       exceptions: [
         {
           paths: [".git/**"],
-          exclude: true,
+          excludeUntrackedSources: true,
           owner: "Git",
           reason: "External state.",
         },
@@ -104,7 +104,7 @@ for (const archive of [false, true])
     const f = fixture(t, archive),
       events = await repositoryEvents(f.options);
     assert.equal(events.at(-1).type, "execution-terminal");
-    assert.equal(events.at(-1).members, "2");
+    assert.equal(events.at(-1).inventoryMemberCount, "2");
     assert.equal(events.at(-1).contractSatisfied, false);
     assert.equal(events.filter((event) => event.type === "terminal").length, 2);
     assert.ok(
@@ -204,7 +204,7 @@ test("an explicit native obligation cannot be excluded into a false completion",
   const f = fixture(t, true);
   f.policy.exceptions.push({
     paths: [f.path],
-    exclude: true,
+    excludeUntrackedSources: true,
     owner: "Fixture owner",
     reason: "Contradictory declared native scope.",
   });
@@ -256,7 +256,10 @@ test("a later native provider cannot mutate previously admitted source or policy
 });
 test("native payload, inventory and diagnostic capacities cannot be bypassed by providers", async (t) => {
   const f = fixture(t);
-  for (const capacityLimits of [{ maxTotalBytes: 1 }, { maxFileBytes: 1 }])
+  for (const capacityLimits of [
+    { maxTotalSourceBytes: 1 },
+    { maxSourceBytes: 1 },
+  ])
     await assert.rejects(repositoryEvents({ ...f.options, capacityLimits }));
   const second = structuredClone(f.supplied.inventory[0]);
   second.path = "other.blob";
@@ -275,7 +278,7 @@ test("native payload, inventory and diagnostic capacities cannot be bypassed by 
   await assert.rejects(
     repositoryEvents({
       ...f.options,
-      capacityLimits: { maxLogicalDocuments: 1 },
+      capacityLimits: { maxNativeLogicalAndTransformedSources: 1 },
     }),
     /logical-capacity/u,
   );
@@ -293,7 +296,7 @@ test("standalone CLI cannot silently omit a configured native owner", (t) => {
         "check",
         "--root",
         f.root,
-        "--json",
+        "--ndjson",
       ],
       { encoding: "utf8", windowsHide: true, timeout: budgets.read },
     );
@@ -320,7 +323,7 @@ test("native JSON authorities are protected before formatting and explicit norma
   writeFileSync(join(f.root, "authored.json"), '{"x":1}');
   const events = await repositoryEvents(f.options, "format");
   assert.equal(events.at(-1).type, "write-failure");
-  assert.equal(events.at(-1).written, "0");
+  assert.equal(events.at(-1).writtenPathCount, "0");
   const normalized = await repositoryEvents(f.options, "normalize", [pin.path]);
   assert.equal(normalized.at(-1).type, "write-failure");
   assert.match(normalized.at(-1).message, /Protected/u);
@@ -385,7 +388,7 @@ test(
       const events = await repositoryEvents(f.options, "normalize", [name]);
       assert.equal(events.at(-1).type, "write-failure");
       assert.match(events.at(-1).message, /protected/iu);
-      assert.equal(events.at(-1).written, "0");
+      assert.equal(events.at(-1).writtenPathCount, "0");
       assert.deepEqual(readFileSync(actual), bytes);
     }
     if (!supported)
@@ -425,16 +428,21 @@ test("logical members have a separate ceiling from physical/native file admissio
     });
   assert.equal(
     (
-      await repositoryEvents(options({ maxFiles: 2, maxLogicalDocuments: 3 }))
-    ).at(-1).members,
+      await repositoryEvents(
+        options({
+          maxPhysicalAndNativeSources: 2,
+          maxNativeLogicalAndTransformedSources: 3,
+        }),
+      )
+    ).at(-1).inventoryMemberCount,
     "4",
   );
   await assert.rejects(
-    repositoryEvents(options({ maxFiles: 1 })),
+    repositoryEvents(options({ maxPhysicalAndNativeSources: 1 })),
     /file-capacity/u,
   );
   await assert.rejects(
-    repositoryEvents(options({ maxLogicalDocuments: 2 })),
+    repositoryEvents(options({ maxNativeLogicalAndTransformedSources: 2 })),
     /logical-capacity/u,
   );
 });
@@ -448,9 +456,9 @@ test("archive members admit independent exact Unicode-value preservation pins", 
     paths: [f.path],
     owner: "Archive fixture owner",
     reason: "Original Unicode boundary.",
-    allowFormatWrites: false,
+    allowSourceRewrites: false,
     formatContract: "producer-json-compact",
-    preserveNfcValues: [
+    nfcExemptStringValues: [
       {
         pointer: "/x",
         sha256: digest(value),

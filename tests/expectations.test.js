@@ -9,7 +9,7 @@ test("exact expected findings retain negatives and reject changed or missing vio
   const contract = {
     path: "negative.json",
     formatContract: "preserved-bytes",
-    allowFormatWrites: false,
+    allowSourceRewrites: false,
     owner: "Corpus owner",
     reason: "Retain the interoperability counterexample.",
     expected: {
@@ -19,7 +19,7 @@ test("exact expected findings retain negatives and reject changed or missing vio
         {
           phase: "lint",
           severity: "error",
-          ruleId: "json-quality/interoperability",
+          ruleId: "json-quality/no-unicode-noncharacters",
           messageId: "noncharacter",
           codePoint: "U+FDD0",
           line: "1",
@@ -56,7 +56,7 @@ test("exact syntax counterexamples remain visible while their pinned contract is
   const bytes = Buffer.from('{"x":');
   const result = await checkFixture(bytes, {
     formatContract: "preserved-bytes",
-    allowFormatWrites: false,
+    allowSourceRewrites: false,
     owner: "Corpus owner",
     reason: "Retain the truncated-object counterexample.",
     expected: {

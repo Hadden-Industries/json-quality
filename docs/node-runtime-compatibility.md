@@ -10,7 +10,7 @@ Qualified LTS majors: 22, 24, 26.
 Advance qualification for imminent LTS: 26.
 Other engine-compatible releases receive best-effort compatibility.
 
-Development/producer reference: 24.22.1.
+Development/producer reference: 26.13.0.
 Producer npm: 12.2.1; consumer qualification npm: 11.21.1.
 
 <!-- node-support:end -->
@@ -32,7 +32,7 @@ Consumer lanes exercise real installed CLI/API/plugin/schema behavior, preservat
 
 The retained Node 22 policy floor is 22.13.0; producer/development ESLint uses that floor independently of the JSON runtime reader.
 JSON import attributes exist at that floor; native glob and filesystem behavior require real platform qualification.
-The oversized-value migration selects configuration/event/native cohort 2 and Node-API 9.
+The current source selects configuration/event/native cohort 4 and Node-API 9; historical packages retain their own cohorts.
 The same artifact must be qualified on each selected runtime; an ABI declaration alone is not runtime proof.
 Missing platform components fail without a compiler/downloader fallback.
 

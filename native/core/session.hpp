@@ -70,7 +70,7 @@ struct CoreSession {
   OperationControl operation;
   std::atomic<bool> &cancelled = operation.cancelled;
   SqliteOwner memory{
-      ResourcePolicy::defaultValue(ResourcePolicy::Runtime::managedMemoryTargetBytes)};
+      ResourcePolicy::defaultValue(ResourcePolicy::Runtime::maxManagedMemoryBytes)};
   ControlBytesResource controlResource{memory.value};
   json::storage_ptr controlStorage = json::make_shared_resource<ControlJsonResource>(memory.value);
   std::string nonce = newNonce(), scratch, lastRequestId = "0", uploadRequestId, sourceDigest;
@@ -96,13 +96,13 @@ struct CoreSession {
   std::optional<json::value> pendingEvent;
   std::uint64_t totalBytes = 0, physicalSources = 0, logicalSources = 0, outputBytes = 0;
   std::uint64_t
-      &managedTarget =
+      &maxManagedMemoryBytes =
           resources
-              .runtime[static_cast<std::size_t>(ResourcePolicy::Runtime::managedMemoryTargetBytes)],
+              .runtime[static_cast<std::size_t>(ResourcePolicy::Runtime::maxManagedMemoryBytes)],
       &temporaryLimit =
           resources.runtime[static_cast<std::size_t>(ResourcePolicy::Runtime::maxTemporaryBytes)],
-      &maxFileBytes =
-          resources.admission[static_cast<std::size_t>(ResourcePolicy::Admission::maxFileBytes)];
+      &maxSourceBytes =
+          resources.admission[static_cast<std::size_t>(ResourcePolicy::Admission::maxSourceBytes)];
   std::string sourceKind;
   std::uint64_t transformParent = 0;
   explicit CoreSession(std::string location) : scratch(std::move(location)) {
@@ -218,7 +218,7 @@ struct CoreSession {
               "resource-control-in-quality-contract");
     admitSourceContract(request.at("contract").as_object());
     if (auto path = request.at("contract").as_object().if_contains("path")) {
-      auto limit = resources.get(ResourcePolicy::Admission::maxRequestPathCharacters);
+      auto limit = resources.get(ResourcePolicy::Admission::maxRequestPathCodePoints);
       std::uint64_t characters = 0;
       for (unsigned char byte : path->as_string())
         if ((byte & 0xc0) != 0x80)
@@ -233,10 +233,11 @@ struct CoreSession {
                 selectedKind == "authority" || (transformedFrom && selectedKind == "transformed"),
             "source-kind");
     if (selectedKind == "physical" || selectedKind == "native")
-      require(physicalSources < resources.get(ResourcePolicy::Admission::maxFiles),
+      require(physicalSources < resources.get(ResourcePolicy::Admission::maxPhysicalAndNativeSources),
               "source-count-capacity");
     if (selectedKind == "logical" || selectedKind == "native" || selectedKind == "transformed")
-      require(logicalSources < resources.get(ResourcePolicy::Admission::maxLogicalDocuments),
+      require(logicalSources <
+                  resources.get(ResourcePolicy::Admission::maxNativeLogicalAndTransformedSources),
               "logical-count-capacity");
     std::string expectedDigest;
     std::optional<std::uint64_t> expectedLength;
@@ -247,9 +248,9 @@ struct CoreSession {
                   expectedDigest.find_first_not_of("0123456789abcdef") == std::string::npos,
               "source-identity-contract");
       expectedLength = exactInteger(object.at("byteLength"));
-      require(*expectedLength <= maxFileBytes, "source-byte-capacity");
+      require(*expectedLength <= maxSourceBytes, "source-byte-capacity");
       require(*expectedLength <=
-                  resources.get(ResourcePolicy::Admission::maxTotalBytes) - totalBytes,
+                  resources.get(ResourcePolicy::Admission::maxTotalSourceBytes) - totalBytes,
               "total-source-byte-capacity");
     }
     outcome.reset();
@@ -290,12 +291,13 @@ struct CoreSession {
       std::uint64_t owner = 0;
       auto converted = std::from_chars(nonce.data(), nonce.data() + 16, owner, 16);
       require(converted.ec == std::errc{}, "storage-owner");
+      const auto spillWorkingTargetBytes =
+          maxManagedMemoryBytes == UINT64_MAX
+              ? ResourcePolicy::defaultValue(ResourcePolicy::Runtime::maxManagedMemoryBytes)
+              : maxManagedMemoryBytes;
       store = std::make_unique<Store>(
-          owner, managedTarget, 65536, temporaryLimit, pathFromUtf8(scratch), std::string(),
-          memory.value,
-          managedTarget == UINT64_MAX
-              ? ResourcePolicy::defaultValue(ResourcePolicy::Runtime::managedMemoryTargetBytes)
-              : managedTarget);
+          owner, maxManagedMemoryBytes, 65536, temporaryLimit, pathFromUtf8(scratch), std::string(),
+          memory.value, spillWorkingTargetBytes);
       store->operation = &operation;
       store->database->bindOperation(&operation);
       streams = std::make_unique<Streams>(*store, resources);
@@ -303,8 +305,8 @@ struct CoreSession {
   }
   void appendSource(std::span<const unsigned char> bytes) {
     operation.check();
-    require(bytes.size() <= maxFileBytes - source.length, "source-byte-capacity");
-    require(bytes.size() <= resources.get(ResourcePolicy::Admission::maxTotalBytes) - totalBytes,
+    require(bytes.size() <= maxSourceBytes - source.length, "source-byte-capacity");
+    require(bytes.size() <= resources.get(ResourcePolicy::Admission::maxTotalSourceBytes) - totalBytes,
             "total-source-byte-capacity");
     if (declaredLength)
       require(source.length <= *declaredLength && bytes.size() <= *declaredLength - source.length,
@@ -430,7 +432,7 @@ struct CoreSession {
     if (command != "close") {
       require(requestBytes <= resources.get(ResourcePolicy::Admission::maxRequestBytes),
               "request-byte-capacity");
-      require(requestId.size() <= resources.get(ResourcePolicy::Admission::maxRequestIdCharacters),
+      require(requestId.size() <= resources.get(ResourcePolicy::Admission::maxRequestIdCodePoints),
               "request-id-capacity");
       operation.check();
     }
@@ -444,16 +446,17 @@ struct CoreSession {
       auto selected = resources;
       selected.configure(request);
       require(Store::reserve + memory.value->external.load() + memory.value->bytes.load() <=
-                  selected.get(ResourcePolicy::Runtime::managedMemoryTargetBytes),
+                  selected.get(ResourcePolicy::Runtime::maxManagedMemoryBytes),
               "control-memory-target");
       resources = selected;
-      memory.value->limit = managedTarget;
+      memory.value->limit = maxManagedMemoryBytes;
       operation.start(resources.get(ResourcePolicy::Runtime::maxCheckTimeMs));
       configured = true;
       return {reply({{"type", "configured"},
-                     {"managedMemoryTargetBytes", managedTarget == UINT64_MAX
-                                                      ? json::value(nullptr)
-                                                      : json::value(std::to_string(managedTarget))},
+                     {"maxManagedMemoryBytes",
+                      maxManagedMemoryBytes == UINT64_MAX
+                          ? json::value(nullptr)
+                          : json::value(std::to_string(maxManagedMemoryBytes))},
                      {"resources", resources.effective()},
                      {"workingReserveBytes", std::to_string(Store::reserve)}})};
     }
@@ -474,7 +477,7 @@ struct CoreSession {
       try {
         require(configured, "control-state-lifecycle");
         auto next = exactInteger(request.at("byteLength"));
-        require(next > 0 && next <= managedTarget - Store::reserve, "control-state-budget");
+        require(next > 0 && next <= maxManagedMemoryBytes - Store::reserve, "control-state-budget");
         if (next > controlStateBytes) {
           auto additional = next - controlStateBytes;
           if (store)
@@ -668,8 +671,9 @@ struct CoreSession {
           store->prepare(32768);
           Statement closure(*store->database, "INSERT INTO "
                                               "source_closures(source,parsed,quality,contract_"
-                                              "satisfied,root,retained,repair_format,repair_nfc) "
-                                              "VALUES(?,?,?,?,?,?,?,?)");
+                                              "satisfied,root,retained,repair_format,repair_nfc,"
+                                              "format_eligible,normalize_eligible,finding_count) "
+                                              "VALUES(?,?,?,?,?,?,?,?,?,?,?)");
           closure.integer(1, source.id);
           closure.integer(2, result.at("parserComplete").as_bool());
           closure.integer(3, result.at("qualityPassed").as_bool());
@@ -679,6 +683,9 @@ struct CoreSession {
           closure.integer(7,
                           result.at("parserComplete").as_bool() && outcome->presentationRepairable);
           closure.integer(8, result.at("parserComplete").as_bool() && outcome->nfcRepairable);
+          closure.integer(9, result.at("formatEligible").as_bool());
+          closure.integer(10, result.at("normalizeEligible").as_bool());
+          closure.integer(11, exactInteger(result.at("findingCount")));
           require(!closure.next(), "source-closure-insert");
           closure.finish();
           result["sourceSha256"] = sourceDigest;
@@ -686,7 +693,7 @@ struct CoreSession {
             result["linkage"] = linkage;
           store->observe();
           result["managedPeakBytes"] = std::to_string(store->managedPeak);
-          result["transitions"] = std::to_string(store->transitions);
+          result["spillTransitionCount"] = std::to_string(store->transitions);
           result["scratchPeakBytes"] = std::to_string(store->quota.peak);
         }
         events.push_back(std::move(event));
@@ -698,12 +705,12 @@ struct CoreSession {
     if (command == "read-source") {
       try {
         require(bool(store), "source-not-open");
-        for (const char *field : {"source", "offset", "maximum"}) {
+        for (const char *field : {"source", "byteOffset", "maximumBytes"}) {
           auto item = request.if_contains(field);
           require(item && item->is_string(), "invalid-range-request");
         }
-        auto id = exactInteger(request.at("source")), offset = exactInteger(request.at("offset")),
-             maximum = exactInteger(request.at("maximum"));
+        auto id = exactInteger(request.at("source")), offset = exactInteger(request.at("byteOffset")),
+             maximum = exactInteger(request.at("maximumBytes"));
         require(maximum > 0 && maximum <= 65536, "range-capacity");
         Stream captured;
         {
@@ -719,7 +726,7 @@ struct CoreSession {
         return {{'D', std::move(result)},
                 reply({{"type", "range"},
                        {"source", std::to_string(id)},
-                       {"offset", std::to_string(offset)},
+                       {"byteOffset", std::to_string(offset)},
                        {"byteLength", std::to_string(size)},
                        {"totalByteLength", std::to_string(captured.length)}})};
       } catch (const Fault &error) {
@@ -866,18 +873,18 @@ struct CoreSession {
           materializationId.clear();
           return {reply({{"type", "materialization-released"}})};
         }
-        for (const char *field : {"value", "representation", "maximum"}) {
+        for (const char *field : {"value", "representation", "maximumBytes"}) {
           auto item = request.if_contains(field);
           require(item && item->is_string(), "invalid-range-request");
         }
         if (command == "read-value") {
-          auto offset = request.if_contains("offset");
+          auto offset = request.if_contains("byteOffset");
           require(offset && offset->is_string(), "invalid-range-request");
         }
-        auto maximum = exactInteger(request.at("maximum"));
+        auto maximum = exactInteger(request.at("maximumBytes"));
         std::uint64_t offset = 0;
         if (command == "read-value") {
-          offset = exactInteger(request.at("offset"));
+          offset = exactInteger(request.at("byteOffset"));
           require(maximum > 0 && maximum <= 65536, "range-capacity");
         }
         auto stream = representation(request, true);
@@ -941,7 +948,7 @@ struct CoreSession {
         auto size = result.size();
         return {{'D', std::move(result)},
                 reply({{"type", "range"},
-                       {"offset", std::to_string(offset)},
+                       {"byteOffset", std::to_string(offset)},
                        {"byteLength", std::to_string(size)},
                        {"totalByteLength", std::to_string(stream.length)}})};
       } catch (const Fault &error) {
@@ -970,7 +977,7 @@ struct CoreSession {
                      {"physicalSources", std::to_string(physicalSources)},
                      {"logicalSources", std::to_string(logicalSources)},
                      {"recordsAdmitted", std::to_string(streams->recordsAdmitted)},
-                     {"transitions", std::to_string(store->transitions)},
+                     {"spillTransitionCount", std::to_string(store->transitions)},
                      {"scratchPeakBytes", std::to_string(store->quota.peak)}})};
     }
     if (command == "close") {

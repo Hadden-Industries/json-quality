@@ -13,7 +13,7 @@ import {
   createExecutionDeadline,
   remainingDuration,
 } from "./execution-deadline.js";
-import { jsonContract } from "./configuration.js";
+import { resolveJsonSourceContract } from "./configuration.js";
 import { JSON_SUFFIX, jsonSourceFormat } from "./json-paths.js";
 import { repositoryMembers } from "./repository-check.js";
 import { assertJsonQualityEvent } from "./events.js";
@@ -30,8 +30,8 @@ import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 const names = [
   "trustedRoot",
   "candidateRoot",
-  "trustedSha",
-  "candidateSha",
+  "trustedCommitId",
+  "candidateCommitId",
   "capacityLimits",
   "runtimeControls",
   "temporaryDirectory",
@@ -39,7 +39,7 @@ const names = [
   "requestId",
 ];
 
-/** Deliver cohort-3 events for all tracked candidate JSON under the immutable
+/** Deliver cohort-4 events for all tracked candidate JSON under the immutable
  * trusted commit's policy. Candidate policy is ordinary checked data. Checkout
  * bytes and HEAD are outside this scope, so dirty work is never overwritten or
  * misrepresented as qualified. Native/logical adapters and domain validation
@@ -49,7 +49,7 @@ const names = [
  * @param {import("./api-types.js").QualificationOptions} options
  * @returns {AsyncGenerator<import("./api-types.js").JsonQualityEvent>}
  */
-export async function* qualifyJsonConsumer(options) {
+export async function* qualifyGitJsonSources(options) {
   if (
     !options ||
     typeof options !== "object" ||
@@ -57,7 +57,10 @@ export async function* qualifyJsonConsumer(options) {
     Object.keys(options).some((key) => !names.includes(key))
   )
     throw new TypeError("Invalid consumer qualification options.");
-  for (const key of /** @type {const} */ (["trustedSha", "candidateSha"]))
+  for (const key of /** @type {const} */ ([
+    "trustedCommitId",
+    "candidateCommitId",
+  ]))
     if (!/^[a-f0-9]{40}$/u.test(options[key] ?? ""))
       throw new TypeError("Full immutable source commits are required.");
   if (options.signal !== undefined && !(options.signal instanceof AbortSignal))
@@ -122,7 +125,7 @@ export async function* qualifyJsonConsumer(options) {
       }),
       policySource = context(
         roots[0],
-        options.trustedSha,
+        options.trustedCommitId,
         bootstrap.wire.admission,
       ),
       admitted = await bootstrapJsonPolicySource({
@@ -144,9 +147,14 @@ export async function* qualifyJsonConsumer(options) {
             member = entry;
           }
           if (!member)
-            throw new Error(
-              "Trusted policy must be a regular immutable Git blob.",
-            );
+            return {
+              member: null,
+              configurationOrigin: {
+                kind: "git-absence",
+                path: ".json-quality.json",
+                commitId: options.trustedCommitId,
+              },
+            };
           if (
             maximumBytes !== null &&
             BigInt(member.byteLength) > BigInt(maximumBytes)
@@ -159,6 +167,12 @@ export async function* qualifyJsonConsumer(options) {
           return {
             member,
             open: () => gitBlob({ ...policySource, member, signal }),
+            configurationOrigin: {
+              kind: "git-blob",
+              path: ".json-quality.json",
+              commitId: options.trustedCommitId,
+              blobId: member.oid,
+            },
           };
         },
       });
@@ -187,12 +201,14 @@ export async function* qualifyJsonConsumer(options) {
       values = createValueSession(core),
       cancel = () => core.cancel(),
       qualification = Object.freeze({
-        trustedSha: options.trustedSha,
-        candidateSha: options.candidateSha,
-        trustedPolicyBlob: admitted.observation.oid,
+        trustedCommitId: options.trustedCommitId,
+        candidateCommitId: options.candidateCommitId,
+        ...(admitted.observation
+          ? { trustedPolicyBlobId: admitted.observation.oid }
+          : {}),
         scope: "immutable-git-json",
       });
-    const maximumId = selected.admission.maxRequestIdCharacters;
+    const maximumId = selected.admission.maxRequestIdCodePoints;
     let idCharacters = 0;
     for (const point of requestId) {
       void point;
@@ -215,7 +231,7 @@ export async function* qualifyJsonConsumer(options) {
       });
       const candidate = context(
         roots[1],
-        options.candidateSha,
+        options.candidateCommitId,
         selected.wire.admission,
         signal,
       );
@@ -223,7 +239,7 @@ export async function* qualifyJsonConsumer(options) {
         yield {
           type: "execution",
           resources: selected.wire,
-          policySha256: admitted.observation.sha256,
+          ...admitted.provenance,
           coreSourceInputsSha256: component.manifest.sourceInputsSha256,
           qualification,
         };
@@ -237,7 +253,7 @@ export async function* qualifyJsonConsumer(options) {
           if (!JSON_SUFFIX.test(member.path)) continue;
           assertGitJsonBlob(member);
           jsonSourceFormat(member.path);
-          const maximum = selected.wire.admission.maxFileBytes;
+          const maximum = selected.wire.admission.maxSourceBytes;
           if (maximum !== null && BigInt(member.byteLength) > BigInt(maximum))
             throw new Error("source-byte-capacity");
           await core.command("census-add", {
@@ -248,11 +264,11 @@ export async function* qualifyJsonConsumer(options) {
         }
         await core.command("census-close-inventory", {
           provider: "git-object",
-          observation: options.candidateSha,
+          observation: options.candidateCommitId,
         });
         for await (const indexed of repositoryMembers(core, signal)) {
           const member = JSON.parse(indexed.observation),
-            contract = jsonContract(member.path, admitted.policy, {
+            contract = resolveJsonSourceContract(member.path, admitted.policy, {
               tracked: true,
             }),
             captured = await core.capture(
@@ -294,7 +310,7 @@ export async function* qualifyJsonConsumer(options) {
           sourceObservationsComplete: true,
           diagnosticsComplete: true,
           domainComplete: false,
-          members: status.members,
+          inventoryMemberCount: status.inventoryMemberCount,
           qualityPassed: status.qualityPassed,
           contractSatisfied: status.contractSatisfied,
           qualification,

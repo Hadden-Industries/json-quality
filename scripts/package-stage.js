@@ -12,8 +12,9 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { nativePackages } from "../src/native-packages.js";
-import { PACKAGE_VERIFICATION_CAPABILITIES as bounds } from "../src/package-payload.js";
+import { DEFAULT_PACKAGE_VERIFICATION_LIMITS as bounds } from "../src/package-payload.js";
 import { isPathContained } from "../src/paths.js";
+import { projectPolicyInputs } from "./project-policy-inputs.js";
 
 export function stageCore(root, destination) {
   const metadata = JSON.parse(readFileSync(join(root, "package.json")));
@@ -56,5 +57,6 @@ export function stageCore(root, destination) {
     join(destination, "package.json"),
     JSON.stringify(published, null, 2) + "\n",
   );
+  projectPolicyInputs(destination, { write: true });
   return published;
 }

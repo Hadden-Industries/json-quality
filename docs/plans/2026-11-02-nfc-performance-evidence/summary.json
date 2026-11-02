@@ -1,0 +1,1479 @@
+{
+  "schemaVersion": 1,
+  "status": "development-uncommitted-source-only",
+  "started": "2026-11-01T22:35:18.669Z",
+  "completed": "2026-11-01T22:36:06.940Z",
+  "source": {
+    "head": "4401fc346e0628c0ca71461f7849ffb385d67834",
+    "dirty": true,
+    "inputsSha256": "e66b68de7aeebd9b8a79c9f57969ea1175956cfb44cd6a22d1896f22a21175a4"
+  },
+  "nativeIdentity": {
+    "coreSourceInputsSha256": "8211af33775447a9b78354058ac4ae8f61ac3bbe9cf25588e80e976b1496bbb2",
+    "nodeApiVersion": 9,
+    "components": {
+      "icu": "79.1",
+      "unicode": "18.0",
+      "sqlite": "3.54.1"
+    }
+  },
+  "environment": {
+    "node": "26.13.0",
+    "nodeIcu": "78.3",
+    "nodeUnicode": "17.0",
+    "platform": "win32",
+    "architecture": "x64",
+    "cpu": "12th Gen Intel(R) Core(TM) i9-12900K",
+    "logicalCpus": 24
+  },
+  "integrity": {
+    "snapshotHashesUnchanged": true,
+    "sourceInputsUnchanged": true,
+    "baselineCorpusSha256": "45a6b53af11be0ae7ce11360bd9b6e16f127d5429508a2d6e51863597f3b2491",
+    "baselineSummarySha256": "fcf77ed988c64707aed3fdb49ab06db735d137f1067c353ff8711650ba6e5021",
+    "harnessSha256": "412036032cd1c063714cf3a8498f363776a04bb1406a1555f87ae5dc57ee2b3b"
+  },
+  "measuredProcesses": 126,
+  "warmupProcesses": 18,
+  "method": "Fresh sequential process per workload/mode, 1 warmup per pair, 7 rotating measured rounds. checkMs includes snapshot read/hash/capture/check/event delivery; excludes module import and acquisition. processWallMs includes startup/acquisition/close. Excludes npm/discovery/config/repository writes. Fixed old snapshot; no Google checkout access. Caches not flushed, no affinity or power control. Current vs old baseline measured at different times.",
+  "priorRunCaveat": "Earlier benchmark was a different uncommitted/committed source and different clock time/load. Fixed corpus, host/runtime, sampling scheme match; direct deltas are observations, not isolated causal overhead or a paired historical test.",
+  "rows": [
+    {
+      "workload": "google",
+      "files": 105,
+      "bytes": 1963585,
+      "modes": {
+        "default": {
+          "checkMs": {
+            "median": 209.5448,
+            "min": 199.4871,
+            "max": 228.9526
+          },
+          "processWallMs": {
+            "median": 485.8952,
+            "min": 458.1843,
+            "max": 522.0837
+          },
+          "cpuMs": {
+            "median": 203,
+            "min": 202,
+            "max": 250
+          },
+          "importMs": {
+            "median": 153.8805,
+            "min": 149.3723,
+            "max": 167.8607
+          },
+          "openMs": {
+            "median": 67.3652,
+            "min": 64.2054,
+            "max": 76.2124
+          },
+          "closeMs": {
+            "median": 2.494,
+            "min": 2.3235,
+            "max": 2.7099
+          },
+          "peakRss": {
+            "median": 129409024,
+            "min": 126156800,
+            "max": 130396160
+          },
+          "processMaxRssBytes": {
+            "median": 129458176,
+            "min": 126164992,
+            "max": 130461696
+          },
+          "managedPeakBytes": {
+            "median": 28511930,
+            "min": 28511930,
+            "max": 28511930
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 105,
+            "qualityPassed": 25,
+            "parserComplete": 105
+          },
+          "findings": {
+            "presentation/format-contract": 80
+          },
+          "advisories": 0,
+          "priorRunComparison": {
+            "baselineMedianCheckMs": 226.3995,
+            "checkMedianDifferenceMs": -16.8547,
+            "checkMedianRatio": 0.925553
+          }
+        },
+        "NFC": {
+          "checkMs": {
+            "median": 215.2302,
+            "min": 199.1763,
+            "max": 222.6757
+          },
+          "processWallMs": {
+            "median": 491.0345,
+            "min": 457.4458,
+            "max": 514.6256
+          },
+          "cpuMs": {
+            "median": 219,
+            "min": 202,
+            "max": 296
+          },
+          "importMs": {
+            "median": 157.7474,
+            "min": 150.3213,
+            "max": 178.6768
+          },
+          "openMs": {
+            "median": 67.2223,
+            "min": 63.0415,
+            "max": 72.3491
+          },
+          "closeMs": {
+            "median": 2.5383,
+            "min": 2.4788,
+            "max": 3.0127
+          },
+          "peakRss": {
+            "median": 127746048,
+            "min": 125480960,
+            "max": 129998848
+          },
+          "processMaxRssBytes": {
+            "median": 127819776,
+            "min": 125493248,
+            "max": 130007040
+          },
+          "managedPeakBytes": {
+            "median": 28512038,
+            "min": 28512038,
+            "max": 28512038
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 105,
+            "qualityPassed": 25,
+            "parserComplete": 105
+          },
+          "findings": {
+            "presentation/format-contract": 80
+          },
+          "advisories": 0,
+          "priorRunComparison": {
+            "baselineMedianCheckMs": 228.0226,
+            "checkMedianDifferenceMs": -12.7924,
+            "checkMedianRatio": 0.943899
+          }
+        },
+        "preserve": {
+          "checkMs": {
+            "median": 203.234,
+            "min": 200.146,
+            "max": 223.9409
+          },
+          "processWallMs": {
+            "median": 474.5254,
+            "min": 453.5368,
+            "max": 508.9035
+          },
+          "cpuMs": {
+            "median": 219,
+            "min": 187,
+            "max": 296
+          },
+          "importMs": {
+            "median": 150.1904,
+            "min": 143.6811,
+            "max": 158.4153
+          },
+          "openMs": {
+            "median": 65.9011,
+            "min": 62.7267,
+            "max": 70.8166
+          },
+          "closeMs": {
+            "median": 2.54,
+            "min": 2.2874,
+            "max": 3.9492
+          },
+          "peakRss": {
+            "median": 127619072,
+            "min": 125509632,
+            "max": 130170880
+          },
+          "processMaxRssBytes": {
+            "median": 127627264,
+            "min": 125517824,
+            "max": 130179072
+          },
+          "managedPeakBytes": {
+            "median": 28424358,
+            "min": 28424358,
+            "max": 28424358
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 105,
+            "qualityPassed": 25,
+            "parserComplete": 105
+          },
+          "findings": {
+            "presentation/format-contract": 80
+          },
+          "advisories": 0,
+          "priorRunComparison": {
+            "baselineMedianCheckMs": 227.21200000000002,
+            "checkMedianDifferenceMs": -23.978,
+            "checkMedianRatio": 0.894469
+          }
+        }
+      },
+      "explicitVsDefault": {
+        "differenceOfMediansMs": 5.6854,
+        "ratioOfMedians": 1.027132,
+        "pairedDifferenceMs": {
+          "median": 1.5894,
+          "min": -15.9429,
+          "max": 16.7232
+        }
+      },
+      "nfcVsPreserve": {
+        "differenceOfMediansMs": 11.9962,
+        "ratioOfMedians": 1.059027,
+        "pairedDifferenceMs": {
+          "median": 3.1071,
+          "min": -24.7646,
+          "max": 18.6545
+        }
+      }
+    },
+    {
+      "workload": "ascii",
+      "files": 1,
+      "bytes": 330169,
+      "modes": {
+        "default": {
+          "checkMs": {
+            "median": 13.5483,
+            "min": 13.366,
+            "max": 15.149
+          },
+          "processWallMs": {
+            "median": 292.6185,
+            "min": 268.0497,
+            "max": 311.4141
+          },
+          "cpuMs": {
+            "median": 15,
+            "min": 0,
+            "max": 16
+          },
+          "importMs": {
+            "median": 155.8603,
+            "min": 147.8492,
+            "max": 171.1204
+          },
+          "openMs": {
+            "median": 67.6394,
+            "min": 65.6325,
+            "max": 70.4151
+          },
+          "closeMs": {
+            "median": 0.539,
+            "min": 0.4784,
+            "max": 0.6412
+          },
+          "peakRss": {
+            "median": 100651008,
+            "min": 100274176,
+            "max": 101056512
+          },
+          "processMaxRssBytes": {
+            "median": 103002112,
+            "min": 102617088,
+            "max": 103399424
+          },
+          "managedPeakBytes": {
+            "median": 9099612,
+            "min": 9099612,
+            "max": 9099612
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          },
+          "findings": {},
+          "advisories": 0,
+          "priorRunComparison": {
+            "baselineMedianCheckMs": 13.191400000000016,
+            "checkMedianDifferenceMs": 0.3569,
+            "checkMedianRatio": 1.027056
+          }
+        },
+        "NFC": {
+          "checkMs": {
+            "median": 13.8027,
+            "min": 13.5197,
+            "max": 14.1828
+          },
+          "processWallMs": {
+            "median": 293.6856,
+            "min": 286.065,
+            "max": 304.9832
+          },
+          "cpuMs": {
+            "median": 16,
+            "min": 0,
+            "max": 16
+          },
+          "importMs": {
+            "median": 158.4121,
+            "min": 154.1133,
+            "max": 168.3344
+          },
+          "openMs": {
+            "median": 69.3197,
+            "min": 66.8596,
+            "max": 79.1383
+          },
+          "closeMs": {
+            "median": 0.5442,
+            "min": 0.5126,
+            "max": 0.6623
+          },
+          "peakRss": {
+            "median": 100085760,
+            "min": 99717120,
+            "max": 100892672
+          },
+          "processMaxRssBytes": {
+            "median": 102391808,
+            "min": 102150144,
+            "max": 103264256
+          },
+          "managedPeakBytes": {
+            "median": 9099720,
+            "min": 9099720,
+            "max": 9099720
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          },
+          "findings": {},
+          "advisories": 0,
+          "priorRunComparison": {
+            "baselineMedianCheckMs": 13.040500000000009,
+            "checkMedianDifferenceMs": 0.7622,
+            "checkMedianRatio": 1.058449
+          }
+        },
+        "preserve": {
+          "checkMs": {
+            "median": 13.8619,
+            "min": 13.5072,
+            "max": 13.9874
+          },
+          "processWallMs": {
+            "median": 293.9289,
+            "min": 274.6575,
+            "max": 297.9056
+          },
+          "cpuMs": {
+            "median": 16,
+            "min": 15,
+            "max": 16
+          },
+          "importMs": {
+            "median": 158.1721,
+            "min": 151.7287,
+            "max": 166.8894
+          },
+          "openMs": {
+            "median": 68.4692,
+            "min": 66.4657,
+            "max": 71.1761
+          },
+          "closeMs": {
+            "median": 0.5523,
+            "min": 0.5026,
+            "max": 0.6093
+          },
+          "peakRss": {
+            "median": 100769792,
+            "min": 99528704,
+            "max": 104366080
+          },
+          "processMaxRssBytes": {
+            "median": 102944768,
+            "min": 101769216,
+            "max": 106651648
+          },
+          "managedPeakBytes": {
+            "median": 9099720,
+            "min": 9099720,
+            "max": 9099720
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          },
+          "findings": {},
+          "advisories": 0,
+          "priorRunComparison": {
+            "baselineMedianCheckMs": 13.174700000000001,
+            "checkMedianDifferenceMs": 0.6872,
+            "checkMedianRatio": 1.052161
+          }
+        }
+      },
+      "explicitVsDefault": {
+        "differenceOfMediansMs": 0.2544,
+        "ratioOfMedians": 1.018777,
+        "pairedDifferenceMs": {
+          "median": 0.051,
+          "min": -1.2776,
+          "max": 0.6345
+        }
+      },
+      "nfcVsPreserve": {
+        "differenceOfMediansMs": -0.0592,
+        "ratioOfMedians": 0.995729,
+        "pairedDifferenceMs": {
+          "median": -0.0685,
+          "min": -0.3887,
+          "max": 0.6756
+        }
+      }
+    },
+    {
+      "workload": "unicode-nfc",
+      "files": 1,
+      "bytes": 395705,
+      "modes": {
+        "default": {
+          "checkMs": {
+            "median": 35.0726,
+            "min": 34.5129,
+            "max": 37.513
+          },
+          "processWallMs": {
+            "median": 304.6786,
+            "min": 293.1067,
+            "max": 335.1827
+          },
+          "cpuMs": {
+            "median": 32,
+            "min": 31,
+            "max": 47
+          },
+          "importMs": {
+            "median": 154.4993,
+            "min": 143.1375,
+            "max": 168.3724
+          },
+          "openMs": {
+            "median": 65.7979,
+            "min": 61.0739,
+            "max": 69.284
+          },
+          "closeMs": {
+            "median": 0.5424,
+            "min": 0.521,
+            "max": 0.5916
+          },
+          "peakRss": {
+            "median": 100864000,
+            "min": 100532224,
+            "max": 104480768
+          },
+          "processMaxRssBytes": {
+            "median": 103092224,
+            "min": 102825984,
+            "max": 106758144
+          },
+          "managedPeakBytes": {
+            "median": 9165298,
+            "min": 9165298,
+            "max": 9165298
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          },
+          "findings": {},
+          "advisories": 0,
+          "priorRunComparison": {
+            "baselineMedianCheckMs": 36.14950000000002,
+            "checkMedianDifferenceMs": -1.0769,
+            "checkMedianRatio": 0.97021
+          }
+        },
+        "NFC": {
+          "checkMs": {
+            "median": 35.5334,
+            "min": 34.9151,
+            "max": 38.4381
+          },
+          "processWallMs": {
+            "median": 299.4047,
+            "min": 282.9615,
+            "max": 332.4363
+          },
+          "cpuMs": {
+            "median": 46,
+            "min": 15,
+            "max": 47
+          },
+          "importMs": {
+            "median": 154.3217,
+            "min": 145.7149,
+            "max": 169.5499
+          },
+          "openMs": {
+            "median": 63.7478,
+            "min": 61.0374,
+            "max": 70.8445
+          },
+          "closeMs": {
+            "median": 0.5702,
+            "min": 0.5134,
+            "max": 0.7325
+          },
+          "peakRss": {
+            "median": 99831808,
+            "min": 99209216,
+            "max": 105086976
+          },
+          "processMaxRssBytes": {
+            "median": 102141952,
+            "min": 101507072,
+            "max": 107233280
+          },
+          "managedPeakBytes": {
+            "median": 9165406,
+            "min": 9165406,
+            "max": 9165406
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          },
+          "findings": {},
+          "advisories": 0,
+          "priorRunComparison": {
+            "baselineMedianCheckMs": 35.870600000000024,
+            "checkMedianDifferenceMs": -0.3372,
+            "checkMedianRatio": 0.9906
+          }
+        },
+        "preserve": {
+          "checkMs": {
+            "median": 14.4492,
+            "min": 13.5966,
+            "max": 15.3664
+          },
+          "processWallMs": {
+            "median": 279.1845,
+            "min": 261.6314,
+            "max": 313.5557
+          },
+          "cpuMs": {
+            "median": 16,
+            "min": 15,
+            "max": 16
+          },
+          "importMs": {
+            "median": 156.4327,
+            "min": 143.1692,
+            "max": 181.8334
+          },
+          "openMs": {
+            "median": 66.9322,
+            "min": 61.2519,
+            "max": 75.295
+          },
+          "closeMs": {
+            "median": 0.5318,
+            "min": 0.4668,
+            "max": 1.4033
+          },
+          "peakRss": {
+            "median": 100306944,
+            "min": 99868672,
+            "max": 105078784
+          },
+          "processMaxRssBytes": {
+            "median": 102584320,
+            "min": 102223872,
+            "max": 107278336
+          },
+          "managedPeakBytes": {
+            "median": 9165406,
+            "min": 9165406,
+            "max": 9165406
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          },
+          "findings": {},
+          "advisories": 0,
+          "priorRunComparison": {
+            "baselineMedianCheckMs": 14.039799999999985,
+            "checkMedianDifferenceMs": 0.4094,
+            "checkMedianRatio": 1.02916
+          }
+        }
+      },
+      "explicitVsDefault": {
+        "differenceOfMediansMs": 0.4608,
+        "ratioOfMedians": 1.013138,
+        "pairedDifferenceMs": {
+          "median": 0.5632,
+          "min": -1.6979,
+          "max": 1.2828
+        }
+      },
+      "nfcVsPreserve": {
+        "differenceOfMediansMs": 21.0842,
+        "ratioOfMedians": 2.459195,
+        "pairedDifferenceMs": {
+          "median": 20.9832,
+          "min": 20.1873,
+          "max": 23.5773
+        }
+      }
+    },
+    {
+      "workload": "unicode-nfd",
+      "files": 1,
+      "bytes": 461241,
+      "modes": {
+        "default": {
+          "checkMs": {
+            "median": 39.1898,
+            "min": 36.8572,
+            "max": 42.8255
+          },
+          "processWallMs": {
+            "median": 306.1574,
+            "min": 293.2869,
+            "max": 337.1644
+          },
+          "cpuMs": {
+            "median": 47,
+            "min": 30,
+            "max": 47
+          },
+          "importMs": {
+            "median": 160.5292,
+            "min": 146.5572,
+            "max": 166.7023
+          },
+          "openMs": {
+            "median": 68.794,
+            "min": 63.9074,
+            "max": 72.9147
+          },
+          "closeMs": {
+            "median": 0.5395,
+            "min": 0.4833,
+            "max": 0.6661
+          },
+          "peakRss": {
+            "median": 101847040,
+            "min": 101310464,
+            "max": 106201088
+          },
+          "processMaxRssBytes": {
+            "median": 103493632,
+            "min": 102477824,
+            "max": 107413504
+          },
+          "managedPeakBytes": {
+            "median": 9664474,
+            "min": 9664474,
+            "max": 9664474
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 0,
+            "parserComplete": 1
+          },
+          "findings": {
+            "json-quality/nfc-strings/unnormalized": 64
+          },
+          "advisories": 0,
+          "priorRunComparison": {
+            "baselineMedianCheckMs": 38.87700000000001,
+            "checkMedianDifferenceMs": 0.3128,
+            "checkMedianRatio": 1.008046
+          }
+        },
+        "NFC": {
+          "checkMs": {
+            "median": 38.7419,
+            "min": 38.1462,
+            "max": 40.9452
+          },
+          "processWallMs": {
+            "median": 318.2759,
+            "min": 311.3282,
+            "max": 343.1681
+          },
+          "cpuMs": {
+            "median": 46,
+            "min": 31,
+            "max": 47
+          },
+          "importMs": {
+            "median": 166.3714,
+            "min": 153.6137,
+            "max": 173.8667
+          },
+          "openMs": {
+            "median": 67.4506,
+            "min": 63.7008,
+            "max": 76.8263
+          },
+          "closeMs": {
+            "median": 0.5616,
+            "min": 0.535,
+            "max": 0.5946
+          },
+          "peakRss": {
+            "median": 102092800,
+            "min": 100020224,
+            "max": 105078784
+          },
+          "processMaxRssBytes": {
+            "median": 103526400,
+            "min": 101625856,
+            "max": 106790912
+          },
+          "managedPeakBytes": {
+            "median": 9664582,
+            "min": 9664582,
+            "max": 9664582
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 0,
+            "parserComplete": 1
+          },
+          "findings": {
+            "json-quality/nfc-strings/unnormalized": 64
+          },
+          "advisories": 0,
+          "priorRunComparison": {
+            "baselineMedianCheckMs": 38.60419999999999,
+            "checkMedianDifferenceMs": 0.1377,
+            "checkMedianRatio": 1.003567
+          }
+        },
+        "preserve": {
+          "checkMs": {
+            "median": 15.8901,
+            "min": 15.2747,
+            "max": 18.1666
+          },
+          "processWallMs": {
+            "median": 294.5644,
+            "min": 284.3933,
+            "max": 313.2318
+          },
+          "cpuMs": {
+            "median": 16,
+            "min": 15,
+            "max": 47
+          },
+          "importMs": {
+            "median": 162.4858,
+            "min": 158.6945,
+            "max": 173.264
+          },
+          "openMs": {
+            "median": 68.9665,
+            "min": 65.5466,
+            "max": 80.2604
+          },
+          "closeMs": {
+            "median": 0.5723,
+            "min": 0.4958,
+            "max": 0.6171
+          },
+          "peakRss": {
+            "median": 100335616,
+            "min": 99168256,
+            "max": 101031936
+          },
+          "processMaxRssBytes": {
+            "median": 102678528,
+            "min": 101330944,
+            "max": 103501824
+          },
+          "managedPeakBytes": {
+            "median": 9230942,
+            "min": 9230942,
+            "max": 9230942
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          },
+          "findings": {},
+          "advisories": 0,
+          "priorRunComparison": {
+            "baselineMedianCheckMs": 14.522199999999998,
+            "checkMedianDifferenceMs": 1.3679,
+            "checkMedianRatio": 1.094194
+          }
+        }
+      },
+      "explicitVsDefault": {
+        "differenceOfMediansMs": -0.4479,
+        "ratioOfMedians": 0.988571,
+        "pairedDifferenceMs": {
+          "median": 0.0295,
+          "min": -4.0836,
+          "max": 1.7554
+        }
+      },
+      "nfcVsPreserve": {
+        "differenceOfMediansMs": 22.8518,
+        "ratioOfMedians": 2.438116,
+        "pairedDifferenceMs": {
+          "median": 22.8715,
+          "min": 20.5753,
+          "max": 25.0551
+        }
+      }
+    },
+    {
+      "workload": "unicode-keys-nfc",
+      "files": 1,
+      "bytes": 42839,
+      "modes": {
+        "default": {
+          "checkMs": {
+            "median": 19.2052,
+            "min": 18.0271,
+            "max": 20.3207
+          },
+          "processWallMs": {
+            "median": 312.9113,
+            "min": 268.6004,
+            "max": 323.9765
+          },
+          "cpuMs": {
+            "median": 16,
+            "min": 15,
+            "max": 32
+          },
+          "importMs": {
+            "median": 170.3505,
+            "min": 149.4242,
+            "max": 194.9339
+          },
+          "openMs": {
+            "median": 67.8822,
+            "min": 61.5543,
+            "max": 68.9773
+          },
+          "closeMs": {
+            "median": 0.6263,
+            "min": 0.5447,
+            "max": 0.8704
+          },
+          "peakRss": {
+            "median": 100057088,
+            "min": 99622912,
+            "max": 100548608
+          },
+          "processMaxRssBytes": {
+            "median": 101609472,
+            "min": 101269504,
+            "max": 102035456
+          },
+          "managedPeakBytes": {
+            "median": 9451410,
+            "min": 9451410,
+            "max": 9451410
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          },
+          "findings": {},
+          "advisories": 0
+        },
+        "NFC": {
+          "checkMs": {
+            "median": 18.9136,
+            "min": 18.3078,
+            "max": 20.4038
+          },
+          "processWallMs": {
+            "median": 288.2928,
+            "min": 266.9519,
+            "max": 292.735
+          },
+          "cpuMs": {
+            "median": 16,
+            "min": 15,
+            "max": 78
+          },
+          "importMs": {
+            "median": 155.5647,
+            "min": 145.788,
+            "max": 160.6223
+          },
+          "openMs": {
+            "median": 64.9238,
+            "min": 61.5751,
+            "max": 70.4427
+          },
+          "closeMs": {
+            "median": 0.5786,
+            "min": 0.5358,
+            "max": 0.6843
+          },
+          "peakRss": {
+            "median": 100401152,
+            "min": 98701312,
+            "max": 101171200
+          },
+          "processMaxRssBytes": {
+            "median": 102014976,
+            "min": 100270080,
+            "max": 102731776
+          },
+          "managedPeakBytes": {
+            "median": 9451518,
+            "min": 9451518,
+            "max": 9451518
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          },
+          "findings": {},
+          "advisories": 0
+        },
+        "preserve": {
+          "checkMs": {
+            "median": 18.8225,
+            "min": 18.1764,
+            "max": 22.6037
+          },
+          "processWallMs": {
+            "median": 290.6542,
+            "min": 274.7566,
+            "max": 354.2058
+          },
+          "cpuMs": {
+            "median": 16,
+            "min": 15,
+            "max": 32
+          },
+          "importMs": {
+            "median": 155.4925,
+            "min": 151.1336,
+            "max": 202.8667
+          },
+          "openMs": {
+            "median": 63.4668,
+            "min": 61.8308,
+            "max": 73.0312
+          },
+          "closeMs": {
+            "median": 0.5968,
+            "min": 0.5735,
+            "max": 0.7697
+          },
+          "peakRss": {
+            "median": 100544512,
+            "min": 99209216,
+            "max": 104132608
+          },
+          "processMaxRssBytes": {
+            "median": 102174720,
+            "min": 100782080,
+            "max": 105676800
+          },
+          "managedPeakBytes": {
+            "median": 9451518,
+            "min": 9451518,
+            "max": 9451518
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          },
+          "findings": {},
+          "advisories": 0
+        }
+      },
+      "explicitVsDefault": {
+        "differenceOfMediansMs": -0.2916,
+        "ratioOfMedians": 0.984817,
+        "pairedDifferenceMs": {
+          "median": -0.0849,
+          "min": -1.6829,
+          "max": 1.5332
+        }
+      },
+      "nfcVsPreserve": {
+        "differenceOfMediansMs": 0.0911,
+        "ratioOfMedians": 1.00484,
+        "pairedDifferenceMs": {
+          "median": -0.0827,
+          "min": -2.1999,
+          "max": 1.1092
+        }
+      }
+    },
+    {
+      "workload": "unicode-key-collisions",
+      "files": 1,
+      "bytes": 10791,
+      "modes": {
+        "default": {
+          "checkMs": {
+            "median": 21.8761,
+            "min": 19.8882,
+            "max": 26.4712
+          },
+          "processWallMs": {
+            "median": 328.2178,
+            "min": 284.8467,
+            "max": 357.5228
+          },
+          "cpuMs": {
+            "median": 47,
+            "min": 15,
+            "max": 48
+          },
+          "importMs": {
+            "median": 171.8109,
+            "min": 153.3731,
+            "max": 193.9987
+          },
+          "openMs": {
+            "median": 72.1422,
+            "min": 64.8708,
+            "max": 90.8282
+          },
+          "closeMs": {
+            "median": 0.6493,
+            "min": 0.5565,
+            "max": 0.6579
+          },
+          "peakRss": {
+            "median": 102027264,
+            "min": 100507648,
+            "max": 105902080
+          },
+          "processMaxRssBytes": {
+            "median": 102416384,
+            "min": 101883904,
+            "max": 106663936
+          },
+          "managedPeakBytes": {
+            "median": 9263026,
+            "min": 9263026,
+            "max": 9263026
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 0,
+            "parserComplete": 1
+          },
+          "findings": {
+            "json-quality/nfc-strings/collision": 256,
+            "json-quality/nfc-strings/unnormalized": 256
+          },
+          "advisories": 0
+        },
+        "NFC": {
+          "checkMs": {
+            "median": 21.9144,
+            "min": 20.1857,
+            "max": 24.5813
+          },
+          "processWallMs": {
+            "median": 316.1978,
+            "min": 286.2112,
+            "max": 368.8337
+          },
+          "cpuMs": {
+            "median": 31,
+            "min": 15,
+            "max": 48
+          },
+          "importMs": {
+            "median": 174.7613,
+            "min": 156.5588,
+            "max": 197.4715
+          },
+          "openMs": {
+            "median": 69.9323,
+            "min": 64.849,
+            "max": 85.9917
+          },
+          "closeMs": {
+            "median": 0.6027,
+            "min": 0.5825,
+            "max": 0.6673
+          },
+          "peakRss": {
+            "median": 103002112,
+            "min": 100954112,
+            "max": 103292928
+          },
+          "processMaxRssBytes": {
+            "median": 103444480,
+            "min": 102338560,
+            "max": 104001536
+          },
+          "managedPeakBytes": {
+            "median": 9263134,
+            "min": 9263134,
+            "max": 9263134
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 0,
+            "parserComplete": 1
+          },
+          "findings": {
+            "json-quality/nfc-strings/collision": 256,
+            "json-quality/nfc-strings/unnormalized": 256
+          },
+          "advisories": 0
+        },
+        "preserve": {
+          "checkMs": {
+            "median": 16.9439,
+            "min": 15.6503,
+            "max": 20.0826
+          },
+          "processWallMs": {
+            "median": 316.7343,
+            "min": 302.007,
+            "max": 417.5669
+          },
+          "cpuMs": {
+            "median": 16,
+            "min": 16,
+            "max": 78
+          },
+          "importMs": {
+            "median": 173.0731,
+            "min": 148.754,
+            "max": 266.4128
+          },
+          "openMs": {
+            "median": 76.7895,
+            "min": 69.0879,
+            "max": 93.7099
+          },
+          "closeMs": {
+            "median": 0.6357,
+            "min": 0.6019,
+            "max": 0.8342
+          },
+          "peakRss": {
+            "median": 100618240,
+            "min": 99405824,
+            "max": 106082304
+          },
+          "processMaxRssBytes": {
+            "median": 100757504,
+            "min": 100487168,
+            "max": 106749952
+          },
+          "managedPeakBytes": {
+            "median": 9018014,
+            "min": 9018014,
+            "max": 9018014
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          },
+          "findings": {},
+          "advisories": 256
+        }
+      },
+      "explicitVsDefault": {
+        "differenceOfMediansMs": 0.0383,
+        "ratioOfMedians": 1.001751,
+        "pairedDifferenceMs": {
+          "median": 0.3721,
+          "min": -5.3053,
+          "max": 2.475
+        }
+      },
+      "nfcVsPreserve": {
+        "differenceOfMediansMs": 4.9705,
+        "ratioOfMedians": 1.29335,
+        "pairedDifferenceMs": {
+          "median": 5.6091,
+          "min": 1.0833,
+          "max": 7.1125
+        }
+      }
+    }
+  ],
+  "resolver": {
+    "schemaVersion": 1,
+    "status": "development-uncommitted-pure-resolver-microbenchmark",
+    "node": "v26.13.0",
+    "sourceInputsUnchanged": true,
+    "method": "One Node process after module import. One100-call warmup per mode discarded, seven alternating100-call batches per mode. Per-call elapsed includes immutable snapshot/resolution/freezing only, not filesystem absence observation, native bootstrap/reservations, discovery, npm, startup or domain parsing. Caller retains final result only. No affinity/cache/GC controls.",
+    "runs": [
+      {
+        "round": -1,
+        "mode": "absent",
+        "warmup": true,
+        "iterations": 100,
+        "elapsedMs": 7.063500000000005,
+        "perCallMs": 0.07063500000000004
+      },
+      {
+        "round": -1,
+        "mode": "empty",
+        "warmup": true,
+        "iterations": 100,
+        "elapsedMs": 2.8581999999999965,
+        "perCallMs": 0.028581999999999965
+      },
+      {
+        "round": 0,
+        "mode": "empty",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.4528000000000105,
+        "perCallMs": 0.014528000000000105
+      },
+      {
+        "round": 0,
+        "mode": "absent",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.4431000000000012,
+        "perCallMs": 0.014431000000000012
+      },
+      {
+        "round": 1,
+        "mode": "absent",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.4543999999999926,
+        "perCallMs": 0.014543999999999925
+      },
+      {
+        "round": 1,
+        "mode": "empty",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 2.0475000000000136,
+        "perCallMs": 0.020475000000000135
+      },
+      {
+        "round": 2,
+        "mode": "empty",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.1718000000000046,
+        "perCallMs": 0.011718000000000046
+      },
+      {
+        "round": 2,
+        "mode": "absent",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.069599999999994,
+        "perCallMs": 0.010695999999999942
+      },
+      {
+        "round": 3,
+        "mode": "absent",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.1860999999999962,
+        "perCallMs": 0.011860999999999962
+      },
+      {
+        "round": 3,
+        "mode": "empty",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.0690000000000026,
+        "perCallMs": 0.010690000000000026
+      },
+      {
+        "round": 4,
+        "mode": "empty",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.0324999999999989,
+        "perCallMs": 0.010324999999999989
+      },
+      {
+        "round": 4,
+        "mode": "absent",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.0245000000000033,
+        "perCallMs": 0.010245000000000034
+      },
+      {
+        "round": 5,
+        "mode": "absent",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.0737000000000023,
+        "perCallMs": 0.010737000000000023
+      },
+      {
+        "round": 5,
+        "mode": "empty",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.1200000000000045,
+        "perCallMs": 0.011200000000000045
+      },
+      {
+        "round": 6,
+        "mode": "empty",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.0797000000000025,
+        "perCallMs": 0.010797000000000025
+      },
+      {
+        "round": 6,
+        "mode": "absent",
+        "warmup": false,
+        "iterations": 100,
+        "elapsedMs": 1.0427999999999997,
+        "perCallMs": 0.010427999999999998
+      }
+    ],
+    "summary": {
+      "absent": {
+        "median": 0.010737,
+        "min": 0.010245,
+        "max": 0.014544
+      },
+      "empty": {
+        "median": 0.0112,
+        "min": 0.010325,
+        "max": 0.020475
+      }
+    }
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "source": "3d4db7106b44e226607ceee6500258c9b94e14cd",
+  "observed": [
+    {
+      "name": "canonical-equivalent-keys",
+      "modes": {
+        "NFC": [
+          {
+            "ruleId": null,
+            "messageId": "format-contract"
+          },
+          {
+            "ruleId": "json-quality/normalized-strings",
+            "messageId": "collision"
+          },
+          {
+            "ruleId": "json-quality/normalized-strings",
+            "messageId": "unnormalized"
+          }
+        ],
+        "preserve": [
+          {
+            "ruleId": null,
+            "messageId": "format-contract"
+          }
+        ]
+      },
+      "normalize": {
+        "status": "refused",
+        "message": "NFC would create duplicate keys; resolve the owning source first."
+      }
+    },
+    {
+      "name": "escaped-exact-duplicates",
+      "modes": {
+        "NFC": [
+          {
+            "ruleId": null,
+            "messageId": "format-contract"
+          },
+          {
+            "ruleId": "json/no-duplicate-keys",
+            "messageId": "duplicateKey"
+          }
+        ],
+        "preserve": [
+          {
+            "ruleId": null,
+            "messageId": "format-contract"
+          },
+          {
+            "ruleId": "json/no-duplicate-keys",
+            "messageId": "duplicateKey"
+          }
+        ]
+      },
+      "normalize": {
+        "status": "refused",
+        "message": "Cannot normalize invalid or unsafe JSON source."
+      }
+    },
+    {
+      "name": "separate-object-scopes",
+      "modes": {
+        "NFC": [
+          {
+            "ruleId": null,
+            "messageId": "format-contract"
+          },
+          {
+            "ruleId": "json-quality/normalized-strings",
+            "messageId": "unnormalized"
+          }
+        ],
+        "preserve": [
+          {
+            "ruleId": null,
+            "messageId": "format-contract"
+          }
+        ]
+      },
+      "normalize": {
+        "status": "returned",
+        "inputSha256": "412d3cc45260bad68121461142832a9863cef600c14937bb413cb69e76d6b3ac",
+        "outputSha256": "b70e31759623fd51292fe31238233694206782fe60109b7881313dacb3bbfd24",
+        "changed": true,
+        "idempotent": true
+      }
+    },
+    {
+      "name": "composed-and-decomposed-value",
+      "modes": {
+        "NFC": [
+          {
+            "ruleId": null,
+            "messageId": "format-contract"
+          },
+          {
+            "ruleId": "json-quality/normalized-strings",
+            "messageId": "unnormalized"
+          }
+        ],
+        "preserve": [
+          {
+            "ruleId": null,
+            "messageId": "format-contract"
+          }
+        ]
+      },
+      "normalize": {
+        "status": "returned",
+        "inputSha256": "f71d4b4ee81605c49924abc9f96e730514ac61f52a347a16ff95e18aebd9db53",
+        "outputSha256": "69e46f3f0688000ab7eeb9e40e6a516a254268cd644a24f4f69cf7ad063cf479",
+        "changed": true,
+        "idempotent": true
+      }
+    }
+  ]
+}

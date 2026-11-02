@@ -1,5 +1,5 @@
 import { Writable } from "node:stream";
-export declare const PACKAGE_VERIFICATION_CAPABILITIES: {
+export declare const DEFAULT_PACKAGE_VERIFICATION_LIMITS: {
   readonly [
     K in keyof Required<
       import("../types/schemas/configuration.js").VerificationControls
@@ -34,7 +34,7 @@ export declare function verifyPackagePayload(
     cache,
     integrity,
     installedRoot,
-    admission,
+    packageFamilyBudget,
     signal,
     verificationControls,
   }: any,

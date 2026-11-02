@@ -20,22 +20,73 @@ import {
 import { nodeSupport } from "../scripts/node-matrix.js";
 import { pythonVersion } from "../scripts/ci-host.js";
 import { budgets } from "../scripts/qualification-budgets.js";
+import { nodeMatrixFixture } from "./node-matrix-fixture.js";
+import {
+  MINIMAL_CLI_CASES,
+  MINIMAL_CLI_COMMANDS,
+} from "../scripts/consumer-cli-probe.js";
 
 const noWait = async () => {};
 
 const sha = (character) => character.repeat(40);
+function performanceFixture(source, node, os, operation) {
+  const windows = os.startsWith("windows");
+  const tree = {
+    schemaVersion: 1,
+    platform: windows ? "win32" : "linux",
+    status: "passed",
+    cleanup: "passed",
+    quiescence: "passed",
+    exitCode: 0,
+    timedOut: false,
+    cancelled: false,
+    units: "bytes",
+    driverIncluded: true,
+    controllerIncluded: false,
+    method: windows ? "windows-job" : "linux-process-group",
+    metric: windows ? "peak-committed-bytes" : "sampled-sum-rss-bytes",
+    peakBytes: 1024,
+    samples: 2,
+    processCount: 2,
+  };
+  return {
+    schemaVersion: 2,
+    status: "passed",
+    environment: { node: `v${node}`, platform: tree.platform },
+    workload: { operation, repetitions: 1 },
+    identities: [
+      {
+        variant: "candidate",
+        head: source,
+        sourceSha256: "e".repeat(64),
+        nativeIdentity: { coreSourceInputsSha256: "d".repeat(64) },
+      },
+    ],
+    samples: [
+      {
+        variant: "candidate",
+        repetition: 0,
+        identity: { coreSourceInputsSha256: "d".repeat(64) },
+        tree: { ...tree },
+      },
+    ],
+    observations: [-1, 0].map((repetition) => ({
+      variant: "candidate",
+      repetition,
+      ...tree,
+    })),
+  };
+}
 function fixture(attempt = 1, fork = false) {
   const now = Date.parse("2026-10-27T12:00:00Z"),
     repo = { id: 11, full_name: repository, default_branch: "main" };
-  const matrix = {
-    os: [...nodeSupport.platforms],
-    node: ["22.13.0", "22.23.4", "24.22.1", "26.9.0"],
-  };
+  const matrix = nodeMatrixFixture();
   const snapshot = {
     commit: sha("1"),
     tree: sha("2"),
     parents: [sha("3"), sha("4")],
     workflow: sha("5"),
+    defaultPolicySha256: "a".repeat(64),
   };
   const pr = {
     number: 17,
@@ -125,7 +176,7 @@ function fixture(attempt = 1, fork = false) {
   };
   const records = matrix.os.flatMap((os) =>
     matrix.node.map((node) => ({
-      schemaVersion: 1,
+      schemaVersion: 2,
       status: "passed",
       repositoryId: 11,
       runId: 71,
@@ -138,19 +189,61 @@ function fixture(attempt = 1, fork = false) {
         npm: nodeSupport.consumerNpm,
       },
       transport,
-      consumer: {
-        archiveSha256: "e".repeat(64),
-        packageVersion: "1.0.0-rc.1",
-        nativePackage: {
-          name: `@hadden-industries/json-quality-${os.startsWith("windows") ? "win32" : "linux"}-x64`,
-          version: "1.0.0-rc.1",
-          integrity: "sha512-Ynl0ZXM=",
-        },
-        publicExports: 6,
-        cliPhysicalFiles: 2,
-        qualification: "transported archive",
-        installSource: "producer-archive",
-      },
+      performance: Object.fromEntries(
+        ["check", "format"].map((operation) => [
+          operation,
+          performanceFixture(snapshot.commit, node, os, operation),
+        ]),
+      ),
+      consumers: Object.fromEntries(
+        ["root", "isolated"].map((layout) => [
+          layout,
+          {
+            sourceCommit: snapshot.commit,
+            controllerCommit: snapshot.commit,
+            node,
+            npm: nodeSupport.consumerNpm,
+            platform: os.startsWith("windows") ? "win32" : "linux",
+            architecture: "x64",
+            archiveSha256: "e".repeat(64),
+            packageVersion: "1.0.0-rc.1",
+            nativePackage: {
+              name: `@hadden-industries/json-quality-${os.startsWith("windows") ? "win32" : "linux"}-x64`,
+              version: "1.0.0-rc.1",
+              integrity: "sha512-Ynl0ZXM=",
+            },
+            publicExports: 7,
+            cliPhysicalFiles: 2,
+            qualification: "transported archive",
+            installSource: "producer-archive",
+            minimalCli: {
+              status: "passed",
+              packageVersion: "1.0.0-rc.1",
+              cohortVersion: 4,
+              policy: "package-defaults",
+              defaultPolicySha256: "a".repeat(64),
+              command: "npm exec -- json-quality",
+              cases: [...MINIMAL_CLI_CASES],
+              commands: structuredClone(MINIMAL_CLI_COMMANDS),
+              generatedLockSha256: "b".repeat(64),
+              packageName: "@hadden-industries/json-quality",
+              specifier: "file:fixture.tgz",
+              routing: "npm-generated-lock-with-transported-file-archives",
+              corePackage: {
+                name: "@hadden-industries/json-quality",
+                version: "1.0.0-rc.1",
+                integrity: "sha512-Ynl0ZXM=",
+                sha256: "e".repeat(64),
+              },
+              nativePackage: {
+                name: `@hadden-industries/json-quality-${os.startsWith("windows") ? "win32" : "linux"}-x64`,
+                version: "1.0.0-rc.1",
+                integrity: "sha512-Ynl0ZXM=",
+              },
+            },
+          },
+        ]),
+      ),
     })),
   );
   const needs = Object.fromEntries(
@@ -469,10 +562,14 @@ test("mixed hosted image builds reuse the same qualified platform and preserve t
     const f = fixture();
     for (const record of f.records) {
       record.host.imageVersion =
-        record.lane.os === "ubuntu-24.04" && record.lane.node === "26.9.0"
+        record.lane.os === "ubuntu-24.04" &&
+        record.lane.node === nodeSupport.reference
           ? "20261026.354.1"
           : "20261023.334.3";
-      if (record.lane.os === "windows-2025" && record.lane.node === "26.9.0")
+      if (
+        record.lane.os === "windows-2025" &&
+        record.lane.node === nodeSupport.reference
+      )
         record.host.image = "win25-vs2026";
     }
     for (const host of f.hosts) host.imageVersion = mainVersion;
@@ -509,7 +606,7 @@ test("platform, runtime and image provenance remain mandatory for reuse", async 
     ["os", "Windows"],
     ["architecture", "ARM64"],
     ["python", "3.15.2"],
-    ["node", "26.10.0"],
+    ["node", "0.0.0"],
     ["npm", "12.2.1"],
     ["image", "ubuntu22"],
     ["image", "ubuntu24-slim"],
@@ -716,7 +813,7 @@ test("changed JSON/tree inputs, matrix, platform or absent lane reject reuse", a
     (value) => {
       value.matrix = {
         ...value.matrix,
-        node: [...value.matrix.node.slice(0, -1), "26.10.0"],
+        node: [...value.matrix.node.slice(0, -1), "0.0.0"],
       };
     },
     (value) => {
@@ -733,7 +830,7 @@ test("changed JSON/tree inputs, matrix, platform or absent lane reject reuse", a
     },
     (value) => {
       value.receipt = structuredClone(value.receipt);
-      value.receipt.lanes[0].consumer.archiveSha256 = "f".repeat(64);
+      value.receipt.lanes[0].consumers.root.archiveSha256 = "f".repeat(64);
     },
     (value) => {
       value.receipt = structuredClone(value.receipt);
@@ -772,6 +869,80 @@ test("missing, skipped, failed and foreign native results cannot seed reuse proo
       }),
     );
   }
+});
+
+test("incomplete layouts, obsolete proof and failed tree observations deny receipt creation and reuse", async () => {
+  const mutations = [
+    (record) => {
+      record.schemaVersion = 1;
+    },
+    (record) => {
+      delete record.consumers.isolated;
+    },
+    (record) => {
+      record.consumers.extra = record.consumers.root;
+    },
+    (record) => {
+      record.consumers.root.minimalCli.defaultPolicySha256 = "f".repeat(64);
+      record.consumers.isolated.minimalCli.defaultPolicySha256 = "f".repeat(64);
+    },
+    ...[
+      (value) => delete value.corePackage,
+      (value) => delete value.nativePackage,
+      (value) => (value.corePackage.sha256 = "f".repeat(64)),
+      (value) => (value.corePackage.version = "1.0.0-rc.2"),
+      (value) => (value.nativePackage.integrity = "sha512-ZGlmZmVyZW50"),
+      (value) => (value.nativePackage.version = "1.0.0-rc.2"),
+    ].map((mutate) => (record) => {
+      for (const consumer of Object.values(record.consumers))
+        mutate(consumer.minimalCli);
+    }),
+    ...[
+      "archiveSha256",
+      "packageVersion",
+      "node",
+      "npm",
+      "sourceCommit",
+      "controllerCommit",
+      "nativePackage",
+      "publicExports",
+      "cliPhysicalFiles",
+      "qualification",
+      "installSource",
+    ].map((key) => (record) => {
+      record.consumers.isolated[key] = "foreign";
+    }),
+    (record) => {
+      record.performance.check.schemaVersion = 1;
+    },
+    (record) => {
+      record.performance.format.observations[0].cleanup = "failed";
+    },
+    (record) => {
+      record.performance.check.observations[1].status = "failed";
+    },
+  ];
+  for (const mutate of mutations) {
+    const f = fixture();
+    mutate(f.records[0]);
+    await assert.rejects(createReceipt({ ...f, sleep: noWait }));
+    const current = await proof(fixture());
+    mutate(current.receipt.lanes[0]);
+    await assert.rejects(verifyProof(current));
+  }
+  const obsolete = await proof(fixture());
+  obsolete.receipt.schemaVersion = 1;
+  await assert.rejects(verifyProof(obsolete), /Obsolete aggregate/u);
+  assert.deepEqual(
+    jobNames(fixture().matrix).filter((name) => name.startsWith("CodeQL")),
+    [
+      "CodeQL / Scan actions",
+      "CodeQL / Scan javascript-typescript",
+      "CodeQL / Scan python",
+      "CodeQL / Scan cpp-linux",
+      "CodeQL / Scan cpp-windows",
+    ],
+  );
 });
 test("expired or conflicted compact proof and a changed source attempt remain unavailable", async () => {
   const f = fixture();

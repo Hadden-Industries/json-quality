@@ -6,23 +6,38 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import {
-  createReadStream,
-  existsSync,
-  lstatSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { join, posix } from "node:path";
 import Ajv from "ajv/dist/2020.js";
 import { npmCli } from "./qualification-process.js";
 import {
-  PACKAGE_VERIFICATION_CAPABILITIES as packageCapabilities,
+  DEFAULT_PACKAGE_VERIFICATION_LIMITS as packageCapabilities,
   packageTarSink,
 } from "../src/package-payload.js";
 import { nativePackages } from "../src/native-packages.js";
+import { securityScans } from "./security-scans.js";
+import {
+  effectJournal,
+  sha256,
+  sha512,
+  jsonBytes,
+  save,
+  regularBytes,
+  releaseArtifactBytes,
+  readJson,
+} from "./release-records.js";
+export {
+  effectJournal,
+  sha256,
+  sha512,
+  jsonBytes,
+  save,
+  regularBytes,
+  releaseArtifactBytes,
+  readJson,
+};
 
 export const repository = "Hadden-Industries/json-quality";
 export const packageName = "@hadden-industries/json-quality";
@@ -41,42 +56,6 @@ export function assertNativeExecutableModes(files) {
   )
     throw new Error("The Linux package lost its native executable mode.");
 }
-export function effectJournal(phase, origin) {
-  assert.ok(["stage", "archive", "promote"].includes(phase));
-  for (const value of [origin.run, origin.attempt])
-    assert.match(String(value), /^[1-9]\d{0,15}$/u);
-  return `${phase}-${origin.run}-${origin.attempt}.jsonl`;
-}
-export const sha256 = (bytes) =>
-  createHash("sha256").update(bytes).digest("hex");
-export const sha512 = (bytes) =>
-  "sha512-" + createHash("sha512").update(bytes).digest("base64");
-export const jsonBytes = (value) =>
-  Buffer.from(JSON.stringify(value, null, 2) + "\n");
-export function save(path, value) {
-  writeFileSync(path, Buffer.isBuffer(value) ? value : jsonBytes(value), {
-    flag: "wx",
-    flush: true,
-  });
-}
-export function regularBytes(path, limit = 20000000) {
-  const stat = lstatSync(path);
-  assert.ok(
-    stat.isFile() && !stat.isSymbolicLink() && stat.size <= limit,
-    "Unsafe or oversized evidence file",
-  );
-  return readFileSync(path);
-}
-/** Binary release artifacts share package transport bounds; metadata keeps its own bound. */
-export function releaseArtifactBytes(path) {
-  return regularBytes(
-    path,
-    /\.(?:tgz|tar\.gz)$/u.test(String(path))
-      ? packageCapabilities.maximumArchiveBytes
-      : 20000000,
-  );
-}
-export const readJson = (path) => JSON.parse(regularBytes(path));
 /** npm 12 wraps view results in an array; admit exactly one selected object. */
 export function npmViewObject(raw) {
   const result = JSON.parse(raw);
@@ -253,6 +232,8 @@ export function verifyManifest(release) {
     "src/index.js",
     "src/cli.js",
     "schemas/configuration.schema.json",
+    "schemas/effective-policy.schema.json",
+    "assets/default-json-quality-policy.json",
     "schemas/event.schema.json",
     "schemas/source-contract.schema.json",
     "schemas/contract-cohort.json",
@@ -509,8 +490,7 @@ export function expectedJobs(phase, matrix) {
         ({ os, node }) => `product / Qualify ${os} / Node ${node}`,
       ),
       "product / Complete runtime qualification",
-      "codeql / Scan actions",
-      "codeql / Scan javascript-typescript",
+      ...securityScans.map(({ key }) => `codeql / Scan ${key}`),
       "security",
       "qualified",
     ];
@@ -521,6 +501,7 @@ export function expectedJobs(phase, matrix) {
       "security",
       "qualified",
     ];
+  if (phase === "promote") return ["admit", "npm", "github", "complete"];
   return ["admit", phase];
 }
 export function verifyRun(
@@ -528,7 +509,11 @@ export function verifyRun(
   phase,
   source,
   matrix,
-  { reconciled = false } = {},
+  {
+    reconciled = false,
+    historical = false,
+    availability = "npm-and-github",
+  } = {},
 ) {
   const { run, jobs } = provider;
   assert.equal(run.repository.full_name, repository);
@@ -545,7 +530,13 @@ export function verifyRun(
         ),
     );
   else assert.equal(run.conclusion, "success");
-  const names = expectedJobs(phase, matrix);
+  const legacyPromotion =
+    historical &&
+    phase === "promote" &&
+    jobs.jobs.some((job) => job.name === "promote");
+  const names = legacyPromotion
+    ? ["admit", "promote"]
+    : expectedJobs(phase, matrix);
   assert.equal(jobs.total_count, names.length, "Incomplete provider jobs");
   assert.equal(jobs.jobs.length, names.length, "Truncated provider jobs");
   assert.deepEqual(jobs.jobs.map(({ name }) => name).sort(), names.sort());
@@ -557,6 +548,12 @@ export function verifyRun(
           job.conclusion,
         ),
       );
+    else if (
+      phase === "promote" &&
+      job.name === "github" &&
+      availability === "npm-only"
+    )
+      assert.equal(job.conclusion, "skipped");
     else assert.equal(job.conclusion, "success", job.name);
     assert.equal(job.head_sha, run.head_sha);
     assert.equal(job.run_id, run.id);

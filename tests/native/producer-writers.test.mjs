@@ -118,10 +118,10 @@ test("formatting preserves independently pinned Unicode values without claiming 
     },
     selected = {
       ...options,
-      preserveNfcValues: [pin],
+      nfcExemptStringValues: [pin],
       owner: "Producer",
       reason: "Exact externally owned decoded value",
-      allowFormatWrites: false,
+      allowSourceRewrites: false,
     };
   const formatted = await formatSource('{"value":"e\\u0301"}', selected);
   assert.equal(JSON.parse(formatted).value, value);

@@ -67,7 +67,7 @@ jobs:
         with:
           fail-on-severity: moderate
           comment-summary-in-pr: never
-      - run: npm run check:security
+      - run: npm run check:dependency-advisories
   codeql:
     name: CodeQL
     needs: policy

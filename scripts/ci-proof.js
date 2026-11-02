@@ -9,6 +9,9 @@ import { validateFrozenMatrix } from "./release-contract.js";
 import { sameJobExecution } from "./github-job-execution.js";
 import { assertHostedPlatform } from "./ci-host.js";
 import { budgets } from "./qualification-budgets.js";
+import { validateConsumers } from "./consumer-layouts.js";
+import { securityScans } from "./security-scans.js";
+import { validatePerformance } from "./performance-contract.js";
 
 export const repository = "Hadden-Industries/json-quality";
 export const workflow = ".github/workflows/ci.yml";
@@ -26,8 +29,7 @@ export function jobNames(matrix) {
   return [
     "Candidate policy",
     "Dependencies",
-    "CodeQL / Scan actions",
-    "CodeQL / Scan javascript-typescript",
+    ...securityScans.map(({ key }) => `CodeQL / Scan ${key}`),
     "Product / Reference producer",
     ...matrixLanes(matrix).map(
       ({ os, node }) => `Product / Qualify ${os} / Node ${node}`,
@@ -58,6 +60,7 @@ function context(ctx) {
   for (const key of ["commit", "tree", "workflow"])
     assert.ok(sha(ctx.snapshot?.[key]));
   assert.equal(ctx.snapshot.commit, ctx.sha);
+  assert.match(ctx.snapshot.defaultPolicySha256, /^[a-f0-9]{64}$/u);
   assert.ok(
     Array.isArray(ctx.snapshot.parents) && ctx.snapshot.parents.every(sha),
   );
@@ -264,7 +267,7 @@ function lanes(records, ctx, matrix) {
     );
     assert.equal(matches.length, 1, "Missing or duplicate consumer receipt");
     const record = matches[0];
-    assert.equal(record.schemaVersion, 1);
+    assert.equal(record.schemaVersion, 2, "Obsolete lane contract");
     assert.equal(record.status, "passed");
     assert.equal(record.repositoryId, ctx.repositoryId);
     assert.equal(record.runId, ctx.runId);
@@ -279,23 +282,18 @@ function lanes(records, ctx, matrix) {
     assert.equal(record.host.node, lane.node);
     assert.equal(record.host.npm, nodeSupport.consumerNpm);
     assertHostedPlatform(record.host, lane.os);
-    assert.match(record.consumer.archiveSha256, /^[a-f0-9]{64}$/u);
-    assert.equal(record.consumer.publicExports, 6);
-    assert.equal(record.consumer.cliPhysicalFiles, 2);
-    assert.equal(record.consumer.qualification, "transported archive");
-    assert.equal(record.consumer.installSource, "producer-archive");
-    assert.equal(
-      record.consumer.nativePackage.name,
-      `@hadden-industries/json-quality-${lane.os.startsWith("windows") ? "win32" : "linux"}-x64`,
-    );
-    assert.equal(
-      record.consumer.nativePackage.version,
-      record.consumer.packageVersion,
-    );
-    assert.match(
-      record.consumer.nativePackage.integrity,
-      /^sha512-[A-Za-z0-9+/]+={0,2}$/u,
-    );
+    validateConsumers(record.consumers, {
+      source: ctx.sha,
+      ...lane,
+      npm: nodeSupport.consumerNpm,
+      defaultPolicySha256: ctx.snapshot.defaultPolicySha256,
+    });
+    for (const operation of ["check", "format"])
+      validatePerformance(record.performance[operation], {
+        source: ctx.sha,
+        ...lane,
+        operation,
+      });
     assert.ok(
       positive(record.transport.id) && positive(record.transport.size_in_bytes),
     );
@@ -315,12 +313,12 @@ function lanes(records, ctx, matrix) {
         "Lanes did not consume the single frozen producer artifact",
       );
       assert.equal(
-        record.consumer.archiveSha256,
-        records[0].consumer.archiveSha256,
+        record.consumers.root.archiveSha256,
+        records[0].consumers.root.archiveSha256,
       );
       assert.equal(
-        record.consumer.packageVersion,
-        records[0].consumer.packageVersion,
+        record.consumers.root.packageVersion,
+        records[0].consumers.root.packageVersion,
       );
     }
     return record;
@@ -368,7 +366,7 @@ export async function createReceipt({
     await verifyProducingAttempt(job, record.runAttempt, run, read);
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     mode: "FULL",
     repository,
     repositoryId: ctx.repositoryId,
@@ -479,7 +477,7 @@ export async function verifyProof({
   const selected = await selectProof({ ctx, read, now });
   equal(selected, selection, "Provider selection changed during admission");
   const { run, pr } = selected;
-  assert.equal(receipt.schemaVersion, 1);
+  assert.equal(receipt.schemaVersion, 2, "Obsolete aggregate proof contract");
   assert.equal(receipt.mode, "FULL");
   assert.ok(
     Date.parse(receipt.recordedAt) >= Date.parse(run.run_started_at) &&

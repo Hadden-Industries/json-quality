@@ -20,19 +20,19 @@ export type JsonSourceContract = {
    * @minItems 1
    */
   allowEmptyKeys?: [string, ...string[]];
-  allowFormatWrites?: false;
+  allowSourceRewrites?: false;
   owner?: string;
   reason?: string;
-  preserveNfcValues?: NfcValues;
+  nfcExemptStringValues?: NfcExemptStringValuePins;
   expected?: SourceExpectation;
 };
 /**
  * @minItems 1
  *
  * This interface was referenced by `undefined`'s JSON-Schema
- * via the `definition` "nfcValues".
+ * via the `definition` "nfcExemptStringValuePins".
  */
-export type NfcValues = [
+export type NfcExemptStringValuePins = [
   {
     pointer: string;
     sha256: string;
@@ -99,7 +99,7 @@ export interface DiagnosticIdentity {
  * via the `definition` "runtimeControls".
  */
 export interface RuntimeControls {
-  managedMemoryTargetBytes?: number | null;
+  maxManagedMemoryBytes?: number | null;
   maxTemporaryBytes?: number | null;
   maxNestingDepth?: number | null;
   maxCheckTimeMs?: number | null;
@@ -109,10 +109,10 @@ export interface RuntimeControls {
  * via the `definition` "capacityLimits".
  */
 export interface CapacityLimits {
-  maxFiles?: number | null;
-  maxFileBytes?: number | null;
-  maxTotalBytes?: number | null;
-  maxLogicalDocuments?: number | null;
+  maxPhysicalAndNativeSources?: number | null;
+  maxSourceBytes?: number | null;
+  maxTotalSourceBytes?: number | null;
+  maxNativeLogicalAndTransformedSources?: number | null;
   maxRecords?: number | null;
   maxDiagnostics?: number | null;
   maxPolicyBytes?: number | null;
@@ -120,12 +120,9 @@ export interface CapacityLimits {
   maxToolOutputBytes?: number | null;
   maxToolTimeMs?: number | null;
   maxGitTimeMs?: number | null;
-  maxAcquisitionTimeMs?: number | null;
-  maxCacheLookupTimeMs?: number | null;
-  maxCacheOutputBytes?: number | null;
-  maxRequestIdCharacters?: number | null;
+  maxRequestIdCodePoints?: number | null;
   maxRequestBytes?: number | null;
-  maxRequestPathCharacters?: number | null;
+  maxRequestPathCodePoints?: number | null;
 }
 /**
  * This interface was referenced by `undefined`'s JSON-Schema
@@ -143,7 +140,7 @@ export interface TransformControls {
  */
 export interface ProducerControls {
   maximumDepth?: number | null;
-  maximumMembers?: number | null;
+  maximumTotalValues?: number | null;
 }
 /**
  * This interface was referenced by `undefined`'s JSON-Schema
@@ -161,4 +158,21 @@ export interface VerificationControls {
   maximumDepth?: number | null;
   maximumVerificationTimeMs?: number | null;
   maximumDecompressionRatio?: number | null;
+}
+/**
+ * This interface was referenced by `undefined`'s JSON-Schema
+ * via the `definition` "installationControls".
+ */
+export interface InstallationControls {
+  maximumPackageFamilyFiles?: number | null;
+  maximumPackageFamilyBytes?: number | null;
+  maxCacheLookupTimeMs?: number | null;
+  maxCacheOutputBytes?: number | null;
+}
+/**
+ * This interface was referenced by `undefined`'s JSON-Schema
+ * via the `definition` "acquisitionControls".
+ */
+export interface AcquisitionControls {
+  maxAcquisitionTimeMs?: number | null;
 }

@@ -78,8 +78,8 @@ test("escaped ASCII keys still receive duplicate and whitespace diagnostics", as
     assert.equal(terminal.parserComplete, true);
     assert.equal(terminal.qualityPassed, false);
     assert.ok(rules.has("json/no-duplicate-keys"));
-    assert.ok(rules.has("json/no-empty-keys"));
-    assert.ok(rules.has("json-quality/meaningful-keys"));
+    assert.ok(rules.has("json-quality/no-empty-keys"));
+    assert.ok(rules.has("json-quality/no-surrounding-key-whitespace"));
   } finally {
     await session.close();
   }

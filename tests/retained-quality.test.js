@@ -8,7 +8,7 @@ import { jsonTokenMeaning } from "./json-token-meaning.js";
 import {
   normalizeJsonSource,
   formatJsonSource,
-  jsonContract,
+  resolveJsonSourceContract,
 } from "../src/index.js";
 import {
   JSON_SUFFIX,
@@ -18,7 +18,7 @@ import {
 import policy from "../.json-quality.json" with { type: "json" };
 
 async function qualityMessages(text, path = "new/data.json", overrides = {}) {
-  const selected = jsonContract(path, policy, { tracked: true });
+  const selected = resolveJsonSourceContract(path, policy, { tracked: true });
   return (
     await checkFixture(Buffer.from(text), {
       path,
@@ -162,7 +162,9 @@ test("meaningful keys reject decoded empty/edge whitespace", async () => {
   ])
     assert.ok(
       (await qualityMessages(text)).some((finding) =>
-        /(?:no-empty-keys|meaningful-keys)$/u.test(finding.ruleId),
+        /(?:no-empty-keys|no-surrounding-key-whitespace)$/u.test(
+          finding.ruleId,
+        ),
       ),
       text,
     );
@@ -316,7 +318,7 @@ test("NFC applies to every decoded key/value and explicit repair retains other s
   ])
     assert.ok(
       (await qualityMessages(text)).some(
-        (finding) => finding.ruleId === "json-quality/normalized-strings",
+        (finding) => finding.ruleId === "json-quality/nfc-strings",
       ),
     );
   assert.equal(
@@ -373,7 +375,7 @@ test("producer presentation preserves order, escapes, negative zero and decimal 
     options = {
       contract: {
         normalization: "preserve",
-        allowFormatWrites: false,
+        allowSourceRewrites: false,
         owner: "Corpus owner",
         reason: "Retain literal Unicode spelling.",
       },

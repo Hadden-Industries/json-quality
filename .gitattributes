@@ -8,3 +8,6 @@ native/prebuilt/** -text
 native/prebuilt/linux-x64/LICENSE text eol=lf
 native/prebuilt/win32-x64/LICENSE text eol=lf
 tests/oracles/finite-v1/** -text
+# Official Unicode conformance data and its notice retain the upstream bytes.
+tests/fixtures/unicode/NormalizationTest-18.0.0.txt -text
+tests/fixtures/unicode/LICENSE.txt -text

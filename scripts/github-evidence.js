@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { budgets } from "./qualification-process.js";
+import { budgets } from "./qualification-budgets.js";
 import { artifactLimits } from "./artifact-policy.js";
 
 const transientCodes = new Set([

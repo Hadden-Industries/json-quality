@@ -13,12 +13,26 @@ const validate = new Ajv({ strict: true })
  * @returns {event is import("./api-types.js").JsonQualityEvent}
  */
 export function validateJsonQualityEvent(event) {
-  return validate(event);
+  if (!validate(event)) return false;
+  if (event.type !== "execution") return true;
+  const origin = event.configurationOrigin;
+  if (!origin) return false;
+  if (origin.kind === "git-blob" || origin.kind === "git-absence") {
+    const qualification = event.qualification;
+    return Boolean(
+      qualification &&
+      qualification.trustedCommitId === origin.commitId &&
+      (origin.kind === "git-blob"
+        ? qualification.trustedPolicyBlobId === origin.blobId
+        : !Object.hasOwn(qualification, "trustedPolicyBlobId")),
+    );
+  }
+  return !Object.hasOwn(event, "qualification");
 }
 
 /** @returns {import("./api-types.js").JsonQualityEvent} */
 export function assertJsonQualityEvent(/** @type {*} */ event) {
-  if (!validate(event))
+  if (!validateJsonQualityEvent(event))
     throw new TypeError("Invalid JSON Quality event.", {
       cause: structuredClone(validate.errors),
     });

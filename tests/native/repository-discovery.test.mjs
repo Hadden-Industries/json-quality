@@ -42,7 +42,8 @@ test("real repository discovery rescues tracked boundaries and includes ignored 
       session,
       capacities: configured.result.resources.admission,
       contractFor: (path) => ({
-        exclude: path.startsWith(".git/") || path.startsWith("external/"),
+        excludeUntrackedSources:
+          path.startsWith(".git/") || path.startsWith("external/"),
       }),
       requiredOutputs: ["generated/*.json"],
     });
@@ -62,7 +63,7 @@ test("real repository discovery rescues tracked boundaries and includes ignored 
     ]);
     const status = (await session.command("census-status")).result;
     assert.equal(status.complete, false);
-    assert.equal(status.members, "3");
+    assert.equal(status.inventoryMemberCount, "3");
     assert.equal(status.missing, "3");
     for (const path of found) {
       const { member } = (
@@ -121,7 +122,9 @@ for (const change of ["directory", "Git"]) {
         root,
         session,
         capacities: configured.result.resources.admission,
-        contractFor: (path) => ({ exclude: path.startsWith(".git/") }),
+        contractFor: (path) => ({
+          excludeUntrackedSources: path.startsWith(".git/"),
+        }),
       };
       await discoverRepositorySources(options);
       await recheckRepositoryDiscovery(options);
@@ -153,7 +156,9 @@ test("a file changed after discovery cannot become a checked census member", asy
       root,
       session,
       capacities: configured.result.resources.admission,
-      contractFor: (path) => ({ exclude: path.startsWith(".git/") }),
+      contractFor: (path) => ({
+        excludeUntrackedSources: path.startsWith(".git/"),
+      }),
     });
     const { member } = (await session.command("census-next", { after: "" }))
       .result;

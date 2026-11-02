@@ -12,7 +12,7 @@ import {
 } from "./client.mjs";
 
 const valid =
-  '{"schemaVersion":3,"defaults":{"formatContract":"prettier-json","allowFormatWrites":true,"normalization":"NFC"},"exceptions":[]}';
+  '{"schemaVersion":4,"defaults":{"formatContract":"prettier-json","allowSourceRewrites":true,"normalization":"NFC"},"exceptions":[]}';
 async function fixture(text, run) {
   const root = await mkdtemp(join(nativeTemporaryRoot, "policy-bootstrap-"));
   try {
@@ -41,7 +41,7 @@ test("policy bootstrap preserves exact source identity, admits Ajv and transfers
         result.observation.byteLength,
         String(Buffer.byteLength(text)),
       );
-      assert.equal(result.policy.schemaVersion, 3);
+      assert.equal(result.policy.schemaVersion, 4);
       assert.throws(() => {
         result.policy.defaults.normalization = "preserve";
       }, TypeError);
@@ -67,7 +67,7 @@ test("policy bootstrap preserves exact source identity, admits Ajv and transfers
 
 test("policy duplicate names fail shared quality before object materialization", async () => {
   await fixture(
-    valid.replace('"schemaVersion":3', '"schemaVersion":3,"schemaVersion":3'),
+    valid.replace('"schemaVersion":4', '"schemaVersion":4,"schemaVersion":4'),
     async (options) => {
       await assert.rejects(
         bootstrapJsonPolicy(options),
@@ -87,7 +87,7 @@ test("policy input ceilings and complete domain admission remain separate", asyn
   await fixture('{"schemaVersion":999}', async (options) => {
     await assert.rejects(
       bootstrapJsonPolicy(options),
-      /Invalid JSON policy structure/,
+      /Invalid JSON configuration/,
     );
   });
 });

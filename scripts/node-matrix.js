@@ -79,7 +79,7 @@ export function qualificationMatrix(releases, policy = nodeSupport) {
     Array.isArray(releases) && releases.length > 0 && releases.length <= 10000,
   );
   const versions = releases.map((release) => {
-    assert.match(release?.version, /^v\d+\.\d+\.\d+$/u);
+    assert.match(release?.version, /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u);
     assert.ok(semver.valid(release.version));
     return release.version.slice(1);
   });
@@ -90,6 +90,7 @@ export function qualificationMatrix(releases, policy = nodeSupport) {
       .filter(
         (release) =>
           (release.lts || policy.preLtsMajors.includes(major)) &&
+          semver.prerelease(release.version) === null &&
           semver.major(release.version) === major,
       )
       .map((release) => release.version.slice(1));

@@ -4,10 +4,10 @@ import { createRequire } from "node:module";
 
 /** Refuse unsupported npm and native-module engines before consumer checks run. */
 export function assertNativeNpmRuntime(
-  npmExecutable,
+  npmCliPath,
   nodeVersion = process.versions.node,
 ) {
-  const native = createRequire(npmExecutable);
+  const native = createRequire(npmCliPath);
   const semver = native("semver");
   const npm = native("../package.json");
   assert.equal(npm.name, "npm", "Expected the native npm CLI package");

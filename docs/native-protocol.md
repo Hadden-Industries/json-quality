@@ -1,4 +1,4 @@
-# Native protocol, cohort 3
+# Native protocol, cohort 4
 
 Each platform package supplies the standalone executable and Node addon from the same core.
 `@hadden-industries/json-quality-linux-x64` contains `json-quality-native`; `@hadden-industries/json-quality-win32-x64` contains `json-quality-native.exe`.
@@ -12,7 +12,7 @@ Python hosts can use standard-library process and binary-I/O facilities.
 Actual HISEW integration remains a separately governed consumer change.
 
 Before launch, admit the closed component/build manifests and actual artifact hashes against the intended package/source cohort.
-The hello must match protocol 3, the admitted core source identity, ICU 79.1, Unicode 18.0 and SQLite 3.54.1.
+The hello must match protocol 4, the admitted core source identity, ICU 79.1, Unicode 18.0 and SQLite 3.54.1.
 Do not accept a caller-selected executable or a different platform as fallback.
 An absent packaged artifact is unavailable, not a qualified alternative.
 
@@ -37,7 +37,7 @@ Hosts may select per-I/O supervision budgets independently of total operation ti
 | `B`  | Host to core | Raw source bytes for an admitted active upload.                     |
 | `F`  | Host to core | Empty-body exact source EOF; closes immutable capture.              |
 
-The complete control envelope is independently bounded to 1 MiB.
+The complete control envelope uses the selected `maxRequestBytes` admission, with a 4 KiB minimum configuration envelope.
 Source payloads travel in `B` frames and do not become control JSON strings/Base64.
 Do not interleave requests or sources.
 A `C` fragment or source `B` frame has no acknowledgement of its own; wait for the relevant final response, not an invented per-fragment response.
@@ -49,7 +49,7 @@ Every request must include:
 
 ```json
 {
-  "protocolVersion": 3,
+  "protocolVersion": 4,
   "owner": "OWNER_FROM_THE_VERIFIED_HELLO",
   "requestId": "1",
   "command": "configure"
@@ -94,7 +94,7 @@ No source terminal asserts consumer domain admission or complete repository cens
 `next-child` takes a retained container `value` and decimal `ordinal` lower bound, returning one immediate non-key child descriptor in source order or `null` at completion.
 Its `name` identifies the original object key as a scoped value; array elements have no name.
 Duplicate object members remain distinct, and no decoded sibling collection is materialized.
-`read-value` takes `value`, `representation`, decimal `offset` and `maximum` (1..65,536), returning one `D` data frame followed by its correlated `J` range metadata.
+`read-value` takes `value`, `representation`, decimal `byteOffset` and `maximumBytes` (1..65,536), returning one `D` data frame followed by correlated `J` metadata containing `byteOffset`, `byteLength` and `totalByteLength`.
 Retain at most that bounded data frame until its metadata and request identity are admitted; a data frame alone is not a completed range response.
 
 Representations are `source-json`, `decoded-utf8`, `number-lexeme`, `nfc-utf8` and `json-pointer` where supported by the value kind.
@@ -102,6 +102,7 @@ Representations are `source-json`, `decoded-utf8`, `number-lexeme`, `nfc-utf8` a
 A host can hash, validate or forward fragments without materializing complete values.
 
 `reserve-materialization` and `reserve-control-materialization` explicitly admit a bounded conversion before allocation.
+Their `maximumBytes` argument bounds the selected representation.
 The latter requires a retained value from a completely parsed, positively checked source and charges conservative byte/node workspace. Roots use the indexed source node count; subtrees use their raw byte length as a conservative node-count bound, excluding unrelated siblings without a growing traversal. The host supplies its existing complete domain validator, owns converted objects and retains/releases the corresponding reservation through `release-materialization`.
 The core does not implement arbitrary consumer JSON Schema dialects.
 

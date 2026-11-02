@@ -18,6 +18,10 @@ import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { native, budgets } from "../scripts/qualification-process.js";
 import {
+  MINIMAL_CLI_CASES,
+  MINIMAL_CLI_COMMANDS,
+} from "../scripts/consumer-cli-probe.js";
+import {
   archiveInventory,
   isPrerelease,
   manualControl,
@@ -91,8 +95,9 @@ import {
   verifyStageFamily,
   controllerReviewFor,
 } from "../scripts/release-evidence.js";
-import { PACKAGE_VERIFICATION_CAPABILITIES } from "../src/package-payload.js";
+import { DEFAULT_PACKAGE_VERIFICATION_LIMITS } from "../src/package-payload.js";
 import { nativePackages } from "../src/native-packages.js";
+import { nodeMatrixFixture } from "./node-matrix-fixture.js";
 
 const source = "a".repeat(40),
   sha = "b".repeat(64);
@@ -131,6 +136,8 @@ const requiredFiles = [
   "src/index.js",
   "src/cli.js",
   "schemas/configuration.schema.json",
+  "schemas/effective-policy.schema.json",
+  "assets/default-json-quality-policy.json",
   "schemas/event.schema.json",
   "schemas/source-contract.schema.json",
   "schemas/contract-cohort.json",
@@ -170,22 +177,7 @@ const fixture = () => ({
       ].map((path) => ({ path, size: 1, sha256: sha })),
     },
   })),
-  matrix: {
-    os: ["ubuntu-24.04", "windows-2025"],
-    node: [
-      ...new Set([
-        policy.minimum,
-        ...policy.testedLtsMajors.map((major) =>
-          major === 22
-            ? "22.23.4"
-            : major === 26
-              ? "26.12.1"
-              : policy.reference,
-        ),
-        policy.reference,
-      ]),
-    ],
-  },
+  matrix: nodeMatrixFixture(policy),
   policy: structuredClone(policy),
   policySha256: sha,
   toolchain: { node: policy.reference, npm: policy.producerNpm.version },
@@ -225,19 +217,19 @@ test("release evidence admits bounded native archives above the metadata limit",
   assert.throws(() => evidenceIndex(directory), /oversized evidence/u);
   truncateSync(
     archive,
-    PACKAGE_VERIFICATION_CAPABILITIES.maximumArchiveBytes + 1,
+    DEFAULT_PACKAGE_VERIFICATION_LIMITS.maximumArchiveBytes + 1,
   );
   assert.throws(() => releaseArtifactBytes(archive), /oversized evidence/u);
   release.archive.size =
-    PACKAGE_VERIFICATION_CAPABILITIES.maximumArchiveBytes + 1;
+    DEFAULT_PACKAGE_VERIFICATION_LIMITS.maximumArchiveBytes + 1;
   assert.throws(() => verifyManifest(release), /package transport capability/u);
   release.archive.size = entry.size;
   release.archive.files[0].size =
-    PACKAGE_VERIFICATION_CAPABILITIES.maximumMemberBytes + 1;
+    DEFAULT_PACKAGE_VERIFICATION_LIMITS.maximumMemberBytes + 1;
   assert.throws(() => verifyManifest(release), /member exceeds/u);
   release.archive.files = Array.from({ length: 5 }, (_, index) => ({
     path: `large-${index}`,
-    size: PACKAGE_VERIFICATION_CAPABILITIES.maximumMemberBytes,
+    size: DEFAULT_PACKAGE_VERIFICATION_LIMITS.maximumMemberBytes,
     sha256: sha,
   }));
   assert.throws(() => verifyManifest(release), /expanded bytes exceed/u);
@@ -430,6 +422,15 @@ test("manual effect admission rejects every wrong context before a native reques
     ),
   );
 });
+function effectStepFixture(conclusion, started_at = "2026-10-18T00:00:00Z") {
+  return {
+    name: "Apply admitted release effect",
+    status: "completed",
+    conclusion,
+    started_at,
+    completed_at: started_at,
+  };
+}
 function providerFixture() {
   const run = {
     id: 19,
@@ -454,7 +455,16 @@ function providerFixture() {
         head_sha: source,
         run_id: 19,
         run_attempt: 2,
-        steps: [],
+        steps:
+          name === "stage"
+            ? [
+                {
+                  name: "Apply admitted release effect",
+                  status: "completed",
+                  conclusion: "skipped",
+                },
+              ]
+            : [],
       })),
     },
   };
@@ -494,13 +504,7 @@ test("durable request intent precedes native execution and unknown outcomes forb
   assert.equal(outcome.state, "completed");
   assert.equal(calls, 1);
   const p = providerFixture();
-  p.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-18T00:00:00Z",
-      conclusion: "success",
-    },
-  ];
+  p.jobs.jobs[1].steps = [effectStepFixture("success")];
   // Use the actual journal origin, independently attributed by the provider.
   p.run.id = 17;
   p.run.run_attempt = 2;
@@ -616,13 +620,7 @@ test("recovery binds original request bytes and cannot become authority to repla
   const prior = providerFixture();
   prior.run.id = 17;
   for (const job of prior.jobs.jobs) job.run_id = 17;
-  prior.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-18T00:00:00Z",
-      conclusion: "failure",
-    },
-  ];
+  prior.jobs.jobs[1].steps = [effectStepFixture("failure")];
   prior.journal = journal;
   assert.throws(() =>
     verifyEffectHistory(
@@ -1103,11 +1101,7 @@ test("owner abandonment settles only attempted old-version stages without admitt
   prior.run.id = 17;
   for (const job of prior.jobs.jobs) job.run_id = 17;
   prior.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-24T00:00:00Z",
-      conclusion: "failure",
-    },
+    effectStepFixture("failure", "2026-10-24T00:00:00Z"),
   ];
   prior.journal = journal;
   assert.throws(() =>
@@ -1343,13 +1337,7 @@ test("expired effect artifacts use signed digest-bound checkpoints without forge
     job.run_id = 17;
     job.run_attempt = 1;
   }
-  observed.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-18T00:00:00Z",
-      conclusion: "success",
-    },
-  ];
+  observed.jobs.jobs[1].steps = [effectStepFixture("success")];
   const readers = {
     pages: (path) =>
       path.includes("/artifacts?")
@@ -1822,13 +1810,7 @@ test("native predecessor download and writer-history acquisition have disjoint f
     job.run_id = 17;
     job.run_attempt = 1;
   });
-  observed.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-18T00:00:00Z",
-      conclusion: "success",
-    },
-  ];
+  observed.jobs.jobs[1].steps = [effectStepFixture("success")];
   const history = readEffectHistory({}, root, undefined, {
     pages: (path) =>
       path.includes("/artifacts?")
@@ -1995,13 +1977,7 @@ test("completed native continuations retain exact historical settlements across 
   const original = providerFixture();
   original.run.id = 17;
   original.jobs.jobs.forEach((job) => (job.run_id = 17));
-  original.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-18T00:00:00Z",
-      conclusion: "failure",
-    },
-  ];
+  original.jobs.jobs[1].steps = [effectStepFixture("failure")];
   assert.throws(() =>
     journalEffect(
       originalPath,
@@ -2021,11 +1997,7 @@ test("completed native continuations retain exact historical settlements across 
   continuation.jobs.jobs.forEach((job) => (job.run_id = 18));
   continuation.jobs.jobs[1].name = "promote";
   continuation.jobs.jobs[1].steps = [
-    {
-      name: "Apply admitted release effect",
-      started_at: "2026-10-18T00:01:00Z",
-      conclusion: "success",
-    },
+    effectStepFixture("success", "2026-10-18T00:01:00Z"),
   ];
   continuation.settlements = [
     {
@@ -2109,20 +2081,36 @@ test("signed source tags must be annotated, verified and name the original candi
   );
 });
 test("CodeQL gate uses exact-source native analyses and query inventories, including newest failures", () => {
-  const analyses = ["actions", "javascript-typescript"].map((language, id) => ({
+  const analyses = [
+    ["actions", "actions", "ubuntu-24.04", "/language:actions"],
+    [
+      "javascript-typescript",
+      "javascript-typescript",
+      "ubuntu-24.04",
+      "/language:javascript-typescript",
+    ],
+    ["python", "python", "ubuntu-24.04", "/language:python"],
+    ["cpp-linux", "c-cpp", "ubuntu-24.04", "/language:c-cpp/platform:linux"],
+    [
+      "cpp-windows",
+      "c-cpp",
+      "windows-2025",
+      "/language:c-cpp/platform:windows",
+    ],
+  ].map(([key, language, os, category], id) => ({
     id: id + 1,
     commit_sha: source,
     ref: "refs/heads/main",
-    category: `/language:${language}`,
+    category,
     analysis_key: ".github/workflows/security.yml:codeql",
-    environment: JSON.stringify({ language }),
+    environment: JSON.stringify({ key, language, os }),
     tool: { name: "CodeQL", version: "2.0.0" },
     error: "",
     warning: "",
     results_count: 0,
     rules_count: 1,
   }));
-  assert.equal(verifyCodeql(analyses, source).length, 2);
+  assert.equal(verifyCodeql(analyses, source).length, 5);
   for (const change of [
     (a) => a.pop(),
     (a) => (a[0].results_count = 1),
@@ -2136,7 +2124,7 @@ test("CodeQL gate uses exact-source native analyses and query inventories, inclu
   }
   assert.throws(() =>
     verifyCodeql(
-      [{ ...analyses[0], warning: "new failure" }, ...analyses],
+      [{ ...analyses[0], id: 100, warning: "new failure" }, ...analyses],
       source,
     ),
   );
@@ -2413,10 +2401,35 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
       nativeToolchain: { npm: policy.consumerNpm },
       qualification: "public registry",
       layout: "isolated",
-      publicExports: 6,
+      publicExports: 7,
       cliPhysicalFiles: 2,
       packageVersion: release.version,
       installSource: "registry",
+      minimalCli: {
+        status: "passed",
+        packageVersion: release.version,
+        cohortVersion: 4,
+        policy: "package-defaults",
+        defaultPolicySha256: sha,
+        command: "npm exec -- json-quality",
+        cases: [...MINIMAL_CLI_CASES],
+        commands: structuredClone(MINIMAL_CLI_COMMANDS),
+        generatedLockSha256: "b".repeat(64),
+        packageName: "@hadden-industries/json-quality",
+        specifier: release.version,
+        routing: "anonymous-registry",
+        corePackage: {
+          name: "@hadden-industries/json-quality",
+          version: release.version,
+          integrity: release.archive.integrity,
+          sha256: release.archive.sha256,
+        },
+        nativePackage: {
+          name: nativePackages["win32-x64"].package,
+          version: release.version,
+          integrity: release.platformArchives[1].archive.integrity,
+        },
+      },
       nativePackage: {
         name: nativePackages["win32-x64"].package,
         version: release.version,
@@ -2424,6 +2437,60 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
       },
     };
   verifyReport(report, release, lane, "public registry", "isolated");
+  for (const mutate of [
+    (value) => delete value.corePackage,
+    (value) => delete value.nativePackage,
+    (value) => (value.corePackage.integrity = "sha512-ZGlmZmVyZW50"),
+    (value) => (value.corePackage.sha256 = "f".repeat(64)),
+    (value) => (value.corePackage.version = "9.9.9"),
+    (value) => (value.nativePackage.integrity = "sha512-ZGlmZmVyZW50"),
+    (value) => (value.nativePackage.version = "9.9.9"),
+  ]) {
+    const substituted = structuredClone(report);
+    mutate(substituted.minimalCli);
+    assert.throws(() =>
+      verifyReport(substituted, release, lane, "public registry", "isolated"),
+    );
+  }
+  assert.throws(
+    () =>
+      verifyReport(
+        {
+          ...report,
+          minimalCli: {
+            ...report.minimalCli,
+            defaultPolicySha256: "f".repeat(64),
+          },
+        },
+        release,
+        lane,
+        "public registry",
+        "isolated",
+      ),
+    /default policy/iu,
+  );
+  for (const files of [
+    release.archive.files.filter(
+      ({ path }) => path !== "assets/default-json-quality-policy.json",
+    ),
+    [
+      ...release.archive.files,
+      release.archive.files.find(
+        ({ path }) => path === "assets/default-json-quality-policy.json",
+      ),
+    ],
+  ])
+    assert.throws(
+      () =>
+        verifyReport(
+          report,
+          { ...release, archive: { ...release.archive, files } },
+          lane,
+          "public registry",
+          "isolated",
+        ),
+      /default policy asset/iu,
+    );
   for (const [key, value] of Object.entries({
     sourceCommit: "e".repeat(40),
     node: "22.13.0",

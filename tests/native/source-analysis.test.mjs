@@ -19,7 +19,7 @@ async function captured(core, text, transformOf) {
 test("retained meaning comparison preserves decoded strings, ordering, literals and exact number lexemes", async () => {
   const core = new NativeSession();
   try {
-    await core.configure({ managedMemoryTargetBytes: "16777216" });
+    await core.configure({ maxManagedMemoryBytes: "16777216" });
     const first = await captured(core, '{"n":1e0,"v":[true,null,"\\u0061"]}'),
       same = await captured(
         core,
@@ -54,10 +54,13 @@ test("retained meaning comparison preserves decoded strings, ordering, literals 
 test("writer workspace can cause one spill, then refuses excess without invalidating existing sources", async () => {
   const core = new NativeSession();
   try {
-    await core.configure({ managedMemoryTargetBytes: "16777216" });
+    await core.configure({ maxManagedMemoryBytes: "16777216" });
     const first = await captured(core, '"' + "x".repeat(3 * 1024 * 1024) + '"');
     await core.command("resize-control-state", { byteLength: "6291456" });
-    assert.equal((await core.command("metrics")).result.transitions, "1");
+    assert.equal(
+      (await core.command("metrics")).result.spillTransitionCount,
+      "1",
+    );
     await assert.rejects(
       core.command("resize-control-state", { byteLength: "16777216" }),
       /control-state-budget/,
@@ -81,7 +84,7 @@ test("dense ordered source comparison completes within its finite operation dead
   const core = new NativeSession();
   try {
     await core.configure({
-      managedMemoryTargetBytes: "67108864",
+      maxManagedMemoryBytes: "67108864",
       maxCheckTimeMs: "10000",
     });
     const first = await captured(core, "[" + "0,".repeat(39999) + "0]");

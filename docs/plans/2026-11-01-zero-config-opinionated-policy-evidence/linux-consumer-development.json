@@ -1,0 +1,471 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Linux Codespaces development verification of the uncommitted revision-3 implementation",
+  "officialReleaseQualification": false,
+  "sourceClean": false,
+  "environment": {
+    "codespace": "json-quality-r3-linux-proof-9xwgjr5xwqh794x",
+    "os": "Ubuntu 24.04.5 LTS",
+    "architecture": "x64"
+  },
+  "sourceSnapshot": {
+    "baseArchiveSha256": "1688d88b805d74053af2d72f843a900680c8203e9f781719a2032d612f806579",
+    "finalDeltaArchiveSha256": "036acf3efcd4ffd5e58a2a767fedd752d4ad3fe33bf3593a42dc0ceae7110489"
+  },
+  "packageVersion": "1.0.0-rc.2",
+  "coreArchiveSha256": "fe070b4705a556cf635a9d630541f6540b8e01396c1efc009d13aaaae9982fc2",
+  "platformArchives": {
+    "linux-x64": {
+      "filename": "hadden-industries-json-quality-linux-x64-1.0.0-rc.2.tgz",
+      "sha256": "db460e5c56f550cf2393be1f88f6c0f439fa51fabe8a5a632393505a57ad02fc",
+      "integrity": "sha512-3y6/JHQsbRgcaatHwgloxjlO/O6ZIJq6Nuq2e7FVWL57+i5D4BiMc2jKQhWFA6NuJyCRC+jwMiUFyeHmqOU4xw=="
+    },
+    "win32-x64": {
+      "filename": "hadden-industries-json-quality-win32-x64-1.0.0-rc.2.tgz",
+      "sha256": "f2ee2e8f3867616c5625c3403e32e96bea0238a6e585aeb909fd55653a6a26dc",
+      "integrity": "sha512-X0Hu0A6Q6zs19CfUgIFdNHcVMEFusTY8aQrcI7bNSGOpaJkzFGUaUKIWOPwoxxAbnFmdFNfYiBi8ItPP/H0Qsg=="
+    }
+  },
+  "nativeComponent": {
+    "schemaVersion": 4,
+    "cohort": {
+      "cohortVersion": 4,
+      "configurationSchemaVersion": 4,
+      "eventSchemaVersion": 4,
+      "nativeProtocolVersion": 4,
+      "componentSchemaVersion": 4,
+      "nodeApiVersion": 9
+    },
+    "platform": "linux-x64",
+    "nodeApiVersion": 9,
+    "sourceInputsSha256": "8211af33775447a9b78354058ac4ae8f61ac3bbe9cf25588e80e976b1496bbb2",
+    "artifacts": {
+      "json-quality.node": {
+        "sha256": "92c424743504caa8cae6129479e6aedbd45ed8ef8e888203564deb9f3efc5d8b",
+        "bytes": 37429904
+      },
+      "json-quality-native": {
+        "sha256": "bd56753e7af9f34d70e518c05b27a445a63138d0ab50c6d98113afb21c854660",
+        "bytes": 37404944
+      }
+    },
+    "configurationSchemaSha256": "f28d4466e19b20ea16a84c04310636ba800cc4adffc6a1b0d68758b48e613769",
+    "controlSchemas": {
+      "configuration.schema.json": {
+        "sha256": "f28d4466e19b20ea16a84c04310636ba800cc4adffc6a1b0d68758b48e613769",
+        "bytes": 20960
+      },
+      "source-contract.schema.json": {
+        "sha256": "53af09247162d3eb8edf5a434936f575ef0307c7a35426812dab8193b4fcda2a",
+        "bytes": 2099
+      },
+      "contract-cohort.json": {
+        "sha256": "1d7dc5dd1789049f542f02d255b5f4f399a03e64a0b2bf3d5edbd26d6a3b53f8",
+        "bytes": 171
+      }
+    },
+    "components": {
+      "schemaVersion": 1,
+      "nodeApiVersion": 9,
+      "nodeHeadersVersion": "24.22.1",
+      "icuVersion": "79.1",
+      "unicodeVersion": "18.0",
+      "sqliteVersion": "3.54.1",
+      "boostVersion": "1.92.0",
+      "doubleConversionVersion": "3.4.0"
+    }
+  },
+  "nativeBuild": {
+    "cmake": "3.30.9",
+    "compiler": "GNU 13.3.0",
+    "verifiedPinnedDependencies": true,
+    "verifiedFirstPartyAndDependencyBytesAfterBuild": true,
+    "initialConfigureFailure": {
+      "stage": "configure",
+      "exitCode": 1,
+      "seconds": 1.1762819509999645,
+      "logSha256": "89dff5217afdf6763da352466c446995a8d0b1b87749c5bcbd9f7bdb3de8b9c0",
+      "logBytes": 172,
+      "cause": "Preinstalled CMake 3.28.3 is below the existing 3.30 minimum; temporary checksum-verified CMake 3.30.9 was then used."
+    },
+    "completedTools": [
+      {
+        "stage": "configure",
+        "exitCode": 0,
+        "seconds": 5.026962190999939,
+        "logSha256": "224da1d68a490d7481ca8680f577e22e2c31ddef0e1596c4e5ede3701bfe8f2f",
+        "logBytes": 797
+      },
+      {
+        "stage": "compile",
+        "exitCode": 0,
+        "seconds": 221.9662110920001,
+        "logSha256": "e3f3355f250b03d17a8fb0d508004f39a1a8e501cb212c1560f7f9e2fb667b8f",
+        "logBytes": 169703
+      },
+      {
+        "stage": "stage-artifacts",
+        "exitCode": 0,
+        "seconds": 0.11438384000030055,
+        "logSha256": "da3538eb1e7e03f73f725be37d4173b3d9a0e8acb190efb3bcc767b68c606bbf",
+        "logBytes": 246
+      }
+    ]
+  },
+  "focusedTests": {
+    "node": "26.13.0",
+    "npm": "12.2.1",
+    "tests": 103,
+    "passed": 102,
+    "failed": 0,
+    "skipped": 1,
+    "skipReason": "Windows checkout-case test",
+    "officialUnicodeRows": 20171,
+    "nfcEquations": 100855,
+    "fragmentationComparisons": 18,
+    "icu": "79.1",
+    "unicode": "18.0",
+    "sourceDeltaArchiveSha256": "738ce9640a17b85fb56bb887cf6ef2f3b1c59a2fbc52e68e2737d9fe6b04a2fe"
+  },
+  "correctedQualificationTests": {
+    "policyManifest": "passed",
+    "generatedTypes": 58,
+    "typecheck": "passed",
+    "receiptTestsPassed": 66,
+    "symlinkEntryRegressionTestsPassed": 2
+  },
+  "rejectedInitialCandidate": {
+    "coreArchiveSha256": "e6ee83520050a7920b7c4dac2a726af7c6e9c268f44a37f207fcaf3a976e2aa8",
+    "status": "failed; no passed receipt issued",
+    "cause": "POSIX npm .bin symlink spelling failed the former import.meta.url entry comparison, so the CLI did not run.",
+    "observations": [
+      {
+        "node": "22.13.0",
+        "npm": "11.21.1",
+        "layout": "root",
+        "stage": "installed CLI presentation-only check",
+        "expectedExitCode": 1,
+        "actualExitCode": 0,
+        "stdoutEmpty": true,
+        "stderrEmpty": true,
+        "logSha256": "c4c530adca2a2993f66c95032dcf854494720546e8b3e10b5a4c2a762f754105"
+      },
+      {
+        "node": "22.23.4",
+        "npm": "11.21.1",
+        "layout": "root",
+        "stage": "installed CLI presentation-only check",
+        "expectedExitCode": 1,
+        "actualExitCode": 0,
+        "stdoutEmpty": true,
+        "stderrEmpty": true,
+        "logSha256": "02ecb231fcbf45345369e3d60f80fd2554a7e72e4dbd09128e72b79e6db5215b"
+      },
+      {
+        "node": "24.22.2",
+        "npm": "11.21.1",
+        "layout": "root",
+        "stage": "installed CLI presentation-only check",
+        "expectedExitCode": 1,
+        "actualExitCode": 0,
+        "stdoutEmpty": true,
+        "stderrEmpty": true,
+        "logSha256": "f38aa5a5ffa03937b5a052d4f36867461f639c101beab541c8991c143917b915"
+      },
+      {
+        "node": "26.13.0",
+        "npm": "11.21.1",
+        "layout": "root",
+        "stage": "installed CLI presentation-only check",
+        "expectedExitCode": 1,
+        "actualExitCode": 0,
+        "stdoutEmpty": true,
+        "stderrEmpty": true,
+        "logSha256": "b3ad6e26b249f7a79dff8e8a6e16f993525f63c8abaf19a9c211a8f36550c98a"
+      }
+    ]
+  },
+  "runtimePolicy": "assets/node-support.json",
+  "runtimePolicySha256": "41547c2256d2507efb76b5451d1ad03cc5007da9a24b92faee9f76d785358d04",
+  "toolchains": {
+    "matrix": {
+      "os": [
+        "ubuntu-24.04",
+        "windows-2025"
+      ],
+      "node": [
+        "22.13.0",
+        "22.23.4",
+        "24.22.2",
+        "26.13.0"
+      ]
+    },
+    "runtimes": {
+      "22.13.0": {
+        "executable": "/workspaces/json-quality-r3-tools/nodes/node-v22.13.0-linux-x64/bin/node",
+        "source": "https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-x64.tar.xz",
+        "sha256": "3ff0d57063c33313d73d0bdcebc4c778ad6be948234584694a042c6fe57164f6"
+      },
+      "22.23.4": {
+        "executable": "/usr/local/share/nvm/versions/node/v22.23.4/bin/node",
+        "source": "preinstalled Codespaces runtime"
+      },
+      "24.22.2": {
+        "executable": "/usr/local/share/nvm/versions/node/v24.22.2/bin/node",
+        "source": "preinstalled Codespaces runtime"
+      },
+      "26.13.0": {
+        "executable": "/workspaces/json-quality-r3-tools/nodes/node-v26.13.0-linux-x64/bin/node",
+        "source": "https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-x64.tar.xz",
+        "sha256": "d28a96af6c38596f6d9d97c0ee531c13d238d757742387d1928de822d959e997"
+      }
+    }
+  },
+  "lanes": [
+    {
+      "node": "22.13.0",
+      "npm": "11.21.1",
+      "platform": "linux",
+      "architecture": "x64",
+      "layouts": {
+        "root": {
+          "status": "passed",
+          "sdkRuntime": "passed",
+          "sdkTypes": "passed",
+          "eslintRuntime": "passed",
+          "minimalCliCommands": 28,
+          "caseIds": [
+            "satisfied-with-generated-lock",
+            "presentation-only-format",
+            "nfc-only-normalize",
+            "zero-write-preview",
+            "mixed-format-then-normalize",
+            "mixed-normalize-then-format",
+            "canonical-key-collision-refusal",
+            "invalid-source-zero-writes",
+            "generated-lock-write-protected",
+            "sparse-global-preserve",
+            "ndjson-current-cohort",
+            "retired-cli-name-refusal"
+          ],
+          "commandResultsSha256": "cf0e93234ec7623f2a77035f2943925e886c9bac74eff5def4cd5dacd006bcd9",
+          "generatedLockSha256": "b34a5570661ef51157bc6dbd023ddfbe1ed85c851e828ce1c295a3ead1834938",
+          "defaultPolicySha256": "5c57ca0cfd157b8baf63f83bd08fe3d485db413ffa8c6aea566b49132db34469",
+          "cohortVersion": 4,
+          "noEslintInMinimalGraph": true
+        },
+        "isolated": {
+          "status": "passed",
+          "sdkRuntime": "passed",
+          "sdkTypes": "passed",
+          "eslintRuntime": "passed",
+          "minimalCliCommands": 28,
+          "caseIds": [
+            "satisfied-with-generated-lock",
+            "presentation-only-format",
+            "nfc-only-normalize",
+            "zero-write-preview",
+            "mixed-format-then-normalize",
+            "mixed-normalize-then-format",
+            "canonical-key-collision-refusal",
+            "invalid-source-zero-writes",
+            "generated-lock-write-protected",
+            "sparse-global-preserve",
+            "ndjson-current-cohort",
+            "retired-cli-name-refusal"
+          ],
+          "commandResultsSha256": "cf0e93234ec7623f2a77035f2943925e886c9bac74eff5def4cd5dacd006bcd9",
+          "generatedLockSha256": "e2579ca4eb375d65b2cc6ebf353bc38bc6d00f62253954789d3c47eaa94bc970",
+          "defaultPolicySha256": "5c57ca0cfd157b8baf63f83bd08fe3d485db413ffa8c6aea566b49132db34469",
+          "cohortVersion": 4,
+          "noEslintInMinimalGraph": true
+        }
+      }
+    },
+    {
+      "node": "22.23.4",
+      "npm": "11.21.1",
+      "platform": "linux",
+      "architecture": "x64",
+      "layouts": {
+        "root": {
+          "status": "passed",
+          "sdkRuntime": "passed",
+          "sdkTypes": "passed",
+          "eslintRuntime": "passed",
+          "minimalCliCommands": 28,
+          "caseIds": [
+            "satisfied-with-generated-lock",
+            "presentation-only-format",
+            "nfc-only-normalize",
+            "zero-write-preview",
+            "mixed-format-then-normalize",
+            "mixed-normalize-then-format",
+            "canonical-key-collision-refusal",
+            "invalid-source-zero-writes",
+            "generated-lock-write-protected",
+            "sparse-global-preserve",
+            "ndjson-current-cohort",
+            "retired-cli-name-refusal"
+          ],
+          "commandResultsSha256": "cf0e93234ec7623f2a77035f2943925e886c9bac74eff5def4cd5dacd006bcd9",
+          "generatedLockSha256": "b34a5570661ef51157bc6dbd023ddfbe1ed85c851e828ce1c295a3ead1834938",
+          "defaultPolicySha256": "5c57ca0cfd157b8baf63f83bd08fe3d485db413ffa8c6aea566b49132db34469",
+          "cohortVersion": 4,
+          "noEslintInMinimalGraph": true
+        },
+        "isolated": {
+          "status": "passed",
+          "sdkRuntime": "passed",
+          "sdkTypes": "passed",
+          "eslintRuntime": "passed",
+          "minimalCliCommands": 28,
+          "caseIds": [
+            "satisfied-with-generated-lock",
+            "presentation-only-format",
+            "nfc-only-normalize",
+            "zero-write-preview",
+            "mixed-format-then-normalize",
+            "mixed-normalize-then-format",
+            "canonical-key-collision-refusal",
+            "invalid-source-zero-writes",
+            "generated-lock-write-protected",
+            "sparse-global-preserve",
+            "ndjson-current-cohort",
+            "retired-cli-name-refusal"
+          ],
+          "commandResultsSha256": "cf0e93234ec7623f2a77035f2943925e886c9bac74eff5def4cd5dacd006bcd9",
+          "generatedLockSha256": "e2579ca4eb375d65b2cc6ebf353bc38bc6d00f62253954789d3c47eaa94bc970",
+          "defaultPolicySha256": "5c57ca0cfd157b8baf63f83bd08fe3d485db413ffa8c6aea566b49132db34469",
+          "cohortVersion": 4,
+          "noEslintInMinimalGraph": true
+        }
+      }
+    },
+    {
+      "node": "24.22.2",
+      "npm": "11.21.1",
+      "platform": "linux",
+      "architecture": "x64",
+      "layouts": {
+        "root": {
+          "status": "passed",
+          "sdkRuntime": "passed",
+          "sdkTypes": "passed",
+          "eslintRuntime": "passed",
+          "minimalCliCommands": 28,
+          "caseIds": [
+            "satisfied-with-generated-lock",
+            "presentation-only-format",
+            "nfc-only-normalize",
+            "zero-write-preview",
+            "mixed-format-then-normalize",
+            "mixed-normalize-then-format",
+            "canonical-key-collision-refusal",
+            "invalid-source-zero-writes",
+            "generated-lock-write-protected",
+            "sparse-global-preserve",
+            "ndjson-current-cohort",
+            "retired-cli-name-refusal"
+          ],
+          "commandResultsSha256": "cf0e93234ec7623f2a77035f2943925e886c9bac74eff5def4cd5dacd006bcd9",
+          "generatedLockSha256": "b34a5570661ef51157bc6dbd023ddfbe1ed85c851e828ce1c295a3ead1834938",
+          "defaultPolicySha256": "5c57ca0cfd157b8baf63f83bd08fe3d485db413ffa8c6aea566b49132db34469",
+          "cohortVersion": 4,
+          "noEslintInMinimalGraph": true
+        },
+        "isolated": {
+          "status": "passed",
+          "sdkRuntime": "passed",
+          "sdkTypes": "passed",
+          "eslintRuntime": "passed",
+          "minimalCliCommands": 28,
+          "caseIds": [
+            "satisfied-with-generated-lock",
+            "presentation-only-format",
+            "nfc-only-normalize",
+            "zero-write-preview",
+            "mixed-format-then-normalize",
+            "mixed-normalize-then-format",
+            "canonical-key-collision-refusal",
+            "invalid-source-zero-writes",
+            "generated-lock-write-protected",
+            "sparse-global-preserve",
+            "ndjson-current-cohort",
+            "retired-cli-name-refusal"
+          ],
+          "commandResultsSha256": "cf0e93234ec7623f2a77035f2943925e886c9bac74eff5def4cd5dacd006bcd9",
+          "generatedLockSha256": "e2579ca4eb375d65b2cc6ebf353bc38bc6d00f62253954789d3c47eaa94bc970",
+          "defaultPolicySha256": "5c57ca0cfd157b8baf63f83bd08fe3d485db413ffa8c6aea566b49132db34469",
+          "cohortVersion": 4,
+          "noEslintInMinimalGraph": true
+        }
+      }
+    },
+    {
+      "node": "26.13.0",
+      "npm": "11.21.1",
+      "platform": "linux",
+      "architecture": "x64",
+      "layouts": {
+        "root": {
+          "status": "passed",
+          "sdkRuntime": "passed",
+          "sdkTypes": "passed",
+          "eslintRuntime": "passed",
+          "minimalCliCommands": 28,
+          "caseIds": [
+            "satisfied-with-generated-lock",
+            "presentation-only-format",
+            "nfc-only-normalize",
+            "zero-write-preview",
+            "mixed-format-then-normalize",
+            "mixed-normalize-then-format",
+            "canonical-key-collision-refusal",
+            "invalid-source-zero-writes",
+            "generated-lock-write-protected",
+            "sparse-global-preserve",
+            "ndjson-current-cohort",
+            "retired-cli-name-refusal"
+          ],
+          "commandResultsSha256": "cf0e93234ec7623f2a77035f2943925e886c9bac74eff5def4cd5dacd006bcd9",
+          "generatedLockSha256": "b34a5570661ef51157bc6dbd023ddfbe1ed85c851e828ce1c295a3ead1834938",
+          "defaultPolicySha256": "5c57ca0cfd157b8baf63f83bd08fe3d485db413ffa8c6aea566b49132db34469",
+          "cohortVersion": 4,
+          "noEslintInMinimalGraph": true
+        },
+        "isolated": {
+          "status": "passed",
+          "sdkRuntime": "passed",
+          "sdkTypes": "passed",
+          "eslintRuntime": "passed",
+          "minimalCliCommands": 28,
+          "caseIds": [
+            "satisfied-with-generated-lock",
+            "presentation-only-format",
+            "nfc-only-normalize",
+            "zero-write-preview",
+            "mixed-format-then-normalize",
+            "mixed-normalize-then-format",
+            "canonical-key-collision-refusal",
+            "invalid-source-zero-writes",
+            "generated-lock-write-protected",
+            "sparse-global-preserve",
+            "ndjson-current-cohort",
+            "retired-cli-name-refusal"
+          ],
+          "commandResultsSha256": "cf0e93234ec7623f2a77035f2943925e886c9bac74eff5def4cd5dacd006bcd9",
+          "generatedLockSha256": "e2579ca4eb375d65b2cc6ebf353bc38bc6d00f62253954789d3c47eaa94bc970",
+          "defaultPolicySha256": "5c57ca0cfd157b8baf63f83bd08fe3d485db413ffa8c6aea566b49132db34469",
+          "cohortVersion": 4,
+          "noEslintInMinimalGraph": true
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Execution ran in a dedicated Codespace, not a GitHub Actions release lane.",
+    "The candidate was staged from uncommitted source; no clean-source adoption or release receipt was issued.",
+    "Unpublished companion archives were routed through npm-generated fixture locks; anonymous registry qualification was not performed."
+  ]
+}

@@ -12,16 +12,16 @@ const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 async function fixture(t, bytes = Buffer.from(' { "n": 1 }\r\n')) {
   const root = temporaryRepository(t, "json-quality-source-presentation-"),
     policy = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       defaults: {
         formatContract: "prettier-json",
-        allowFormatWrites: true,
+        allowSourceRewrites: true,
         normalization: "NFC",
       },
       exceptions: [
         {
           paths: [".git/**"],
-          exclude: true,
+          excludeUntrackedSources: true,
           owner: "Git",
           reason: "External state.",
         },
@@ -105,7 +105,7 @@ test("source retention checks semantics and blocks every repair write", async (t
   const before = readFileSync(join(f.root, "authored.json")),
     events = await repositoryEvents(f.options, "format");
   assert.equal(events.at(-1).type, "write-failure");
-  assert.equal(events.at(-1).written, "0");
+  assert.equal(events.at(-1).writtenPathCount, "0");
   assert.ok(
     events.some(
       (event) =>
@@ -135,7 +135,7 @@ test("original presentation retains only separately pinned exact semantic diagno
     paths: [f.identity.path],
     owner: "Conformance owner",
     reason: "Exact original negative fixture.",
-    allowFormatWrites: false,
+    allowSourceRewrites: false,
     expected: {
       sha256: f.identity.sha256,
       byteLength: f.identity.byteLength,
@@ -232,8 +232,8 @@ test("narrow NFC pins coexist with original presentation while unpinned values s
     paths: [f.identity.path],
     owner: "Original Unicode owner",
     reason: "Exact approved boundary value.",
-    allowFormatWrites: false,
-    preserveNfcValues: [
+    allowSourceRewrites: false,
+    nfcExemptStringValues: [
       {
         pointer: "/value",
         sha256: digest(value),

@@ -8,7 +8,7 @@ test("independent sessions overlap spill work with isolated metadata and allocat
   try {
     await Promise.all(
       sessions.map(async (session, index) => {
-        await session.configure({ managedMemoryTargetBytes: "16777216" });
+        await session.configure({ maxManagedMemoryBytes: "16777216" });
         function* input() {
           yield Buffer.from('"');
           const block = Buffer.alloc(65536, 65 + index);
@@ -38,7 +38,7 @@ test("independent sessions overlap spill work with isolated metadata and allocat
           fragment.data.toString(),
           String.fromCharCode(65 + index).repeat(5),
         );
-        assert.equal(metrics.transitions, "1");
+        assert.equal(metrics.spillTransitionCount, "1");
         assert.ok(BigInt(metrics.managedPeakBytes) <= 16777216n);
         assert.ok(BigInt(metrics.scratchPeakBytes) > 0n);
       }),

@@ -1,0 +1,662 @@
+{
+  "created": "2026-11-01T20:55:14.072Z",
+  "source": {
+    "root": "C:/Users/maksy/GitHub/json-quality",
+    "commit": "3d4db7106b44e226607ceee6500258c9b94e14cd"
+  },
+  "consumer": {
+    "root": "C:/Users/maksy/GitHub/google",
+    "commit": "74b07e95bd8988117db9c02157291e83339c9417",
+    "status": ""
+  },
+  "node": "26.13.0",
+  "nodeIcu": "78.3",
+  "nodeUnicode": "17.0",
+  "cpu": "12th Gen Intel(R) Core(TM) i9-12900K",
+  "logicalCpus": 24,
+  "nativeIdentity": {
+    "coreSourceInputsSha256": "ee38d2cf6af3272fe0076c49746e49f139a6ad931b6ae2e67555f2df07484c11",
+    "nodeApiVersion": 9,
+    "components": {
+      "icu": "79.1",
+      "unicode": "18.0",
+      "sqlite": "3.54.1"
+    }
+  },
+  "sourceBytesUnchanged": true,
+  "corpus": {
+    "files": 105,
+    "bytes": 1963585,
+    "census": {
+      "parseableFiles": 105,
+      "parseFailures": 0,
+      "stringsAndKeys": 68512,
+      "nonAsciiStringsAndKeys": 237,
+      "nonNfcStringsAndKeys": 0,
+      "filesWithNonAscii": 11,
+      "filesWithNonNfc": 0,
+      "normalizedKeyCollisionObjects": 0,
+      "disclaimer": "Descriptive JSON.parse census only; duplicate decoded keys collapse and numbers are converted. Native checker, not this census, owns correctness."
+    }
+  },
+  "rows": [
+    {
+      "workload": "google",
+      "modes": {
+        "default": {
+          "checkMs": {
+            "median": 226.3995,
+            "min": 222.5117,
+            "max": 253.94140000000002
+          },
+          "processWallMs": {
+            "median": 480.961299999999,
+            "min": 474.33339999999953,
+            "max": 521.9162000000006
+          },
+          "cpuMs": {
+            "median": 204,
+            "min": 188,
+            "max": 219
+          },
+          "peakRss": {
+            "median": 123072512,
+            "min": 122585088,
+            "max": 123396096
+          },
+          "processMaxRssBytes": {
+            "median": 123080704,
+            "min": 122593280,
+            "max": 123400192
+          },
+          "managedPeakBytes": {
+            "median": 27855512,
+            "min": 27855512,
+            "max": 27855512
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "findings": {
+            "presentation/format-contract": 80
+          },
+          "terminals": {
+            "count": 105,
+            "qualityPassed": 25,
+            "parserComplete": 105
+          }
+        },
+        "NFC": {
+          "checkMs": {
+            "median": 228.0226,
+            "min": 219.5552,
+            "max": 243.0171
+          },
+          "processWallMs": {
+            "median": 491.3287999999993,
+            "min": 476.4956000000002,
+            "max": 552.5771000000004
+          },
+          "cpuMs": {
+            "median": 203,
+            "min": 156,
+            "max": 234
+          },
+          "peakRss": {
+            "median": 122933248,
+            "min": 121987072,
+            "max": 123408384
+          },
+          "processMaxRssBytes": {
+            "median": 122937344,
+            "min": 121991168,
+            "max": 123420672
+          },
+          "managedPeakBytes": {
+            "median": 27855620,
+            "min": 27855620,
+            "max": 27855620
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "findings": {
+            "presentation/format-contract": 80
+          },
+          "terminals": {
+            "count": 105,
+            "qualityPassed": 25,
+            "parserComplete": 105
+          }
+        },
+        "preserve": {
+          "checkMs": {
+            "median": 227.21200000000002,
+            "min": 222.77640000000002,
+            "max": 231.46050000000002
+          },
+          "processWallMs": {
+            "median": 482.51039999999966,
+            "min": 475.90300000000025,
+            "max": 488.8969000000002
+          },
+          "cpuMs": {
+            "median": 218,
+            "min": 188,
+            "max": 219
+          },
+          "peakRss": {
+            "median": 123236352,
+            "min": 120639488,
+            "max": 123428864
+          },
+          "processMaxRssBytes": {
+            "median": 123240448,
+            "min": 120709120,
+            "max": 123498496
+          },
+          "managedPeakBytes": {
+            "median": 27851236,
+            "min": 27851236,
+            "max": 27851236
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "findings": {
+            "presentation/format-contract": 80
+          },
+          "terminals": {
+            "count": 105,
+            "qualityPassed": 25,
+            "parserComplete": 105
+          }
+        }
+      },
+      "nfcVsPreserve": {
+        "checkMedianDeltaMs": 0.8105999999999938,
+        "checkRatio": 1.0035675932609194,
+        "pairedDeltaMs": {
+          "median": 4.75030000000001,
+          "min": -5.873200000000082,
+          "max": 14.334299999999985
+        }
+      },
+      "explicitVsDefault": {
+        "checkMedianDeltaMs": 1.6231000000000222,
+        "checkRatio": 1.0071691854443143,
+        "pairedDeltaMs": {
+          "median": -0.11149999999997817,
+          "min": -16.5385,
+          "max": 15.273699999999991
+        }
+      }
+    },
+    {
+      "workload": "ascii",
+      "modes": {
+        "default": {
+          "checkMs": {
+            "median": 13.191400000000016,
+            "min": 12.582599999999985,
+            "max": 13.573000000000008
+          },
+          "processWallMs": {
+            "median": 265.46169999999984,
+            "min": 261.0385000000024,
+            "max": 272.41729999999916
+          },
+          "cpuMs": {
+            "median": 16,
+            "min": 15,
+            "max": 16
+          },
+          "peakRss": {
+            "median": 98873344,
+            "min": 97226752,
+            "max": 99270656
+          },
+          "processMaxRssBytes": {
+            "median": 100511744,
+            "min": 99000320,
+            "max": 101023744
+          },
+          "managedPeakBytes": {
+            "median": 9092026,
+            "min": 9092026,
+            "max": 9092026
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "findings": {},
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          }
+        },
+        "NFC": {
+          "checkMs": {
+            "median": 13.040500000000009,
+            "min": 12.673100000000005,
+            "max": 13.450500000000005
+          },
+          "processWallMs": {
+            "median": 267.90790000000015,
+            "min": 256.8064000000013,
+            "max": 281.0714000000007
+          },
+          "cpuMs": {
+            "median": 16,
+            "min": 15,
+            "max": 16
+          },
+          "peakRss": {
+            "median": 99115008,
+            "min": 97619968,
+            "max": 99491840
+          },
+          "processMaxRssBytes": {
+            "median": 100794368,
+            "min": 99168256,
+            "max": 101195776
+          },
+          "managedPeakBytes": {
+            "median": 9092134,
+            "min": 9092134,
+            "max": 9092134
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "findings": {},
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          }
+        },
+        "preserve": {
+          "checkMs": {
+            "median": 13.174700000000001,
+            "min": 12.645899999999983,
+            "max": 14.024699999999996
+          },
+          "processWallMs": {
+            "median": 266.92449999999917,
+            "min": 261.69570000000203,
+            "max": 273.4939999999988
+          },
+          "cpuMs": {
+            "median": 16,
+            "min": 15,
+            "max": 16
+          },
+          "peakRss": {
+            "median": 98979840,
+            "min": 97476608,
+            "max": 99377152
+          },
+          "processMaxRssBytes": {
+            "median": 100630528,
+            "min": 99106816,
+            "max": 101122048
+          },
+          "managedPeakBytes": {
+            "median": 9092134,
+            "min": 9092134,
+            "max": 9092134
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "findings": {},
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          }
+        }
+      },
+      "nfcVsPreserve": {
+        "checkMedianDeltaMs": -0.13419999999999277,
+        "checkRatio": 0.9898138098021213,
+        "pairedDeltaMs": {
+          "median": -0.198599999999999,
+          "min": -0.9093999999999767,
+          "max": 0.7490999999999985
+        }
+      },
+      "explicitVsDefault": {
+        "checkMedianDeltaMs": -0.15090000000000714,
+        "checkRatio": 0.9885607289597763,
+        "pairedDeltaMs": {
+          "median": 0.10600000000002296,
+          "min": -0.844300000000004,
+          "max": 0.8123999999999967
+        }
+      }
+    },
+    {
+      "workload": "unicode-nfc",
+      "modes": {
+        "default": {
+          "checkMs": {
+            "median": 36.14950000000002,
+            "min": 35.330400000000026,
+            "max": 36.755499999999984
+          },
+          "processWallMs": {
+            "median": 295.38930000000255,
+            "min": 284.0655999999981,
+            "max": 314.78679999999804
+          },
+          "cpuMs": {
+            "median": 32,
+            "min": 31,
+            "max": 47
+          },
+          "peakRss": {
+            "median": 99377152,
+            "min": 97837056,
+            "max": 99573760
+          },
+          "processMaxRssBytes": {
+            "median": 101117952,
+            "min": 99377152,
+            "max": 101281792
+          },
+          "managedPeakBytes": {
+            "median": 9157712,
+            "min": 9157712,
+            "max": 9157712
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "findings": {},
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          }
+        },
+        "NFC": {
+          "checkMs": {
+            "median": 35.870600000000024,
+            "min": 35.379699999999985,
+            "max": 37.128600000000006
+          },
+          "processWallMs": {
+            "median": 294.2910000000011,
+            "min": 289.04409999999916,
+            "max": 327.36699999999837
+          },
+          "cpuMs": {
+            "median": 32,
+            "min": 30,
+            "max": 47
+          },
+          "peakRss": {
+            "median": 99315712,
+            "min": 98156544,
+            "max": 99971072
+          },
+          "processMaxRssBytes": {
+            "median": 100990976,
+            "min": 99647488,
+            "max": 101519360
+          },
+          "managedPeakBytes": {
+            "median": 9157820,
+            "min": 9157820,
+            "max": 9157820
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "findings": {},
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          }
+        },
+        "preserve": {
+          "checkMs": {
+            "median": 14.039799999999985,
+            "min": 13.477599999999995,
+            "max": 14.689900000000023
+          },
+          "processWallMs": {
+            "median": 270.75220000000263,
+            "min": 266.01800000000003,
+            "max": 313.10189999999784
+          },
+          "cpuMs": {
+            "median": 16,
+            "min": 16,
+            "max": 16
+          },
+          "peakRss": {
+            "median": 99282944,
+            "min": 98144256,
+            "max": 99950592
+          },
+          "processMaxRssBytes": {
+            "median": 101048320,
+            "min": 99844096,
+            "max": 101429248
+          },
+          "managedPeakBytes": {
+            "median": 9157820,
+            "min": 9157820,
+            "max": 9157820
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "findings": {},
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          }
+        }
+      },
+      "nfcVsPreserve": {
+        "checkMedianDeltaMs": 21.83080000000004,
+        "checkRatio": 2.554922434792523,
+        "pairedDeltaMs": {
+          "median": 22.18120000000002,
+          "min": 21.410999999999973,
+          "max": 22.47720000000004
+        }
+      },
+      "explicitVsDefault": {
+        "checkMedianDeltaMs": -0.27889999999999304,
+        "checkRatio": 0.9922848172173891,
+        "pairedDeltaMs": {
+          "median": -0.1752999999999929,
+          "min": -1.3757999999999981,
+          "max": 1.549999999999983
+        }
+      }
+    },
+    {
+      "workload": "unicode-nfd",
+      "modes": {
+        "default": {
+          "checkMs": {
+            "median": 38.87700000000001,
+            "min": 37.2987,
+            "max": 40.40409999999997
+          },
+          "processWallMs": {
+            "median": 291.13080000000264,
+            "min": 281.0121999999974,
+            "max": 304.8171000000002
+          },
+          "cpuMs": {
+            "median": 32,
+            "min": 31,
+            "max": 46
+          },
+          "peakRss": {
+            "median": 100040704,
+            "min": 99164160,
+            "max": 100339712
+          },
+          "processMaxRssBytes": {
+            "median": 101183488,
+            "min": 100147200,
+            "max": 101408768
+          },
+          "managedPeakBytes": {
+            "median": 9666296,
+            "min": 9666296,
+            "max": 9666296
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "findings": {
+            "json-quality/normalized-strings/unnormalized": 64
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 0,
+            "parserComplete": 1
+          }
+        },
+        "NFC": {
+          "checkMs": {
+            "median": 38.60419999999999,
+            "min": 38.26139999999998,
+            "max": 39.90350000000001
+          },
+          "processWallMs": {
+            "median": 287.51530000000275,
+            "min": 277.0429000000004,
+            "max": 294.39310000000114
+          },
+          "cpuMs": {
+            "median": 31,
+            "min": 31,
+            "max": 47
+          },
+          "peakRss": {
+            "median": 100167680,
+            "min": 100003840,
+            "max": 100876288
+          },
+          "processMaxRssBytes": {
+            "median": 101273600,
+            "min": 101023744,
+            "max": 101752832
+          },
+          "managedPeakBytes": {
+            "median": 9666404,
+            "min": 9666404,
+            "max": 9666404
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "findings": {
+            "json-quality/normalized-strings/unnormalized": 64
+          },
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 0,
+            "parserComplete": 1
+          }
+        },
+        "preserve": {
+          "checkMs": {
+            "median": 14.522199999999998,
+            "min": 14.273300000000006,
+            "max": 14.7894
+          },
+          "processWallMs": {
+            "median": 261.21050000000105,
+            "min": 254.46199999999953,
+            "max": 273.3832000000002
+          },
+          "cpuMs": {
+            "median": 15,
+            "min": 0,
+            "max": 16
+          },
+          "peakRss": {
+            "median": 99581952,
+            "min": 97591296,
+            "max": 99856384
+          },
+          "processMaxRssBytes": {
+            "median": 101363712,
+            "min": 99426304,
+            "max": 101519360
+          },
+          "managedPeakBytes": {
+            "median": 9223356,
+            "min": 9223356,
+            "max": 9223356
+          },
+          "scratchPeakBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "findings": {},
+          "terminals": {
+            "count": 1,
+            "qualityPassed": 1,
+            "parserComplete": 1
+          }
+        }
+      },
+      "nfcVsPreserve": {
+        "checkMedianDeltaMs": 24.081999999999994,
+        "checkRatio": 2.658288689041605,
+        "pairedDeltaMs": {
+          "median": 23.881999999999977,
+          "min": 23.64839999999998,
+          "max": 25.630200000000002
+        }
+      },
+      "explicitVsDefault": {
+        "checkMedianDeltaMs": -0.2728000000000179,
+        "checkRatio": 0.992982997659284,
+        "pairedDeltaMs": {
+          "median": 0.4491999999999621,
+          "min": -2.1014000000000124,
+          "max": 1.139099999999985
+        }
+      }
+    }
+  ]
+}

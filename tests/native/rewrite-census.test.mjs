@@ -90,8 +90,8 @@ test("writer census retains every admitted candidate and truthful partial comple
       false,
     );
     const partial = (await core.command("rewrite-status")).result;
-    assert.equal(partial.selected, "2");
-    assert.equal(partial.written, "1");
+    assert.equal(partial.selectedPathCount, "2");
+    assert.equal(partial.writtenPathCount, "1");
     assert.equal(
       (await core.command("rewrite-next", { after: "a.json" })).result.candidate
         .path,
@@ -169,7 +169,7 @@ test("candidate census and captured references survive a real spill with all sev
     const sources = await physical(
       core,
       { "a.json": text, "b.json": text, "c.json": text },
-      { managedMemoryTargetBytes: "16777216" },
+      { maxManagedMemoryBytes: "16777216" },
       "6291456",
     );
     await core.command("rewrite-start", { operation: "format" });
@@ -185,10 +185,10 @@ test("candidate census and captured references survive a real spill with all sev
     }
     const status = (await core.command("rewrite-admit")).result,
       metrics = (await core.command("metrics")).result;
-    assert.equal(status.selected, "3");
-    assert.equal(status.changed, "0");
+    assert.equal(status.selectedPathCount, "3");
+    assert.equal(status.changedPathCount, "0");
     assert.equal(status.writesComplete, true);
-    assert.equal(metrics.transitions, "1");
+    assert.equal(metrics.spillTransitionCount, "1");
     assert.ok(BigInt(metrics.managedPeakBytes) <= 16777216n);
     assert.ok(BigInt(metrics.scratchPeakBytes) > 0n);
     assert.equal(

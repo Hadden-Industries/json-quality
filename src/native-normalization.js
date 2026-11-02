@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Retained bounded explicit NFC transformation, using the shared ICU/rule facts.
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
 import { NativeSession } from "./native-session.js";
 import {
@@ -38,7 +38,7 @@ export async function normalizeSource(
     temporaryDirectory,
     allowEmptyKeys,
     normalization = "NFC",
-    preserveNfcValues,
+    nfcExemptStringValues,
     capacityLimits,
     runtimeControls,
     transformControls,
@@ -46,11 +46,12 @@ export async function normalizeSource(
     core: executionCore,
     parentSource,
     controlStateBytes = "0",
+    preview = false,
   } = {},
 ) {
   const controls = transformResources(undefined, transformControls),
     sourceBytes = admitTransformSource(text, controls);
-  if (normalization !== "NFC" || preserveNfcValues?.length)
+  if (normalization !== "NFC" || nfcExemptStringValues?.length)
     throw new Error("Preserved JSON string identity cannot be normalized.");
   const began = performance.now(),
     selected = resolveExecutionResources(
@@ -102,7 +103,7 @@ export async function normalizeSource(
       if (event.type === "terminal") terminal = event;
       if (event.type !== "finding") continue;
       if (
-        event.ruleId !== "json-quality/normalized-strings" ||
+        event.ruleId !== "json-quality/nfc-strings" ||
         event.messageId !== "unnormalized"
       )
         throw new Error(
@@ -138,9 +139,40 @@ export async function normalizeSource(
           offset: Number(description.sourceByteOffset),
           length: Number(description.rawByteLength),
           bytes: replacement,
+          preview: preview
+            ? {
+                sourceByteOffset: description.sourceByteOffset,
+                rawByteLength: description.rawByteLength,
+                decodedByteLength: description.byteLength,
+                decodedSha256: description.sha256,
+                valueKind: description.valueKind,
+                normalizedByteLength: String(lease.bytes.length),
+                normalizedSha256: createHash("sha256")
+                  .update(lease.bytes)
+                  .digest("hex"),
+              }
+            : undefined,
         });
       } finally {
         await lease.release();
+      }
+      if (preview) {
+        const pointerParts = [];
+        for await (const part of values.fragments(
+          event.value,
+          "json-pointer",
+        )) {
+          patchBytes += part.length;
+          if (
+            controls.maximumOutputBytes !== null &&
+            patchBytes > controls.maximumOutputBytes
+          )
+            throw new Error("transform-output-capacity");
+          pointerParts.push(Buffer.from(part));
+        }
+        patches.at(-1).preview.pointer = new TextDecoder("utf-8", {
+          fatal: true,
+        }).decode(Buffer.concat(pointerParts));
       }
     }
     if (
@@ -197,8 +229,14 @@ export async function normalizeSource(
     remainingDuration(selected.runtime.maxCheckTimeMs, began);
     const outputText = output.toString("utf8");
     if (executionCore) {
-      return retainedTransformResult(outputText, latestCapture, () =>
-        core.command("resize-control-state", { byteLength: controlStateBytes }),
+      return retainedTransformResult(
+        outputText,
+        latestCapture,
+        () =>
+          core.command("resize-control-state", {
+            byteLength: controlStateBytes,
+          }),
+        patches.map((patch) => patch.preview).filter(Boolean),
       );
     }
     return outputText;

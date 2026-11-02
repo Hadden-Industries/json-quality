@@ -8,14 +8,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { qualifyJsonConsumer } from "../../src/qualification.js";
+import { qualifyGitJsonSources } from "../../src/qualification.js";
 import { validateJsonQualityEvent } from "../../src/events.js";
 
 const policy = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   defaults: {
     formatContract: "prettier-json",
-    allowFormatWrites: true,
+    allowSourceRewrites: true,
     normalization: "NFC",
   },
   exceptions: [],
@@ -24,15 +24,16 @@ const git = (root, ...args) =>
   execFileSync("git", ["-C", root, ...args], { windowsHide: true })
     .toString()
     .trim();
-async function fixture(run) {
+async function fixture(run, { configuration = policy } = {}) {
   const root = await mkdtemp(join(tmpdir(), "json-git-qualification-"));
   try {
     git(root, "init", "--quiet", "--template=");
     git(root, "config", "core.autocrlf", "false");
-    await writeFile(
-      join(root, ".json-quality.json"),
-      JSON.stringify(policy, null, 2) + "\n",
-    );
+    if (configuration !== null)
+      await writeFile(
+        join(root, ".json-quality.json"),
+        JSON.stringify(configuration, null, 2) + "\n",
+      );
     await writeFile(join(root, "value.json"), "1.00\n");
     git(root, "add", ".");
     git(
@@ -52,8 +53,8 @@ async function fixture(run) {
       {
         trustedRoot: root,
         candidateRoot: root,
-        trustedSha: sha,
-        candidateSha: sha,
+        trustedCommitId: sha,
+        candidateCommitId: sha,
       },
       root,
     );
@@ -63,7 +64,7 @@ async function fixture(run) {
 }
 async function collect(options) {
   const events = [];
-  for await (const event of qualifyJsonConsumer(options)) {
+  for await (const event of qualifyGitJsonSources(options)) {
     assert.equal(validateJsonQualityEvent(event), true, JSON.stringify(event));
     events.push(event);
   }
@@ -80,12 +81,57 @@ test("qualification streams immutable blobs and declares its exact trusted/candi
       terminal = events.at(-1);
     assert.equal(terminal.type, "execution-terminal");
     assert.equal(terminal.contractSatisfied, true);
-    assert.equal(terminal.members, "2");
+    assert.equal(terminal.inventoryMemberCount, "2");
     assert.equal(terminal.domainComplete, false);
-    assert.equal(events[0].qualification.candidateSha, options.candidateSha);
+    assert.equal(
+      events[0].qualification.candidateCommitId,
+      options.candidateCommitId,
+    );
+    assert.deepEqual(events[0].configurationOrigin, {
+      kind: "git-blob",
+      path: ".json-quality.json",
+      commitId: options.trustedCommitId,
+      blobId: git(
+        root,
+        "rev-parse",
+        options.trustedCommitId + ":.json-quality.json",
+      ),
+    });
+    assert.equal(
+      events[0].qualification.trustedPolicyBlobId,
+      events[0].configurationOrigin.blobId,
+    );
     assert.equal(events[0].qualification.scope, "immutable-git-json");
     assert.equal(events.filter((event) => event.type === "source").length, 2);
   });
+});
+
+test("immutable trusted configuration absence selects defaults with exact absence provenance", async () => {
+  await fixture(
+    async (options, root) => {
+      // Present dirty bytes cannot replace the trusted commit's observed absence.
+      await writeFile(
+        join(root, ".json-quality.json"),
+        "invalid dirty configuration",
+      );
+      const events = await collect(options),
+        execution = events[0];
+      assert.equal(events.at(-1).contractSatisfied, true);
+      assert.equal(events.at(-1).inventoryMemberCount, "1");
+      assert.deepEqual(execution.configurationOrigin, {
+        kind: "git-absence",
+        path: ".json-quality.json",
+        commitId: options.trustedCommitId,
+      });
+      for (const key of ["configurationBytesSha256", "configurationByteLength"])
+        assert.equal(Object.hasOwn(execution, key), false);
+      assert.equal(
+        Object.hasOwn(execution.qualification, "trustedPolicyBlobId"),
+        false,
+      );
+    },
+    { configuration: null },
+  );
 });
 test("candidate policy is ordinary data and cannot weaken the trusted policy", async () => {
   await fixture(async (options, root) => {
@@ -104,7 +150,7 @@ test("candidate policy is ordinary data and cannot weaken the trusted policy", a
       "-m",
       "candidate",
     );
-    options.candidateSha = git(root, "rev-parse", "HEAD");
+    options.candidateCommitId = git(root, "rev-parse", "HEAD");
     // A trusted commit may be an ancestor; immutable identity is independent of HEAD.
     const events = await collect(options);
     assert.equal(events.at(-1).contractSatisfied, false);
@@ -114,11 +160,8 @@ test("candidate policy is ordinary data and cannot weaken the trusted policy", a
 test("qualification keeps finite runtime controls during admission bypass and rejects obsolete options", async () => {
   await fixture(async (options) => {
     const events = await collect({ ...options, capacityLimits: false });
-    assert.equal(events[0].resources.admission.maxFileBytes, null);
-    assert.equal(
-      events[0].resources.runtime.managedMemoryTargetBytes,
-      "33554432",
-    );
+    assert.equal(events[0].resources.admission.maxSourceBytes, null);
+    assert.equal(events[0].resources.runtime.maxManagedMemoryBytes, "33554432");
     await assert.rejects(collect({ ...options, limits: false }), /options/u);
     const controller = new AbortController();
     controller.abort(new Error("stop qualification"));
@@ -133,7 +176,7 @@ test("qualification rejects tree identities and unsupported tracked JSON dialect
   await fixture(async (options, root) => {
     const tree = git(root, "rev-parse", "HEAD^{tree}");
     await assert.rejects(
-      collect({ ...options, candidateSha: tree }),
+      collect({ ...options, candidateCommitId: tree }),
       /must name a commit/u,
     );
     await writeFile(join(root, "unsupported.json5"), "{}\n");
@@ -151,7 +194,10 @@ test("qualification rejects tree identities and unsupported tracked JSON dialect
       "dialect",
     );
     await assert.rejects(
-      collect({ ...options, candidateSha: git(root, "rev-parse", "HEAD") }),
+      collect({
+        ...options,
+        candidateCommitId: git(root, "rev-parse", "HEAD"),
+      }),
       /Unsupported JSON source dialect/u,
     );
   });
@@ -169,10 +215,10 @@ test("qualification CLI delivers NDJSON for the immutable source scope", async (
         options.trustedRoot,
         "--candidate-root",
         options.candidateRoot,
-        "--trusted-sha",
-        options.trustedSha,
-        "--candidate-sha",
-        options.candidateSha,
+        "--trusted-commit-id",
+        options.trustedCommitId,
+        "--candidate-commit-id",
+        options.candidateCommitId,
         "--request-id",
         "git-cli-fixture",
       ],
@@ -215,20 +261,20 @@ test("large Git JSON obeys byte admission and is streamed under admission bypass
       "-m",
       "large",
     );
-    const candidateSha = git(root, "rev-parse", "HEAD");
+    const candidateCommitId = git(root, "rev-parse", "HEAD");
     await assert.rejects(
       collect({
         ...options,
-        candidateSha,
-        capacityLimits: { maxFileBytes: 1048576 },
+        candidateCommitId,
+        capacityLimits: { maxSourceBytes: 1048576 },
       }),
       /source-byte-capacity/u,
     );
     const events = await collect({
       ...options,
-      candidateSha,
+      candidateCommitId,
       capacityLimits: false,
-      runtimeControls: { managedMemoryTargetBytes: 16777216 },
+      runtimeControls: { maxManagedMemoryBytes: 16777216 },
     });
     assert.equal(events.at(-1).contractSatisfied, true);
     assert.ok(
@@ -287,7 +333,10 @@ test("tracked symlink JSON is rejected from its Git mode without opening checkou
       "symlink mode",
     );
     await assert.rejects(
-      collect({ ...options, candidateSha: git(root, "rev-parse", "HEAD") }),
+      collect({
+        ...options,
+        candidateCommitId: git(root, "rev-parse", "HEAD"),
+      }),
       /regular Git blobs/u,
     );
   });

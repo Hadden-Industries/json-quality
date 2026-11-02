@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/%40hadden-industries%2Fjson-quality)](https://www.npmjs.com/package/@hadden-industries/json-quality) [![CI](https://github.com/Hadden-Industries/json-quality/actions/workflows/ci.yml/badge.svg)](https://github.com/Hadden-Industries/json-quality/actions/workflows/ci.yml) [![Node](https://img.shields.io/badge/node-%3E%3D22.13.0-green)](docs/node-runtime-compatibility.md) [![AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 
-Check strict JSON, JSONL and NDJSON; preserve exact numeric lexemes and member order; catch duplicate decoded keys, invalid Unicode and inconsistent presentation.
+Check strict JSON, JSONL and NDJSON; preserve exact numeric lexemes and member order; catch duplicate decoded keys, invalid Unicode, NFC drift and inconsistent presentation.
 One native reader handles small documents and oversized values with bounded memory and owned spill storage.
 
 Install a published version with npm:
@@ -11,43 +11,41 @@ Install a published version with npm:
 npm install --save-dev --save-exact @hadden-industries/json-quality
 ```
 
-These examples describe contract cohort **3**, prepared as unpublished development candidate **1.0.0-rc.2**.
-Publication and installed qualification remain separate release gates; the source checkout does not establish registry availability.
+These examples describe the cohort **4** source contract under development.
+They do not establish that a matching version is published or installed.
+Use a version qualified for these contracts when consuming a release.
 
-Create `.json-quality.json`:
-
-```json
-{
-  "schemaVersion": 2,
-  "defaults": {
-    "formatContract": "prettier-json",
-    "allowFormatWrites": true,
-    "normalization": "NFC"
-  },
-  "exceptions": [
-    {
-      "paths": [".git/**", "**/node_modules/**"],
-      "exclude": true,
-      "owner": "Git and npm",
-      "reason": "External metadata and installed dependencies."
-    }
-  ]
-}
-```
-
-Check complete repository obligations, then select explicit physical files for a guarded write:
+Run from an existing Git repository; no configuration file or wrapper is required.
+The package supplies fixed presentation, NFC checking and dependency/VCS boundaries, including protected npm lockfiles.
+Check the repository, then select physical files for a guarded repair:
 
 ```sh
 npm exec -- json-quality check --root .
 npm exec -- json-quality format --root . -- authored.json
+npm exec -- json-quality normalize --dry-run --root . -- authored.json
 npm exec -- json-quality normalize --root . -- authored.json
 ```
 
 Checking writes no source files; a spill may create owned temporary storage.
-Formatting preserves decoded meaning and exact numeric lexemes.
-Normalization explicitly repairs NFC string/key spans and refuses collisions.
+Formatting preserves decoded strings and exact numeric lexemes, so NFC findings may remain.
+Normalization explicitly repairs NFC string/key spans and may leave presentation findings.
+Either repair order works for a file with both conditions; run `check` afterwards to assess overall quality.
+The normalization preview writes nothing and refuses NFC-colliding keys before the first selected write.
 Write batches report confirmed writes and any uncertain path; they are not atomic.
 Producer-owned, logical and JSONL sources retain their owning write boundary.
+
+Optional `.json-quality.json` accepts `{}` or sparse exceptions.
+To preserve decoded Unicode sequences globally, use:
+
+```json
+{
+  "defaults": { "normalization": "preserve" }
+}
+```
+
+Preservation keeps ordinary presentation checking; normalization refuses selected preserved sources.
+Distinct keys that would collide under NFC produce a non-blocking collision-risk event under preservation.
+Exact decoded duplicate keys still fail.
 
 Use the typed ESM API:
 

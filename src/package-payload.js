@@ -16,13 +16,13 @@ import {
 } from "./resource-profile.js";
 import { createExecutionDeadline } from "./execution-deadline.js";
 
-export const PACKAGE_VERIFICATION_CAPABILITIES =
+export const DEFAULT_PACKAGE_VERIFICATION_LIMITS =
   /** @type {{ readonly [K in keyof Required<import("../types/schemas/configuration.js").VerificationControls>]: number }} */ (
     resourceDefaults("verificationControls")
   );
 export function verificationResources(/** @type {*} */ selected) {
   return resolveResourceProfile(
-    PACKAGE_VERIFICATION_CAPABILITIES,
+    DEFAULT_PACKAGE_VERIFICATION_LIMITS,
     undefined,
     selected,
   );
@@ -230,7 +230,7 @@ export async function verifyPackagePayload(
     cache,
     integrity,
     installedRoot,
-    admission,
+    packageFamilyBudget,
     signal,
     verificationControls,
   },
@@ -246,9 +246,12 @@ export async function verifyPackagePayload(
     expected = new Map(),
     seen = new Set(),
     archiveHash = createHash("sha512"),
-    maximumFiles = minimumQuota(admission.maxFiles, selected.maximumMembers),
+    maximumFiles = minimumQuota(
+      packageFamilyBudget.maximumPackageFamilyFiles,
+      selected.maximumMembers,
+    ),
     maximumTotal = minimumQuota(
-      admission.maxTotalBytes,
+      packageFamilyBudget.maximumPackageFamilyBytes,
       selected.maximumExpandedBytes,
     );
   try {
@@ -312,6 +315,16 @@ export async function verifyPackagePayload(
         member.on("error", (/** @type {*} */ error) => sink.destroy(error));
         member.on("data", (/** @type {*} */ part) => {
           length += BigInt(part.length);
+          if (
+            length > BigInt(member.size) ||
+            (selected.maximumMemberBytes !== null &&
+              length > BigInt(selected.maximumMemberBytes))
+          ) {
+            sink.destroy(
+              new Error("Package member streamed byte limit exceeded."),
+            );
+            return;
+          }
           hash.update(part);
         });
         member.on("end", () => {

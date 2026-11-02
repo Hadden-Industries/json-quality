@@ -18,7 +18,7 @@ inline std::string censusPath(const json::value &input, const ResourcePolicy &re
   std::uint64_t characters = 0;
   for (std::size_t i = 0; i <= path.size(); ++i) {
     if (i < path.size() && (static_cast<unsigned char>(path[i]) & 0xc0) != 0x80)
-      require(++characters <= resources.get(ResourcePolicy::Admission::maxRequestPathCharacters),
+      require(++characters <= resources.get(ResourcePolicy::Admission::maxRequestPathCodePoints),
               "request-path-capacity");
     if (i == path.size() || path[i] == '/') {
       auto length = i - start;
@@ -218,7 +218,7 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
                   sha.find_first_not_of("0123456789abcdef") == std::string::npos,
               "census-member-identity");
       length = exactInteger(object.at("byteLength"));
-      require(length <= resources.get(ResourcePolicy::Admission::maxFileBytes),
+      require(length <= resources.get(ResourcePolicy::Admission::maxSourceBytes),
               "source-byte-capacity");
     }
     require(selected.kind == "physical" || !sha.empty(), "census-member-identity");
@@ -293,9 +293,11 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
     }
     if (!exists) {
       if (selected.kind != "logical")
-        require(files < resources.get(ResourcePolicy::Admission::maxFiles), "census-file-capacity");
+        require(files < resources.get(ResourcePolicy::Admission::maxPhysicalAndNativeSources),
+                "census-file-capacity");
       if (selected.kind != "physical")
-        require(logical < resources.get(ResourcePolicy::Admission::maxLogicalDocuments),
+        require(logical <
+                    resources.get(ResourcePolicy::Admission::maxNativeLogicalAndTransformedSources),
                 "census-logical-capacity");
       Statement insert(*store.database,
                        "INSERT INTO census_members(path,folded,kind,provider,sha,length,"
@@ -545,7 +547,7 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
     providers.finish();
     return {{"type", "census-status"},
             {"complete", complete},
-            {"members", std::to_string(members)},
+            {"inventoryMemberCount", std::to_string(members)},
             {"missing", std::to_string(missing)},
             {"qualityPassed", complete && qualityFailures == 0},
             {"contractSatisfied", complete && contractFailures == 0}};

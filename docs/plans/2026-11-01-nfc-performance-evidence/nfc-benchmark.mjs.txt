@@ -1,0 +1,149 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync, mkdirSync, lstatSync } from 'node:fs';
+import { join, dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { cpus, totalmem } from 'node:os';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const productRoot = 'C:/Users/maksy/GitHub/json-quality';
+const consumerRoot = 'C:/Users/maksy/GitHub/google';
+const hash = value => createHash('sha256').update(value).digest('hex');
+const git = (root, args) => execFileSync('git', ['-C', root, ...args], { windowsHide: true, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+const save = (name, value) => writeFileSync(join(here, name), JSON.stringify(value, null, 2) + '\n');
+const manifestPath = join(here, 'corpus.json');
+const mode = process.argv[2] ?? 'prepare';
+
+if (mode === 'prepare') {
+  mkdirSync(join(here, 'snapshot'), { recursive: true });
+  const excluded = /(^|\/)(node_modules|\.git|dist|build|coverage|vendor)(\/|$)|fixture|malformed|invalid|oracle|frozen|(^|\/)(package-lock|npm-shrinkwrap|yarn-lock|pnpm-lock)\.json$|\.(map|min)\.json$/i;
+  const paths = git(consumerRoot, ['ls-files', '-z', '--', '*.json']).split('\0').filter(path => path && !excluded.test(path)).sort();
+  const census = { parseableFiles: 0, parseFailures: 0, stringsAndKeys: 0, nonAsciiStringsAndKeys: 0, nonNfcStringsAndKeys: 0, filesWithNonAscii: 0, filesWithNonNfc: 0, normalizedKeyCollisionObjects: 0, disclaimer: 'Descriptive JSON.parse census only; duplicate decoded keys collapse and numbers are converted. Native checker, not this census, owns correctness.' };
+  const files = [];
+  for (const path of paths) {
+    const full = join(consumerRoot, path);
+    const stat = lstatSync(full);
+    if (!stat.isFile() || stat.isSymbolicLink()) continue;
+    const bytes = readFileSync(full), id = String(files.length).padStart(4, '0') + '.json';
+    writeFileSync(join(here, 'snapshot', id), bytes);
+    const entry = { path, snapshot: 'snapshot/' + id, bytes: bytes.length, sha256: hash(bytes), rawNonAscii: bytes.some(byte => byte >= 128) };
+    files.push(entry);
+    let nonAscii = 0, nonNfc = 0;
+    const scalar = text => { census.stringsAndKeys++; if (/[^\x00-\x7f]/u.test(text)) nonAscii++; if (text.normalize('NFC') !== text) nonNfc++; };
+    try {
+      const stack = [JSON.parse(bytes.toString('utf8'))];
+      census.parseableFiles++;
+      while (stack.length) {
+        const item = stack.pop();
+        if (typeof item === 'string') scalar(item);
+        else if (Array.isArray(item)) stack.push(...item);
+        else if (item && typeof item === 'object') {
+          const seen = new Map(); let collision = false;
+          for (const [key, value] of Object.entries(item)) {
+            scalar(key); stack.push(value);
+            const normalized = key.normalize('NFC');
+            if (seen.has(normalized) && seen.get(normalized) !== key) collision = true;
+            seen.set(normalized, key);
+          }
+          if (collision) census.normalizedKeyCollisionObjects++;
+        }
+      }
+    } catch { census.parseFailures++; }
+    census.nonAsciiStringsAndKeys += nonAscii; census.nonNfcStringsAndKeys += nonNfc;
+    if (nonAscii) census.filesWithNonAscii++;
+    if (nonNfc) census.filesWithNonNfc++;
+  }
+  const synthetic = [];
+  for (const [name, unit] of [['ascii', 'cafe '], ['unicode-nfc', 'caf\u00e9 '], ['unicode-nfd', 'cafe\u0301 ']]) {
+    const text = JSON.stringify(Array.from({ length: 64 }, (_, id) => ({ id, value: unit.repeat(1024) })), null, 2) + '\n';
+    const path = name + '.json'; writeFileSync(join(here, 'snapshot', path), text);
+    synthetic.push({ name, files: [{ path, snapshot: 'snapshot/' + path, bytes: Buffer.byteLength(text), sha256: hash(text) }] });
+  }
+  const manifest = { schemaVersion: 1, checkedAt: new Date().toISOString(), source: { root: productRoot, commit: git(productRoot, ['rev-parse', 'HEAD']).trim() }, consumer: { root: consumerRoot, commit: git(consumerRoot, ['rev-parse', 'HEAD']).trim(), status: git(consumerRoot, ['status', '--short']) }, exclusionRegex: excluded.source, files, bytes: files.reduce((n, f) => n + f.bytes, 0), census, synthetic };
+  save('corpus.json', manifest);
+  console.log(JSON.stringify({ files: files.length, bytes: manifest.bytes, census, synthetic: synthetic.map(s => ({ name: s.name, bytes: s.files[0].bytes })) }));
+} else if (mode === 'child') {
+  const [workload, normalization] = process.argv.slice(3);
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const files = workload === 'google' ? manifest.files : manifest.synthetic.find(s => s.name === workload).files;
+  const began = performance.now();
+  const { openJsonSourceSession } = await import(pathToFileURL(join(productRoot, 'src/index.js')));
+  const imported = performance.now();
+  const session = await openJsonSourceSession();
+  const opened = performance.now(), cpu = process.cpuUsage();
+  const findings = {}, terminals = { count: 0, qualityPassed: 0, parserComplete: 0 };
+  let managedPeakBytes = 0n, scratchPeakBytes = 0n, peakRss = process.memoryUsage().rss;
+  const sampler = setInterval(() => { peakRss = Math.max(peakRss, process.memoryUsage().rss); }, 10);
+  try {
+    for (const file of files) {
+      const bytes = readFileSync(join(here, file.snapshot));
+      assert.equal(hash(bytes), file.sha256);
+      const contract = { path: file.path, format: 'json' };
+      if (normalization !== 'default') contract.normalization = normalization;
+      const source = { async *open() { for (let offset = 0; offset < bytes.length; offset += 65536) yield bytes.subarray(offset, offset + 65536); } };
+      let terminal;
+      for await (const event of session.check(source, contract, { includeValues: false, retainValues: false })) {
+        if (event.type === 'finding') { const key = `${event.ruleId ?? event.phase}/${event.messageId}`; findings[key] = (findings[key] ?? 0) + 1; }
+        if (event.managedPeakBytes) managedPeakBytes = managedPeakBytes > BigInt(event.managedPeakBytes) ? managedPeakBytes : BigInt(event.managedPeakBytes);
+        if (event.scratchPeakBytes) scratchPeakBytes = scratchPeakBytes > BigInt(event.scratchPeakBytes) ? scratchPeakBytes : BigInt(event.scratchPeakBytes);
+        if (event.type === 'terminal') terminal = event;
+      }
+      assert.ok(terminal?.diagnosticsComplete && terminal?.rulesComplete, 'Incomplete source');
+      terminals.count++; terminals.qualityPassed += Number(terminal.qualityPassed); terminals.parserComplete += Number(terminal.parserComplete);
+      peakRss = Math.max(peakRss, process.memoryUsage().rss);
+    }
+    const checked = performance.now(), cpuUsage = process.cpuUsage(cpu);
+    await session.close();
+    console.log(JSON.stringify({ workload, normalization, importMs: imported - began, openMs: opened - imported, checkMs: checked - opened, closeMs: performance.now() - checked, totalMs: performance.now() - began, cpuMs: (cpuUsage.user + cpuUsage.system) / 1000, peakRss, processMaxRssBytes: process.resourceUsage().maxRSS * 1024, managedPeakBytes: String(managedPeakBytes), scratchPeakBytes: String(scratchPeakBytes), identity: session.identity, terminals, findings }));
+  } finally { clearInterval(sampler); await session.close(); }
+} else if (mode === 'run') {
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const workloads = process.argv[3] ? [process.argv[3]] : ['google', 'ascii', 'unicode-nfc', 'unicode-nfd'];
+  const repeats = Number(process.argv[4] ?? 7), modes = ['default', 'NFC', 'preserve'];
+  const result = { schemaVersion: 1, started: new Date().toISOString(), node: process.versions, platform: process.platform, architecture: process.arch, cpu: cpus()[0]?.model, logicalCpus: cpus().length, totalMemoryBytes: totalmem(), source: manifest.source, consumer: manifest.consumer, corpusSha256: hash(readFileSync(manifestPath)), harnessSha256: hash(readFileSync(fileURLToPath(import.meta.url))), method: 'Fresh process per workload/mode; one warm-up per mode discarded; seven rotated paired rounds by default; source-session checks include snapshot reads/hash, exclude discovery/config/npm. Each run serial. No source writes. OS cache not flushed; desktop contention uncontrolled.', runs: [] };
+  for (const workload of workloads) for (let round = -1; round < repeats; round++) {
+    const order = round < 0 ? modes : [...modes.slice(round % 3), ...modes.slice(0, round % 3)];
+    for (const normalization of order) {
+      const start = performance.now();
+      const child = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'child', workload, normalization], { windowsHide: true, encoding: 'utf8', timeout: 120000, maxBuffer: 2 * 1024 * 1024 });
+      if (child.status !== 0) throw new Error(`Child failed ${workload}/${normalization}: ${child.stderr || child.stdout || child.error}`);
+      const sample = { round, warmup: round < 0, processWallMs: performance.now() - start, ...JSON.parse(child.stdout) };
+      result.runs.push(sample); save(`results-${workloads.join('-')}.json`, result);
+      console.log(JSON.stringify({ workload, normalization, round, checkMs: sample.checkMs, wallMs: sample.processWallMs, managedPeakBytes: sample.managedPeakBytes, scratchPeakBytes: sample.scratchPeakBytes }));
+    }
+  }
+  result.completed = new Date().toISOString();
+  result.sourceBytesUnchanged = manifest.files.every(file => hash(readFileSync(join(consumerRoot, file.path))) === file.sha256);
+  save(`results-${workloads.join('-')}.json`, result);
+  assert.ok(result.sourceBytesUnchanged, 'Representative source changed during observation');
+} else if (mode === 'collisions') {
+  const { openJsonSourceSession, normalizeJsonSource } = await import(pathToFileURL(join(productRoot, 'src/index.js')));
+  const cases = [
+    { name: 'canonical-equivalent-keys', text: '{"\\u00e9":1,"e\\u0301":2}', expectCollision: true, normalizeRefused: true },
+    { name: 'escaped-exact-duplicates', text: '{"a":1,"\\u0061":2}', expectDuplicate: true, normalizeRefused: true },
+    { name: 'separate-object-scopes', text: '{"left":{"\\u00e9":1},"right":{"e\\u0301":2}}', expectCollision: false },
+    { name: 'composed-and-decomposed-value', text: '{"value":"e\\u0301"}', expectCollision: false },
+  ];
+  const observed = [];
+  for (const item of cases) {
+    const record = { name: item.name, modes: {} };
+    for (const normalization of ['NFC', 'preserve']) {
+      const session = await openJsonSourceSession();
+      try {
+        const findings = [];
+        for await (const event of session.check({ async *open() { yield Buffer.from(item.text); } }, { normalization, formatContract: 'producer-json-compact-body' }))
+          if (event.type === 'finding') findings.push({ ruleId: event.ruleId, messageId: event.messageId });
+        record.modes[normalization] = findings;
+      } finally { await session.close(); }
+    }
+    assert.equal(record.modes.NFC.some(f => f.messageId === 'collision'), item.expectCollision ?? false);
+    if (item.expectDuplicate) assert.ok(record.modes.NFC.some(f => f.messageId === 'duplicateKey'));
+    try { const output = await normalizeJsonSource(item.text); record.normalize = { status: 'returned', inputSha256: hash(item.text), outputSha256: hash(output), changed: output !== item.text, idempotent: await normalizeJsonSource(output) === output }; }
+    catch (error) { record.normalize = { status: 'refused', message: error.message }; }
+    assert.equal(record.normalize.status === 'refused', item.normalizeRefused ?? false);
+    observed.push(record);
+  }
+  save('collision-probes.json', { source: git(productRoot, ['rev-parse', 'HEAD']).trim(), observed });
+  console.log(JSON.stringify(observed));
+} else throw new Error('Unknown mode');

@@ -4,10 +4,10 @@
 /**
  * @minItems 1
  *
- * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
- * via the `definition` "nfcValues".
+ * This interface was referenced by `JsonQualityConfiguration`'s JSON-Schema
+ * via the `definition` "nfcExemptStringValuePins".
  */
-export type NfcValues = [
+export type NfcExemptStringValuePins = [
   {
     pointer: string;
     sha256: string;
@@ -30,19 +30,19 @@ export type NfcValues = [
 /**
  * Canonical positive decimal integer, at most UINT64_MAX. Native storage and operation-specific ranges are checked independently.
  *
- * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
+ * This interface was referenced by `JsonQualityConfiguration`'s JSON-Schema
  * via the `definition` "positiveIntegerText".
  */
 export type PositiveIntegerText = string;
 /**
  * Canonical unsigned decimal integer, at most UINT64_MAX. Native storage and operation-specific ranges are checked independently.
  *
- * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
+ * This interface was referenced by `JsonQualityConfiguration`'s JSON-Schema
  * via the `definition` "unsignedIntegerText".
  */
 export type UnsignedIntegerText = string;
 
-export interface JsonQualityPolicy {
+export interface JsonQualityConfiguration {
   /**
    * @minItems 1
    */
@@ -68,28 +68,29 @@ export interface JsonQualityPolicy {
    * Caller-owned admission quotas. False removes all quotas, true selects configured/default quotas, and an object overrides only named fields. Null removes an individual quota. Invocation controls govern bootstrap.
    */
   capacityLimits?: boolean | CapacityLimits;
-  schemaVersion: 3;
-  defaults: {
-    formatContract: "prettier-json";
-    allowFormatWrites: true;
-    normalization: "NFC";
+  schemaVersion?: 4;
+  defaults?: {
+    formatContract?: "prettier-json";
+    allowSourceRewrites?: true;
+    normalization?: "NFC" | "preserve";
   };
-  exceptions: {
+  exceptions?: {
     /**
      * @minItems 1
      */
     paths: [string, ...string[]];
     owner: string;
     reason: string;
-    exclude?: true;
-    allowFormatWrites?: false;
-    normalization?: "preserve";
-    preserveNfcValues?: NfcValues;
+    excludeUntrackedSources?: true;
+    allowSourceRewrites?: false;
+    normalization?: "NFC" | "preserve";
+    nfcExemptStringValues?: NfcExemptStringValuePins;
     /**
      * @minItems 1
      */
     allowEmptyKeys?: [string, ...string[]];
     formatContract?:
+      | "prettier-json"
       | "producer-json-body"
       | "producer-json-indent"
       | "producer-json-indent-body"
@@ -145,14 +146,14 @@ export interface JsonQualityPolicy {
   transformControls?: boolean | TransformControls;
 }
 /**
- * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
+ * This interface was referenced by `JsonQualityConfiguration`'s JSON-Schema
  * via the `definition` "capacityLimits".
  */
 export interface CapacityLimits {
-  maxFiles?: number | null;
-  maxFileBytes?: number | null;
-  maxTotalBytes?: number | null;
-  maxLogicalDocuments?: number | null;
+  maxPhysicalAndNativeSources?: number | null;
+  maxSourceBytes?: number | null;
+  maxTotalSourceBytes?: number | null;
+  maxNativeLogicalAndTransformedSources?: number | null;
   maxRecords?: number | null;
   maxDiagnostics?: number | null;
   maxPolicyBytes?: number | null;
@@ -160,15 +161,12 @@ export interface CapacityLimits {
   maxToolOutputBytes?: number | null;
   maxToolTimeMs?: number | null;
   maxGitTimeMs?: number | null;
-  maxAcquisitionTimeMs?: number | null;
-  maxCacheLookupTimeMs?: number | null;
-  maxCacheOutputBytes?: number | null;
-  maxRequestIdCharacters?: number | null;
+  maxRequestIdCodePoints?: number | null;
   maxRequestBytes?: number | null;
-  maxRequestPathCharacters?: number | null;
+  maxRequestPathCodePoints?: number | null;
 }
 /**
- * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
+ * This interface was referenced by `JsonQualityConfiguration`'s JSON-Schema
  * via the `definition` "diagnosticIdentity".
  */
 export interface DiagnosticIdentity {
@@ -186,17 +184,17 @@ export interface DiagnosticIdentity {
 /**
  * Caller-selected resource controls. Null disables an individual quota; false selects no package quotas. Numeric controls remain enforceable. Finite streaming buffers are independent of aggregate quotas.
  *
- * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
+ * This interface was referenced by `JsonQualityConfiguration`'s JSON-Schema
  * via the `definition` "runtimeControls".
  */
 export interface RuntimeControls {
-  managedMemoryTargetBytes?: number | null;
+  maxManagedMemoryBytes?: number | null;
   maxTemporaryBytes?: number | null;
   maxNestingDepth?: number | null;
   maxCheckTimeMs?: number | null;
 }
 /**
- * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
+ * This interface was referenced by `JsonQualityConfiguration`'s JSON-Schema
  * via the `definition` "transformControls".
  */
 export interface TransformControls {
@@ -206,7 +204,7 @@ export interface TransformControls {
   maximumWritePaths?: number | null;
 }
 /**
- * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
+ * This interface was referenced by `JsonQualityConfiguration`'s JSON-Schema
  * via the `definition` "sourceExpectation".
  */
 export interface SourceExpectation {
@@ -215,15 +213,15 @@ export interface SourceExpectation {
   diagnostics: DiagnosticIdentity[];
 }
 /**
- * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
+ * This interface was referenced by `JsonQualityConfiguration`'s JSON-Schema
  * via the `definition` "producerControls".
  */
 export interface ProducerControls {
   maximumDepth?: number | null;
-  maximumMembers?: number | null;
+  maximumTotalValues?: number | null;
 }
 /**
- * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
+ * This interface was referenced by `JsonQualityConfiguration`'s JSON-Schema
  * via the `definition` "verificationControls".
  */
 export interface VerificationControls {
@@ -238,4 +236,21 @@ export interface VerificationControls {
   maximumDepth?: number | null;
   maximumVerificationTimeMs?: number | null;
   maximumDecompressionRatio?: number | null;
+}
+/**
+ * This interface was referenced by `JsonQualityConfiguration`'s JSON-Schema
+ * via the `definition` "installationControls".
+ */
+export interface InstallationControls {
+  maximumPackageFamilyFiles?: number | null;
+  maximumPackageFamilyBytes?: number | null;
+  maxCacheLookupTimeMs?: number | null;
+  maxCacheOutputBytes?: number | null;
+}
+/**
+ * This interface was referenced by `JsonQualityConfiguration`'s JSON-Schema
+ * via the `definition` "acquisitionControls".
+ */
+export interface AcquisitionControls {
+  maxAcquisitionTimeMs?: number | null;
 }

@@ -8,13 +8,38 @@ permissions:
   contents: read
 jobs:
   codeql:
-    name: Scan ${{ matrix.language }}
-    runs-on: ubuntu-24.04
+    name: Scan ${{ matrix.key }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        language: [actions, javascript-typescript]
+        include:
+          - key: actions
+            language: actions
+            os: ubuntu-24.04
+            build-mode: none
+            category: /language:actions
+          - key: javascript-typescript
+            language: javascript-typescript
+            os: ubuntu-24.04
+            build-mode: none
+            category: /language:javascript-typescript
+          - key: python
+            language: python
+            os: ubuntu-24.04
+            build-mode: none
+            category: /language:python
+          - key: cpp-linux
+            language: c-cpp
+            os: ubuntu-24.04
+            build-mode: manual
+            category: /language:c-cpp/platform:linux
+          - key: cpp-windows
+            language: c-cpp
+            os: windows-2025
+            build-mode: manual
+            category: /language:c-cpp/platform:windows
     permissions:
       contents: read
       security-events: write
@@ -25,7 +50,20 @@ jobs:
       - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
         with:
           languages: ${{ matrix.language }}
-          build-mode: none
+          build-mode: ${{ matrix.build-mode }}
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+      - name: Trace both native bindings and generated inputs through the native owner
+        if: matrix.build-mode == 'manual'
+        shell: bash
+        run: |
+          mkdir "$RUNNER_TEMP/json-quality-codeql"
+          python native/build.py --workspace "$RUNNER_TEMP/json-quality-codeql" --jobs 2
+      - name: Write native extraction build diagnostics
+        if: always() && matrix.build-mode == 'manual'
+        shell: bash
+        run: python scripts/log-native-diagnostics.py "$RUNNER_TEMP/json-quality-codeql"
       - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
         with:
-          category: /language:${{ matrix.language }}
+          category: ${{ matrix.category }}

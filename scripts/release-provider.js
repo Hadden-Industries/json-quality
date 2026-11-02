@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Thin native GitHub reader; pagination completeness is an admission requirement. */
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { native, budgets } from "./qualification-process.js";
@@ -9,17 +9,16 @@ import { sameJobExecution } from "./github-job-execution.js";
 import {
   repository,
   regularBytes,
-  releaseArtifactBytes,
   save,
   sha256,
   workflows,
-  jsonBytes,
   effectJournal,
   readJson,
   verifyRun,
   retainedRecoveries,
   releaseTransportMaximumBytes,
 } from "./release-contract.js";
+export { evidenceIndex, sealBundle } from "./release-records.js";
 
 /** Native mutations remain one-shot; only their time budget follows the payload. */
 export function gh(args, options = {}, invoke = native) {
@@ -117,14 +116,29 @@ export function producingAttempt(
   read = provider,
   cache = new Map(),
 ) {
+  return originalJobAttempt(observed, name, read, cache);
+}
+function originalJobAttempt(
+  observed,
+  name,
+  read,
+  cache,
+  { requireSuccess = true, maximumAttempts = 8 } = {},
+) {
   const { run, jobs } = observed;
   assert.ok(
-    run.run_attempt >= 1 && run.run_attempt <= 8,
+    run.run_attempt >= 1 && run.run_attempt <= maximumAttempts,
     "Producing-attempt lookup bound exceeded",
   );
   const current = jobs.jobs.find((job) => job.name === name);
   assert.equal(current?.status, "completed");
-  assert.equal(current?.conclusion, "success");
+  if (requireSuccess) assert.equal(current?.conclusion, "success");
+  else
+    assert.ok(
+      ["success", "failure", "cancelled", "timed_out"].includes(
+        current?.conclusion,
+      ),
+    );
   for (let attempt = 1; attempt <= run.run_attempt; attempt++) {
     if (!cache.has(attempt)) cache.set(attempt, read(run.id, attempt));
     const original = cache.get(attempt);
@@ -148,7 +162,7 @@ export function producingAttempt(
     if (!found || found.conclusion === "skipped") continue;
     if (sameJobExecution(found, current)) {
       assert.equal(found.status, "completed");
-      assert.equal(found.conclusion, "success");
+      assert.equal(found.conclusion, current.conclusion);
       return attempt;
     }
   }
@@ -276,7 +290,12 @@ export function verifyEnvironment(environment, policies, name) {
 }
 export function checkEnvironment(name) {
   assert.ok(
-    ["npm-publication", "github-archival", "npm-promotion"].includes(name),
+    [
+      "npm-publication",
+      "github-archival",
+      "npm-promotion",
+      "github-release",
+    ].includes(name),
   );
   const environment = api(`environments/${name}`),
     policies = api(`environments/${name}/deployment-branch-policies`);
@@ -323,6 +342,112 @@ export function decisionAsset(release, name, directory) {
   return regularBytes(join(directory, name));
 }
 const effectStep = "Apply admitted release effect";
+/** Authenticate absence as strictly as a possible write, including retained history. */
+function writerInventory(entry) {
+  const { run, jobs } = entry;
+  const phase =
+    entry.phase ??
+    Object.keys(workflows).find(
+      (name) => run.path === `.github/workflows/${workflows[name]}`,
+    );
+  assert.ok(["stage", "archive", "promote"].includes(phase));
+  assert.equal(run.repository.full_name, repository);
+  assert.equal(run.path, `.github/workflows/${workflows[phase]}`);
+  assert.equal(run.event, "workflow_dispatch");
+  assert.match(run.head_sha, /^[a-f0-9]{40}$/u);
+  id(run.id);
+  assert.ok(
+    Number.isSafeInteger(run.run_attempt) &&
+      run.run_attempt > 0 &&
+      run.run_attempt <= 100,
+  );
+  assert.equal(run.status, "completed", "Another live release producer exists");
+  assert.ok(Array.isArray(jobs.jobs) && jobs.jobs.length <= 10000);
+  assert.equal(
+    jobs.total_count,
+    jobs.jobs.length,
+    "Incomplete writer job inventory",
+  );
+  assert.equal(
+    new Set(jobs.jobs.map((job) => job.id)).size,
+    jobs.jobs.length,
+    "Duplicate writer job IDs",
+  );
+  assert.equal(
+    new Set(jobs.jobs.map((job) => job.name)).size,
+    jobs.jobs.length,
+    "Duplicate writer job names",
+  );
+  const services =
+    phase === "promote" &&
+    jobs.jobs.some((job) => ["npm", "github", "complete"].includes(job.name))
+      ? ["npm", "github"]
+      : [null];
+  const allowed = services[0]
+    ? ["admit", "npm", "github", "complete"]
+    : ["admit", phase];
+  for (const job of jobs.jobs) {
+    id(job.id);
+    assert.ok(allowed.includes(job.name), "Unexpected writer job");
+    assert.equal(job.run_id, run.id);
+    assert.equal(job.run_attempt, run.run_attempt);
+    assert.equal(job.head_sha, run.head_sha);
+    assert.equal(job.status, "completed", "Writer execution is unresolved");
+  }
+  return { phase, services };
+}
+function writerEffect(entry) {
+  const { phase, services } = writerInventory(entry);
+  assert.ok(
+    services.includes(entry.service ?? null),
+    "Writer service differs from native history",
+  );
+  const job = entry.jobs.jobs.find(
+    (job) => job.name === (entry.service ?? phase),
+  );
+  // A complete inventory can prove the writer was never created.
+  if (!job) return null;
+  const steps = job.steps?.filter((step) => step.name === effectStep);
+  if (job.conclusion === "skipped") {
+    assert.ok(
+      (steps ?? []).every(
+        (step) => step.status === "completed" && step.conclusion === "skipped",
+      ),
+      "Skipped writer contains a possible write",
+    );
+    return null;
+  }
+  assert.ok(
+    ["success", "failure", "cancelled", "timed_out"].includes(job.conclusion),
+    "Writer outcome is unresolved",
+  );
+  assert.equal(
+    steps?.length,
+    1,
+    "Writer effect history is unavailable or ambiguous",
+  );
+  const step = steps[0];
+  assert.equal(step.status, "completed", "Writer effect is unresolved");
+  if (step.conclusion === "skipped") return null;
+  assert.equal(
+    entry.run.head_branch,
+    "main",
+    "Possible writer effect is outside main",
+  );
+  assert.ok(
+    ["success", "failure", "cancelled", "timed_out"].includes(step.conclusion),
+    "Writer effect outcome is unresolved",
+  );
+  const started = Date.parse(step.started_at),
+    completed = Date.parse(step.completed_at);
+  assert.ok(
+    Number.isFinite(started) &&
+      Number.isFinite(completed) &&
+      completed >= started,
+    "Writer effect execution times are unavailable",
+  );
+  return { job, step };
+}
 export function verifyEffectHistory(
   history,
   current,
@@ -334,7 +459,16 @@ export function verifyEffectHistory(
     (entry) => entry.settlements?.length && entry.run.conclusion === "success",
   );
   for (const entry of settled)
-    verifyRun(entry, entry.phase, entry.run.head_sha, {});
+    verifyRun(
+      entry,
+      entry.phase,
+      entry.run.head_sha,
+      {},
+      {
+        historical: true,
+        availability: entry.availability ?? "npm-and-github",
+      },
+    );
   const reconciliations = [
     ...(recovery?.entries ?? []),
     ...settled.flatMap((entry) =>
@@ -351,32 +485,11 @@ export function verifyEffectHistory(
       ),
       "Current attempt included as history",
     );
-    assert.equal(entry.jobs.total_count, entry.jobs.jobs.length);
-    assert.equal(
-      new Set(entry.jobs.jobs.map((job) => job.id)).size,
-      entry.jobs.jobs.length,
-    );
-    for (const job of entry.jobs.jobs) {
-      assert.equal(job.run_id, entry.run.id);
-      assert.equal(job.run_attempt, entry.run.run_attempt);
-    }
-    assert.equal(
-      entry.run.status,
-      "completed",
-      "Another live release producer exists",
-    );
-    const attempted = entry.jobs.jobs.some((job) =>
-      job.steps?.some(
-        (step) =>
-          step.name === effectStep &&
-          step.started_at &&
-          step.conclusion !== "skipped",
-      ),
-    );
-    if (!attempted) continue;
+    if (!writerEffect(entry)) continue;
     if (entry.noEffect) {
       assert.equal(entry.noEffect.schemaVersion, 1);
       assert.equal(entry.noEffect.state, "no-request");
+      assert.equal(entry.noEffect.service, entry.service);
       assert.equal(entry.noEffect.run, String(entry.run.id));
       assert.equal(entry.noEffect.attempt, String(entry.run.run_attempt));
       assert.equal(entry.noEffect.controller, entry.run.head_sha);
@@ -427,6 +540,14 @@ export function verifyEffectHistory(
       assert.equal(intent.run, String(entry.run.id));
       assert.equal(intent.attempt, String(entry.run.run_attempt));
       assert.equal(intent.controller, entry.run.head_sha);
+      assert.equal(intent.service, entry.service);
+      if (entry.service) {
+        assert.equal(intent.schemaVersion, 2);
+        assert.ok(
+          intent.operation === "completion-readback" ||
+            intent.operation === `${entry.service}-latest`,
+        );
+      }
       for (const { record } of reconciliations.filter(
         ({ record }) =>
           String(record.run) === intent.run &&
@@ -496,9 +617,7 @@ export function readHistoryCheckpoint(
   assert.ok([1, 2].includes(record.schemaVersion));
   assert.equal(record.repository, repository);
   assert.ok(Array.isArray(record.entries) && record.entries.length <= 10000);
-  const keys = record.entries.map(
-    (entry) => `${entry.phase}:${id(entry.run)}:${id(entry.attempt)}`,
-  );
+  const keys = record.entries.map((entry) => effectJournal(entry.phase, entry));
   assert.equal(new Set(keys).size, keys.length, "Ambiguous retained history");
   return record.entries;
 }
@@ -518,6 +637,18 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
       "workflow_runs",
     );
     for (const run of runs) {
+      const attempts = new Map();
+      const readAttempt = (runId, attempt) => {
+        assert.equal(runId, run.id);
+        if (!attempts.has(attempt)) {
+          const observed = observe(runId, attempt);
+          assert.equal(observed.run.id, runId);
+          assert.equal(observed.run.run_attempt, attempt);
+          writerInventory({ ...observed, phase });
+          attempts.set(attempt, observed);
+        }
+        return attempts.get(attempt);
+      };
       assert.ok(run.run_attempt <= 100, "History attempt bound exceeded");
       for (let attempt = 1; attempt <= run.run_attempt; attempt++) {
         if (
@@ -525,88 +656,127 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
           String(attempt) === env.GITHUB_RUN_ATTEMPT
         )
           continue;
-        const entry = observe(run.id, attempt);
-        entry.phase = phase;
-        const attempted = entry.jobs.jobs.some((job) =>
-          job.steps?.some(
-            (step) =>
-              step.name === effectStep &&
-              step.started_at &&
-              step.conclusion !== "skipped",
-          ),
-        );
-        if (attempted) {
-          const name = `effect-${phase}-${attempt}`;
-          const artifacts = list(
-            `actions/runs/${id(run.id)}/artifacts?per_page=100`,
-            "artifacts",
-          );
-          const matches = artifacts.filter(
-            (item) =>
-              item.name === name ||
-              new RegExp(`^${name}-recovery-[23]$`, "u").test(item.name),
-          );
-          assert.ok(matches.length <= 3, "Ambiguous historical artifact");
-          assert.ok(
-            new Set(matches.map((item) => item.digest)).size <= 1,
-            "Conflicting historical artifact candidates",
-          );
-          if (!matches.some((item) => !item.expired)) {
-            assert.ok(
-              checkpoint,
-              "Historical effect artifact unavailable; admit a signed history checkpoint",
-            );
-            retained ??= (readers.checkpoint ?? readHistoryCheckpoint)(
-              checkpoint,
-            );
-            const records = retained.filter(
-              (item) =>
-                item.phase === phase &&
-                String(item.run) === String(run.id) &&
-                String(item.attempt) === String(attempt),
-            );
-            assert.equal(
-              records.length,
-              1,
-              "Missing exact historical attempt in checkpoint",
-            );
-            const record = records[0];
-            assert.equal(record.controller, entry.run.head_sha);
-            if (record.journal) {
-              entry.journal = Buffer.from(record.journal, "base64");
-              assert.equal(entry.journal.toString("base64"), record.journal);
+        const observed = readAttempt(run.id, attempt);
+        const { services } = writerInventory({ ...observed, phase });
+        for (const service of services) {
+          const entry = structuredClone(observed);
+          entry.phase = phase;
+          if (service) entry.service = service;
+          const effect = writerEffect(entry);
+          if (effect) {
+            // A partial rerun can relabel a retained successful/failed job.
+            // Its immutable journal was already admitted at the original attempt.
+            if (attempt > 1) {
+              const origin = originalJobAttempt(
+                observed,
+                service ?? phase,
+                readAttempt,
+                attempts,
+                {
+                  requireSuccess: false,
+                  maximumAttempts: 100,
+                },
+              );
+              if (origin < attempt) {
+                const original = writerEffect({
+                  ...readAttempt(run.id, origin),
+                  phase,
+                  ...(service ? { service } : {}),
+                });
+                assert.deepEqual(
+                  effect.step,
+                  original?.step,
+                  "Retained writer effect observation changed",
+                );
+                continue;
+              }
             }
-            if (record.noEffect) entry.noEffect = record.noEffect;
-            if (record.settlements) entry.settlements = record.settlements;
-            history.push(entry);
-            continue;
+            const name = `effect-${phase}${service ? `-${service}` : ""}-${attempt}`;
+            const artifacts = list(
+              `actions/runs/${id(run.id)}/artifacts?per_page=100`,
+              "artifacts",
+            );
+            const matches = artifacts.filter(
+              (item) =>
+                item.name === name ||
+                new RegExp(`^${name}-recovery-[23]$`, "u").test(item.name),
+            );
+            assert.ok(matches.length <= 3, "Ambiguous historical artifact");
+            assert.ok(
+              new Set(matches.map((item) => item.digest)).size <= 1,
+              "Conflicting historical artifact candidates",
+            );
+            if (!matches.some((item) => !item.expired)) {
+              assert.ok(
+                checkpoint,
+                "Historical effect artifact unavailable; admit a signed history checkpoint",
+              );
+              retained ??= (readers.checkpoint ?? readHistoryCheckpoint)(
+                checkpoint,
+              );
+              const records = retained.filter(
+                (item) =>
+                  item.phase === phase &&
+                  item.service === entry.service &&
+                  String(item.run) === String(run.id) &&
+                  String(item.attempt) === String(attempt),
+              );
+              assert.equal(
+                records.length,
+                1,
+                "Missing exact historical attempt in checkpoint",
+              );
+              const record = records[0];
+              assert.equal(record.controller, entry.run.head_sha);
+              if (record.availability) entry.availability = record.availability;
+              if (record.journal) {
+                entry.journal = Buffer.from(record.journal, "base64");
+                assert.equal(entry.journal.toString("base64"), record.journal);
+              }
+              if (record.noEffect) entry.noEffect = record.noEffect;
+              if (record.settlements) entry.settlements = record.settlements;
+              history.push(entry);
+              continue;
+            }
+            const { directory } = acquire(run.id, attempt, name, acquisition);
+            const journal = join(
+              directory,
+              effectJournal(phase, {
+                run: run.id,
+                attempt,
+                ...(service ? { service } : {}),
+              }),
+            );
+            if (existsSync(journal)) entry.journal = regularBytes(journal);
+            const marker = join(
+              directory,
+              `no-effect-${phase}${service ? `-${service}` : ""}-${run.id}-${attempt}.json`,
+            );
+            if (existsSync(marker)) entry.noEffect = readJson(marker);
+            entry.settlements = retainedRecoveries(directory);
+            if (service && existsSync(join(directory, "npm-continuation.json")))
+              entry.availability = readJson(
+                join(directory, "npm-continuation.json"),
+              ).availability;
           }
-          const { directory } = acquire(run.id, attempt, name, acquisition);
-          const journal = join(
-            directory,
-            effectJournal(phase, { run: run.id, attempt }),
-          );
-          if (existsSync(journal)) entry.journal = regularBytes(journal);
-          const marker = join(
-            directory,
-            `no-effect-${phase}-${run.id}-${attempt}.json`,
-          );
-          if (existsSync(marker)) entry.noEffect = readJson(marker);
-          entry.settlements = retainedRecoveries(directory);
+          history.push(entry);
         }
-        history.push(entry);
       }
     }
   }
   const seen = new Set(
-    history.map(
-      (entry) => `${entry.phase}:${entry.run.id}:${entry.run.run_attempt}`,
+    history.map((entry) =>
+      effectJournal(entry.phase, {
+        run: entry.run.id,
+        attempt: entry.run.run_attempt,
+        service: entry.service,
+      }),
     ),
   );
   // Expired/deleted runs disappear from provider enumeration. The signed
   // checkpoint's original native inventory must remain in the union.
   for (const record of retained ?? []) {
-    const key = `${record.phase}:${id(record.run)}:${id(record.attempt)}`;
+    const key = effectJournal(record.phase, record);
     if (seen.has(key)) continue;
     if (
       String(record.run) === env.GITHUB_RUN_ID &&
@@ -635,6 +805,8 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
       ),
     );
     entry.phase = record.phase;
+    if (record.service) entry.service = record.service;
+    if (record.availability) entry.availability = record.availability;
     if (record.journal) {
       entry.journal = Buffer.from(record.journal, "base64");
       assert.equal(entry.journal.toString("base64"), record.journal);
@@ -666,6 +838,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     repository,
     entries: history.map((entry) => ({
       phase: entry.phase,
+      ...(entry.service ? { service: entry.service } : {}),
+      ...(entry.availability ? { availability: entry.availability } : {}),
       run: String(entry.run.id),
       attempt: String(entry.run.run_attempt),
       controller: entry.run.head_sha,
@@ -676,37 +850,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     })),
   });
 }
-/** Index only bounded ordinary files; artifact consumers name each retained member. */
-export function evidenceIndex(directory) {
-  const entries = readdirSync(directory, {
-    recursive: true,
-    withFileTypes: true,
-  });
-  assert.ok(
-    entries.every((entry) => entry.isFile() || entry.isDirectory()),
-    "Linked or unsupported evidence entry",
-  );
-  const files = entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => {
-      const full = join(entry.parentPath, entry.name),
-        name = full.slice(directory.length + 1).replaceAll("\\", "/");
-      const bytes = releaseArtifactBytes(full);
-      return { name, sha256: sha256(bytes), size: bytes.length };
-    });
-  assert.ok(files.length <= 4096);
-  return files;
-}
 export function recordProvider(directory, name, value) {
   save(join(directory, name), value);
-}
-export function sealBundle(directory, manifestSha) {
-  const files = evidenceIndex(directory).filter(
-    ({ name }) => name !== "evidence-index.json",
-  );
-  writeFileSync(
-    join(directory, "evidence-index.json"),
-    jsonBytes({ schemaVersion: 1, manifestSha256: manifestSha, files }),
-    { flush: true },
-  );
 }

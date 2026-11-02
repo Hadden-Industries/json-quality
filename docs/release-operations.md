@@ -15,7 +15,7 @@ The existing `--archive` and `--provenance` inputs identify the core and its fro
 Linux executable mode is checked in the actual native archive.
 The local `.provenance.json` records all three byte identities; authenticated registry provenance comes from native npm verification.
 The published `1.0.0-rc.1` uses configuration/event/native cohort 2.
-The resource-override source candidate is `1.0.0-rc.2`, with cohort 3; preparing that version does not publish it or select it in consumers.
+The current source candidate remains `1.0.0-rc.2` with cohort 4 and zero-configuration policy resolution; preparing source does not publish it or select it in consumers.
 Formal release publication and HISEW adoption require their owner's separate decisions.
 Public API/schema exports, executable artifacts, CLI entrypoints and consumer Node floors remain separate compatibility contracts.
 
@@ -23,7 +23,7 @@ The earlier release plan recorded a 1.0.0 selection on 2026-10-18.
 The accepted oversized-value plan replaces conflicting APIs and requires a complete consumer cohort.
 The owner's 24 October instruction supersedes the earlier package version selections with `1.0.0-rc.1`, limits registry migration to JSON Quality, and leaves Markdown Quality distribution unchanged.
 Consumer installation requires an exact registry version and its npm-generated lockfile; the Git-source installation promise is retired because a source commit does not identify one cross-host packed archive.
-Current implementation verification follows its task's explicit ordering: consolidate the candidate, resolve external review findings, then perform final security/full verification.
+Implementation verification follows its task's accepted review and testing scope, with formatting/linting before broad review and focused repair checks afterward.
 Source versioning, focused checks and static reviews do not establish release qualification or acceptance.
 
 No artificial prerelease is required to warm npm or GitHub.
@@ -85,7 +85,7 @@ See [npm staged publishing](https://docs.npmjs.com/staged-publishing/).
    Callable product CI runs producer checks and transports the same frozen release family through every Windows/Linux minimum, reference, and current-family lane.
    Root and isolated consumers retain native dependency validity, audit, lock, SBOM, location and behavioral evidence.
 3. Wait for the complete run.
-   Inspect the real provider job graph, all reports, exact-source Actions and JavaScript/TypeScript CodeQL analyses, warnings and query identities.
+   Inspect the real provider job graph, both installed layouts, exact-source Actions, JavaScript/TypeScript, Python and platform-specific C/C++ CodeQL analyses, warnings and query identities.
    Nonzero findings, including low-severity dependency advisories, block admission.
    A current-main alert dismissal does not prove an older source analysis was clean.
 4. Record the candidate manifest SHA-256.
@@ -106,6 +106,32 @@ The native Git diff of `scripts`, `.github`, `assets`, `schemas`, `package.json`
 Original tarball/source qualification and publisher provenance retain their original identities.
 
 ## Stage and approve
+
+The rc.3 OwlAPI publication exposed a startup failure before the publisher's error handler loaded, followed by a recovery job trying to read a draft with a read-only token.
+JSON Quality keeps these boundaries explicit:
+
+- Every release job installs the frozen producer dependencies before running release commands.
+  The workflow checker rejects missing or conditional setup, later runtime replacement, incorrect draft permissions and lost failure uploads.
+- Stage, archive and promotion workflows enter through `scripts/release-command.js`.
+  Its startup records load without installed npm packages.
+  An import failure preserves the original failure and seals a `no-request` marker for the same manifest/controller/run/attempt.
+  Existing request bytes or a changed manifest refuse that marker; an unknown outcome still requires reconciliation.
+- Draft reads stay in the GitHub writer under its protected environment.
+  Read-only admission uses the exact dispatched owner decision and native qualification artifacts.
+  A draft hidden from a read-only token is not evidence that it was deleted or is safe to recreate.
+
+The frozen package's source and signed tag retain their qualification identity when a separately reviewed controller is repaired.
+Do not move the tag, repack the version or repeat an unknown write to recover a failed controller.
+Keep the original failed run and reuse only its still-valid scoped evidence.
+
+A later workflow attempt may be the writer's first execution after an upstream failure.
+Admission inspects authenticated attempt-specific job and effect-step histories instead of treating the attempt number as publication authority.
+Explicitly skipped writes permit a first execution; missing, duplicate, unresolved or inconsistent native observations do not prove absence.
+Staging, archival and both promotion services resolve retained jobs to their original runner execution and compare the retained effect step before reusing its original journal.
+Changed attempt/job labels never require an artifact from a writer that did not run again, and never erase a prior unknown outcome or authorize replay.
+
+OwlAPI's scanner-observation refresh and bundled artifact-action lock binding have no equivalent generated inputs here.
+This pipeline uses its native package and audit records rather than introducing those additional release gates.
 
 Dispatch `stage-release.yml` with `qualification_run`, `qualification_attempt`, `manifest_sha`, `review_sha`, and the exact decision text in `review_json`.
 Start staging within 30 days of qualification, while the producer archive, recipient reports and security evidence remain available.
@@ -232,7 +258,33 @@ These routes need explicit evidence/authority contracts before activation; a hel
 `expected_labels` always describes the original pre-effect labels, including restoration.
 Reconciliation reads the original intent's `before` value instead of relabelling the already-applied npm target as its prior state.
 
-Promotion recovery acquires the selected original promotion journal from its verified `effect-promote-ATTEMPT` artifact before reconciliation, preserving the archival predecessor and original journal bytes.
+Promotion uses separate `npm` and `github` jobs followed by read-only `complete` admission.
+The npm job uses `npm-promotion`, OIDC and repository read permission; it cannot mutate GitHub releases.
+The GitHub job uses `github-release` and repository write permission with no npm OIDC or long-lived npm token; its entry point cannot mutate npm.
+The obsolete combined promotion dispatcher is no longer executable.
+Both service jobs retain failure/unknown journals for 90 days under `effect-promote-npm-ATTEMPT` and `effect-promote-github-ATTEMPT`.
+Their journals are `promote-SERVICE-RUN-ATTEMPT.jsonl`, with schema-2 service-specific intents and the original prior-label guards.
+No-request markers and recovery/checkpoint uniqueness include the service.
+Historical combined journals remain immutable and readable for their original audit/recovery purpose.
+
+The sealed npm continuation binds source/controller, manifest and owner decision digests, scope, version/integrity, original run/attempt, journal bytes, prior labels and native readback.
+The next job authenticates its artifact ID/digest/size/source and original successful npm job before fresh admission and effect-time guards.
+`npm-complete` means the npm effect is settled while GitHub may remain pending; only read-only completion can report the selected scope completed.
+Npm-only restoration skips the GitHub writer and its protected environment entirely, admits an explicitly qualified immutable prerelease target, and verifies unchanged GitHub identity/markers using reads.
+Dual-service completion requires the authenticated GitHub writer and independently rechecks both labels.
+
+Split recovery retains `phase: "promote"` and adds explicit `service: "npm"` or `"github"`, matching `availability`, and the exact original service journal digest.
+Admission acquires the matching original service artifact independently of its archival predecessor.
+Original prior labels remain in the service journal's guard, including when only GitHub needs repair.
+After owner-selected native reconciliation, a fresh npm readback can produce a continuation without replaying npm; only the authorized missing GitHub operation proceeds.
+An unknown outcome still requires owner reconciliation, never automatic retry.
+
+Before activating this source, read current rulesets/action policy, default CodeQL setup, active release attempts and all existing environment/publisher bindings.
+The concrete new environment is `github-release`, restricted to exactly `main`, with protection/reviewer policy chosen consistently with the existing release environments.
+Read back that environment and confirm `promote-release.yml`/`npm-promotion` still permits only the intended npm dist-tag path; keep direct publication forbidden.
+Do not broaden the promotion scope to native package tags.
+No environment, publisher, workflow run, package or live label is changed by the local implementation task.
+Hosted extraction, process observation on both runner platforms, publisher/settings readback and live mutation behavior remain separate activation/release checks after source publication is authorized.
 
 Every release-effect admission requires an owner-admitted signed history baseline, including an explicitly empty first baseline.
 Before the 90-day Actions retention window expires, export complete writer history with `node scripts/release-provider.js history OUTPUT SCRATCH [PRIOR_CHECKPOINT_JSON]`.

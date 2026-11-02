@@ -71,8 +71,8 @@ try {
     pathToFileURL(join(sourceRoot, "src/index.js"))
   );
   session = await openJsonRepositorySession({ root });
-  identity = session.identity;
-  for await (const event of session.events()) recordEvent(event, "census");
+  identity = session.implementationIdentity;
+  for await (const event of session.check()) recordEvent(event, "census");
   if (
     terminal?.type !== "execution-terminal" ||
     !terminal.sourceObservationsComplete
@@ -104,8 +104,8 @@ try {
       terminal: {
         type: terminal.type,
         complete: terminal.complete,
-        members: terminal.members,
-        written: terminal.written,
+        inventoryMemberCount: terminal.inventoryMemberCount,
+        writtenPathCount: terminal.writtenPathCount,
       },
     }) + "\n",
   );

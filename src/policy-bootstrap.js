@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Strict, bounded policy bootstrap before effective repository resources exist.
 import { randomUUID } from "node:crypto";
+import { lstatSync } from "node:fs";
 import { join } from "node:path";
-import { admitJsonPolicy } from "./configuration.js";
+import {
+  resolvePolicySnapshot,
+  defaultPolicyReservationBytes,
+} from "./configuration.js";
+import { assertRegularDirectory } from "./paths.js";
+import { policyProvenance } from "./policy-provenance.js";
 import { NativeSession } from "./native-session.js";
 import { createValueSession } from "./value-session.js";
 import { createExecutionDeadline } from "./execution-deadline.js";
@@ -10,25 +16,32 @@ import {
   observeRepositorySource,
   identifyRepositorySource,
   repositorySourceFragments,
+  recheckRepositorySource,
 } from "./repository-source.js";
 
 /** Freeze the admitted bounded control object. The iterative worklist is part
  * of its conservative node reservation and cannot overflow a JS recursion stack.
  */
-function freezePolicy(/** @type {*} */ policy) {
-  const pending = [policy];
-  while (pending.length) {
-    const object = pending.pop();
-    Object.freeze(object);
-    for (const key in object)
-      if (
-        Object.hasOwn(object, key) &&
-        object[key] &&
-        typeof object[key] === "object"
-      )
-        pending.push(object[key]);
+export function policyIsAbsent(/** @type {string} */ root) {
+  assertRegularDirectory(root, "");
+  try {
+    lstatSync(join(root, ".json-quality.json"));
+  } catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === "ENOENT")
+      return true;
+    throw error;
   }
-  return policy;
+  return false;
+}
+
+export async function recheckPolicyObservation(
+  /** @type {*} */ { root, member, signal },
+) {
+  signal?.throwIfAborted();
+  if (member === null) {
+    if (!policyIsAbsent(root))
+      throw new Error("Configuration appeared after bootstrap.");
+  } else await recheckRepositorySource({ root, member, signal });
 }
 
 /** Internal composition seam, using the already verified package component.
@@ -44,6 +57,14 @@ export async function bootstrapJsonPolicy(
   return bootstrapJsonPolicySource({
     ...options,
     async source(/** @type {*} */ { signal, maximumBytes }) {
+      if (policyIsAbsent(root))
+        return {
+          member: null,
+          configurationOrigin: {
+            kind: "repository-absence",
+            path: ".json-quality.json",
+          },
+        };
       const observed = observeRepositorySource(root, ".json-quality.json");
       if (
         maximumBytes !== null &&
@@ -57,6 +78,10 @@ export async function bootstrapJsonPolicy(
       });
       return {
         member,
+        configurationOrigin: {
+          kind: "repository-file",
+          path: ".json-quality.json",
+        },
         open: () => repositorySourceFragments({ root, member, signal }),
       };
     },
@@ -81,18 +106,61 @@ export async function bootstrapJsonPolicySource(
       join(temporaryDirectory, "json-quality-policy-" + randomUUID()),
     ),
     session = createValueSession(core);
-  let deadline;
+  let /** @type {ReturnType<typeof createExecutionDeadline> | undefined} */ deadline;
   try {
     const configured = (await core.configure(resources)).result.resources;
     deadline = createExecutionDeadline(configured.runtime.maxCheckTimeMs, [
       signal,
     ]);
-    const operationSignal = deadline.signal,
-      { member, open } = await identify({
+    const operationDeadline = deadline,
+      operationSignal = deadline.signal,
+      { member, open, configurationOrigin } = await identify({
         signal: operationSignal,
         maximumBytes: configured.admission.maxPolicyBytes,
       }),
       ceiling = configured.admission.maxPolicyBytes;
+    const fromWire = (/** @type {*} */ group) =>
+      Object.fromEntries(
+        Object.entries(group).map(([key, value]) => [
+          key,
+          value === null ? null : Number(value),
+        ]),
+      );
+    const resolverOptions = {
+      capacityLimits: fromWire(configured.admission),
+      runtimeControls: fromWire(configured.runtime),
+    };
+    const resolveOwned = async (
+      /** @type {*} */ input,
+      /** @type {bigint} */ inputReservation,
+    ) => {
+      // The input lease is already charged. Reserve additional copy/merge/output
+      // workspace before constructing those objects; then retain only output.
+      const additional =
+        2n * (inputReservation + defaultPolicyReservationBytes) + 1024n;
+      await core.command("resize-control-state", {
+        byteLength: String(additional),
+      });
+      operationSignal.throwIfAborted();
+      resolverOptions.runtimeControls.maxCheckTimeMs =
+        operationDeadline.remaining();
+      const resolved = resolvePolicySnapshot(input, resolverOptions);
+      operationDeadline.remaining();
+      operationSignal.throwIfAborted();
+      return resolved;
+    };
+    if (member === null) {
+      const resolved = await resolveOwned(undefined, 0n);
+      await core.command("resize-control-state", {
+        byteLength: String(resolved.managedReservationBytes),
+      });
+      return {
+        policy: resolved.policy,
+        controlStateReservationBytes: String(resolved.managedReservationBytes),
+        observation: null,
+        provenance: policyProvenance(configurationOrigin, null),
+      };
+    }
     if (ceiling !== null && BigInt(member.byteLength) > BigInt(ceiling))
       throw new Error("policy-byte-capacity");
     if (BigInt(member.byteLength) > BigInt(Number.MAX_SAFE_INTEGER))
@@ -104,7 +172,7 @@ export async function bootstrapJsonPolicySource(
         path: member.path,
         format: "json",
         formatContract: "preserved-bytes",
-        allowFormatWrites: false,
+        allowSourceRewrites: false,
         expected: {
           sha256: member.sha256,
           byteLength: member.byteLength,
@@ -127,17 +195,27 @@ export async function bootstrapJsonPolicySource(
       lease = await session.materializeControl(
         rootValue,
         member.byteLength,
-        (/** @type {*} */ policy) => {
-          admitJsonPolicy(policy);
-          freezePolicy(policy);
-        },
-      ),
-      owned = await lease.transfer();
+        () => true,
+      );
+    let resolved;
+    try {
+      resolved = await resolveOwned(
+        lease.value,
+        BigInt(lease.managedReservationBytes),
+      );
+    } finally {
+      await lease.release();
+    }
+    if (!resolved) throw new Error("policy-resolution-incomplete");
+    await core.command("resize-control-state", {
+      byteLength: String(resolved.managedReservationBytes),
+    });
     operationSignal.throwIfAborted();
     return {
-      policy: owned.value,
-      controlStateReservationBytes: owned.managedReservationBytes,
+      policy: resolved.policy,
+      controlStateReservationBytes: String(resolved.managedReservationBytes),
       observation: member,
+      provenance: policyProvenance(configurationOrigin, member),
     };
   } finally {
     deadline?.dispose();

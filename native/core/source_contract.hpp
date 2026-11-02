@@ -71,9 +71,9 @@ inline void sourceDiagnostic(const json::value &item) {
 }
 inline void admitSourceContract(const json::object &contract) {
   closedControl(contract, {"path", "format", "formatContract", "normalization", "allowEmptyKeys",
-                           "allowFormatWrites", "owner", "reason", "preserveNfcValues", "expected",
-                           "checkPresentation", "exclude", "exceptions"});
-  for (const char *field : {"allowFormatWrites", "checkPresentation", "exclude"})
+                           "allowSourceRewrites", "owner", "reason", "nfcExemptStringValues", "expected",
+                           "checkPresentation", "excludeUntrackedSources", "exceptions"});
+  for (const char *field : {"allowSourceRewrites", "checkPresentation", "excludeUntrackedSources"})
     if (auto item = contract.if_contains(field))
       require(item->is_bool(), "source-check-contract");
   if (auto item = contract.if_contains("path"))
@@ -115,13 +115,13 @@ inline void admitSourceContract(const json::object &contract) {
               "source-check-contract");
     }
   }
-  if (auto items = contract.if_contains("preserveNfcValues")) {
+  if (auto items = contract.if_contains("nfcExemptStringValues")) {
     require(items->is_array() && !items->as_array().empty(), "nfc-preservation-contract");
     bool attributed =
         ownerText(contract.if_contains("owner")) && ownerText(contract.if_contains("reason"));
     if (auto exceptions = contract.if_contains("exceptions"))
       attributed |= !exceptions->as_array().empty();
-    auto writes = contract.if_contains("allowFormatWrites"),
+    auto writes = contract.if_contains("allowSourceRewrites"),
          normalization = contract.if_contains("normalization"),
          expected = contract.if_contains("expected");
     require(attributed && writes && !writes->as_bool() &&

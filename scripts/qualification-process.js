@@ -5,6 +5,7 @@ import { performance } from "node:perf_hooks";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { acquisitionResourceLimits } from "../src/acquire.js";
+import { resolveExecutionResources } from "../src/execution-resources.js";
 export { budgets } from "./qualification-budgets.js";
 import { budgets } from "./qualification-budgets.js";
 
@@ -33,7 +34,8 @@ export function native(
   const result = spawnSync(executable, args, {
     encoding: "utf8",
     windowsHide: true,
-    maxBuffer: acquisitionResourceLimits().maxToolOutputBytes,
+    maxBuffer:
+      resolveExecutionResources().admission.maxToolOutputBytes ?? Infinity,
     ...options,
     timeout: Number.isFinite(timeout) ? timeout : 0,
     shell: false,

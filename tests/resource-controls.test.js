@@ -9,8 +9,11 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { temporaryDirectory } from "./temporary-directory.js";
 import { resolveExecutionResources } from "../src/execution-resources.js";
+import { resourceDefaults } from "../src/resource-profile.js";
 import {
   acquisitionResourceLimits,
+  installationResourceLimits,
+  verificationResourceLimits,
   acquisitionCleanupOptions,
   nativeQualityCachePath,
 } from "../src/acquire.js";
@@ -24,7 +27,7 @@ import { projectResourceLimits } from "../scripts/project-resource-limits.js";
 import {
   openJsonSourceSession,
   openJsonRepositorySession,
-  qualifyJsonConsumer,
+  qualifyGitJsonSources,
   verifyJsonQualityInstallation,
   formatJsonSource,
 } from "../src/index.js";
@@ -41,14 +44,14 @@ test("unlimited resources remove every selected quota while preserving explicit 
   assert.ok(Object.values(unlimited.runtime).every((value) => value === null));
   assert.ok(Object.values(unlimited.native).every((value) => value === null));
   const selected = resolveExecutionResources(policy, {
-    capacityLimits: { maxFileBytes: 1024 },
+    capacityLimits: { maxSourceBytes: 1024 },
     runtimeControls: { maxCheckTimeMs: 1000 },
   });
-  assert.equal(selected.admission.maxFileBytes, 1024);
-  assert.equal(selected.admission.maxTotalBytes, null);
+  assert.equal(selected.admission.maxSourceBytes, 1024);
+  assert.equal(selected.admission.maxTotalSourceBytes, null);
   assert.equal(selected.runtime.maxCheckTimeMs, 1000);
   assert.equal(selected.runtime.maxTemporaryBytes, null);
-  assert.equal(selected.native.maxFileBytes, "1024");
+  assert.equal(selected.native.maxSourceBytes, "1024");
   assert.equal(selected.native.maxNestingDepth, null);
 });
 
@@ -56,19 +59,19 @@ test("individual null controls and finite overrides do not inherit former runtim
   const selected = resolveExecutionResources(
     {},
     {
-      capacityLimits: { maxFileBytes: null },
+      capacityLimits: { maxSourceBytes: null },
       runtimeControls: {
         maxNestingDepth: 4097,
         maxCheckTimeMs: 172800000,
         maxTemporaryBytes: null,
-        managedMemoryTargetBytes: null,
+        maxManagedMemoryBytes: null,
       },
     },
   );
-  assert.equal(selected.admission.maxFileBytes, null);
+  assert.equal(selected.admission.maxSourceBytes, null);
   assert.equal(selected.runtime.maxNestingDepth, 4097);
   assert.equal(selected.runtime.maxCheckTimeMs, 172800000);
-  assert.equal(selected.native.managedMemoryTargetBytes, null);
+  assert.equal(selected.native.maxManagedMemoryBytes, null);
   assert.ok(
     Object.values(resolveExecutionResources().runtime).every(
       (value) => value > 0,
@@ -91,14 +94,14 @@ test("removed broad limits option cannot silently fall back to default capacitie
   );
   await assert.rejects(
     (async () => {
-      for await (const event of qualifyJsonConsumer({ limits: false }))
+      for await (const event of qualifyGitJsonSources({ limits: false }))
         void event;
     })(),
     /qualification options/u,
   );
   await assert.rejects(
     verifyJsonQualityInstallation({ limits: false }),
-    /Use capacityLimits/u,
+    /installationControls|verification options/u,
   );
 });
 
@@ -130,30 +133,31 @@ test("both public CLIs reject the removed environment name before loading roots"
   }
 });
 
-test("cold acquisition and installed operations share canonical defaults and unlimited capacity", () => {
-  assert.deepEqual(acquisitionResourceLimits({}), admission({}));
-  assert.deepEqual(acquisitionResourceLimits(true), admission({}, true));
+test("source, installation, acquisition and verification profiles have independent canonical defaults", () => {
   assert.equal(projectResourceLimits().synchronized, true);
-  const cold = acquisitionResourceLimits(false);
-  const installed = admission({}, false);
-  assert.deepEqual(
-    Object.fromEntries(
-      Object.keys(cold).map((name) => [
-        name,
-        cold[name] === Infinity ? null : cold[name],
-      ]),
-    ),
-    installed,
-  );
-  assert.ok(Object.values(cold).every((value) => value === Infinity));
-  for (const capacityLimits of [
-    { maxCacheOutputBytes: 0 },
-    { unknown: 1 },
-    null,
+  for (const [name, resolve] of [
+    ["installationControls", installationResourceLimits],
+    ["acquisitionControls", acquisitionResourceLimits],
+    ["verificationControls", verificationResourceLimits],
   ]) {
-    assert.throws(() => acquisitionResourceLimits(capacityLimits));
-    assert.throws(() => admission({}, capacityLimits));
+    const defaults = resourceDefaults(name);
+    assert.deepEqual(resolve({}), defaults);
+    assert.deepEqual(resolve(true), defaults);
+    assert.ok(
+      Object.values(resolve(false)).every((value) => value === Infinity),
+    );
+    const [first, second] = Object.keys(defaults);
+    assert.equal(resolve({ [first]: null })[first], Infinity);
+    if (second)
+      assert.equal(resolve({ [first]: null })[second], defaults[second]);
+    for (const invalid of [{ [first]: 0 }, { unknown: 1 }, null])
+      assert.throws(() => resolve(invalid));
   }
+  assert.throws(() => admission({}, { maxCacheOutputBytes: 1 }));
+  assert.throws(() =>
+    installationResourceLimits({ maxPhysicalAndNativeSources: 1 }),
+  );
+  assert.throws(() => acquisitionResourceLimits({ maxCacheLookupTimeMs: 1 }));
   assert.equal(DEFAULT_LIMITS.maxRequestBytes, 48 * 1024 * 1024);
 });
 
@@ -161,34 +165,47 @@ test("CLI controls preserve explicit budgets beside unlimited selections", () =>
   const values = (args) =>
     parseArgs({ args, options: RESOURCE_OPTIONS, allowNegative: true }).values;
   assert.deepEqual(
-    resourceCliLimits({ "max-git-time-ms": "300000" }, '{"maxFiles":2}'),
-    { maxFiles: 2, maxGitTimeMs: 300000 },
+    resourceCliLimits(
+      { "max-git-time-ms": "300000" },
+      '{"maxPhysicalAndNativeSources":2}',
+    ),
+    { maxPhysicalAndNativeSources: 2, maxGitTimeMs: 300000 },
   );
   assert.equal(resourceCliLimits(values(["--capacity-limits"]), "false"), true);
   assert.equal(
-    resourceCliLimits(values(["--no-capacity-limits"]), '{"maxFiles":2}'),
+    resourceCliLimits(
+      values(["--no-capacity-limits"]),
+      '{"maxPhysicalAndNativeSources":2}',
+    ),
     false,
   );
   assert.deepEqual(
     resourceCliLimits(
-      values(["--capacity-limits", "--max-files", "5"]),
+      values(["--capacity-limits", "--max-physical-and-native-sources", "5"]),
       "false",
     ),
-    { maxFiles: 5 },
+    { maxPhysicalAndNativeSources: 5 },
   );
   assert.deepEqual(
     resourceCliLimits(
-      values(["--no-capacity-limits", "--max-files", "5"]),
+      values([
+        "--no-capacity-limits",
+        "--max-physical-and-native-sources",
+        "5",
+      ]),
       "true",
     ),
-    { ...admission({}, false), maxFiles: 5 },
+    { ...admission({}, false), maxPhysicalAndNativeSources: 5 },
   );
   assert.equal(resourceCliLimits({}, "false"), false);
-  assert.deepEqual(resourceCliLimits({ "max-files": "2" }, "false"), {
-    ...admission({}, false),
-    maxFiles: 2,
-  });
-  assert.throws(() => resourceCliLimits({}, '{"maxFileBytes":0}'));
+  assert.deepEqual(
+    resourceCliLimits({ "max-physical-and-native-sources": "2" }, "false"),
+    {
+      ...admission({}, false),
+      maxPhysicalAndNativeSources: 2,
+    },
+  );
+  assert.throws(() => resourceCliLimits({}, '{"maxSourceBytes":0}'));
   const allValues = (args) =>
     parseArgs({
       args,
@@ -200,7 +217,7 @@ test("CLI controls preserve explicit budgets beside unlimited selections", () =>
     resourceCliControls(
       allValues([
         "--no-capacity-limits",
-        "--max-file-bytes",
+        "--max-source-bytes",
         "1024",
         "--max-check-time-ms",
         "1000",
@@ -210,8 +227,8 @@ test("CLI controls preserve explicit budgets beside unlimited selections", () =>
       "false",
     ),
   );
-  assert.equal(selected.admission.maxFileBytes, 1024);
-  assert.equal(selected.admission.maxTotalBytes, null);
+  assert.equal(selected.admission.maxSourceBytes, 1024);
+  assert.equal(selected.admission.maxTotalSourceBytes, null);
   assert.equal(selected.runtime.maxCheckTimeMs, 1000);
   assert.equal(selected.runtime.maxNestingDepth, null);
   assert.equal(selected.runtime.maxTemporaryBytes, null);
@@ -231,12 +248,13 @@ test("positive boolean re-enables defaults while override objects amend only nam
   );
   assert.deepEqual(admission(disabled, true), DEFAULT_LIMITS);
   assert.deepEqual(admission(disabled, {}), admission({}, false));
-  assert.deepEqual(admission(disabled, { maxFiles: 7 }), {
+  assert.deepEqual(admission(disabled, { maxPhysicalAndNativeSources: 7 }), {
     ...admission({}, false),
-    maxFiles: 7,
+    maxPhysicalAndNativeSources: 7,
   });
   assert.equal(
-    admission({ capacityLimits: { maxFiles: 9 } }, true).maxFiles,
+    admission({ capacityLimits: { maxPhysicalAndNativeSources: 9 } }, true)
+      .maxPhysicalAndNativeSources,
     9,
   );
   assert.ok(
@@ -291,9 +309,9 @@ test("producer npm setup admits resource overrides before dependencies are insta
     "process.stdout.write(JSON.stringify(process.argv.slice(2)));\n",
   );
   for (const [encoded, timeoutMs] of [
-    [undefined, DEFAULT_LIMITS.maxAcquisitionTimeMs],
-    ["{}", DEFAULT_LIMITS.maxAcquisitionTimeMs],
-    ["true", DEFAULT_LIMITS.maxAcquisitionTimeMs],
+    [undefined, resourceDefaults("acquisitionControls").maxAcquisitionTimeMs],
+    ["{}", resourceDefaults("acquisitionControls").maxAcquisitionTimeMs],
+    ["true", resourceDefaults("acquisitionControls").maxAcquisitionTimeMs],
     ['{"maxAcquisitionTimeMs":700000}', 700000],
     ["false", 0],
   ]) {
@@ -304,7 +322,8 @@ test("producer npm setup admits resource overrides before dependencies are insta
     };
     delete env.JSON_QUALITY_CAPACITY_LIMITS;
     delete env.JSON_QUALITY_LIMITS;
-    if (encoded !== undefined) env.JSON_QUALITY_CAPACITY_LIMITS = encoded;
+    delete env.JSON_QUALITY_ACQUISITION_CONTROLS;
+    if (encoded !== undefined) env.JSON_QUALITY_ACQUISITION_CONTROLS = encoded;
     const result = spawnSync(
       process.execPath,
       [join(root, "scripts/qualification-process.js"), "producer-npm"],
@@ -337,7 +356,7 @@ test("producer npm setup admits resource overrides before dependencies are insta
         ...process.env,
         NODE_PATH: "",
         JSON_QUALITY_PRODUCER_NPM: nativeNpm,
-        JSON_QUALITY_LIMITS: "false",
+        JSON_QUALITY_ACQUISITION_CONTROLS: '{"maxFiles":1}',
       },
       encoding: "utf8",
       windowsHide: true,
@@ -345,6 +364,6 @@ test("producer npm setup admits resource overrides before dependencies are insta
     },
   );
   assert.notEqual(rejected.status, 0);
-  assert.match(rejected.stderr, /Use JSON_QUALITY_CAPACITY_LIMITS/u);
+  assert.match(rejected.stderr, /Invalid JSON resource-limit overrides/u);
   assert.equal(rejected.stdout, "");
 });

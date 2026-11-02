@@ -71,8 +71,8 @@ test("logical provider selects the frozen physical pointer and streams its exact
     assert.equal(logical.linkage.value, events.at(-1).linkage.value);
     const read = await session.command("read-source", {
       source: logical.source,
-      offset: "0",
-      maximum: "65536",
+      byteOffset: "0",
+      maximumBytes: "65536",
     });
     assert.equal(read.data.toString(), "0");
   } finally {

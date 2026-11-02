@@ -1,19 +1,13 @@
 {
-  "schemaVersion": 3,
-  "defaults": {
-    "formatContract": "prettier-json",
-    "allowFormatWrites": true,
-    "normalization": "NFC"
-  },
+  "schemaVersion": 4,
   "exceptions": [
     {
       "paths": [
-        ".git/**",
-        "**/node_modules/**"
+        "generated/**"
       ],
-      "exclude": true,
-      "owner": "Git and npm",
-      "reason": "External metadata and installed dependencies."
+      "allowSourceRewrites": false,
+      "owner": "Repository generator",
+      "reason": "The generator owns serialization; quality checks still apply."
     }
   ]
 }

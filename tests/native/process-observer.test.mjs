@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+
+const observer = fileURLToPath(
+  new URL("../../scripts/observe-process-tree.py", import.meta.url),
+);
+function observe(script, timeout = "5") {
+  const child = spawnSync(
+    process.env.PYTHON ?? "python",
+    [observer, "--timeout", timeout, "--", process.execPath, "-e", script],
+    {
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 15000,
+      maxBuffer: 5 * 1024 * 1024,
+    },
+  );
+  assert.ok(!child.error, child.error?.message);
+  return { exit: child.status, report: JSON.parse(child.stdout) };
+}
+test("tree accounting observes a real memory-heavy child independently of parent memory", () => {
+  const { exit, report } = observe(
+    "const {spawnSync}=require('node:child_process'); const r=spawnSync(process.execPath,['-e','const memory=Buffer.alloc(64*1024*1024,1); setTimeout(()=>console.log(memory.length),300)'],{encoding:'utf8'}); if(r.status!==0)process.exit(2); console.log(JSON.stringify({bytes:Number(r.stdout)}));",
+  );
+  assert.equal(exit, 0);
+  assert.equal(report.status, "passed");
+  assert.equal(JSON.parse(report.stdout).bytes, 64 * 1024 * 1024);
+  assert.ok(report.peakBytes >= 64 * 1024 * 1024);
+  assert.ok(report.processCount >= 3);
+  assert.equal(report.cleanup, "passed");
+  assert.equal(report.quiescence, "passed");
+  assert.equal(
+    report.method,
+    process.platform === "win32" ? "windows-job" : "linux-process-group",
+  );
+});
+test("surviving grandchildren and timeout fail observation and leave no live owned process", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "json-observer-test-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  for (const timeout of [false, true]) {
+    const path = join(root, `${timeout}.pid`);
+    const script = `const {spawn}=require('node:child_process'); const {writeFileSync}=require('node:fs'); const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',detached:process.platform==='win32'}); writeFileSync(${JSON.stringify(path)},String(child.pid)); child.unref(); ${timeout ? "setInterval(()=>{},1000);" : ""}`;
+    const { exit, report } = observe(script, timeout ? "0.5" : "5");
+    const pid = Number(readFileSync(path, "utf8"));
+    assert.equal(exit, 1);
+    assert.equal(report.status, "failed");
+    assert.equal(report.cleanup, "passed");
+    assert.equal(report.timedOut, timeout);
+    // Native readback, independent of the observer's claimed cleanup.
+    if (process.platform === "linux") {
+      try {
+        assert.equal(
+          readFileSync(`/proc/${pid}/stat`, "utf8")
+            .split(") ")[1]
+            .split(" ")[0],
+          "Z",
+        );
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+    } else assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+  }
+});
+test("workload errors retain failed observation and successful cleanup", () => {
+  const { exit, report } = observe("process.exit(7)");
+  assert.equal(exit, 1);
+  assert.equal(report.exitCode, 7);
+  assert.equal(report.status, "failed");
+  assert.equal(report.cleanup, "passed");
+});
+
+test("permanently unavailable observation cannot prevent admitted-domain termination", () => {
+  const helper = fileURLToPath(
+    new URL("./process-observer-failure.py", import.meta.url),
+  );
+  const child = spawnSync(process.env.PYTHON ?? "python", [helper], {
+    encoding: "utf8",
+    windowsHide: true,
+    timeout: 15000,
+  });
+  assert.equal(child.status, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout), {
+    status: "failed",
+    cleanup: "failed",
+    terminationAttempted: true,
+  });
+});

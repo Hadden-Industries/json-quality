@@ -2,6 +2,10 @@
 /** Complete provider/report closure before a privileged job may consume a bundle. */
 import assert from "node:assert/strict";
 import {
+  validateMinimalCli,
+  frozenDefaultPolicyDigest,
+} from "./consumer-layouts.js";
+import {
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -48,6 +52,8 @@ import {
 } from "./release-recovery.js";
 import { verifyAudit } from "./release-inventory.js";
 import { native } from "./qualification-process.js";
+import { securityScans } from "./security-scans.js";
+import { verifyCodeql } from "./release-security.js";
 
 export function verifyReport(report, release, lane, qualification, layout) {
   assert.equal(report.status, "passed");
@@ -63,7 +69,7 @@ export function verifyReport(report, release, lane, qualification, layout) {
   assert.equal(report.nativeToolchain.npm, release.policy.consumerNpm);
   assert.equal(report.qualification, qualification);
   assert.equal(report.layout, layout);
-  assert.equal(report.publicExports, 6);
+  assert.equal(report.publicExports, 7);
   assert.equal(report.cliPhysicalFiles, 2);
   assert.equal(report.packageVersion, release.version);
   assert.equal(
@@ -79,6 +85,23 @@ export function verifyReport(report, release, lane, qualification, layout) {
     version: release.version,
     integrity: expected.archive.integrity,
   });
+  validateMinimalCli(
+    report.minimalCli,
+    release.version,
+    report.installSource,
+    frozenDefaultPolicyDigest(release.archive.files),
+    {
+      name: "@hadden-industries/json-quality",
+      version: release.version,
+      integrity: release.archive.integrity,
+      sha256: release.archive.sha256,
+    },
+    {
+      name: expected.package,
+      version: release.version,
+      integrity: expected.archive.integrity,
+    },
+  );
 }
 function copyEvidence(from, to) {
   mkdirSync(to, { recursive: true });
@@ -127,11 +150,20 @@ export function verifySecurity(record, release, manifestSha, run, attempt) {
   assert.equal(record.manifestSha256, manifestSha);
   assert.equal(record.run, String(run));
   assert.equal(record.attempt, String(attempt));
-  assert.equal(record.scans.length, 2);
-  assert.deepEqual(record.analyses.map((a) => a.category).sort(), [
-    "/language:actions",
-    "/language:javascript-typescript",
-  ]);
+  assert.equal(record.schemaVersion, 2, "Obsolete security contract");
+  assert.equal(record.scans.length, securityScans.length);
+  assert.deepEqual(
+    record.analyses.map((a) => a.category).sort(),
+    securityScans.map(({ category }) => category).sort(),
+  );
+  assert.deepEqual(
+    verifyCodeql(record.analyses, release.source.commit),
+    record.analyses,
+  );
+  assert.deepEqual(
+    record.scans.map(({ analysis }) => analysis).sort((a, b) => a - b),
+    record.analyses.map(({ id }) => id).sort((a, b) => a - b),
+  );
   assert.ok(
     record.scans.every(
       (scan) =>
@@ -250,7 +282,7 @@ export function refreshAdmission(
   directory,
   phase,
   env = process.env,
-  { historyRoot, checkHistory = true } = {},
+  { historyRoot, checkHistory = true, environmentName } = {},
 ) {
   manualControl(env, phase);
   currentMain(env);
@@ -344,7 +376,7 @@ export function refreshAdmission(
     archive: "github-archival",
     promote: "npm-promotion",
   };
-  if (names[phase]) checkEnvironment(names[phase]);
+  if (names[phase]) checkEnvironment(environmentName ?? names[phase]);
   let history = [];
   if (checkHistory) {
     assert.ok(historyRoot);
@@ -474,7 +506,7 @@ export function acquireRecoveryJournal(
   const original = acquire(
     record.run,
     record.attempt,
-    `effect-${record.phase}-${record.attempt}`,
+    `effect-${record.phase}${record.service ? `-${record.service}` : ""}-${record.attempt}`,
     acquisition,
   );
   assert.match(record.manifestSha256, /^[a-f0-9]{64}$/u);
@@ -542,7 +574,9 @@ export function acquireRecoveryJournal(
   })) {
     if (
       !entry.isFile() ||
-      !/^(?:stage|promote)-[1-9]\d*-[1-9]\d*\.jsonl$/u.test(entry.name)
+      !/^(?:stage|promote(?:-npm|-github)?)-[1-9]\d*-[1-9]\d*\.jsonl$/u.test(
+        entry.name,
+      )
     )
       continue;
     const bytes = regularBytes(join(original.directory, entry.name)),

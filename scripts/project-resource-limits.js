@@ -16,7 +16,8 @@ export function projectResourceLimits({ write = false } = {}) {
   const source = readFileSync(path, "utf8").replaceAll("\r\n", "\n");
   let projected = source;
   for (const [definitionName, markerName, exportName] of [
-    ["capacityLimits", "RESOURCE", "ACQUISITION_RESOURCE_DEFAULTS"],
+    ["installationControls", "INSTALLATION", "INSTALLATION_RESOURCE_DEFAULTS"],
+    ["acquisitionControls", "ACQUISITION", "ACQUISITION_RESOURCE_DEFAULTS"],
     ["verificationControls", "VERIFICATION", "VERIFICATION_RESOURCE_DEFAULTS"],
   ]) {
     const definition = schema.$defs[definitionName];

@@ -24,7 +24,7 @@ test("control JSON reserves its byte and object state before materialization", a
         await session.command("reserve-control-materialization", {
           value: value.id,
           representation: "source-json",
-          maximum: "1024",
+          maximumBytes: "1024",
         })
       ).result;
     assert.ok(
@@ -52,7 +52,7 @@ test("control JSON reserves its byte and object state before materialization", a
 test("retained policy state occupies the same budget before repository storage begins", async () => {
   const session = new NativeSession();
   try {
-    await session.configure({ managedMemoryTargetBytes: "16777216" });
+    await session.configure({ maxManagedMemoryBytes: "16777216" });
     await assert.rejects(
       session.command("adopt-control-state", { byteLength: "16777216" }),
       /control-state-budget/,

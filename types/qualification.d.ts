@@ -1,4 +1,4 @@
-/** Deliver cohort-3 events for all tracked candidate JSON under the immutable
+/** Deliver cohort-4 events for all tracked candidate JSON under the immutable
  * trusted commit's policy. Candidate policy is ordinary checked data. Checkout
  * bytes and HEAD are outside this scope, so dirty work is never overwritten or
  * misrepresented as qualified. Native/logical adapters and domain validation
@@ -8,6 +8,6 @@
  * @param {import("./api-types.js").QualificationOptions} options
  * @returns {AsyncGenerator<import("./api-types.js").JsonQualityEvent>}
  */
-export declare function qualifyJsonConsumer(
+export declare function qualifyGitJsonSources(
   options: import("./api-types.js").QualificationOptions,
 ): AsyncGenerator<import("./api-types.js").JsonQualityEvent>;

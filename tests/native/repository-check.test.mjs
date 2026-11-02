@@ -32,7 +32,7 @@ async function fixture(
       contractFor = (path) => ({
         ...compact,
         path,
-        exclude: path.startsWith(".git/"),
+        excludeUntrackedSources: path.startsWith(".git/"),
         ...(expected && path === "container.json"
           ? {
               expected: {
@@ -99,7 +99,7 @@ test("repository verdict follows physical and logical checks, exact linkage and 
         ["container.json", "derived.json"],
       );
       assert.equal(events.at(-1).type, "execution-terminal");
-      assert.equal(events.at(-1).members, "2");
+      assert.equal(events.at(-1).inventoryMemberCount, "2");
       assert.equal(events.at(-1).contractSatisfied, true);
       assert.equal(events.at(-1).domainComplete, false);
       assert.equal(events.at(-1).linkedExpectationsComplete, true);
@@ -202,7 +202,7 @@ test("native-owned JSON alone can complete a repository with an independent auth
       final = event;
     assert.equal(closed, true);
     assert.equal(final.type, "execution-terminal");
-    assert.equal(final.members, "1");
+    assert.equal(final.inventoryMemberCount, "1");
     assert.equal(final.contractSatisfied, true);
   });
 });
@@ -247,7 +247,7 @@ test("repository JSONL sources use physical-record framing without a caller pars
     let final;
     for await (const event of checkRepository(options)) final = event;
     assert.equal(final.type, "execution-terminal");
-    assert.equal(final.members, "1");
+    assert.equal(final.inventoryMemberCount, "1");
     assert.equal(final.qualityPassed, true);
     assert.equal(final.contractSatisfied, true);
   });

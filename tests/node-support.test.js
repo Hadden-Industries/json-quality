@@ -8,6 +8,7 @@ import {
 } from "../scripts/node-matrix.js";
 import { projectNodeSupport } from "../scripts/project-node-support.js";
 import { assertNativeNpmRuntime } from "../scripts/consumer-toolchain.js";
+import { nodeMatrixFixture } from "./node-matrix-fixture.js";
 
 test("consumer qualification refuses an unsupported native npm runtime before execution", () => {
   const npm = process.env.npm_execpath;
@@ -58,12 +59,65 @@ test("matrix refuses missing floor/reference/LTS metadata and malformed releases
     [],
     {},
     [{ version: "v24.0.0" }],
-    [...releases, { version: "v26.13.0-rc.1" }],
+    [...releases, { version: "v26.13.0-rc..1" }],
     releases.filter((r) => r.version !== "v22.13.0"),
     releases.filter((r) => r.version !== "v24.21.0"),
     releases.map((r) => ({ ...r, lts: false })),
   ])
     assert.throws(() => qualificationMatrix(value, policy));
+});
+
+test("official prerelease metadata does not replace the latest stable supported families", () => {
+  const forward = {
+    ...policy,
+    testedLtsMajors: [22, 24, 26],
+    preLtsMajors: [26],
+    reference: "26.13.0",
+  };
+  assert.deepEqual(
+    qualificationMatrix(
+      [
+        ...releases,
+        { version: "v26.13.0", lts: false },
+        { version: "v27.0.0-alpha.0.0.0", lts: false },
+        { version: "v26.99.0-rc.1", lts: false },
+        { version: "v24.99.0-rc.1", lts: "Krypton" },
+      ],
+      forward,
+    ),
+    {
+      os: ["ubuntu-24.04", "windows-2025"],
+      node: ["22.13.0", "22.23.4", "24.22.1", "26.13.0"],
+    },
+  );
+});
+
+test("shared offline matrices retain floor, latest-family and changed reference lanes", () => {
+  assert.deepEqual(nodeMatrixFixture(policy), {
+    os: ["ubuntu-24.04", "windows-2025"],
+    node: ["22.13.0", "22.13.1", "24.21.0"],
+  });
+  const changed = {
+    ...policy,
+    testedLtsMajors: [22, 24, 26],
+    reference: "26.3.7",
+  };
+  assert.deepEqual(nodeMatrixFixture(changed), {
+    os: ["ubuntu-24.04", "windows-2025"],
+    node: ["22.13.0", "22.13.1", "24.0.0", "26.3.7"],
+  });
+});
+
+test("negative matrix mutations cannot change another fixture or its source policy", () => {
+  const originalPolicy = structuredClone(policy);
+  const first = nodeMatrixFixture(policy);
+  const second = nodeMatrixFixture(policy);
+  const originalSecond = structuredClone(second);
+  first.os.pop();
+  first.node.pop();
+  assert.deepEqual(second, originalSecond);
+  assert.deepEqual(policy, originalPolicy);
+  assert.notDeepEqual(first, second);
 });
 
 test("the explicit imminent-LTS selection includes Node 26 before its promotion", () => {

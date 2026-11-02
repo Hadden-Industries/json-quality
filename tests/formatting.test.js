@@ -41,16 +41,17 @@ test("API formatting and native preservation checking ignore consumer formatter 
 
 test("public printer preserves token spelling, order and unnormalized source values", async () => {
   const source = '{"z":1.00e+2,"x":"e\\u0301","a":[2,1]}';
-  await assert.rejects(formatJsonSource(source), /invalid or unsafe/u);
+  const defaultPrinted = await formatJsonSource(source);
   const preservation = {
     contract: {
       normalization: "preserve",
-      allowFormatWrites: false,
+      allowSourceRewrites: false,
       owner: "Fixture owner",
       reason: "Keep the independent decomposed literal.",
     },
   };
   const printed = await formatJsonSource(source, preservation);
+  assert.equal(defaultPrinted, printed);
   const tokens = (text) =>
     tokenize(text).map((token) =>
       text.slice(token.loc.start.offset, token.loc.end.offset),
@@ -59,7 +60,9 @@ test("public printer preserves token spelling, order and unnormalized source val
   assert.equal(await formatJsonSource(printed, preservation), printed);
   assert.ok(
     (await checkFixture(Buffer.from(printed))).findings.some(
-      (f) => f.messageId === "unnormalized",
+      (f) =>
+        f.ruleId === "json-quality/nfc-strings" &&
+        f.messageId === "unnormalized",
     ),
   );
 });
@@ -128,7 +131,7 @@ test("pure formatting retains strict syntax and resource admission", async () =>
   ])
     await assert.rejects(formatJsonSource(source));
   await assert.rejects(
-    formatJsonSource("{}", { capacityLimits: { maxFileBytes: 1 } }),
+    formatJsonSource("{}", { capacityLimits: { maxSourceBytes: 1 } }),
   );
   await assert.rejects(formatJsonSource("{}", { parser: "json5" }));
   assert.equal(await formatJsonSource("{}", { capacityLimits: false }), "{}\n");

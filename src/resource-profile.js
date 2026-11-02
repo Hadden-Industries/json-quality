@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Closed, caller-owned quota selections over schema-projected default profiles.
 import schema from "../schemas/configuration.schema.json" with { type: "json" };
+import { readControlOptions } from "./control-snapshot.js";
 
 const /** @type {Record<string, any>} */ definitions = structuredClone(
     schema.$defs,
@@ -30,6 +31,12 @@ export function resolveResourceProfile(
   /** @type {*} */ policy,
   /** @type {*} */ invocation,
 ) {
+  const safeProfile = (/** @type {*} */ value) => {
+    if (value === undefined || typeof value === "boolean") return value;
+    return readControlOptions(value, Object.keys(defaults));
+  };
+  policy = safeProfile(policy);
+  invocation = safeProfile(invocation);
   for (const value of [policy, invocation]) {
     if (value === undefined || typeof value === "boolean") continue;
     if (

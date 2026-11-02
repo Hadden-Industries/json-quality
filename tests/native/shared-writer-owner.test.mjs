@@ -16,7 +16,7 @@ for (const [name, transform, text, expected] of [
       const core = new NativeSession(),
         base = "65536";
       try {
-        await core.configure({ maxFiles: "1" });
+        await core.configure({ maxPhysicalAndNativeSources: "1" });
         await core.command("adopt-control-state", { byteLength: base });
         const original = await core.capture([Buffer.from(text)]);
         for await (const event of core.events()) void event;
@@ -24,7 +24,7 @@ for (const [name, transform, text, expected] of [
           core,
           parentSource: original.source,
           controlStateBytes: base,
-          capacityLimits: { maxFiles: 1 },
+          capacityLimits: { maxPhysicalAndNativeSources: 1 },
         });
         assert.equal(result.text, expected);
         assert.notEqual(result.capture.source, original.source);

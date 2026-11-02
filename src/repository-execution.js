@@ -8,7 +8,7 @@ import {
   createExecutionDeadline,
   remainingDuration,
 } from "./execution-deadline.js";
-import { jsonContract } from "./configuration.js";
+import { resolveJsonSourceContract } from "./configuration.js";
 import { sourcePresentationContract } from "./source-presentation.js";
 import { NativeSession } from "./native-session.js";
 import { checkRepository } from "./repository-check.js";
@@ -138,7 +138,7 @@ export async function createRepositoryExecution(
             },
           }
         : admitted.policy;
-      let contract = jsonContract(path, policy, {
+      let contract = resolveJsonSourceContract(path, policy, {
         tracked: source.tracked,
       });
       if (
@@ -158,6 +158,11 @@ export async function createRepositoryExecution(
       closed = false;
     return {
       core,
+      implementationIdentity: {
+        coreSourceInputsSha256: component.manifest.sourceInputsSha256,
+        icuVersion: component.manifest.components.icuVersion,
+        unicodeVersion: component.manifest.components.unicodeVersion,
+      },
       contractFor,
       policyObservation: admitted.observation,
       policyTransformControls: admitted.policy.transformControls,
@@ -191,7 +196,7 @@ export async function createRepositoryExecution(
         yield {
           type: "execution",
           resources: selected.wire,
-          policySha256: admitted.observation.sha256,
+          ...admitted.provenance,
           coreSourceInputsSha256: component.manifest.sourceInputsSha256,
         };
         for await (const event of checkRepository({

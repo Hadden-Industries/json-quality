@@ -20,10 +20,11 @@ import {
   matrixLanes,
   requireResults,
 } from "./ci-proof.js";
-import { resolveQualificationMatrix } from "./node-matrix.js";
+import { resolveQualificationMatrix, nodeSupport } from "./node-matrix.js";
 import { hostIdentity } from "./ci-host.js";
 import { budgets } from "./qualification-process.js";
 import { artifactLimits } from "./artifact-policy.js";
+import { compactConsumers, requiredLayouts } from "./consumer-layouts.js";
 
 export function gitSnapshot(directory = process.cwd()) {
   const git = (...args) =>
@@ -44,6 +45,20 @@ export function gitSnapshot(directory = process.cwd()) {
       .filter((line) => line.startsWith("parent "))
       .map((line) => line.slice(7)),
     workflow: git("rev-parse", `HEAD:${workflow}`),
+    defaultPolicySha256: createHash("sha256")
+      .update(
+        execFileSync(
+          "git",
+          ["cat-file", "blob", "HEAD:assets/default-json-quality-policy.json"],
+          {
+            cwd: directory,
+            windowsHide: true,
+            timeout: budgets.read,
+            maxBuffer: 2 * 1024 * 1024,
+          },
+        ),
+      )
+      .digest("hex"),
   };
 }
 function context() {
@@ -176,35 +191,44 @@ async function main(mode) {
   const directory = join(process.env.RUNNER_TEMP, "ci-evidence");
   mkdirSync(directory, { recursive: true });
   if (mode === "lane") {
-    const report = JSON.parse(readFileSync(process.env.JSON_QUALITY_REPORT));
-    assert.equal(report.status, "passed");
-    assert.equal(report.node, process.versions.node);
-    assert.equal(report.sourceCommit, ctx.sha);
+    const consumers = compactConsumers(
+      requiredLayouts.map((layout) =>
+        JSON.parse(
+          readFileSync(
+            join(
+              process.env.JSON_QUALITY_LAYOUT_OUTPUT,
+              `${layout}-result.json`,
+            ),
+          ),
+        ),
+      ),
+      {
+        source: ctx.sha,
+        node: process.versions.node,
+        npm: nodeSupport.consumerNpm,
+        os: process.env.CI_OS,
+        defaultPolicySha256: ctx.snapshot.defaultPolicySha256,
+      },
+    );
     const transport = await reader()(
       `/actions/artifacts/${Number(process.env.CI_ARCHIVE_ID)}`,
     );
     assert.equal(transport.expired, false);
     assert.equal(transport.workflow_run.id, ctx.runId);
     const record = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       status: "passed",
       repositoryId: ctx.repositoryId,
       runId: ctx.runId,
       runAttempt: ctx.runAttempt,
       snapshot: ctx.snapshot,
       lane: { os: process.env.CI_OS, node: process.versions.node },
-      host: { ...hostIdentity(), node: process.versions.node, npm: report.npm },
-      consumer: Object.fromEntries(
-        [
-          "archiveSha256",
-          "packageVersion",
-          "nativePackage",
-          "publicExports",
-          "cliPhysicalFiles",
-          "qualification",
-          "installSource",
-        ].map((key) => [key, report[key]]),
-      ),
+      host: {
+        ...hostIdentity(),
+        node: process.versions.node,
+        npm: consumers.root.npm,
+      },
+      consumers,
       transport: Object.fromEntries(
         ["id", "name", "digest", "size_in_bytes", "workflow_run"].map((key) => [
           key,
