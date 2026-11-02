@@ -123,10 +123,20 @@ test("native npm binds its dependency-only generated lock and installed bytes to
     );
     writeFileSync(join(source, "payload.js"), "// frozen executable payload\n");
     writeFileSync(join(source, "defaults.json"), "{}\n");
+    // Fixture archives use the qualified producer's keyed npm pack report;
+    // dependency resolution, installation and inventory retain the consumer npm.
     const { filename } = readPackReport(
-      npm(
-        ["pack", "--ignore-scripts", "--json", "--pack-destination", directory],
-        source,
+      execFileSync(
+        process.env.JSON_QUALITY_PRODUCER_NODE ?? process.execPath,
+        [
+          process.env.JSON_QUALITY_PRODUCER_NPM ?? npmCliPath,
+          "pack",
+          "--ignore-scripts",
+          "--json",
+          "--pack-destination",
+          directory,
+        ],
+        { cwd: source, env, encoding: "utf8", windowsHide: true },
       ),
     );
     return join(directory, filename);
