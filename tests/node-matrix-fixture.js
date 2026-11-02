@@ -2,14 +2,16 @@
 // Adapted from Markdown Quality f89db81ff2350d0cd1958b14f1916b1df1523a8e.
 import { nodeSupport, qualificationMatrix } from "../scripts/node-matrix.js";
 
+export const nextPatchVersion = (version) =>
+  version.replace(/\d+$/u, (patch) => String(Number(patch) + 1));
+
 /** Synthetic releases keep offline fixtures independent of real Node patches. */
 export function nodeMatrixFixture(policy = nodeSupport) {
-  const [major, minor, patch] = policy.minimum.split(".").map(Number);
   const versions = [
     ...policy.testedLtsMajors.map((major) => `${major}.0.0`),
     policy.minimum,
     // Retain separate floor and latest lanes within the minimum's LTS family.
-    `${major}.${minor}.${patch + 1}`,
+    nextPatchVersion(policy.minimum),
     policy.reference,
   ];
   const matrix = qualificationMatrix(

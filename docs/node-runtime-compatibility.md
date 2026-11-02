@@ -15,7 +15,11 @@ Producer npm: 12.2.1; consumer qualification npm: 11.21.1.
 
 <!-- node-support:end -->
 
-`assets/node-support.json` is the sole editable version policy.
+`assets/node-support.json` is the sole editable Node/npm version policy.
+The projector and its regression check share one declaration inventory, including `.node-version`, package metadata, workflow pins and local action pins.
+Dynamic consumer matrices and GitHub's action runtime retain their separate selections.
+Native npm owns lockfile updates; consumer ESLint qualification reads its exact selected version from `package-lock.json`.
+Python remains owned separately by `.python-version`, and host-proof mismatch tests derive a different version from that target rather than copying a future patch.
 Run `npm run sync:node`, refresh root metadata with native `npm install --package-lock-only --ignore-scripts --no-audit --no-fund`, then run `npm run check:node`.
 The check rejects drift without writing; dependency resolutions and historical evidence remain native-owned or immutable.
 The supported families exclude odd, future and prerelease Node releases.
@@ -30,7 +34,7 @@ It qualifies the same immutable producer archive on Windows 2025 and Ubuntu 24.0
 The reference lane owns producer packing, lint, format, policy-drift and JSON dogfood checks.
 Consumer lanes exercise real installed CLI/API/plugin/schema behavior, preservation, failure paths and native installation verification.
 
-The retained Node 22 policy floor is 22.13.0; producer/development ESLint uses that floor independently of the JSON runtime reader.
+The compatibility floor remains owned by the policy above; producer/development tools retain their own engine requirements independently of the JSON runtime reader.
 JSON import attributes exist at that floor; native glob and filesystem behavior require real platform qualification.
 The current source selects configuration/event/native cohort 4 and Node-API 9; historical packages retain their own cohorts.
 The same artifact must be qualified on each selected runtime; an ABI declaration alone is not runtime proof.

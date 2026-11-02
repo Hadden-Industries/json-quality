@@ -1,8 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { nodeSupport, validatePolicy } from "./node-matrix.js";
+const root = new URL("../", import.meta.url);
+
+/** Shared by projection and regression checks, including bootstrap declarations. */
+export function nodeSupportProjectionPaths() {
+  return [
+    "package.json",
+    ".node-version",
+    "package-lock.json",
+    "docs/node-runtime-compatibility.md",
+    ...readdirSync(new URL(".github/workflows/", root))
+      .filter((path) => path.endsWith(".yml"))
+      .map((path) => `.github/workflows/${path}`),
+    ...readdirSync(new URL(".github/actions/", root), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => `.github/actions/${entry.name}/action.yml`),
+  ];
+}
 
 /** Project current declarations; npm alone writes the native lockfile. */
 export function projectNodeSupport(files, policy = nodeSupport) {
@@ -17,6 +34,23 @@ export function projectNodeSupport(files, policy = nodeSupport) {
         return [path, JSON.stringify(manifest, null, 2) + "\n"];
       }
       if (path === ".node-version") return [path, policy.reference + "\n"];
+      if (path === "package-lock.json") return [path, source];
+      if (path.startsWith(".github/")) {
+        assert.match(
+          path,
+          /^\.github\/(?:workflows\/[^/]+\.yml|actions\/[^/]+\/action\.yml)$/u,
+        );
+        return [
+          path,
+          source.replace(
+            /^(\s*node-version:\s*)(\d+\.\d+\.\d+|"\d+\.\d+\.\d+"|'\d+\.\d+\.\d+')([ \t]*(?:#.*)?)$/gmu,
+            (_, prefix, scalar, suffix) => {
+              const quote = ["'", '"'].includes(scalar[0]) ? scalar[0] : "";
+              return `${prefix}${quote}${policy.reference}${quote}${suffix}`;
+            },
+          ),
+        ];
+      }
       assert.equal(path, "docs/node-runtime-compatibility.md");
       const start = "<!-- node-support:start -->",
         end = "<!-- node-support:end -->";
@@ -54,12 +88,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   assert.equal(process.argv.length, 3, "Use --check or --write");
   const mode = process.argv[2];
   assert.ok(["--check", "--write"].includes(mode));
-  const root = new URL("../", import.meta.url);
-  const paths = [
-    "package.json",
-    ".node-version",
-    "docs/node-runtime-compatibility.md",
-  ];
+  const paths = nodeSupportProjectionPaths();
   const files = Object.fromEntries(
     paths.map((path) => [path, readFileSync(new URL(path, root), "utf8")]),
   );

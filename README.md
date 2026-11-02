@@ -1,6 +1,6 @@
 # JSON Quality
 
-[![npm](https://img.shields.io/npm/v/%40hadden-industries%2Fjson-quality)](https://www.npmjs.com/package/@hadden-industries/json-quality) [![CI](https://github.com/Hadden-Industries/json-quality/actions/workflows/ci.yml/badge.svg)](https://github.com/Hadden-Industries/json-quality/actions/workflows/ci.yml) [![Node](https://img.shields.io/badge/node-%3E%3D22.13.0-green)](docs/node-runtime-compatibility.md) [![AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
+[![npm](https://img.shields.io/npm/v/%40hadden-industries%2Fjson-quality)](https://www.npmjs.com/package/@hadden-industries/json-quality) [![CI](https://github.com/Hadden-Industries/json-quality/actions/workflows/ci.yml/badge.svg)](https://github.com/Hadden-Industries/json-quality/actions/workflows/ci.yml) [![Node](https://img.shields.io/badge/node-supported-green)](docs/node-runtime-compatibility.md) [![AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 
 Check strict JSON, JSONL and NDJSON; preserve exact numeric lexemes and member order; catch duplicate decoded keys, invalid Unicode, NFC drift and inconsistent presentation.
 One native reader handles small documents and oversized values with bounded memory and owned spill storage.
@@ -81,8 +81,8 @@ export default [jsonQuality.configs.recommended];
 
 The [identity rule](docs/rules/no-json-stringify-identity.md) rejects JSON serialization used as semantic identity.
 
-Node.js `>=22.13.0` is the compatibility floor.
-Qualification covers maintained LTS majors and the owner's explicit advance qualification of Node 26 before its imminent LTS launch.
+The [runtime policy](docs/node-runtime-compatibility.md) defines the Node.js compatibility floor.
+Qualification covers its declared LTS families, advance qualification lanes and independent producer reference.
 Other engine-compatible releases receive best-effort support.
 Use current security patches; the historical floor is not a security recommendation.
 The first platform set is Windows x64 and Linux x64/glibc; keep optional dependencies enabled so npm installs the matching verified native companion.

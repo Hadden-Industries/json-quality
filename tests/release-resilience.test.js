@@ -352,6 +352,37 @@ test("release contracts reject missing setup, wrong draft authority and lost fai
   }
 });
 
+test("workflow checkouts reject output-derived revisions while retaining immutable source interfaces", () => {
+  for (const path of [
+    ".github/workflows/native-producer.yml",
+    ".github/actions/setup-producer/action.yml",
+  ]) {
+    for (const ref of [
+      "${{ steps.build.outputs.source_commit }}",
+      "${{ needs.resolve.outputs.source_commit }}",
+      "${{ steps['build'].outputs['source_commit'] }}",
+      "${{ Steps.build.outputs.source_commit }}",
+      "${{ NEEDS.resolve.outputs.source_commit }}",
+      "${{ STEPS['build'].outputs['source_commit'] }}",
+    ]) {
+      const doc = parseDocument(
+        readFileSync(new URL(`../${path}`, import.meta.url), "utf8"),
+      ).toJS();
+      const steps = doc.jobs?.component.steps ?? doc.runs.steps;
+      steps.push({
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        with: { ref, "persist-credentials": false },
+      });
+      assert.throws(
+        () => checkWorkflows({ overrides: { [path]: JSON.stringify(doc) } }),
+        /output-derived checkout revision/u,
+      );
+    }
+  }
+  // Caller-selected full commits are validated by the existing reusable workflow.
+  assert.ok(checkWorkflows().workflows > 0);
+});
+
 test("restoration reads actual bundled output and historical flat proof with exact member identities", (t) => {
   const root = temporary(t),
     input = join(root, "input"),

@@ -33,6 +33,14 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         `${path}: external action needs a full reviewed SHA`,
       );
   };
+  const checkoutRevision = (path, step) => {
+    if (!step.uses?.startsWith("actions/checkout@")) return;
+    const ref = String(step.with?.ref ?? "");
+    assert.ok(
+      !ref.includes("${{") || !/\b(?:steps|needs)\s*(?:\.|\[)/iu.test(ref),
+      `${path}: output-derived checkout revision; project reviewed literal pins from their canonical build configuration`,
+    );
+  };
   for (const entry of readdirSync(resolve(root, ".github/actions"), {
     withFileTypes: true,
   })) {
@@ -57,6 +65,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       );
       for (const step of action.runs.steps) {
         pinned(path, step.uses);
+        checkoutRevision(path, step);
         assert.ok(
           !Object.hasOwn(step, "timeout-minutes"),
           `${path}: composite-step timeout is unsupported`,
@@ -286,6 +295,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       }
       for (const step of job.steps ?? []) {
         pinned(path, step.uses);
+        checkoutRevision(path, step);
         assert.ok(
           !/scripts\/(?:upload-evidence\.js|ci-command\.js upload)/u.test(
             step.run ?? "",

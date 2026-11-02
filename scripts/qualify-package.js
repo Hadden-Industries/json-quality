@@ -13,7 +13,10 @@ import { join, sep, dirname } from "node:path";
 import { createHash } from "node:crypto";
 import { parseArgs } from "node:util";
 import { packCandidate } from "./pack.js";
-import { assertNativeNpmRuntime } from "./consumer-toolchain.js";
+import {
+  assertNativeNpmRuntime,
+  qualificationEslintVersion,
+} from "./consumer-toolchain.js";
 import { native, budgets } from "./qualification-process.js";
 import { qualifyPublicApi } from "./qualify-api.js";
 import { installMinimalConsumer } from "./consumer-minimal.js";
@@ -146,7 +149,7 @@ try {
         version: "0.0.0",
         private: true,
         type: "module",
-        devDependencies: { eslint: "10.13.0" },
+        devDependencies: { eslint: qualificationEslintVersion() },
         dependencies: {
           [provenance.name]: values.registry
             ? provenance.version

@@ -9,7 +9,7 @@ Report suspected vulnerabilities privately through [SECURITY.md](SECURITY.md); c
 Use the development/producer Node and npm versions in [the runtime policy](docs/node-runtime-compatibility.md).
 Edit version selections only in `assets/node-support.json`, then run `npm run sync:node` and `npm run check:node`.
 Consumer compatibility minima and producer tooling requirements are separate contracts.
-The compatibility floor is Node 22.13.0; maintained LTS majors and the explicit advance Node 26 lane are qualified independently of the reference producer.
+The policy's compatibility floor, maintained LTS families and explicit advance lanes are qualified independently of the reference producer.
 
 ```sh
 npm ci --ignore-scripts

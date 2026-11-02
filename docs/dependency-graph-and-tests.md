@@ -30,8 +30,8 @@ No shadow or other test mode was executed during the 2026-10-18 alignment, by ex
 
 ## Tooling dependency overrides
 
-The root and isolated Markdown manifests override ESLint and `@eslint/config-array` to use `minimatch` 11.0.3 for [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249).
-The root also overrides `readdir-glob`'s matcher and selects `glob` 14.0.3 beneath `archiver-utils` for [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4).
+The [root manifest](https://github.com/Hadden-Industries/json-quality/blob/main/package.json) and [isolated Markdown manifest](https://github.com/Hadden-Industries/json-quality/blob/main/tooling/markdown/package.json) own the selected patched `minimatch` overrides for ESLint and `@eslint/config-array`, addressing [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249).
+The root also owns the override for `readdir-glob`'s matcher and selects a patched `glob` beneath `archiver-utils` for [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4).
 These overrides apply to development tooling; product runtime dependencies and the pinned Markdown archives retain their existing versions and identities.
 Remove each override when its parent dependency admits a patched version and the regenerated complete graph passes `npm run check:dependency-advisories`.
 
