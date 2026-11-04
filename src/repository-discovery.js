@@ -162,7 +162,11 @@ function repositoryRoot(/** @type {*} */ root, /** @type {*} */ gitExecutable) {
     gitExecutable !== undefined &&
     (!isAbsolute(gitExecutable) ||
       !lstatSync(gitExecutable).isFile() ||
-      isPathContained(root, realpathSync(gitExecutable)))
+      // Native resolution expands Windows 8.3 names on both sides.
+      isPathContained(
+        realpathSync.native(root),
+        realpathSync.native(gitExecutable),
+      ))
   )
     throw new TypeError(
       "Explicit Git must be an absolute external regular executable.",

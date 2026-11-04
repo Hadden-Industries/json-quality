@@ -49,9 +49,14 @@ export function gitObjectAuthority(/** @type {*} */ roots) {
       (candidate) =>
         existsSync(candidate) &&
         lstatSync(candidate).isFile() &&
+        // Native resolution expands Windows 8.3 names, so a short PATH spelling
+        // cannot hide a candidate inside a checkout.
         roots.every(
           (/** @type {*} */ root) =>
-            !isPathContained(root, realpathSync(candidate)),
+            !isPathContained(
+              realpathSync.native(root),
+              realpathSync.native(candidate),
+            ),
         ),
     );
   if (!path) throw new Error("External native Git executable is required.");
