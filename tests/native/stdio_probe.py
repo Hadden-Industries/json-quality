@@ -498,7 +498,7 @@ def metadata(executable, parent, manifest):
         for group in ("capacityLimits", "runtimeControls")
         for name in schema["$defs"][group]["properties"]
     }
-    controls.update(maxManagedMemoryBytes=67108864, maxCheckTimeMs=60000)
+    controls.update(maxManagedMemoryBytes="67108864", maxCheckTimeMs="60000")
     host = Host(executable, parent, manifest)
     host.control_fragment_size = 65536
     path, observation = "é" * 33000 + ".json", "observed-" * 9000
