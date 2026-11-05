@@ -66,7 +66,7 @@ Disabling admission does not remove physical address-space, filesystem, database
 Every numeric quota accepts a positive safe integer or `null`; the native wire uses canonical decimal strings or `null`.
 No timer is armed for an unlimited deadline.
 Long finite deadlines use representable timer slices.
-The retired `maxConcurrency` setting did not control execution; its rejection introduced in cohort 4 remains in cohort 5.
+The retired `maxConcurrency` setting did not control execution; its rejection introduced in cohort 4 remains in effect.
 One session serializes its protocol operations; use independent sessions for parallel work.
 These settings do not expose backend, segment, SQLite page/cache or spill-threshold selection. The same reader starts in memory, spills once when necessary and retains stable range/reference identities.
 With an unlimited managed-allocation quota, its finite 32 MiB working target still triggers spill; it does not limit total source bytes, nesting, scratch volume or traversal work.

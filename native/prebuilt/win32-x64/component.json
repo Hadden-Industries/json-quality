@@ -1,38 +1,38 @@
 {
   "schemaVersion": 4,
   "cohort": {
-    "cohortVersion": 5,
+    "cohortVersion": 6,
     "configurationSchemaVersion": 4,
     "eventSchemaVersion": 5,
-    "nativeProtocolVersion": 4,
+    "nativeProtocolVersion": 5,
     "componentSchemaVersion": 4,
     "nodeApiVersion": 9
   },
   "platform": "win32-x64",
   "nodeApiVersion": 9,
-  "sourceInputsSha256": "1f93734dc067c7715debe95b2bf8253a30f8a6869231b3faf7720b86442585b9",
+  "sourceInputsSha256": "343e92ee7e6866b14b777014235c595eb7c953391ef4f4e23dc209e39036279e",
   "artifacts": {
     "json-quality.node": {
-      "sha256": "75d231f2fb646536c6cfe37d9cf844d8836883f88967da72f7c609ccfda78004",
-      "bytes": 36278784
+      "sha256": "775ccf5226241ca57e7205f1d4825815b186fbea7483a99bae6d5934b1596225",
+      "bytes": 36281344
     },
     "json-quality-native.exe": {
-      "sha256": "154f7b88d6ec3e4bf610c68678caf87e61fbe59e6224196f5bbf8ad00234a83c",
-      "bytes": 36267008
+      "sha256": "4a55e9261a3d2c644cf9b7ec31b370d268d5a53d6dc688eb2aa32756e3a8cbb9",
+      "bytes": 36270592
     }
   },
-  "configurationSchemaSha256": "f28d4466e19b20ea16a84c04310636ba800cc4adffc6a1b0d68758b48e613769",
+  "configurationSchemaSha256": "130b33014e47b0c4dfbbbf331287dc8e874659f02ee63ac20de6425b2cb650ca",
   "controlSchemas": {
     "configuration.schema.json": {
-      "sha256": "f28d4466e19b20ea16a84c04310636ba800cc4adffc6a1b0d68758b48e613769",
-      "bytes": 20960
+      "sha256": "130b33014e47b0c4dfbbbf331287dc8e874659f02ee63ac20de6425b2cb650ca",
+      "bytes": 21482
     },
     "source-contract.schema.json": {
       "sha256": "53af09247162d3eb8edf5a434936f575ef0307c7a35426812dab8193b4fcda2a",
       "bytes": 2099
     },
     "contract-cohort.json": {
-      "sha256": "91058db98c61c986b98d58756a6675f77732b6149c061146af652fde5543269a",
+      "sha256": "3168a26bd95c7bfde250581276d3a7df175232d22d0561182dbaed642fca457e",
       "bytes": 171
     }
   },
