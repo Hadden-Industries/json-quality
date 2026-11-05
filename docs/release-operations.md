@@ -242,7 +242,11 @@ Immutable assets and tags are retained; corrections use a new identity.
 All mutating workflows share `json-quality-release-mutation` with cancellation disabled.
 Native run history still inspects every attempt of every writer; concurrency alone is not an effect ledger.
 Request journals are append-only and flush intent before each effect.
-`outcome-unknown`, an absent journal, truncated history or an active producer blocks another effect.
+`outcome-unknown`, an absent journal or truncated history blocks another effect when the original request may concern the candidate version or shared labels.
+Active producers always block globally.
+Version scoping uses complete original package/version/source/manifest identities from authenticated request journals, bound to their native writer execution.
+An authenticated different-version staging or archival request does not require outcome reconciliation to admit a new version; its unknown outcome remains retained and unresolved for the original version.
+Promotion uncertainty remains global because npm and GitHub `latest` labels are shared across versions.
 Do not rerun a failed stage or assume a missing receipt means no request reached the service.
 
 Read existing logs and native state first.
@@ -257,9 +261,10 @@ An incomplete family cannot be reported as a successful release or automatically
 If an early stage loses its response, the owner can explicitly choose `disposition: "abandon-family"` and name exactly the attempted stages.
 Readback must independently observe their matching public versions and integrity; an unapproved unknown stage remains blocked.
 The abandoned family supplies no registry admission or new stage request.
-To proceed, select and qualify a new version, then pass the old family's original manifest, run, journal digest and abandonment decision in `recovery_json`.
+To record that explicit abandonment while advancing a separately qualified new version, pass the old family's original manifest, run, journal digest and abandonment decision in `recovery_json`.
 Admission acquires and retains the old subject and journals separately, settles only observed effects, and preserves the new candidate identity.
 The original version cannot advance or be staged again.
+An independently authenticated different-version family does not require abandonment merely to stage a new version; this grants no approval or retry authority for its old pending stages.
 If npm has already reached the target but a GitHub label request is unknown, the owner may explicitly select `githubAction: "repair-current-label"` and `expectedGithubLatest` (including null).
 Fresh native readback must observe the exact prior GitHub label and npm target.
 This authorizes only a separate guarded GitHub label repair; it neither certifies the old request absent nor replays npm.
@@ -320,8 +325,13 @@ The current digest-bound `release-review.json` must explicitly admit the referen
 ```
 
 Admission verifies the signed tag and exact file bytes, enumerates every available native writer/run/attempt/job, and retains checkpoint-only original attempts after provider expiry.
-It uses only a matching original journal or no-request marker when an operational artifact is missing or expired.
-Missing attempts, changed controllers and unknown effects remain blockers.
+For a different-version staging or archival subject, the existing version-2 checkpoint can supply its original journal and provider inventory before artifact acquisition.
+Its controller, attempt, native execution and effect step must match fresh provider observations where those observations remain available.
+Only the collector's live binding of those original bytes can authorize omission from candidate-specific outcome checks; serialized version fields, run names and the controller checkout version supply no authority.
+Matching or unclassifiable subjects still require the original full records and any necessary reconciliation; legacy checkpoints without original provider inventory cannot authorize version omission.
+Promotion requests retain their shared-label checks for every version.
+Unscoped history export continues retaining every original journal, including unrelated, malformed and unresolved evidence, without rewriting outcomes or dropping expired provider inventories.
+Missing attempts, changed controllers and unclassifiable effects remain blockers.
 Readback uses bounded native raw contents transport, including checkpoints larger than 1 MB.
 Retain or renew checkpoints while their original artifacts remain available; missing original bytes cannot be reconstructed from a green run or public state.
 Completed native writer continuations retain their exact owner recovery records alongside the original journals.
