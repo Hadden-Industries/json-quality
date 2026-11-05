@@ -180,13 +180,13 @@
   },
   "overrides": {
     "eslint": {
-      "minimatch": "11.0.3"
+      "minimatch": "11.0.4"
     },
     "@eslint/config-array": {
-      "minimatch": "11.0.3"
+      "minimatch": "11.0.4"
     },
     "readdir-glob": {
-      "minimatch": "11.0.3"
+      "minimatch": "11.0.4"
     },
     "archiver-utils": {
       "glob": "14.0.3"
@@ -198,9 +198,9 @@
     "@eslint/json": ">=2.1.1",
     "@hadden-industries/markdown-quality": ">=2.0.0",
     "@humanwhocodes/momoa": ">=3.3.13",
-    "@types/node": ">=26.6.5",
-    "dependency-cruiser": ">=18.7.0",
-    "eslint": ">=10.13.0",
+    "@types/node": ">=26.6.6",
+    "dependency-cruiser": ">=18.7.2",
+    "eslint": ">=10.14.0",
     "json-schema-to-typescript": ">=16.0.0",
     "publint": ">=0.3.25",
     "typescript": ">=7.0.2",
