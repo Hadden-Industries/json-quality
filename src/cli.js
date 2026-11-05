@@ -89,7 +89,9 @@ export async function runJsonQualityCli(
       const maximum = resources.runtime.maxCheckTimeMs;
       reportDeadline = createExecutionDeadline(
         remainingDuration(maximum === null ? null : Number(maximum), began),
-        [caller.signal, ...(owner.signal ? [owner.signal] : [])],
+        // Normal session closure revokes the owner's signal before delivery of
+        // the held terminal. CLI delivery has its own deadline and cancellation.
+        [caller.signal],
       );
       reportSignal = reportDeadline.signal;
       reportSignal.addEventListener("abort", stop, { once: true });

@@ -279,19 +279,32 @@ test("broken stdin transform output exits incomplete after genuine native cleanu
   const scratch = temporaryDirectory(t, "json-cli-stdin-pipe-scratch-");
   // One genuine source exceeds the pipe buffer; no unrelated commands create volume.
   const input = '{"value":"' + "x".repeat(1024 * 1024) + '"}\n';
-  const child = spawn(process.execPath, [cli, "format", "--stdin", "--quiet"], {
-    cwd: root,
-    windowsHide: true,
-    stdio: ["pipe", "pipe", "pipe"],
-    env: {
-      ...process.env,
-      NODE_OPTIONS: "",
-      NODE_PATH: "",
-      TEMP: scratch,
-      TMP: scratch,
-      TMPDIR: scratch,
+  // Admit this finite formatter workspace so the test reaches its output sink;
+  // insufficient-workspace refusal is a separate contract from broken delivery.
+  const child = spawn(
+    process.execPath,
+    [
+      cli,
+      "format",
+      "--stdin",
+      "--quiet",
+      "--max-managed-memory-bytes",
+      "67108864",
+    ],
+    {
+      cwd: root,
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        NODE_OPTIONS: "",
+        NODE_PATH: "",
+        TEMP: scratch,
+        TMP: scratch,
+        TMPDIR: scratch,
+      },
     },
-  });
+  );
   let sawOutput = false,
     stdinError;
   let stderr = "";

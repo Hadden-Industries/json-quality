@@ -407,7 +407,7 @@ test("raw source checks cannot replace a trusted repository adapter's obligation
   assert.equal(result.status, 2);
   assert.match(
     delivered(result).at(-1).message,
-    /cannot replace trusted repository obligations/u,
+    /cannot replace a trusted repository adapter's obligations/u,
   );
 });
 test("unknown trusted context fields and insufficient output budgets remain incomplete", (t) => {
