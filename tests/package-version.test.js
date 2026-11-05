@@ -12,7 +12,10 @@ import {
   VERSION_PROJECTION_PATHS,
 } from "../scripts/project-package-version.js";
 import { projectNativePackages } from "../scripts/project-native-packages.js";
-import { policyInputManifest } from "../scripts/project-policy-inputs.js";
+import {
+  readPolicyInputInventory,
+  policyResolverFingerprint,
+} from "../src/policy-inputs.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const metadata = JSON.parse(readFileSync(join(root, "package.json")));
@@ -82,13 +85,12 @@ test("future candidate projection changes owned identities without changing depe
 
 function fixture(t) {
   const directory = temporaryDirectory(t, "json-quality-version-");
-  const policyPaths = JSON.parse(policyInputManifest(root))[1].map(
-    ([path]) => path,
-  );
+  const policyPaths = readPolicyInputInventory(root).files;
   const paths = [
     ...new Set([
       ...VERSION_PROJECTION_PATHS,
       ...policyPaths,
+      "package.json",
       "assets/json-quality-policy-inputs.json",
       "LICENSE",
       "native/prebuilt/linux-x64/LICENSE",
@@ -123,17 +125,16 @@ function fixture(t) {
   };
 }
 
-test("one manifest edit synchronizes both companions, native lock identities and policy fingerprint without transferring evidence", (t) => {
+test("one package version edit synchronizes companions and lock identities while preserving policy inventory and fingerprint", (t) => {
   const { directory, snapshot } = fixture(t);
+  const fingerprint = policyResolverFingerprint(directory);
   writeFileSync(
     join(directory, "package.json"),
     JSON.stringify({ ...metadata, version: "7.8.9-rc.12" }, null, 2) + "\n",
   );
   const before = snapshot();
-  const expected = [
-    ...VERSION_PROJECTION_PATHS,
-    "assets/json-quality-policy-inputs.json",
-  ];
+  const expected = [...VERSION_PROJECTION_PATHS];
+  assert.equal(policyResolverFingerprint(directory), fingerprint);
   assert.deepEqual(synchronizePackageVersion(directory), expected);
   assert.deepEqual(
     snapshot(),
@@ -153,12 +154,24 @@ test("one manifest edit synchronizes both companions, native lock identities and
   );
   assert.equal(
     after["assets/json-quality-policy-inputs.json"],
-    policyInputManifest(directory),
+    before["assets/json-quality-policy-inputs.json"],
   );
+  assert.equal(policyResolverFingerprint(directory), fingerprint);
   projectNativePackages(directory);
   assert.deepEqual(synchronizePackageVersion(directory), []);
   assert.deepEqual(synchronizePackageVersion(directory, { write: true }), []);
   assert.deepEqual(snapshot(), after);
+  const inventoryPath = join(
+    directory,
+    "assets/json-quality-policy-inputs.json",
+  );
+  writeFileSync(inventoryPath, "Deliberately malformed unrelated inventory\n");
+  assert.deepEqual(synchronizePackageVersion(directory), []);
+  assert.deepEqual(synchronizePackageVersion(directory, { write: true }), []);
+  assert.equal(
+    readFileSync(inventoryPath, "utf8"),
+    "Deliberately malformed unrelated inventory\n",
+  );
 });
 
 test("version synchronization refuses malformed identity or substituted lock targets before any write", (t) => {

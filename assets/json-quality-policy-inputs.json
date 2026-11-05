@@ -1,1 +1,21 @@
-["json-quality-policy-resolver-inputs-v1",[["assets/default-json-quality-policy.json","5c57ca0cfd157b8baf63f83bd08fe3d485db413ffa8c6aea566b49132db34469"],["package.json","46e7fcb5f35f8818024157375d390558129ba8ceb08bbff03ff55147695e824b"],["schemas/configuration.schema.json","f28d4466e19b20ea16a84c04310636ba800cc4adffc6a1b0d68758b48e613769"],["schemas/contract-cohort.json","91058db98c61c986b98d58756a6675f77732b6149c061146af652fde5543269a"],["schemas/effective-policy.schema.json","a93fd8b409b9d59ea204e2e92daa56c8fb52c3b36943ac8027529232fae9ce07"],["src/configuration.js","7f5e339615adb635c7b4f3513d903a2b656c6089e106928b0c9bd5f8cdd12460"],["src/control-snapshot.js","a79984e0e619de92b7c165d1b2799e44c40f1cdabae1b961f7b3906a3761aef1"],["src/execution-resources.js","f0fe36eb5381ecfc35312f8e5f263a3e97d9ac13143e15920579247f7591a469"],["src/json-paths.js","2a271968d47b5e7ce59c405aa8cd23fcca94bdd77d58cfb7aa60033979f4fce5"],["src/native-control.js","13f44df1c2dde0c56ef30af1887c8ee316928fcbed601b5b753feca71ab2b98e"],["src/policy-provenance.js","862004c7248391daabc94f73fe840e59314aaf7d46ebb6c2336dba42ed1a2a85"],["src/resource-profile.js","d9de9a0ba861400dede52c399b7cb81c3a5cedf58c9db260b455ca4d50b10eb2"]]]
+{
+  "schemaVersion": 1,
+  "files": [
+    "assets/default-json-quality-policy.json",
+    "schemas/configuration.schema.json",
+    "schemas/contract-cohort.json",
+    "schemas/effective-policy.schema.json",
+    "src/configuration.js",
+    "src/control-snapshot.js",
+    "src/execution-resources.js",
+    "src/json-paths.js",
+    "src/native-control.js",
+    "src/paths.js",
+    "src/policy-inputs.js",
+    "src/policy-provenance.js",
+    "src/resource-profile.js"
+  ],
+  "dependencies": [
+    "ajv"
+  ]
+}

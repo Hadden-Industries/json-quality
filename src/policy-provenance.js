@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 import { encodeNativeControl } from "./native-control.js";
 import { readControlOptions } from "./control-snapshot.js";
+import { policyResolverFingerprint } from "./policy-inputs.js";
 
 const sha256 = (/** @type {*} */ bytes) =>
   createHash("sha256").update(bytes).digest("hex");
@@ -13,11 +14,7 @@ const defaultPolicySha256 = sha256(
       new URL("../assets/default-json-quality-policy.json", import.meta.url),
     ),
   ),
-  policyResolverInputsSha256 = sha256(
-    readFileSync(
-      new URL("../assets/json-quality-policy-inputs.json", import.meta.url),
-    ),
-  );
+  policyResolverInputsSha256 = policyResolverFingerprint();
 
 export function policyProvenance(
   /** @type {*} */ configurationOrigin,

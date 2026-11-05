@@ -109,8 +109,26 @@ Execution `configurationOrigin` is one of `repository-file`, `repository-absence
 Git origins include exact `commitId`; only `git-blob` includes `blobId`.
 Present file/blob origins require `configurationBytesSha256` and canonical decimal `configurationByteLength`; absence omits both, rather than hashing an invented empty file.
 `defaultPolicySha256` hashes exact packaged `assets/default-json-quality-policy.json` bytes.
-`policyResolverInputsSha256` hashes exact packaged `assets/json-quality-policy-inputs.json` manifest bytes, including its one LF.
-That sorted path/digest manifest covers policy-affecting implementation, schemas and defaults without timestamps, absolute paths or its own entry.
+`assets/json-quality-policy-inputs.json` is a readable generated inventory: `schemaVersion: 1`, sorted unique local `files`, and sorted unique runtime package names in `dependencies`.
+It stores paths and dependency names, with no cached checksums or whole-package metadata entry.
+Producer tooling uses dependency-cruiser to discover transitive literal imports and adds explicitly declared non-module policy resources.
+`npm run sync:policy-inputs` regenerates the inventory; `npm run check:policy-inputs` rejects drift, unresolved or computed imports and unsafe paths.
+Dependency-cruiser remains a development dependency and is not loaded by the consumer runtime.
+
+At runtime, `policyResolverInputsSha256` hashes this compact UTF-8 JSON tuple without a trailing newline:
+
+```text
+["json-quality-policy-resolver-inputs-v2",
+ [[relativeInputPath, sha256OfActualFileBytes], ...],
+ [[runtimePackageName, declaredDependencySelector], ...]]
+```
+
+Both lists follow the inventory's sorted order.
+File identities come from actual installed implementation, schema and default bytes, with regular-path and containment checks.
+Dependency selectors come only from the selected entries in the installed root manifest's `dependencies`.
+Changing package version, description, keywords or scripts does not change this policy fingerprint; changing a selected input's bytes or dependency selector does.
+Package/archive identity and installed dependency integrity remain separately verified; this fingerprint is not an artifact signature or a complete dependency-tree inventory.
+The versioned preimage distinguishes it from older manifests that stored checksums; historical event identities retain their original meaning.
 
 `policyInputsSha256` hashes the UTF-8 compact JSON array below, with no trailing newline, in this exact order:
 

@@ -57,6 +57,8 @@ jobs:
       - uses: ./.github/actions/setup-producer
       - name: Check candidate version projections before native production
         run: npm run check:version
+      - name: Check policy input inventory before native production
+        run: npm run check:policy-inputs
       - name: Build the exact native and control sources
         id: build
         run: |

@@ -23,6 +23,9 @@ npm exec -- json-quality normalize --write -- authored.json
 No wrapper, copied repository exclusions or `.json-quality.json` is required.
 Commit the npm-generated lockfile and use `npm ci` for clean installs.
 These cohort-5 source examples do not establish matching registry publication or installed qualification.
+The next release uses the stable SemVer coordinate selected by [`package.json.version`](../package.json), initially under npm's `pilot` tag.
+Select that exact qualified version explicitly; an unversioned install follows `latest` and need not select the pilot.
+Promotion changes availability of the same published artifacts after acceptance; it does not rebuild them under a different version.
 
 ### Advanced installation verification
 

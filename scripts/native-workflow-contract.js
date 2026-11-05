@@ -130,6 +130,15 @@ case "$VERIFICATION_PROFILE" in full|cli-community) ;; *) echo 'Unknown verifica
   );
   assert.equal(versionCheck.if, undefined, message);
   assert.equal(versionCheck["continue-on-error"], undefined, message);
+  const policyCheck = steps.find(
+    (step) => step.run === "npm run check:policy-inputs",
+  );
+  assert.ok(
+    policyCheck && steps.indexOf(policyCheck) < steps.indexOf(build),
+    message,
+  );
+  assert.equal(policyCheck.if, undefined, message);
+  assert.equal(policyCheck["continue-on-error"], undefined, message);
   assert.match(build.run, /python native\/build\.py --workspace/u, message);
   assert.match(build.run, /result\['sourceInputsSha256'\]/u, message);
   const stage = steps.find((step) =>

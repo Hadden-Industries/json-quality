@@ -16,6 +16,10 @@ Linux executable mode is checked in the actual native archive.
 The local `.provenance.json` records all three byte identities; authenticated registry provenance comes from native npm verification.
 The published `1.0.0-rc.1` uses configuration/event/native cohort 2.
 The current source candidate is selected only by [`package.json.version`](../package.json).
+The owner selected the stable SemVer coordinate in that manifest for the next release, replacing the proposed prerelease coordinate.
+Qualify and publish that final coordinate through the existing `pilot` route, then promote the same qualified artifacts after acceptance.
+Do not qualify an RC and relabel its metadata to produce different final-version bytes.
+Once publication consumes a version, a pilot defect requires a new version and fresh qualification; published archives cannot be replaced.
 Its contracts use cohort/events 5, configuration/source-contract/native protocol 4, component schema 4 and Node-API 9.
 Zero-configuration policy resolution remains supported; preparing source does not publish it or select it in consumers.
 Matching new native artifacts and candidate qualification remain required before claiming installed or release acceptance.
@@ -24,7 +28,8 @@ Public API/schema exports, executable artifacts, CLI entrypoints and consumer No
 
 The earlier release plan recorded a 1.0.0 selection on 2026-10-18.
 The accepted oversized-value plan replaces conflicting APIs and requires a complete consumer cohort.
-The owner's 24 October instruction supersedes the earlier package version selections with `1.0.0-rc.1`, limits registry migration to JSON Quality, and leaves Markdown Quality distribution unchanged.
+On 24 October, the owner selected `1.0.0-rc.1`, limited registry migration to JSON Quality, and left Markdown Quality distribution unchanged.
+That historical selection is superseded for the next release by the current manifest; published versions and their records retain their original identities.
 Consumer installation requires an exact registry version and its npm-generated lockfile; the Git-source installation promise is retired because a source commit does not identify one cross-host packed archive.
 Implementation verification follows its task's accepted review and testing scope, with formatting/linting before broad review and focused repair checks afterward.
 Source versioning, focused checks and static reviews do not establish release qualification or acceptance.
@@ -35,7 +40,8 @@ An owner may instead explicitly select `"npmTag":"latest"` in the digest-bound r
 This makes unpinned npm installations select that version; omission preserves `pilot`.
 The choice applies to the core and both matching platform packages and does not change the GitHub prerelease marker.
 Create the GitHub release as a draft, attach and verify every asset, then publish immutably through the existing archival workflow.
-Its pilot/prerelease marker can later change during promotion without replacing locked assets or tags.
+Npm availability initially follows the reviewed tag, normally `pilot`; promotion changes availability labels without replacing locked assets or tags.
+GitHub's prerelease flag follows the selected SemVer coordinate, so a stable coordinate archives with `prerelease: false` but remains outside GitHub's latest selection through `--latest=false` until promotion.
 For a new npm package identity, native staging may create the public `0.0.0-stage` placeholder; owner bootstrap and 2FA still precede trusted-publisher setup.
 That bootstrap is a separate explicit effect, not a dummy package or test release silently performed by this change.
 See [npm staged publishing](https://docs.npmjs.com/staged-publishing/) and [GitHub immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases).
@@ -43,7 +49,8 @@ See [npm staged publishing](https://docs.npmjs.com/staged-publishing/) and [GitH
 ## Before first use
 
 Select the exact version and compatibility intent with the owner.
-Edit only `package.json.version`, then run `npm run sync:version` to project the companion manifests, owned lockfile version fields and policy-input fingerprint.
+Edit only `package.json.version`, then run `npm run sync:version` to project the companion manifests and owned lockfile version fields.
+Policy provenance independently fingerprints current input bytes and selected dependency declarations; version-only changes leave its readable input inventory and fingerprint unchanged.
 `npm run check:version` detects drift without writing; repository qualification and hosted native production run it before expensive work.
 Synchronization preserves dependency resolution, native payloads, build evidence, historical plans, published records and release approvals.
 Changing the candidate does not authorize publication or transfer qualification from earlier bytes.

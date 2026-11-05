@@ -79,7 +79,9 @@ Use `check:json`, `format:json` and `normalize:json` for explicit JSON maintenan
 Cohort-5 CLI/library operations follow the [CLI](docs/cli.md) and [consumer contract](docs/consumer-guide.md).
 Use `check` for read-only verification; retired aggregate modifiers and `--files` envelopes are unsupported.
 Use semantic sentence lines, preserve literal examples, and keep physical local links valid.
-Select a new candidate only in `package.json.version`, then run `npm run sync:version`; `npm run check:version` checks the generated companion and lockfile metadata and policy-input identity without writing.
+Select a new candidate only in `package.json.version`, then run `npm run sync:version`; `npm run check:version` checks the generated companion and lockfile metadata without writing.
+Policy input paths and dependency names have their own dependency-cruiser projection: run `sync:policy-inputs` after changing that graph and `check:policy-inputs` to detect drift.
+The inventory contains no checksums; runtime fingerprints use actual input bytes and selected runtime dependency declarations, so unrelated package metadata changes require no inventory update.
 Historical plans, evidence, published versions and release approvals are independent records and are not version projections.
 Review formatting diffs and rerun checks for convergence.
 

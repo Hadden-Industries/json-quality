@@ -39,6 +39,18 @@ test("native workflow keeps source-bound production and focused checks distinct 
   for (const mutate of [
     ({ producer }) => {
       producer.jobs.component.steps.find(
+        (step) => step.run === "npm run check:policy-inputs",
+      ).if = "false";
+    },
+    ({ producer }) => {
+      const steps = producer.jobs.component.steps;
+      const index = steps.findIndex(
+        (step) => step.run === "npm run check:policy-inputs",
+      );
+      steps.push(...steps.splice(index, 1));
+    },
+    ({ producer }) => {
+      producer.jobs.component.steps.find(
         (step) => step.run === "npm run check:version",
       )["continue-on-error"] = true;
     },

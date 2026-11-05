@@ -6,6 +6,8 @@ Only an immutable published release establishes release availability.
 
 ## Unreleased
 
+- Discover policy inputs with dependency-cruiser, retain a readable path inventory, and fingerprint actual installed files plus relevant runtime dependency declarations without unrelated package-metadata churn.
+- Select the manifest's stable SemVer coordinate for the next release through qualification, `pilot` publication and same-artifact promotion; version selection does not establish release availability.
 - Expand consumer guidance and npm metadata with package fit, strict JSON boundaries, scoped checking, explicit repairs and completion semantics.
 - Add both-bin version discovery, contextual help, literal `check-files` selection and raw UTF-8 stdin transforms with explicit virtual-file policy context.
 - Require `--write` or `--dry-run` for filesystem repairs; add actual format preview and presentation-only human display controls.

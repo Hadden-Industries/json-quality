@@ -6,10 +6,8 @@ import { fileURLToPath } from "node:url";
 import { nativePackages } from "../src/native-packages.js";
 import { packageName, validVersion } from "./release-contract.js";
 import { nativePackageMetadata } from "./project-native-packages.js";
-import { policyInputManifest } from "./project-policy-inputs.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const policyInputsPath = "assets/json-quality-policy-inputs.json";
 export const VERSION_PROJECTION_PATHS = Object.freeze([
   "package-lock.json",
   ...Object.keys(nativePackages).map(
@@ -53,12 +51,11 @@ export function synchronizePackageVersion(
   { write = false } = {},
 ) {
   const metadata = JSON.parse(readFileSync(join(directory, "package.json")));
-  const paths = [...VERSION_PROJECTION_PATHS, policyInputsPath];
+  const paths = VERSION_PROJECTION_PATHS;
   const files = Object.fromEntries(
     paths.map((path) => [path, readFileSync(join(directory, path), "utf8")]),
   );
   const output = projectPackageVersion(files, metadata);
-  output[policyInputsPath] = policyInputManifest(directory);
   const changed = paths.filter((path) => files[path] !== output[path]);
   if (write)
     for (const path of changed)
