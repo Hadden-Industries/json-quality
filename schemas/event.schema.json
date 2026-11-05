@@ -1,5 +1,5 @@
 {
-  "title": "JSON Quality event, cohort 4",
+  "title": "JSON Quality event, cohort 5",
   "description": "One delivered event. Absence of the applicable terminal means incomplete delivery. Serialized reference identities are labels, never access capabilities.",
   "type": "object",
   "additionalProperties": false,
@@ -36,7 +36,7 @@
       }
     },
     "schemaVersion": {
-      "const": 4
+      "const": 5
     },
     "requestId": {
       "type": "string",
@@ -57,7 +57,11 @@
         "write-failure",
         "nfc-key-collision-risk",
         "normalization-preview-change",
-        "normalization-preview-terminal"
+        "normalization-preview-terminal",
+        "selection",
+        "selection-terminal",
+        "format-preview-change",
+        "format-preview-terminal"
       ]
     },
     "path": {
@@ -728,6 +732,121 @@
     "decodedSha256": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "operationScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "policy",
+        "completeRepositoryCheck"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "repository",
+            "selected-files",
+            "stdin",
+            "immutable-git-json"
+          ]
+        },
+        "policy": {
+          "enum": [
+            "repository",
+            "explicit-contract",
+            "trusted-git"
+          ]
+        },
+        "completeRepositoryCheck": {
+          "type": "boolean"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "repository"
+            },
+            "policy": {
+              "const": "repository"
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "selected-files"
+            },
+            "policy": {
+              "const": "repository"
+            },
+            "completeRepositoryCheck": {
+              "const": false
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "stdin"
+            },
+            "policy": {
+              "enum": [
+                "repository",
+                "explicit-contract"
+              ]
+            },
+            "completeRepositoryCheck": {
+              "const": false
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "immutable-git-json"
+            },
+            "policy": {
+              "const": "trusted-git"
+            },
+            "completeRepositoryCheck": {
+              "const": false
+            }
+          }
+        }
+      ]
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inputKind": {
+      "enum": [
+        "physical",
+        "stdin"
+      ]
+    },
+    "selectedSourceCount": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
+    },
+    "completedSourceCount": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
+    },
+    "policyObservationComplete": {
+      "type": "boolean"
+    },
+    "inputComplete": {
+      "type": "boolean"
+    },
+    "changed": {
+      "type": "boolean"
+    },
+    "candidateSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateByteLength": {
+      "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/unsignedIntegerText"
     }
   },
   "oneOf": [
@@ -747,7 +866,8 @@
         },
         "type": {
           "const": "source"
-        }
+        },
+        "operationScope": true
       },
       "required": [
         "source"
@@ -777,7 +897,8 @@
         "nfcByteLength": true,
         "type": {
           "const": "value"
-        }
+        },
+        "operationScope": true
       },
       "required": [
         "source",
@@ -816,7 +937,8 @@
         "record": true,
         "type": {
           "const": "finding"
-        }
+        },
+        "operationScope": true
       },
       "required": [
         "source",
@@ -863,7 +985,8 @@
           "const": "terminal"
         },
         "formatEligible": true,
-        "normalizeEligible": true
+        "normalizeEligible": true,
+        "operationScope": true
       },
       "required": [
         "source",
@@ -903,7 +1026,9 @@
         "policyResolverInputsSha256": true,
         "policyInputsSha256": true,
         "configurationBytesSha256": true,
-        "configurationByteLength": true
+        "configurationByteLength": true,
+        "operationScope": true,
+        "root": true
       },
       "required": [
         "resources",
@@ -979,7 +1104,9 @@
         "contractSatisfied": true,
         "type": {
           "const": "execution-terminal"
-        }
+        },
+        "operationScope": true,
+        "root": true
       },
       "required": [
         "inventoryComplete",
@@ -1002,7 +1129,8 @@
         "truncated": true,
         "type": {
           "const": "failure"
-        }
+        },
+        "operationScope": true
       },
       "required": [
         "code",
@@ -1024,7 +1152,8 @@
         "changedPathCount": true,
         "preflightComplete": {
           "const": true
-        }
+        },
+        "operationScope": true
       },
       "required": [
         "schemaVersion",
@@ -1048,7 +1177,8 @@
         "operation": true,
         "path": true,
         "byteLength": true,
-        "sha256": true
+        "sha256": true,
+        "operationScope": true
       },
       "required": [
         "schemaVersion",
@@ -1086,7 +1216,8 @@
         },
         "writtenPathCount": true,
         "qualityPassed": true,
-        "findingCount": true
+        "findingCount": true,
+        "operationScope": true
       },
       "required": [
         "schemaVersion",
@@ -1120,7 +1251,8 @@
         "preflightComplete": true,
         "uncertainPath": true,
         "message": true,
-        "writtenPathCount": true
+        "writtenPathCount": true,
+        "operationScope": true
       },
       "required": [
         "schemaVersion",
@@ -1159,7 +1291,8 @@
         "normalizedByteLength": true,
         "type": {
           "const": "nfc-key-collision-risk"
-        }
+        },
+        "operationScope": true
       },
       "required": [
         "schemaVersion",
@@ -1202,7 +1335,8 @@
           "const": "normalization-preview-change"
         },
         "decodedByteLength": true,
-        "decodedSha256": true
+        "decodedSha256": true,
+        "operationScope": true
       },
       "required": [
         "schemaVersion",
@@ -1243,7 +1377,8 @@
         },
         "coreSourceInputsSha256": true,
         "icuVersion": true,
-        "unicodeVersion": true
+        "unicodeVersion": true,
+        "operationScope": true
       },
       "required": [
         "schemaVersion",
@@ -1256,10 +1391,388 @@
         "icuVersion",
         "unicodeVersion"
       ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "operationScope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "policy",
+            "completeRepositoryCheck"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "selected-files",
+                "stdin"
+              ]
+            },
+            "policy": {
+              "const": "repository"
+            },
+            "completeRepositoryCheck": {
+              "const": false
+            }
+          },
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "repository"
+                },
+                "policy": {
+                  "const": "repository"
+                }
+              }
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "selected-files"
+                },
+                "policy": {
+                  "const": "repository"
+                },
+                "completeRepositoryCheck": {
+                  "const": false
+                }
+              }
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "stdin"
+                },
+                "policy": {
+                  "enum": [
+                    "repository",
+                    "explicit-contract"
+                  ]
+                },
+                "completeRepositoryCheck": {
+                  "const": false
+                }
+              }
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "immutable-git-json"
+                },
+                "policy": {
+                  "const": "trusted-git"
+                },
+                "completeRepositoryCheck": {
+                  "const": false
+                }
+              }
+            }
+          ]
+        },
+        "root": true,
+        "inputKind": true,
+        "selectedSourceCount": true,
+        "resources": true,
+        "configurationOrigin": true,
+        "defaultPolicySha256": true,
+        "policyResolverInputsSha256": true,
+        "configurationBytesSha256": true,
+        "configurationByteLength": true,
+        "policyInputsSha256": true,
+        "coreSourceInputsSha256": true,
+        "type": {
+          "const": "selection"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "type",
+        "operationScope",
+        "root",
+        "inputKind",
+        "selectedSourceCount",
+        "resources",
+        "configurationOrigin",
+        "defaultPolicySha256",
+        "policyResolverInputsSha256",
+        "policyInputsSha256",
+        "coreSourceInputsSha256"
+      ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "operationScope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "policy",
+            "completeRepositoryCheck"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "selected-files",
+                "stdin"
+              ]
+            },
+            "policy": {
+              "const": "repository"
+            },
+            "completeRepositoryCheck": {
+              "const": false
+            }
+          },
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "repository"
+                },
+                "policy": {
+                  "const": "repository"
+                }
+              }
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "selected-files"
+                },
+                "policy": {
+                  "const": "repository"
+                },
+                "completeRepositoryCheck": {
+                  "const": false
+                }
+              }
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "stdin"
+                },
+                "policy": {
+                  "enum": [
+                    "repository",
+                    "explicit-contract"
+                  ]
+                },
+                "completeRepositoryCheck": {
+                  "const": false
+                }
+              }
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "immutable-git-json"
+                },
+                "policy": {
+                  "const": "trusted-git"
+                },
+                "completeRepositoryCheck": {
+                  "const": false
+                }
+              }
+            }
+          ]
+        },
+        "root": true,
+        "inputKind": true,
+        "selectedSourceCount": true,
+        "completedSourceCount": true,
+        "complete": {
+          "const": true
+        },
+        "diagnosticsComplete": true,
+        "qualityPassed": true,
+        "contractSatisfied": true,
+        "policyObservationComplete": {
+          "const": true
+        },
+        "sourceObservationsComplete": true,
+        "inputComplete": true,
+        "findingCount": true,
+        "coreSourceInputsSha256": true,
+        "type": {
+          "const": "selection-terminal"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "type",
+        "operationScope",
+        "inputKind",
+        "selectedSourceCount",
+        "completedSourceCount",
+        "complete",
+        "diagnosticsComplete",
+        "qualityPassed",
+        "contractSatisfied",
+        "policyObservationComplete"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "inputKind": {
+                "const": "physical"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "sourceObservationsComplete"
+            ],
+            "properties": {
+              "sourceObservationsComplete": {
+                "const": true
+              }
+            },
+            "not": {
+              "required": [
+                "inputComplete"
+              ],
+              "properties": {
+                "inputComplete": true
+              }
+            }
+          },
+          "else": {
+            "required": [
+              "inputComplete"
+            ],
+            "properties": {
+              "inputComplete": {
+                "const": true
+              }
+            },
+            "not": {
+              "required": [
+                "sourceObservationsComplete"
+              ],
+              "properties": {
+                "sourceObservationsComplete": true
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "operationScope": true,
+        "operation": {
+          "const": "format"
+        },
+        "path": true,
+        "changed": true,
+        "sourceSha256": true,
+        "sourceByteLength": true,
+        "candidateSha256": true,
+        "candidateByteLength": true,
+        "coreSourceInputsSha256": true,
+        "icuVersion": true,
+        "unicodeVersion": true,
+        "type": {
+          "const": "format-preview-change"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "type",
+        "operation",
+        "path",
+        "changed",
+        "sourceSha256",
+        "sourceByteLength",
+        "candidateSha256",
+        "candidateByteLength",
+        "coreSourceInputsSha256",
+        "icuVersion",
+        "unicodeVersion"
+      ]
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": true,
+        "requestId": true,
+        "operation": {
+          "const": "format"
+        },
+        "complete": {
+          "const": true
+        },
+        "preflightComplete": true,
+        "sourceObservationsComplete": true,
+        "selectedPathCount": true,
+        "changedPathCount": true,
+        "qualityPassed": true,
+        "findingCount": true,
+        "message": true,
+        "type": {
+          "const": "format-preview-terminal"
+        },
+        "coreSourceInputsSha256": true,
+        "icuVersion": true,
+        "unicodeVersion": true,
+        "operationScope": true
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "operation",
+        "complete",
+        "preflightComplete",
+        "sourceObservationsComplete",
+        "coreSourceInputsSha256",
+        "icuVersion",
+        "unicodeVersion"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "preflightComplete": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "selectedPathCount",
+              "changedPathCount",
+              "qualityPassed",
+              "findingCount"
+            ]
+          },
+          "else": {
+            "required": [
+              "message"
+            ]
+          }
+        }
+      ]
     }
   ],
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Hadden-Industries/json-quality/schema/event/v4",
+  "$id": "https://github.com/Hadden-Industries/json-quality/schema/event/v5",
   "$defs": {
     "valueReference": {
       "type": "object",

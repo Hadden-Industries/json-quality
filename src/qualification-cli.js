@@ -1,18 +1,13 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from "node:crypto";
-import { parseArgs } from "node:util";
 import { isMainModule } from "./module-entry.js";
-import { qualifyGitJsonSources } from "./qualification.js";
 import {
   RESOURCE_OPTIONS,
   RUNTIME_OPTIONS,
   resourceCliControls,
 } from "./commands.js";
-import { encodeNativeControl } from "./native-control.js";
-import { assertJsonQualityEvent } from "./events.js";
-import { resolveExecutionResources } from "./execution-resources.js";
-import { createExecutionDeadline } from "./execution-deadline.js";
+import { packageVersion, parseCliArguments } from "./cli-discovery.js";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 
 /** Stream cohort-4 NDJSON with backpressure and a final cleaned-up verdict.
@@ -20,6 +15,97 @@ import cohort from "../schemas/contract-cohort.json" with { type: "json" };
  * source-only scope is declared in execution events; no candidate code runs.
  */
 export async function runJsonQualificationCli(/** @type {*} */ args) {
+  let parsed;
+  const usage =
+    "Usage: json-quality-qualify-git --trusted-root PATH --candidate-root PATH --trusted-commit-id COMMIT --candidate-commit-id COMMIT\n";
+  try {
+    parsed = parseCliArguments(
+      args,
+      {
+        ...RESOURCE_OPTIONS,
+        ...RUNTIME_OPTIONS,
+        help: { type: "boolean", short: "h" },
+        version: { type: "boolean", short: "v" },
+        "request-id": { type: "string" },
+        "trusted-root": { type: "string" },
+        "candidate-root": { type: "string" },
+        "trusted-commit-id": { type: "string" },
+        "candidate-commit-id": { type: "string" },
+      },
+      false,
+    );
+    const /** @type {Record<string, any>} */ values = parsed.values;
+    if (
+      values.version &&
+      (values.help ||
+        parsed.tokens.some(
+          (token) => token.kind === "option" && token.name !== "version",
+        ))
+    )
+      throw new TypeError(
+        "--version accepts no other options; use json-quality-qualify-git --version.",
+      );
+    const environmentKeys = [
+      "JSON_QUALITY_TRUSTED_ROOT",
+      "JSON_QUALITY_CANDIDATE_ROOT",
+      "JSON_QUALITY_TRUSTED_COMMIT_ID",
+      "JSON_QUALITY_CANDIDATE_COMMIT_ID",
+      "JSON_QUALITY_TRUSTED_SHA",
+      "JSON_QUALITY_CANDIDATE_SHA",
+    ];
+    if (
+      values.help ||
+      values.version ||
+      (!args.length &&
+        !environmentKeys.some((name) => process.env[name] !== undefined))
+    ) {
+      const text = values.version
+        ? packageVersion()
+        : usage +
+          "Checks immutable Git JSON under trusted commit policy; emits versioned NDJSON.\n" +
+          "No candidate scripts, installs, native/logical providers or domain validation.\n" +
+          "Discovery: --help (-h), --version (-v). --request-id ID identifies events.\n" +
+          "Roots and commit IDs may instead be supplied by JSON_QUALITY_TRUSTED_ROOT, JSON_QUALITY_CANDIDATE_ROOT, JSON_QUALITY_TRUSTED_COMMIT_ID and JSON_QUALITY_CANDIDATE_COMMIT_ID.\n" +
+          "Resource options: " +
+          Object.keys({ ...RESOURCE_OPTIONS, ...RUNTIME_OPTIONS })
+            .map((name) => "--" + name)
+            .join(", ") +
+          "\n" +
+          "--no-capacity-limits and --no-runtime-controls disable quotas; individual controls accept N|null.\n";
+      await new Promise((done, reject) => {
+        const failed = (/** @type {*} */ error) => reject(error);
+        process.stdout.once("error", failed);
+        process.stdout.write(text, (error) => {
+          process.stdout.removeListener("error", failed);
+          if (error) reject(error);
+          else done(undefined);
+        });
+      });
+      return 0;
+    }
+  } catch (error) {
+    try {
+      process.stderr.write(
+        String(error instanceof Error ? error.message : error) + "\n" + usage,
+      );
+    } catch {
+      /* Failed discovery remains incomplete. */
+    }
+    return 2;
+  }
+  const [
+    { qualifyGitJsonSources },
+    { encodeNativeControl },
+    { assertJsonQualityEvent },
+    { resolveExecutionResources },
+    { createExecutionDeadline },
+  ] = await Promise.all([
+    import("./qualification.js"),
+    import("./native-control.js"),
+    import("./events.js"),
+    import("./execution-resources.js"),
+    import("./execution-deadline.js"),
+  ]);
   const caller = new AbortController(),
     began = performance.now(),
     interrupt = () => caller.abort(new Error("Qualification interrupted.")),
@@ -50,6 +136,15 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       });
     },
     emit = async (/** @type {*} */ event) => {
+      if (event.type === "execution" || event.type === "execution-terminal")
+        event = {
+          ...event,
+          operationScope: {
+            kind: "immutable-git-json",
+            policy: "trusted-git",
+            completeRepositoryCheck: false,
+          },
+        };
       assertJsonQualityEvent(event);
       const bytes = Buffer.concat([
         encodeNativeControl(
@@ -71,37 +166,7 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       throw new TypeError(
         "Use JSON_QUALITY_TRUSTED_COMMIT_ID and JSON_QUALITY_CANDIDATE_COMMIT_ID.",
       );
-    const parsed = parseArgs({
-      args,
-      allowNegative: true,
-      options: {
-        ...RESOURCE_OPTIONS,
-        ...RUNTIME_OPTIONS,
-        help: { type: "boolean", short: "h" },
-        "request-id": { type: "string" },
-        "trusted-root": { type: "string" },
-        "candidate-root": { type: "string" },
-        "trusted-commit-id": { type: "string" },
-        "candidate-commit-id": { type: "string" },
-      },
-    });
     const /** @type {Record<string, any>} */ values = parsed.values;
-    if (values.help) {
-      await write(
-        Buffer.from(
-          "Usage: json-quality-qualify-git --trusted-root PATH --candidate-root PATH --trusted-commit-id COMMIT --candidate-commit-id COMMIT\n" +
-            "Checks immutable Git JSON under the trusted commit policy; emits cohort-4 NDJSON.\n" +
-            "No candidate scripts, installs, native/logical providers or domain validation.\n" +
-            "Resource options: " +
-            Object.keys({ ...RESOURCE_OPTIONS, ...RUNTIME_OPTIONS })
-              .map((name) => "--" + name)
-              .join(", ") +
-            "\n" +
-            "--no-capacity-limits and --no-runtime-controls disable their quotas; individual controls also accept null.\n",
-        ),
-      );
-      return 0;
-    }
     requestId = values["request-id"] ?? requestId;
     const controls = resourceCliControls(values),
       resources = resolveExecutionResources({}, controls);

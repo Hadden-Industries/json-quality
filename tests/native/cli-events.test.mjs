@@ -130,6 +130,7 @@ test("CLI formats through the installed fixed component with a final write termi
     await writeFile(join(root, "value.json"), '{"v":1}');
     const result = run([
         "format",
+        "--write",
         "--root",
         root,
         "--ndjson",

@@ -129,7 +129,8 @@ class ValueSession {
         if (
           event.type === "execution-terminal" ||
           event.type === "write-terminal" ||
-          event.type === "normalization-preview-terminal"
+          event.type === "normalization-preview-terminal" ||
+          event.type === "format-preview-terminal"
         )
           completed = true;
         yield this.#project(event, event.source ? source : undefined);

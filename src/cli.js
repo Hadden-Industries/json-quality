@@ -1,180 +1,179 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: AGPL-3.0-only
-// Backpressured event delivery. Imports never start a command or exit a process.
+// Discovery is lightweight; operational owners load only after command admission.
 import { randomUUID } from "node:crypto";
-import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { isMainModule } from "./module-entry.js";
-import {
-  openJsonSourceSession,
-  openJsonRepositorySession,
-} from "./sessions.js";
-import {
-  CLI_OPTIONS,
-  COMMANDS,
-  commandHelp,
-  resourceCliControls,
-  transformCliControls,
-} from "./commands.js";
-import { encodeNativeControl } from "./native-control.js";
-import { createExecutionDeadline } from "./execution-deadline.js";
-import { resolveExecutionResources } from "./execution-resources.js";
-import { assertJsonQualityEvent } from "./events.js";
-import { sourceContract } from "./source-contract.js";
+import { discoverCli } from "./cli-discovery.js";
+import { resourceCliControls, transformCliControls } from "./commands.js";
+import { renderHumanEvent, escapeHumanText } from "./cli-messages.js";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 
-function textView(/** @type {*} */ event) {
-  if (event.type === "nfc-key-collision-risk")
-    return (
-      (event.path ?? "<stdin>") +
-      ":" +
-      event.line +
-      ":" +
-      event.column +
-      " NFC key collision risk with " +
-      event.priorLine +
-      ":" +
-      event.priorColumn +
-      "; decoded keys remain preserved.\n"
-    );
-  if (event.type === "finding")
-    return (
-      (event.path ?? "<stdin>") +
-      ":" +
-      event.line +
-      ":" +
-      event.column +
-      " " +
-      (event.ruleId ?? event.phase) +
-      "/" +
-      event.messageId +
-      "\n"
-    );
-  if (event.type === "written") return "Written " + event.path + "\n";
-  if (event.type === "write-failure")
-    return (
-      "Incomplete replacement; confirmed writes " +
-      event.writtenPathCount +
-      (event.uncertainPath ? ", uncertain path " + event.uncertainPath : "") +
-      ": " +
-      event.message +
-      "\n"
-    );
-  if (event.type === "failure") return event.code + ": " + event.message + "\n";
-  if (event.type === "write-terminal")
-    return (
-      "Replacement complete; written " +
-      event.writtenPathCount +
-      "; shared quality " +
-      (event.qualityPassed ? "passed" : "has findings") +
-      "; remaining findings " +
-      event.findingCount +
-      "\n"
-    );
-  if (event.type === "normalization-preview-terminal")
-    return (
-      (event.complete
-        ? event.preflightComplete
-          ? "Normalization preview complete"
-          : "Normalization preview refused"
-        : "Normalization preview incomplete") +
-      (event.changedPathCount === undefined
-        ? ""
-        : "; changed paths " + event.changedPathCount) +
-      (event.findingCount === undefined
-        ? ""
-        : "; remaining findings " + event.findingCount) +
-      (event.message === undefined ? "" : "; " + event.message) +
-      "\n"
-    );
-  if (event.type === "execution-terminal" || event.type === "terminal")
-    return (
-      "Contract " +
-      (event.contractSatisfied ? "satisfied" : "failed") +
-      "; shared quality " +
-      (event.qualityPassed ? "passed" : "has findings") +
-      "\n"
-    );
-  return "";
-}
-
-/** Stream the selected operation, returning quality 1 or incomplete/error 2.
- * Human filtering is presentation only. The final operation terminal is held
- * until owned session cleanup succeeds; output failure never returns zero.
- */
+/** Backpressured CLI delivery; a terminal is never a substitute for cleanup. */
 export async function runJsonQualityCli(
   /** @type {string[]} */ args,
   /** @type {import("./api-types.js").CliContext | (() => import("./api-types.js").CliContext | Promise<import("./api-types.js").CliContext>)} */ context = {},
 ) {
-  let machine = Array.isArray(args) && args.includes("--ndjson"),
+  let machine = args
+      .slice(0, args.indexOf("--") < 0 ? args.length : args.indexOf("--"))
+      .includes("--ndjson"),
     requestId = randomUUID(),
-    /** @type {any} */ session,
-    pendingTerminal,
-    /** @type {any} */ outputFailure,
+    /** @type {*} */ session,
+    /** @type {*} */ outputFailure,
+    /** @type {*} */ reportDeadline,
+    /** @type {*} */ reportSignal,
+    /** @type {*} */ outputCeiling = null,
     outputBytes = 0n,
-    /** @type {any} */ outputCeiling = null,
-    /** @type {any} */ reportSignal,
-    /** @type {any} */ reportDeadline,
-    /** @type {number} */ exitCode;
+    /** @type {*} */ operation,
+    /** @type {*} */ values = {},
+    /** @type {*} */ operationRoot,
+    /** @type {*} */ operationPath,
+    /** @type {*} */ pendingTerminal,
+    /** @type {*} */ assertEvent,
+    /** @type {*} */ encodeControl,
+    exitCode = 2;
   const began = performance.now(),
     caller = new AbortController(),
     interrupt = () => caller.abort(new Error("JSON Quality interrupted.")),
     onOutputError = (/** @type {*} */ error) => {
       outputFailure ??= error;
+      caller.abort(error);
     },
     stop = () => {
-      session?.cancel(reportSignal.reason);
-      if (session && reportSignal.aborted) process.stdin.destroy();
+      caller.abort(
+        reportSignal?.reason ?? new Error("JSON Quality interrupted."),
+      );
+      session?.cancel(caller.signal.reason);
+      if (!process.stdin.destroyed) process.stdin.destroy();
     };
   process.stdout.on("error", onOutputError);
   process.stderr.on("error", onOutputError);
   process.once("SIGINT", interrupt);
   process.once("SIGTERM", interrupt);
+  const stopInput = () => {
+    session?.cancel(caller.signal.reason);
+    if (!process.stdin.destroyed) process.stdin.destroy();
+  };
+  caller.signal.addEventListener("abort", stopInput, { once: true });
 
-  const write = async (
-    /** @type {*} */ bytes,
-    /** @type {*} */ target,
-    /** @type {*} */ signal,
-  ) => {
-    signal?.throwIfAborted();
+  const write = async (/** @type {*} */ bytes, /** @type {*} */ target) => {
+    const signal = reportSignal ?? caller.signal;
+    signal.throwIfAborted();
     if (outputFailure) throw outputFailure;
     await new Promise((done, reject) => {
       const abort = () => {
         reject(signal.reason);
         target.destroy();
       };
-      signal?.addEventListener("abort", abort, { once: true });
+      signal.addEventListener("abort", abort, { once: true });
       target.write(bytes, (/** @type {*} */ error) => {
-        signal?.removeEventListener("abort", abort);
+        signal.removeEventListener("abort", abort);
         if (error) reject(error);
         else done(undefined);
       });
     });
     if (outputFailure) throw outputFailure;
   };
-  const emit = async (/** @type {*} */ event) => {
-    assertJsonQualityEvent(event);
-    const bytes = machine
-      ? Buffer.concat([
-          encodeNativeControl(
-            event,
-            outputCeiling === null ? null : Number(outputCeiling),
-          ),
-          Buffer.from("\n"),
-        ])
-      : Buffer.from(textView(event));
-    if (!bytes.length) return;
+  const account = (/** @type {*} */ bytes) => {
     outputBytes += BigInt(bytes.length);
     if (outputCeiling !== null && outputBytes > BigInt(outputCeiling))
       throw new Error("cli-output-byte-capacity");
-    await write(
-      bytes,
-      machine ? process.stdout : process.stderr,
-      reportSignal ?? caller.signal,
-    );
+    return bytes;
+  };
+  const ready = async (/** @type {*} */ owner) => {
+    const resources = owner.resources;
+    if (!resources) throw new Error("Missing operation resources.");
+    if (!reportDeadline) {
+      const { createExecutionDeadline, remainingDuration } =
+        await import("./execution-deadline.js");
+      const maximum = resources.runtime.maxCheckTimeMs;
+      reportDeadline = createExecutionDeadline(
+        remainingDuration(maximum === null ? null : Number(maximum), began),
+        [caller.signal, ...(owner.signal ? [owner.signal] : [])],
+      );
+      reportSignal = reportDeadline.signal;
+      reportSignal.addEventListener("abort", stop, { once: true });
+    }
+    outputCeiling = resources.admission.maxToolOutputBytes;
+  };
+  const scopeEvent = (/** @type {*} */ event) => {
+    if (event.operationScope) return event;
+    if (operation === "check-source") {
+      return {
+        ...event,
+        ...([
+          "source",
+          "value",
+          "finding",
+          "terminal",
+          "nfc-key-collision-risk",
+        ].includes(event.type) && operationPath !== undefined
+          ? { path: operationPath }
+          : {}),
+        ...(["source", "terminal"].includes(event.type)
+          ? {
+              operationScope: {
+                kind: "stdin",
+                policy: "explicit-contract",
+                completeRepositoryCheck: false,
+              },
+            }
+          : {}),
+      };
+    }
+    if (
+      [
+        "execution",
+        "execution-terminal",
+        "write-terminal",
+        "write-failure",
+        "format-preview-terminal",
+        "normalization-preview-terminal",
+      ].includes(event.type)
+    )
+      return {
+        ...event,
+        ...(["execution", "execution-terminal"].includes(event.type) &&
+        operationRoot
+          ? { root: operationRoot }
+          : {}),
+        operationScope: {
+          kind: "repository",
+          policy: "repository",
+          completeRepositoryCheck: operation === "check",
+        },
+      };
+    return event;
+  };
+  const emit = async (/** @type {*} */ original) => {
+    if (original.resources) await ready({ resources: original.resources });
+    const event = scopeEvent(original);
+    assertEvent ??= (await import("./events.js")).assertJsonQualityEvent;
+    assertEvent(event);
+    let bytes;
+    if (machine) {
+      encodeControl ??= (await import("./native-control.js"))
+        .encodeNativeControl;
+      bytes = Buffer.concat([
+        encodeControl(
+          event,
+          outputCeiling === null ? null : Number(outputCeiling),
+        ),
+        Buffer.from("\n"),
+      ]);
+    } else
+      bytes = Buffer.from(
+        renderHumanEvent(event, {
+          quiet: values.quiet ?? false,
+          level: values["diagnostic-display-level"] ?? "info",
+        }),
+      );
+    if (bytes.length)
+      await write(account(bytes), machine ? process.stdout : process.stderr);
   };
   const failure = async (/** @type {*} */ error) => {
     const message = String(error.message ?? error);
+    if (outputFailure || caller.signal.aborted) return;
     try {
       await emit({
         schemaVersion: cohort.eventSchemaVersion,
@@ -188,198 +187,239 @@ export async function runJsonQualityCli(
         truncated: message.length > 2048,
       });
     } catch {
-      /* Failed delivery is incomplete; do not retry the failed sink. */
+      // Delivery failure cannot become a successful result or a replayed sink.
     }
   };
-
+  async function* input() {
+    if (process.stdin.isTTY)
+      throw new TypeError(
+        "Stdin requires a pipe or redirected file; use COMMAND --help.",
+      );
+    for await (const chunk of process.stdin) {
+      caller.signal.throwIfAborted();
+      if (!(chunk instanceof Uint8Array))
+        throw new TypeError("Stdin must supply raw UTF-8 bytes.");
+      yield chunk;
+    }
+    caller.signal.throwIfAborted();
+  }
   try {
-    const parsed = parseArgs({
-      args,
-      allowPositionals: true,
-      allowNegative: true,
-      strict: true,
-      options: CLI_OPTIONS,
-    });
-    const /** @type {Record<string, any>} */ values = parsed.values;
-    const positionals = parsed.positionals;
-    machine = values.ndjson;
-    const [operation, ...files] = positionals;
-    if ((!operation || Object.hasOwn(COMMANDS, operation)) && values.help) {
-      if (machine)
-        throw new TypeError("Help is human-readable; omit --ndjson.");
-      await write(Buffer.from(commandHelp()), process.stdout, caller.signal);
-      exitCode = 0;
-    } else {
-      if (!Object.hasOwn(COMMANDS, operation))
-        throw new TypeError("Select check, check-source, format or normalize.");
-      if (values["request-id"] !== undefined) {
-        const selected = values["request-id"];
-        if (!selected || !selected.isWellFormed())
-          throw new TypeError("Expected a well-formed request ID.");
-        requestId = selected;
-      }
-      if (
-        (operation === "check" || operation === "check-source") &&
-        files.length
+    const parsed = discoverCli(args);
+    ({ command: operation, values } = parsed);
+    machine = values.ndjson ?? false;
+    if (parsed.discovery !== undefined) {
+      await write(
+        Buffer.from(
+          parsed.discovery.endsWith("\n")
+            ? parsed.discovery
+            : parsed.discovery + "\n",
+        ),
+        process.stdout,
+      );
+      return 0;
+    }
+    const files = parsed.positionals;
+    if (values["request-id"] !== undefined) {
+      requestId = values["request-id"];
+      if (!requestId || !requestId.isWellFormed())
+        throw new TypeError("Expected a well-formed request ID.");
+    }
+    if (typeof context === "function") context = await context();
+    if (
+      !context ||
+      typeof context !== "object" ||
+      Array.isArray(context) ||
+      Object.keys(context).some(
+        (name) =>
+          ![
+            "root",
+            "requiredOutputs",
+            "nativeProviders",
+            "logicalProviders",
+          ].includes(name),
       )
-        throw new TypeError(
-          "Read-only scope is complete; literal paths select explicit writes.",
-        );
-      if (operation === "normalize" && !files.length)
-        throw new TypeError(
-          "Normalization requires explicit physical source paths.",
-        );
-      if (values["dry-run"] === true && operation !== "normalize")
-        throw new TypeError("--dry-run belongs to normalize.");
-      if (operation !== "check-source" && values.contract !== undefined)
-        throw new TypeError("--contract belongs to raw stdin source checking.");
-      if (typeof context === "function") context = await context();
-      if (
-        !context ||
-        typeof context !== "object" ||
-        Array.isArray(context) ||
-        Object.keys(context).some(
-          (name) =>
-            ![
-              "root",
-              "requiredOutputs",
-              "nativeProviders",
-              "logicalProviders",
-            ].includes(name),
-        )
-      )
-        throw new TypeError("Invalid trusted repository CLI context.");
-      const controls = resourceCliControls(values);
-      const transformControls = transformCliControls(values);
-      if (
-        ["check", "check-source"].includes(operation) &&
-        transformControls !== undefined
-      )
-        throw new TypeError("Transform controls belong to format/normalize.");
-      if (operation === "check-source") {
-        if (values.root !== undefined || Object.keys(context).length)
-          throw new TypeError(
-            "Raw source checking cannot replace trusted repository obligations.",
-          );
-        const maximumRequest = resolveExecutionResources({}, controls).admission
-          .maxRequestBytes;
-        if (
-          maximumRequest !== null &&
-          Buffer.byteLength(values.contract ?? "") > maximumRequest
-        )
-          throw new Error("source-contract-capacity");
-        const contract = sourceContract(
+    )
+      throw new TypeError("Invalid trusted repository CLI context.");
+    if (
+      (["check-files", "check-source"].includes(operation) || values.stdin) &&
+      Object.keys(context).length
+    )
+      throw new TypeError(
+        "Scoped or raw source checking cannot replace a trusted repository adapter's obligations.",
+      );
+    const controls = resourceCliControls(values),
+      transformControls = transformCliControls(values);
+    if (
+      ["check", "check-files", "check-source"].includes(operation) &&
+      transformControls !== undefined
+    )
+      throw new TypeError("Transform controls belong to format/normalize.");
+    const { resolveExecutionResources } =
+      await import("./execution-resources.js");
+    const invocation = resolveExecutionResources({}, controls);
+    if (
+      values.contract !== undefined &&
+      invocation.admission.maxRequestBytes !== null &&
+      Buffer.byteLength(values.contract) > invocation.admission.maxRequestBytes
+    )
+      throw new Error("source-contract-capacity");
+    if (operation === "check-source") {
+      if (process.stdin.isTTY)
+        throw new TypeError("check-source requires piped or redirected stdin.");
+      const { openJsonSourceSession } = await import("./sessions.js"),
+        { stdinContract } = await import("./stdin-operation.js"),
+        contract = stdinContract(
           values.contract === undefined ? {} : JSON.parse(values.contract),
+          values["stdin-filepath"],
         );
-        session = await openJsonSourceSession({
+      operationPath = contract.path;
+      session = await openJsonSourceSession({
+        ...controls,
+        signal: caller.signal,
+      });
+      await ready(session);
+      for await (const event of session.check(
+        { open: () => input() },
+        contract,
+        { requestId, retainValues: false },
+      )) {
+        if (event.type === "terminal") pendingTerminal = event;
+        else await emit(event);
+      }
+    } else if (values.stdin) {
+      if (process.stdin.isTTY)
+        throw new TypeError("Stdin requires a pipe or redirected file.");
+      const { executeStdinOperation } = await import("./stdin-operation.js");
+      const result = await executeStdinOperation(
+        {
+          operation,
+          source: input(),
+          path: values["stdin-filepath"],
+          ...(operation === "check-files" || values.root !== undefined
+            ? { root: resolve(values.root ?? process.cwd()) }
+            : {}),
+          contract:
+            values.contract === undefined ? {} : JSON.parse(values.contract),
           ...controls,
-          signal: caller.signal,
-        });
-        reportDeadline = createExecutionDeadline(
-          session.resources.runtime.maxCheckTimeMs,
-          [caller.signal],
-          { began },
-        );
-        reportSignal = reportDeadline.signal;
-        outputCeiling = session.resources.admission.maxToolOutputBytes;
-        reportSignal.addEventListener("abort", stop, { once: true });
-        for await (const event of session.check(
-          {
-            async *open(/** @type {{signal: AbortSignal}} */ { signal }) {
-              const abort = () => process.stdin.destroy();
-              signal.addEventListener("abort", abort, { once: true });
-              try {
-                for await (const chunk of process.stdin) {
-                  signal.throwIfAborted();
-                  yield chunk;
-                }
-              } finally {
-                signal.removeEventListener("abort", abort);
-              }
-            },
-          },
-          contract,
-          { requestId, retainValues: false },
-        )) {
-          if (event.type === "terminal") pendingTerminal = event;
-          else await emit(event);
-        }
-      } else {
-        const root = resolve(context.root ?? values.root ?? process.cwd());
-        if (
-          context.root !== undefined &&
-          values.root !== undefined &&
-          resolve(values.root) !== root
-        )
-          throw new TypeError("The trusted repository adapter fixes the root.");
-        session = await openJsonRepositorySession({
-          ...context,
-          root,
-          ...controls,
+          transformControls,
           signal: caller.signal,
           requestId,
-          retainValues: operation !== "check",
-        });
-        reportDeadline = createExecutionDeadline(
-          session.resources.runtime.maxCheckTimeMs,
-          [caller.signal],
-          { began },
+        },
+        { emit, ready },
+      );
+      if (result.terminal) {
+        await emit(result.terminal);
+        exitCode = result.terminal.contractSatisfied ? 0 : 1;
+      } else if (result.refused) {
+        await write(
+          account(Buffer.from(escapeHumanText(result.message, 2048) + "\n")),
+          process.stderr,
         );
-        reportSignal = reportDeadline.signal;
-        outputCeiling = session.resources.admission.maxToolOutputBytes;
-        reportSignal.addEventListener("abort", stop, { once: true });
-        for await (const event of session.check()) {
-          if (event.type === "execution-terminal" && operation === "check")
+        exitCode = 1;
+      } else {
+        await write(account(result.output), process.stdout);
+        if (!values.quiet)
+          await write(
+            account(
+              Buffer.from(
+                "Stdin " +
+                  operation +
+                  " completed; remaining quality findings " +
+                  result.findingCount +
+                  "; repository-wide obligations were not assessed.\n",
+              ),
+            ),
+            process.stderr,
+          );
+        exitCode = 0;
+      }
+    } else if (operation === "check-files") {
+      const { checkJsonFiles } = await import("./selected-check.js");
+      for await (const event of checkJsonFiles({
+        root: resolve(values.root ?? process.cwd()),
+        files,
+        ...controls,
+        signal: caller.signal,
+        requestId,
+      })) {
+        if (event.type === "selection-terminal") pendingTerminal = event;
+        else await emit(event);
+      }
+    } else {
+      const { openJsonRepositorySession } = await import("./sessions.js");
+      operationRoot = resolve(context.root ?? values.root ?? process.cwd());
+      if (
+        context.root !== undefined &&
+        values.root !== undefined &&
+        resolve(values.root) !== operationRoot
+      )
+        throw new TypeError("The trusted repository adapter fixes the root.");
+      session = await openJsonRepositorySession({
+        ...context,
+        root: operationRoot,
+        ...controls,
+        signal: caller.signal,
+        requestId,
+        retainValues: operation !== "check",
+      });
+      await ready(session);
+      for await (const event of session.check()) {
+        if (event.type === "execution-terminal" && operation === "check")
+          pendingTerminal = event;
+        else await emit(event);
+      }
+      if (operation !== "check")
+        for await (const event of session.rewrite(operation, {
+          files: files.length ? files : undefined,
+          transformControls,
+          dryRun: values["dry-run"],
+        })) {
+          if (
+            [
+              "write-terminal",
+              "write-failure",
+              "normalization-preview-terminal",
+              "format-preview-terminal",
+            ].includes(event.type)
+          )
             pendingTerminal = event;
           else await emit(event);
         }
-        if (operation !== "check") {
-          for await (const event of session.rewrite(operation, {
-            files: files.length ? files : undefined,
-            transformControls,
-            dryRun: values["dry-run"],
-          })) {
-            if (
-              event.type === "write-terminal" ||
-              event.type === "write-failure" ||
-              event.type === "normalization-preview-terminal"
-            )
-              pendingTerminal = event;
-            else await emit(event);
-          }
-        }
-      }
-      if (!pendingTerminal)
-        throw new Error("Missing complete operation delivery.");
-      await session.close();
+    }
+    if (pendingTerminal) {
+      await session?.close();
       session = undefined;
       await emit(pendingTerminal);
-      exitCode =
-        pendingTerminal.type === "normalization-preview-terminal"
-          ? !pendingTerminal.complete
-            ? 2
-            : pendingTerminal.preflightComplete
-              ? 0
-              : 1
-          : pendingTerminal.type === "write-failure"
-            ? 2
-            : pendingTerminal.type === "write-terminal" ||
-                pendingTerminal.contractSatisfied
-              ? 0
-              : 1;
-    }
+      exitCode = [
+        "normalization-preview-terminal",
+        "format-preview-terminal",
+      ].includes(pendingTerminal.type)
+        ? !pendingTerminal.complete
+          ? 2
+          : pendingTerminal.preflightComplete
+            ? 0
+            : 1
+        : pendingTerminal.type === "write-failure"
+          ? 2
+          : pendingTerminal.type === "write-terminal" ||
+              pendingTerminal.contractSatisfied
+            ? 0
+            : 1;
+    } else if (!values.stdin)
+      throw new Error("Missing complete operation delivery.");
   } catch (error) {
     exitCode = 2;
     await failure(error);
   } finally {
-    reportSignal?.removeEventListener("abort", stop);
     try {
       await session?.close();
     } catch (error) {
       exitCode = 2;
       await failure(error);
     }
+    reportSignal?.removeEventListener("abort", stop);
     reportDeadline?.dispose();
+    caller.signal.removeEventListener("abort", stopInput);
     process.removeListener("SIGINT", interrupt);
     process.removeListener("SIGTERM", interrupt);
     process.stdout.removeListener("error", onOutputError);

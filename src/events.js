@@ -14,6 +14,29 @@ const validate = new Ajv({ strict: true })
  */
 export function validateJsonQualityEvent(event) {
   if (!validate(event)) return false;
+  if (
+    event.operationScope?.completeRepositoryCheck &&
+    !["execution", "execution-terminal"].includes(event.type)
+  )
+    return false;
+  if (event.type === "selection" || event.type === "selection-terminal") {
+    if (
+      event.operationScope?.kind !==
+      (event.inputKind === "physical" ? "selected-files" : "stdin")
+    )
+      return false;
+    if (
+      event.type === "selection-terminal" &&
+      event.selectedSourceCount !== event.completedSourceCount
+    )
+      return false;
+    if (
+      event.type === "selection-terminal" &&
+      (event.contractSatisfied || event.qualityPassed) &&
+      !event.diagnosticsComplete
+    )
+      return false;
+  }
   if (event.type !== "execution") return true;
   const origin = event.configurationOrigin;
   if (!origin) return false;

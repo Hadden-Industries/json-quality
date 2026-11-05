@@ -35,6 +35,7 @@
  * @typedef {{signal?: AbortSignal, includeValueEvents?: boolean, retainValues?: boolean, requestId?: string}} SourceCheckOptions
  * @typedef {JsonValueSession & {check: (source: JsonSource, contract?: JsonSourceContract, options?: SourceCheckOptions) => AsyncIterable<JsonQualityEvent>}} JsonSourceSession
  * @typedef {SessionOptions & {root: string, nativeProviders?: Record<string, NativeProvider>, logicalProviders?: LogicalProvider[], requiredOutputs?: string[], gitExecutable?: string, retainValues?: boolean, requestId?: string}} RepositoryOptions
+ * @typedef {SessionOptions & {root: string, files: string[], requestId?: string}} FileCheckOptions
  * @typedef {{files?: string[], transformControls?: TransformControls, dryRun?: boolean}} RepositoryRewriteOptions
  * @typedef {JsonValueSession & {check: () => AsyncIterable<JsonQualityEvent>, rewrite: (operation: "format" | "normalize", options?: RepositoryRewriteOptions) => AsyncIterable<JsonQualityEvent>}} JsonRepositorySession
  * @typedef {Partial<Pick<RepositoryOptions, "root" | "nativeProviders" | "logicalProviders" | "requiredOutputs">>} CliContext
@@ -268,6 +269,11 @@ export type RepositoryOptions = SessionOptions & {
   requiredOutputs?: string[];
   gitExecutable?: string;
   retainValues?: boolean;
+  requestId?: string;
+};
+export type FileCheckOptions = SessionOptions & {
+  root: string;
+  files: string[];
   requestId?: string;
 };
 export type RepositoryRewriteOptions = {

@@ -5,6 +5,7 @@ export type JsonSourceContract = import("./api-types.js").JsonSourceContract;
 export type JsonQualityEvent = import("./api-types.js").JsonQualityEvent;
 export type SessionOptions = import("./api-types.js").SessionOptions;
 export type RepositoryOptions = import("./api-types.js").RepositoryOptions;
+export type FileCheckOptions = import("./api-types.js").FileCheckOptions;
 export type WriterOptions = import("./api-types.js").WriterOptions;
 export type CapacityLimits = import("./api-types.js").CapacityLimits;
 export type RuntimeControls = import("./api-types.js").RuntimeControls;
@@ -60,6 +61,7 @@ export type ValueReference = import("./api-types.js").ValueReference;
  * @typedef {import("./api-types.js").JsonQualityEvent} JsonQualityEvent
  * @typedef {import("./api-types.js").SessionOptions} SessionOptions
  * @typedef {import("./api-types.js").RepositoryOptions} RepositoryOptions
+ * @typedef {import("./api-types.js").FileCheckOptions} FileCheckOptions
  * @typedef {import("./api-types.js").WriterOptions} WriterOptions
  * @typedef {import("./api-types.js").CapacityLimits} CapacityLimits
  * @typedef {import("./api-types.js").RuntimeControls} RuntimeControls
@@ -106,6 +108,7 @@ export {
   normalizeJsonSource,
 } from "./writers.js";
 export { validateJsonQualityEvent } from "./events.js";
+export { checkJsonFiles } from "./selected-check.js";
 export {
   resolveJsonSourceContract,
   resolveJsonQualityPolicy,

@@ -94,7 +94,7 @@ test("public cohort rejects retired aggregate interfaces and document envelopes"
 });
 test("event admission is closed and requires complete terminal evidence", () => {
   const terminal = {
-    schemaVersion: 4,
+    schemaVersion: 5,
     requestId: "fixture",
     type: "execution-terminal",
     inventoryComplete: true,
@@ -128,7 +128,7 @@ test("read-only repository checks retain complete scope and cannot select litera
   assert.equal(result.status, 2);
   assert.match(
     delivered(result).at(-1).message,
-    /Read-only scope is complete/u,
+    /check evaluates the complete repository.*check-files/u,
   );
 });
 
@@ -360,7 +360,21 @@ test("CLI argument admission and help run before trusted context loading", () =>
   for (const args of [["--help"], ["check", "--help"]]) {
     const result = run(args, { context: {} });
     assert.equal(result.status, 0);
-    assert.match(result.stdout, /check\|check-source\|format\|normalize/u);
+    if (args[0] === "--help")
+      assert.match(
+        result.stdout,
+        /check\|check-files\|check-source\|format\|normalize/u,
+      );
+    else {
+      assert.match(
+        result.stdout,
+        /^Usage: json-quality check \[--root PATH\]/u,
+      );
+      assert.match(
+        result.stdout,
+        /Use check-files -- A.json for selected inputs/u,
+      );
+    }
     assert.doesNotMatch(result.stderr, /CONTEXT_LOADED/u);
   }
   const invalid = run(["inventory", "--ndjson"], { context: {} });

@@ -21,6 +21,7 @@ import {
   transformWorkspaceReservation,
 } from "./transform-capabilities.js";
 import { jsonSourceFormat, isJsonLinesPath } from "./json-paths.js";
+import { sourceBytes, sourceText } from "./retained-transform-source.js";
 import { exceedsQuota } from "./resource-profile.js";
 
 function selection(
@@ -40,12 +41,8 @@ function selection(
     throw new TypeError(
       "Expected an explicit format/normalize operation and optional files.",
     );
-  if (
-    options.dryRun !== undefined &&
-    (typeof options.dryRun !== "boolean" ||
-      (options.dryRun && operation !== "normalize"))
-  )
-    throw new TypeError("A true dryRun belongs only to normalize.");
+  if (options.dryRun !== undefined && typeof options.dryRun !== "boolean")
+    throw new TypeError("Expected dryRun boolean.");
   if (
     operation === "normalize" &&
     (!Array.isArray(options.files) || !options.files.length)
@@ -240,58 +237,6 @@ async function selectWritablePaths(
   );
 }
 
-async function* sourceBytes(
-  /** @type {*} */ core,
-  /** @type {*} */ source,
-  /** @type {*} */ signal,
-) {
-  let offset = 0n;
-  while (true) {
-    signal?.throwIfAborted();
-    const range = await core.command("read-source", {
-      source,
-      byteOffset: String(offset),
-      maximumBytes: "65536",
-    });
-    if (range.data?.length) yield range.data;
-    offset += BigInt(range.data?.length ?? 0);
-    if (offset === BigInt(range.result.totalByteLength)) return;
-    if (!range.data?.length)
-      throw new Error("Incomplete retained candidate source.");
-  }
-}
-
-async function sourceText(
-  /** @type {*} */ execution,
-  /** @type {*} */ member,
-  /** @type {*} */ controls,
-) {
-  const length = BigInt(member.byteLength);
-  if (
-    controls.maximumSourceBytes !== null &&
-    length > BigInt(controls.maximumSourceBytes)
-  )
-    throw new Error("transform-source-capacity");
-  await execution.core.command("resize-control-state", {
-    byteLength: String(
-      BigInt(execution.controlStateBytes) +
-        BigInt(transformWorkspaceReservation(Number(length), controls)),
-    ),
-  });
-  const bytes = Buffer.alloc(Number(length));
-  let offset = 0;
-  for await (const part of sourceBytes(
-    execution.core,
-    member.source,
-    execution.signal,
-  )) {
-    bytes.set(part, offset);
-    offset += part.length;
-  }
-  if (offset !== bytes.length) throw new Error("Incomplete writer source.");
-  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-}
-
 async function fresh(
   /** @type {*} */ root,
   /** @type {*} */ execution,
@@ -346,6 +291,29 @@ async function* candidates(/** @type {*} */ core, /** @type {*} */ signal) {
     yield candidate;
     after = candidate.path;
   }
+}
+
+async function assertWritePermission(
+  /** @type {*} */ root,
+  /** @type {*} */ member,
+  /** @type {*} */ execution,
+  /** @type {*} */ gitExecutable,
+) {
+  await withGitIgnoreReservation(execution, async (/** @type {*} */ limits) => {
+    if (
+      !(await policyAllowsWrite(root, member, execution)) ||
+      (
+        await ignoredGitPaths(
+          root,
+          [member.path],
+          execution,
+          gitExecutable,
+          limits.reservationBytes,
+        )
+      ).has(member.path)
+    )
+      throw new Error(`Write permission changed: ${member.path}`);
+  });
 }
 
 /** Internal effect owner for one completed retained repository execution. It
@@ -448,7 +416,7 @@ export async function* rewriteRepository(
         path: member.path,
         source: captured.source,
       });
-      if (options.dryRun)
+      if (options.dryRun && operation === "normalize")
         for (const change of transformed.normalizationChanges)
           yield {
             type: "normalization-preview-change",
@@ -517,9 +485,39 @@ export async function* rewriteRepository(
       preflightComplete: true,
     };
     if (options.dryRun) {
+      if (operation === "format") {
+        for await (const candidate of candidates(core, execution.signal)) {
+          const member = (
+            await core.command("census-get", { path: candidate.path })
+          ).result.member;
+          yield {
+            type: "format-preview-change",
+            operation,
+            path: candidate.path,
+            changed: candidate.changed,
+            sourceSha256: member.sha256,
+            sourceByteLength: member.byteLength,
+            candidateSha256: candidate.sha256,
+            candidateByteLength: candidate.byteLength,
+            ...execution.implementationIdentity,
+          };
+        }
+        // Consumers may pause between provisional records. A preview must
+        // still describe fresh repository observations at its final verdict.
+        await fresh(root, execution, gitExecutable, false);
+        for await (const candidate of candidates(core, execution.signal)) {
+          const member = (
+            await core.command("census-get", { path: candidate.path })
+          ).result.member;
+          await assertWritePermission(root, member, execution, gitExecutable);
+        }
+      }
       const status = (await core.command("rewrite-status")).result;
       yield {
-        type: "normalization-preview-terminal",
+        type:
+          operation === "format"
+            ? "format-preview-terminal"
+            : "normalization-preview-terminal",
         operation,
         ...execution.implementationIdentity,
         selectedPathCount: status.selectedPathCount,
@@ -544,24 +542,7 @@ export async function* rewriteRepository(
           await core.command("census-get", { path: candidate.path })
         ).result.member;
         await fresh(root, execution, gitExecutable, afterWrites);
-        await withGitIgnoreReservation(
-          execution,
-          async (/** @type {*} */ limits) => {
-            if (
-              !(await policyAllowsWrite(root, member, execution)) ||
-              (
-                await ignoredGitPaths(
-                  root,
-                  [member.path],
-                  execution,
-                  gitExecutable,
-                  limits.reservationBytes,
-                )
-              ).has(member.path)
-            )
-              throw new Error(`Write permission changed: ${member.path}`);
-          },
-        );
+        await assertWritePermission(root, member, execution, gitExecutable);
         uncertainPath = member.path;
         const committed = await replaceObservedSource({
           root,
@@ -618,13 +599,16 @@ export async function* rewriteRepository(
       ].includes(refusalCode)
     ) {
       yield {
-        type: "normalization-preview-terminal",
+        type:
+          operation === "format"
+            ? "format-preview-terminal"
+            : "normalization-preview-terminal",
         operation,
         ...execution.implementationIdentity,
         complete: true,
         preflightComplete: false,
         sourceObservationsComplete: true,
-        message: String(/** @type {Error} */ (error).message),
+        message: String(/** @type {Error} */ (error).message).slice(0, 2048),
       };
       return;
     }
