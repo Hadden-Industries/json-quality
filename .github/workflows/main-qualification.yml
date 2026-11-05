@@ -3,6 +3,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      verification_profile:
+        description: Full main qualification or installed-only package proof
+        type: choice
+        default: full
+        options: [full, installed-only]
 permissions:
   contents: read
   actions: read
@@ -60,9 +66,16 @@ jobs:
         run: node scripts/ci-command.js observe
   full:
     name: Explicit FULL
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.verification_profile || 'full') == 'full'
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
       actions: read
       security-events: write
+  installed-only:
+    name: Explicit installed-only package qualification
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_profile == 'installed-only'
+    uses: ./.github/workflows/installed-qualification.yml
+    permissions:
+      contents: read
+      actions: read

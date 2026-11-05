@@ -38,9 +38,9 @@
     "native/bindings/node_api.cpp": "87ba5545c8773f816bed010bdad375794b4774136260ac18b0681544b3726ac8",
     "schemas/configuration.schema.json": "f28d4466e19b20ea16a84c04310636ba800cc4adffc6a1b0d68758b48e613769",
     "schemas/source-contract.schema.json": "53af09247162d3eb8edf5a434936f575ef0307c7a35426812dab8193b4fcda2a",
-    "schemas/contract-cohort.json": "1d7dc5dd1789049f542f02d255b5f4f399a03e64a0b2bf3d5edbd26d6a3b53f8"
+    "schemas/contract-cohort.json": "91058db98c61c986b98d58756a6675f77732b6149c061146af652fde5543269a"
   },
-  "sourceInputsSha256": "8211af33775447a9b78354058ac4ae8f61ac3bbe9cf25588e80e976b1496bbb2",
+  "sourceInputsSha256": "1f93734dc067c7715debe95b2bf8253a30f8a6869231b3faf7720b86442585b9",
   "platform": "win32-x64",
   "dependencies": [
     {
@@ -122,14 +122,14 @@
     }
   ],
   "generatedFiles": {
-    "contract_cohort.hpp": "5271c54c0eed3a267dce18574c9f339d817c11184642efe99bdfb037aa8fa636",
+    "contract_cohort.hpp": "b2fcd3b1ad68baa031683e761db411d7044d837211e9440643b45c1e8d8b88bd",
     "resource_defaults.hpp": "69bd4754c78926cee61882f0a1363d5de9d81b78dc582b41806121653279f002",
     "source_contract_enums.hpp": "8b2b94f3a745266f232e779ba3681b29c7eecddcd9732c020ec632ee17288262"
   },
   "artifactFiles": {
-    "component.json": "1d0b5949bc2cd44a5ddc120fef8eda644f96393806c3a8fcbd4b1a30283f99c0",
-    "json-quality-native.exe": "4aad5bf0f58722d6c8eebbbce326d517e005d42f6f29b0c69326a84e83b48b05",
-    "json-quality.node": "307a6add077bd1f6a1d6e27759e68d1cd3a594d6a61c69ddd97607631273c12c",
+    "component.json": "0e99ac72ecf47817c0bd32157212c6f60cd68cf1633d2085a4528b08987d38c3",
+    "json-quality-native.exe": "154f7b88d6ec3e4bf610c68678caf87e61fbe59e6224196f5bbf8ad00234a83c",
+    "json-quality.node": "75d231f2fb646536c6cfe37d9cf844d8836883f88967da72f7c609ccfda78004",
     "notice-inventory.json": "cb9bd3641bc03aedb6c4dbefe84baf3bd2deda7c938f88415dbae80f87c94a83",
     "notices/boost/LICENSE_1_0.txt": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
     "notices/doubleConversion/AUTHORS": "02f8e5babc63a87d460219a74b97e15046d198ed3bab061e3d46b4f44ea77a9d",

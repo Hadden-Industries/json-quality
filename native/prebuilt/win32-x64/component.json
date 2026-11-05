@@ -1,24 +1,24 @@
 {
   "schemaVersion": 4,
   "cohort": {
-    "cohortVersion": 4,
+    "cohortVersion": 5,
     "configurationSchemaVersion": 4,
-    "eventSchemaVersion": 4,
+    "eventSchemaVersion": 5,
     "nativeProtocolVersion": 4,
     "componentSchemaVersion": 4,
     "nodeApiVersion": 9
   },
   "platform": "win32-x64",
   "nodeApiVersion": 9,
-  "sourceInputsSha256": "8211af33775447a9b78354058ac4ae8f61ac3bbe9cf25588e80e976b1496bbb2",
+  "sourceInputsSha256": "1f93734dc067c7715debe95b2bf8253a30f8a6869231b3faf7720b86442585b9",
   "artifacts": {
     "json-quality.node": {
-      "sha256": "307a6add077bd1f6a1d6e27759e68d1cd3a594d6a61c69ddd97607631273c12c",
-      "bytes": 36280832
+      "sha256": "75d231f2fb646536c6cfe37d9cf844d8836883f88967da72f7c609ccfda78004",
+      "bytes": 36278784
     },
     "json-quality-native.exe": {
-      "sha256": "4aad5bf0f58722d6c8eebbbce326d517e005d42f6f29b0c69326a84e83b48b05",
-      "bytes": 36269568
+      "sha256": "154f7b88d6ec3e4bf610c68678caf87e61fbe59e6224196f5bbf8ad00234a83c",
+      "bytes": 36267008
     }
   },
   "configurationSchemaSha256": "f28d4466e19b20ea16a84c04310636ba800cc4adffc6a1b0d68758b48e613769",
@@ -32,7 +32,7 @@
       "bytes": 2099
     },
     "contract-cohort.json": {
-      "sha256": "1d7dc5dd1789049f542f02d255b5f4f399a03e64a0b2bf3d5edbd26d6a3b53f8",
+      "sha256": "91058db98c61c986b98d58756a6675f77732b6149c061146af652fde5543269a",
       "bytes": 171
     }
   },
