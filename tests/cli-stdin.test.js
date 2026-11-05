@@ -299,6 +299,7 @@ test("broken stdin transform output exits incomplete after genuine native cleanu
         ...process.env,
         NODE_OPTIONS: "",
         NODE_PATH: "",
+        NODE_DISABLE_COMPILE_CACHE: "1",
         TEMP: scratch,
         TMP: scratch,
         TMPDIR: scratch,

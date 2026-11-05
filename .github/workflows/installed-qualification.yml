@@ -1,0 +1,151 @@
+name: Installed-only package qualification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  producer:
+    name: Installed-only / frozen package producer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    outputs:
+      matrix: ${{ steps.policy.outputs.matrix }}
+      consumer-npm: ${{ steps.policy.outputs.consumer-npm }}
+      archive-id: ${{ steps.archive.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Admit the exact manual candidate
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from "node:assert/strict";
+          import { execFileSync } from "node:child_process";
+          assert.equal(process.env.EVENT_NAME, "workflow_dispatch");
+          assert.equal(execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), process.env.EXPECTED_SHA);
+          JS
+      - uses: ./.github/actions/setup-producer
+      - id: policy
+        name: Freeze every supported installed runtime lane
+        env:
+          FROZEN_MATRIX: ""
+          DIAGNOSTIC_OS: ""
+          DIAGNOSTIC_NODE: ""
+          RELEASE_MODE: "false"
+        run: npm run emit:node-matrix
+      - name: Pack the committed core and both platform packages once
+        shell: bash
+        run: npm run pack:package-family -- "${{ runner.temp }}/installed-only-archive"
+      - uses: ./.github/actions/upload-evidence
+        id: archive
+        timeout-minutes: 5
+        with:
+          name: "installed-only-family-${{ github.run_attempt }}"
+          path: "${{ runner.temp }}/installed-only-archive"
+          retention-days: "30"
+
+  installed:
+    name: Installed-only / ${{ matrix.os }} / Node ${{ matrix.node }}
+    needs: producer
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.producer.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-producer
+      - name: Retain producer paths and provision the selected consumer npm
+        shell: bash
+        env:
+          CONSUMER_NPM: ${{ needs.producer.outputs.consumer-npm }}
+        run: |
+          npm run export:producer-node-and-npm-paths
+          npm run install:consumer-npm -- "${{ runner.temp }}/installed-only-npm"
+      - uses: ./.github/actions/download-evidence
+        timeout-minutes: 15
+        with:
+          artifact-id: ${{ needs.producer.outputs.archive-id }}
+          path: ${{ runner.temp }}/installed-only-archive
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Qualify the frozen installed family in both layouts
+        shell: bash
+        env:
+          EXPECTED_NODE: ${{ matrix.node }}
+          EXPECTED_NPM: ${{ needs.producer.outputs.consumer-npm }}
+          CONSUMER_NPM_PATH: ${{ runner.temp }}/installed-only-npm/node_modules/npm/bin/npm-cli.js
+          ARCHIVE_DIRECTORY: ${{ runner.temp }}/installed-only-archive
+          RESULT_DIRECTORY: ${{ runner.temp }}/installed-only-results
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from "node:assert/strict";
+          import { mkdirSync, readdirSync, readFileSync } from "node:fs";
+          import { join } from "node:path";
+          import { native, budgets } from "./scripts/qualification-process.js";
+          import { requiredLayouts } from "./scripts/consumer-layouts.js";
+          const env = process.env;
+          assert.equal(process.versions.node, env.EXPECTED_NODE);
+          const proofs = readdirSync(env.ARCHIVE_DIRECTORY).filter((path) => path.endsWith(".tgz.provenance.json"));
+          assert.equal(proofs.length, 1, "Expected one frozen package family");
+          const provenance = join(env.ARCHIVE_DIRECTORY, proofs[0]);
+          const identity = JSON.parse(readFileSync(provenance, "utf8"));
+          assert.equal(identity.sourceCommit, env.EXPECTED_SHA);
+          mkdirSync(env.RESULT_DIRECTORY);
+          for (const layout of requiredLayouts) {
+            native(process.execPath, [
+              "scripts/qualify-package.js",
+              "--archive", join(env.ARCHIVE_DIRECTORY, identity.archive),
+              "--provenance", provenance,
+              "--npm", env.CONSUMER_NPM_PATH,
+              "--expected-node", env.EXPECTED_NODE,
+              "--expected-npm", env.EXPECTED_NPM,
+              "--layout", layout,
+              "--output", join(env.RESULT_DIRECTORY, `${layout}-result.json`),
+            ], {
+              stdio: "inherit",
+              windowsHide: true,
+              timeout: budgets.suite,
+              phase: `installed-only-${layout}`,
+            });
+          }
+          JS
+      - uses: ./.github/actions/upload-evidence
+        if: always() && !cancelled()
+        timeout-minutes: 5
+        with:
+          name: "installed-only-results-${{ matrix.os }}-${{ matrix.node }}-${{ github.run_attempt }}"
+          path: "${{ runner.temp }}/installed-only-results"
+          retention-days: "30"
+
+  complete:
+    name: Installed-only / complete package acceptance
+    if: always()
+    needs: [producer, installed]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require the frozen producer and every installed lane
+        shell: bash
+        env:
+          PRODUCER_RESULT: ${{ needs.producer.result }}
+          INSTALLED_RESULT: ${{ needs.installed.result }}
+        run: |
+          test "$PRODUCER_RESULT" = success
+          test "$INSTALLED_RESULT" = success
+          echo 'Installed-only package qualification completed. Full repository, native, security and release gates remain separate.' >> "$GITHUB_STEP_SUMMARY"
