@@ -22,6 +22,198 @@ test("complete workflow contracts cover every local action and transfer caller",
   );
 });
 
+test("shared qualification rejects caller execution and changes to its immutable data boundary", async (t) => {
+  const path = ".github/workflows/json-quality.yml";
+  const source = readFileSync(new URL("../" + path, import.meta.url), "utf8");
+  const mutations = [
+    [
+      "executable job container",
+      (data) => {
+        data.jobs.qualify.container = "caller-controlled-image:latest";
+      },
+    ],
+    [
+      "executable job service",
+      (data) => {
+        data.jobs.qualify.services = {
+          caller: { image: "caller-controlled-image:latest" },
+        };
+      },
+    ],
+    [
+      "candidate dispatcher",
+      (data) => {
+        data.jobs.qualify.steps.at(-1).run =
+          "node candidate/src/qualification-cli.js";
+      },
+    ],
+    [
+      "caller dependency install",
+      (data) => {
+        data.jobs.qualify.steps[5]["working-directory"] = "candidate";
+      },
+    ],
+    [
+      "additional caller command",
+      (data) => {
+        data.jobs.qualify.steps.push({ run: "npm --prefix candidate ci" });
+      },
+    ],
+    [
+      "missing immutable input validation",
+      (data) => {
+        data.jobs.qualify.steps[0].run =
+          "git config --global core.autocrlf false";
+      },
+    ],
+    [
+      "missing producer identity verification",
+      (data) => {
+        data.jobs.qualify.steps[2].run = "echo verified";
+      },
+    ],
+    [
+      "verification after installation",
+      (data) => {
+        const steps = data.jobs.qualify.steps;
+        [steps[2], steps[5]] = [steps[5], steps[2]];
+      },
+    ],
+    [
+      "optional producer verification",
+      (data) => {
+        data.jobs.qualify.steps[2].if = "false";
+      },
+    ],
+    [
+      "ignored producer verification failure",
+      (data) => {
+        data.jobs.qualify.steps[2]["continue-on-error"] = true;
+      },
+    ],
+    [
+      "candidate producer repository",
+      (data) => {
+        data.jobs.qualify.steps[1].with.repository =
+          "${{ inputs.candidate-repository }}";
+      },
+    ],
+    [
+      "mutable producer revision",
+      (data) => {
+        data.jobs.qualify.steps[1].with.ref = "main";
+      },
+    ],
+    [
+      "candidate node runtime",
+      (data) => {
+        data.jobs.qualify.steps[3].with["node-version-file"] =
+          "candidate/.node-version";
+      },
+    ],
+    [
+      "package manager cache",
+      (data) => {
+        data.jobs.qualify.steps[3].with["package-manager-cache"] = true;
+      },
+    ],
+    [
+      "inherited dispatcher working directory",
+      (data) => {
+        data.jobs.qualify.defaults.run["working-directory"] = "candidate";
+      },
+    ],
+    [
+      "dispatcher working directory override",
+      (data) => {
+        data.jobs.qualify.steps.at(-1)["working-directory"] = "candidate";
+      },
+    ],
+    [
+      "workflow module injection",
+      (data) => {
+        data.env = { NODE_OPTIONS: "--import ./candidate/preload.js" };
+      },
+    ],
+    [
+      "expanded job permissions",
+      (data) => {
+        data.jobs.qualify.permissions = { contents: "write" };
+      },
+    ],
+    [
+      "mutable commit input default",
+      (data) => {
+        data.on.workflow_call.inputs["candidate-commit-id"].default = "main";
+      },
+    ],
+    [
+      "substituted validated identity",
+      (data) => {
+        data.jobs.qualify.steps[0].env.TRUSTED_COMMIT_ID =
+          "${{ inputs.candidate-commit-id }}";
+      },
+    ],
+  ];
+  for (const kind of ["trusted", "candidate"]) {
+    const checkoutIndex = kind === "trusted" ? 6 : 7;
+    for (const [key, value] of [
+      ["repository", "${{ job.workflow_repository }}"],
+      ["ref", "main"],
+      ["path", "producer"],
+      ["persist-credentials", true],
+    ])
+      mutations.push([
+        `${kind} checkout ${key}`,
+        (data) => {
+          data.jobs.qualify.steps[checkoutIndex].with[key] = value;
+        },
+      ]);
+    for (const suffix of ["ROOT", "COMMIT_ID"])
+      mutations.push([
+        `${kind} substituted ${suffix}`,
+        (data) => {
+          data.jobs.qualify.steps.at(-1).env[
+            `JSON_QUALITY_${kind.toUpperCase()}_${suffix}`
+          ] = "candidate";
+        },
+      ]);
+  }
+  for (const key of ["NODE_OPTIONS", "NODE_PATH", "GH_TOKEN", "GITHUB_TOKEN"])
+    for (const remove of [false, true])
+      mutations.push([
+        `${key} ${remove ? "inherited" : "injected"}`,
+        (data) => {
+          const environment = data.jobs.qualify.steps.at(-1).env;
+          if (remove) delete environment[key];
+          else environment[key] = "caller-controlled";
+        },
+      ]);
+  mutations.push([
+    "persisted producer credentials",
+    (data) => {
+      delete data.jobs.qualify.steps[1].with["persist-credentials"];
+    },
+  ]);
+  for (const [name, change] of mutations)
+    await t.test(name, () => {
+      const data = parse(source);
+      change(data);
+      assert.throws(
+        () => checkWorkflows({ overrides: { [path]: stringify(data) } }),
+        /producer-owned data-only boundary/u,
+      );
+    });
+  const renamed = parse(source);
+  for (const step of renamed.jobs.qualify.steps)
+    step.name = "Cosmetic step label";
+  renamed.on.workflow_call.inputs["candidate-commit-id"].description =
+    "Documented immutable candidate identity";
+  assert.ok(
+    checkWorkflows({ overrides: { [path]: stringify(renamed) } }).workflows > 0,
+  );
+});
+
 test("workflow contracts reject broken metadata, callers and shared deadline drift", async (t) => {
   const upload = ".github/actions/upload-evidence/action.yml";
   const download = ".github/actions/download-evidence/action.yml";

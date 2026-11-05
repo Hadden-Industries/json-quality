@@ -360,6 +360,7 @@ test("producer npm setup admits resource overrides before dependencies are insta
     const env = {
       ...process.env,
       NODE_PATH: "",
+      JSON_QUALITY_PRODUCER_NODE: process.execPath,
       JSON_QUALITY_PRODUCER_NPM: nativeNpm,
     };
     delete env.JSON_QUALITY_CAPACITY_LIMITS;
@@ -402,6 +403,7 @@ test("producer npm setup admits resource overrides before dependencies are insta
         env: {
           ...process.env,
           NODE_PATH: "",
+          JSON_QUALITY_PRODUCER_NODE: process.execPath,
           JSON_QUALITY_PRODUCER_NPM: nativeNpm,
           JSON_QUALITY_ACQUISITION_CONTROLS: encoded,
         },

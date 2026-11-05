@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { isAbsolute } from "node:path";
 import {
   resourceDefaults,
   resolveResourceProfile,
@@ -92,21 +93,42 @@ export function native(
   return result.stdout;
 }
 
-export function npmCli() {
-  const path =
-    process.env.JSON_QUALITY_PRODUCER_NPM || process.env.npm_execpath;
-  if (!path)
+/** Retain the producer as one pair while consumer lanes select their own npm. */
+export function producerToolchain(
+  environment = process.env,
+  defaultNpm = environment.npm_execpath,
+) {
+  const executable = environment.JSON_QUALITY_PRODUCER_NODE;
+  const cli = environment.JSON_QUALITY_PRODUCER_NPM;
+  if (executable !== undefined || cli !== undefined) {
+    if (
+      typeof executable !== "string" ||
+      typeof cli !== "string" ||
+      !isAbsolute(executable) ||
+      !isAbsolute(cli) ||
+      /[\r\n]/u.test(executable + cli)
+    )
+      throw new Error(
+        "Producer Node and npm must be a complete absolute pair.",
+      );
+    return { executable, cli };
+  }
+  if (!defaultNpm)
     throw new Error(
       "Run through npm or provide the qualified producer npm CLI",
     );
-  return path;
+  return { executable: process.execPath, cli: defaultNpm };
 }
 
-export const npmCommand = (args, options = {}) =>
-  native(process.execPath, [npmCli(), ...args], {
+export const npmCli = () => producerToolchain().cli;
+
+export function npmCommand(args, options = {}) {
+  const { executable, cli } = producerToolchain();
+  return native(executable, [cli, ...args], {
     timeout: acquisitionResources().maxAcquisitionTimeMs ?? Infinity,
     ...options,
   });
+}
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const policy = JSON.parse(

@@ -16,7 +16,12 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
-import { native, npmCommand, budgets } from "./qualification-process.js";
+import {
+  native,
+  npmCommand,
+  budgets,
+  producerToolchain,
+} from "./qualification-process.js";
 import {
   packageName,
   readJson,
@@ -389,10 +394,11 @@ export async function recipientEvidence({
   );
   if (signatures) {
     assert.ok(publication, "Original publication context required");
+    const producer = producerToolchain(process.env, npm);
     const verification = native(
-      process.env.JSON_QUALITY_PRODUCER_NODE || process.execPath,
+      producer.executable,
       [
-        process.env.JSON_QUALITY_PRODUCER_NPM || npm,
+        producer.cli,
         "audit",
         "signatures",
         "--json",

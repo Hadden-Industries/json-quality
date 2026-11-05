@@ -45,6 +45,8 @@ The API takes `{ trustedRoot, candidateRoot, trustedCommitId, candidateCommitId,
 Consume the iterator to completion or cancel/return it. CLI resource/runtime flags share the ordinary vocabulary and environment contracts in the [resource guide](resource-limits.md).
 
 The reusable workflow retains read-only repository permissions and no publication/OIDC authority.
+The workflow checker enforces the immutable producer checkout and identity check before producer setup, then permits only the producer's fixed qualification command over the trusted and candidate Git inputs.
+It also requires disabled checkout credentials and package-manager caching, and clears credential and Node module-injection variables at that command boundary.
 Its admission setting, finite runtime controls, 15-minute check step and enclosing job deadline govern separate boundaries.
 The event stream remains in native job logs; it is not copied into an Actions diagnostic artifact.
 Hosted checkout/acquisition and native platform availability need their own workflow evidence; a local source-only pass does not establish a clean transported package, consumer adoption or release approval.
@@ -57,6 +59,9 @@ The source/base head must match the checked-out integration and frozen matrix.
 Required `CI / acceptance` admits product/native/dependency/CodeQL results and every packed-consumer receipt; skipped, incomplete, foreign or failed mandatory jobs remain blocking.
 Every ordinary and release lane runs the source suite once and qualifies both root and isolated installed layouts from the same transported core/native tuple.
 Reference-runtime API/type/tooling checks run in both layouts; minimum-runtime lanes retain native engine checks without producer-only tooling.
+Producer work retains Node and npm as one absolute executable pair when a lane switches to its consumer runtime.
+Fixture packing and release evidence commands use that pair; consumer installation and checks keep their independently selected npm.
+Partial producer identities refuse execution rather than combining producer npm with consumer Node.
 `JSON_QUALITY_LAYOUT_OUTPUT` names the directory containing exclusively created `root-result.json` and `isolated-result.json`.
 `JSON_QUALITY_RELEASE_EVIDENCE` separately enables release audits, inventories and SBOMs; ordinary qualification leaves it unset.
 Lane and aggregate proof schema 2 requires both keyed layout results with matching source, controller, Node/npm, core archive and native package identities.

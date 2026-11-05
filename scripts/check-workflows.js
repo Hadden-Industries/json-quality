@@ -14,6 +14,127 @@ const transferBudgets = new Map([
   ["./.github/actions/download-evidence", budgets.collection],
 ]);
 
+/** Caller repositories supply Git objects, never executable qualification code. */
+function checkSharedQualification(workflow) {
+  const message =
+    "Shared qualification must retain its producer-owned data-only boundary";
+  const job = workflow.jobs.qualify;
+  assert.deepEqual(Object.keys(workflow.jobs), ["qualify"], message);
+  assert.deepEqual(workflow.permissions, { contents: "read" }, message);
+  assert.equal(workflow.env, undefined, message);
+  assert.equal(job.permissions, undefined, message);
+  assert.equal(job.container, undefined, message);
+  assert.equal(job.services, undefined, message);
+  assert.equal(
+    workflow.defaults?.run?.["working-directory"],
+    undefined,
+    message,
+  );
+  assert.equal(job.defaults?.run?.["working-directory"], undefined, message);
+  assert.equal(job.defaults?.run?.shell, "bash", message);
+  assert.deepEqual(
+    job.env,
+    {
+      JSON_QUALITY_CAPACITY_LIMITS: "${{ inputs.capacity-limits }}",
+    },
+    message,
+  );
+  for (const kind of ["trusted", "candidate"])
+    for (const suffix of ["repository", "commit-id"]) {
+      const input = workflow.on.workflow_call.inputs[`${kind}-${suffix}`];
+      assert.equal(input.type, "string", message);
+      assert.equal(input.required, true, message);
+      assert.equal(input.default, undefined, message);
+    }
+
+  // These short bootstrap commands run before producer dependencies exist.
+  // Keep their reviewed semantics exact; step names and YAML formatting are free.
+  const validate = String.raw`node --input-type=module -e 'if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(process.env.PRODUCER_REPOSITORY ?? "")) throw new Error("Producer repository is required"); for (const key of ["PRODUCER_SHA", "TRUSTED_COMMIT_ID", "CANDIDATE_COMMIT_ID"]) if (!/^[a-f0-9]{40}$/u.test(process.env[key] ?? "")) throw new Error("Full immutable commits are required")'
+git config --global core.autocrlf false`;
+  const verify = `node --input-type=module -e 'import { execFileSync } from "node:child_process"; import { readFileSync } from "node:fs"; if (execFileSync("git", ["-C", "producer", "rev-parse", "HEAD"], { encoding: "utf8" }).trim() !== process.env.PRODUCER_SHA || JSON.parse(readFileSync("producer/package.json", "utf8")).name !== "@hadden-industries/json-quality") throw new Error("Producer identity mismatch")'`;
+  const select = `npm exec --global --call 'node scripts/qualification-process.js producer-npm'
+npm_prefix="$(npm prefix --global)"
+if [[ "$RUNNER_OS" == "Windows" ]]; then
+  echo "$npm_prefix" >> "$GITHUB_PATH"
+else
+  echo "$npm_prefix/bin" >> "$GITHUB_PATH"
+fi`;
+  const checkout = (kind) => ({
+    repository:
+      kind === "producer"
+        ? "${{ job.workflow_repository }}"
+        : `\${{ inputs.${kind}-repository }}`,
+    ref:
+      kind === "producer"
+        ? "${{ job.workflow_sha }}"
+        : `\${{ inputs.${kind}-commit-id }}`,
+    path: kind,
+    "persist-credentials": false,
+  });
+  const expected = [
+    {
+      run: validate,
+      env: {
+        PRODUCER_REPOSITORY: "${{ job.workflow_repository }}",
+        PRODUCER_SHA: "${{ job.workflow_sha }}",
+        TRUSTED_COMMIT_ID: "${{ inputs.trusted-commit-id }}",
+        CANDIDATE_COMMIT_ID: "${{ inputs.candidate-commit-id }}",
+      },
+    },
+    { action: "actions/checkout", with: checkout("producer") },
+    { run: verify, env: { PRODUCER_SHA: "${{ job.workflow_sha }}" } },
+    {
+      action: "actions/setup-node",
+      with: {
+        "node-version-file": "producer/.node-version",
+        "package-manager-cache": false,
+      },
+    },
+    { run: select, "working-directory": "producer" },
+    {
+      run: "npm run install:producer-dependencies",
+      "working-directory": "producer",
+    },
+    { action: "actions/checkout", with: checkout("trusted") },
+    { action: "actions/checkout", with: checkout("candidate") },
+    {
+      run: "node producer/src/qualification-cli.js",
+      env: {
+        JSON_QUALITY_TRUSTED_ROOT: "${{ github.workspace }}/trusted",
+        JSON_QUALITY_CANDIDATE_ROOT: "${{ github.workspace }}/candidate",
+        JSON_QUALITY_TRUSTED_COMMIT_ID: "${{ inputs.trusted-commit-id }}",
+        JSON_QUALITY_CANDIDATE_COMMIT_ID: "${{ inputs.candidate-commit-id }}",
+        JSON_QUALITY_RUNTIME_CONTROLS: '{"maxCheckTimeMs":600000}',
+        NODE_OPTIONS: "",
+        NODE_PATH: "",
+        GH_TOKEN: "",
+        GITHUB_TOKEN: "",
+      },
+    },
+  ];
+  assert.equal(job.steps.length, expected.length, message);
+  for (const [index, contract] of expected.entries()) {
+    const step = job.steps[index];
+    assert.equal(step.if, undefined, message);
+    assert.ok(!step["continue-on-error"], message);
+    assert.equal(step.shell, undefined, message);
+    assert.equal(
+      step["working-directory"],
+      contract["working-directory"],
+      message,
+    );
+    assert.deepEqual(step.env, contract.env, message);
+    assert.deepEqual(step.with, contract.with, message);
+    if (contract.action) {
+      assert.equal(step.uses?.split("@")[0], contract.action, message);
+      assert.equal(step.run, undefined, message);
+    } else {
+      assert.equal(step.run?.trim(), contract.run, message);
+      assert.equal(step.uses, undefined, message);
+    }
+  }
+}
+
 /** Check every local caller before expensive hosted fan-out, including dormant release paths. */
 export function checkWorkflows({ root = repository, overrides = {} } = {}) {
   const read = (path) => {
@@ -101,6 +222,9 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       `./.github/workflows/${name}`,
       read(`.github/workflows/${name}`),
     );
+  checkSharedQualification(
+    workflows.get("./.github/workflows/json-quality.yml"),
+  );
   function inputs(path, supplied, declared = {}) {
     for (const key of Object.keys(supplied ?? {}))
       assert.ok(

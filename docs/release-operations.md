@@ -112,6 +112,8 @@ JSON Quality keeps these boundaries explicit:
 
 - Every release job installs the frozen producer dependencies before running release commands.
   The workflow checker rejects missing or conditional setup, later runtime replacement, incorrect draft permissions and lost failure uploads.
+  Producer npm commands, archive packing and signature verification retain the paired producer Node executable even inside consumer lanes.
+  The frozen manifest records that producer's actual Node and npm versions; a partial retained identity refuses execution.
 - Stage, archive and promotion workflows enter through `scripts/release-command.js`.
   Its startup records load without installed npm packages.
   An import failure preserves the original failure and seals a `no-request` marker for the same manifest/controller/run/attempt.

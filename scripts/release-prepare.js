@@ -18,7 +18,11 @@ import {
   manualControl,
 } from "./release-contract.js";
 import { nativePackages } from "../src/native-packages.js";
-import { npmCommand } from "./qualification-process.js";
+import {
+  native,
+  npmCommand,
+  producerToolchain,
+} from "./qualification-process.js";
 
 export async function freezeRelease(directory, matrix, version) {
   validVersion(version);
@@ -105,7 +109,10 @@ export async function freezeRelease(directory, matrix, version) {
     policy,
     policySha256: sha256(policyBytes),
     toolchain: {
-      node: process.versions.node,
+      node: native(producerToolchain().executable, [
+        "-p",
+        "process.versions.node",
+      ]).trim(),
       npm: npmCommand(["--version"]).trim(),
     },
   };
