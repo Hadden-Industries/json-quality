@@ -9,6 +9,7 @@ Package-private source paths are not supported exports.
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `openJsonSourceSession(options?)`                           | Promise of a source/value session; verifies the installed companion and owns native memory/scratch until `close()`         | Invalid controls, missing/mismatched component or native failure reject; shared admission/runtime limits apply     |
 | `openJsonRepositorySession({root, ...options})`             | Promise of a complete repository session; reads physical/native/logical sources and owns scratch                           | Discovery, authority, observation or cleanup failures prevent a successful final terminal                          |
+| `checkJsonFiles(options)`                                   | Async generator checking explicitly selected physical files under root policy; no source writes                            | Invalid selection, stale sources or failed cleanup prevent `selection-terminal`; no complete repository acceptance |
 | `formatJsonSource(text, options?)`                          | Promise of formatted text; preserves meaning, member order and numeric lexemes; no source-file writes                      | Strict parsing, finite materializing-writer capacity, policy or formatting failures reject                         |
 | `formatJsonValue(value, options?)`                          | Promise of formatted producer JSON; accepts plain JSON values, with native platform serialization                          | Executable accessors, custom serializers, cycles and unsupported values reject; producer/writer capabilities apply |
 | `normalizeJsonSource(text, options?)`                       | Promise of text with admitted NFC key/string repairs; no source-file writes                                                | Collisions, unsupported contracts and finite writer-capacity failures reject                                       |
@@ -83,11 +84,31 @@ No complete pointer string is copied into collision events; very large paths rem
 ## Repository operations
 
 `checkJsonFiles(options)` accepts the closed `FileCheckOptions` fields `root`, nonempty `files`, `capacityLimits`, `runtimeControls`, `temporaryDirectory`, `signal` and `requestId`.
+Pass an explicit absolute `root` and literal root-relative POSIX paths in `files`; directories and glob expansion are unsupported.
 It streams selected physical source events through `selection-terminal` after cleanup and policy/selected-source freshness checks.
 It performs no Git discovery, native/logical provider or required-output inventory and exposes no rewrite or retained-reference capability.
-The terminal declares `completeRepositoryCheck: false`; use the repository session for full acceptance.
+The terminal declares `operationScope.completeRepositoryCheck: false`; use the repository session for full acceptance.
 Explicit selection is not silently omitted by ignore/discovery exclusions; each selected contract retains expectations and protected values.
 Linked-document expectations refuse this scope instead of being discarded.
+
+```js
+import { resolve } from "node:path";
+import { checkJsonFiles } from "@hadden-industries/json-quality";
+
+let terminal;
+for await (const event of checkJsonFiles({
+  root: resolve("."),
+  files: ["data/authored.json"],
+})) {
+  if (event.type === "selection-terminal") terminal = event;
+  // Consume findings here, including deliberately expected negatives.
+}
+if (!terminal) throw new Error("Incomplete selected-file check.");
+if (!terminal.contractSatisfied) throw new Error("Selected contract refused.");
+```
+
+`contractSatisfied` includes admitted exact expected negatives; inspect `qualityPassed` for intrinsic shared quality.
+Neither field establishes domain-specific validity or complete repository acceptance.
 
 `session.check()` reconciles complete physical/native/logical inventory and emits `execution-terminal` only after source, observation, diagnostic and linkage obligations settle.
 The lazy iterator can be claimed once and must reach `execution-terminal`.

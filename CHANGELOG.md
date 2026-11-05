@@ -6,6 +6,7 @@ Only an immutable published release establishes release availability.
 
 ## Unreleased
 
+- Expand consumer guidance and npm metadata with package fit, strict JSON boundaries, scoped checking, explicit repairs and completion semantics.
 - Add both-bin version discovery, contextual help, literal `check-files` selection and raw UTF-8 stdin transforms with explicit virtual-file policy context.
 - Require `--write` or `--dry-run` for filesystem repairs; add actual format preview and presentation-only human display controls.
 - Advance contract cohort and events to 5; retain configuration/source-contract/native protocol 4 and Node-API 9.

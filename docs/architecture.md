@@ -91,8 +91,8 @@ Node-API compatibility, clean package transport, rights, non-Node supervision an
 
 ### Hosted native production
 
-The [native workflow](../.github/workflows/native.yml) is both manually dispatchable and reusable through `workflow_call`.
-It delegates to the existing [native producer](../.github/workflows/native-producer.yml), building Windows x64 on `windows-2025` and Linux x64/glibc on `ubuntu-24.04`.
+The [native workflow](https://github.com/Hadden-Industries/json-quality/blob/main/.github/workflows/native.yml) is both manually dispatchable and reusable through `workflow_call`.
+It delegates to the existing [native producer](https://github.com/Hadden-Industries/json-quality/blob/main/.github/workflows/native-producer.yml), building Windows x64 on `windows-2025` and Linux x64/glibc on `ubuntu-24.04`.
 No local compiler or container runtime is required to obtain those hosted payloads.
 Source changes must first be committed and available on GitHub; preparing this route does not publish or dispatch them.
 

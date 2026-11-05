@@ -1,7 +1,7 @@
 {
   "name": "@hadden-industries/json-quality",
   "version": "1.0.0-rc.3",
-  "description": "Strict JSON quality controls with complete discovery and guarded source repair",
+  "description": "Zero-config strict JSON/JSONL checking, single-document JSON formatting, duplicate-key detection, numeric safety and Unicode NFC repair",
   "license": "AGPL-3.0-only",
   "type": "module",
   "packageManager": "npm@12.2.1",
@@ -25,9 +25,17 @@
   },
   "keywords": [
     "json",
+    "jsonl",
+    "ndjson",
     "formatter",
     "linter",
     "unicode",
+    "nfc",
+    "normalization",
+    "duplicate-keys",
+    "numeric-precision",
+    "streaming",
+    "eslint",
     "nodejs",
     "cli"
   ],

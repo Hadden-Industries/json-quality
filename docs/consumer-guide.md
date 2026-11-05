@@ -9,10 +9,11 @@ Historical artifacts retain their original bytes and versions.
 
 ## Acquisition and public exports
 
-Ordinary consumers install a qualified package version as a development dependency and invoke its public binary:
+Install a qualified package version as a development dependency and invoke its public binary.
+Replace `VERSION` below with the exact qualified release you intend to use:
 
 ```sh
-npm install --save-dev --save-exact @hadden-industries/json-quality
+npm install --save-dev --save-exact @hadden-industries/json-quality@VERSION
 npm exec -- json-quality check
 npm exec -- json-quality format --write -- authored.json
 npm exec -- json-quality normalize --dry-run -- authored.json
@@ -53,7 +54,7 @@ The root export supplies:
 - `resolveJsonQualityPolicy`, `resolveJsonSourceContract` and `jsonFormatOptions`;
 - `runJsonQualityCli`, `qualifyGitJsonSources` and optional installation-verification helpers.
 
-Closed schemas are available through `./configuration-schema`, `./source-contract-schema`, `./event-schema` and `./contract-cohort`.
+Closed schemas are available through `./configuration-schema`, `./effective-policy-schema`, `./source-contract-schema` and `./event-schema`; `./contract-cohort` inventories their versions.
 `./eslint` exports the JavaScript identity guard; consumers install their own supported ESLint.
 Private source paths and retired schema exports are denied.
 
@@ -181,7 +182,7 @@ Collisions, unpinned values and other shared rules remain checked.
 
 The pure writers return finite text and never write a file.
 `formatJsonSource(text)` preserves decoded values, order and numeric lexemes under fixed package Prettier options.
-Default quality admission refuses unsafe or non-NFC content.
+Formatting refuses invalid or unsafe content; ordinary NFC findings may remain because formatting preserves decoded strings.
 Explicit decoded-Unicode preservation can be selected through a closed `contract`, for example `{ normalization: "preserve" }`, or sparse repository configuration `{ defaults: { normalization: "preserve" } }`.
 Formatting can preserve those sequences while repairing presentation; normalization refuses a preserved target.
 Use separate owner/rewrite or protected-byte controls when source bytes belong to another producer.
@@ -192,7 +193,7 @@ Getters, custom serialization, sparse/extended arrays, cycles, unsupported value
 
 All pure writers use options `{ contract, temporaryDirectory, capacityLimits, runtimeControls, transformControls, producerControls, signal }`.
 Transform defaults are 2 MiB source/output and 4096 normalization changes; `transformControls: false` removes them, and numeric/null overrides select individual quotas.
-`producerControls` applies to `formatJsonValue` and can independently remove depth/member quotas.
+`producerControls` applies to `formatJsonValue` and can independently remove depth and `maximumTotalValues` quotas; the latter counts each scalar, object and array occurrence.
 Ordinary source checking does not inherit these materializing-operation defaults.
 Existing semantic hashing/canonicalization protocols must not be replaced by formatting.
 
@@ -206,8 +207,9 @@ One rewrite is permitted per retained session.
 A session opened with `retainValues: false` cannot rewrite.
 
 The writer preflights the complete peer set and every actual candidate, including changed logical dependents, before the first replacement.
-A candidate must satisfy its complete selected contract.
-Consequently normalization refuses an otherwise repaired file that would still have presentation errors; make the authored input presentation valid or repair through its owning producer.
+Candidates must satisfy operation-specific eligibility, selected expectations and protection requirements.
+Formatting may leave ordinary NFC findings; normalization may leave presentation findings.
+Neither successful operation alone establishes complete quality acceptance.
 Protected/ignored/native/logical/JSONL sources never acquire generic write permission.
 Windows policy matching also checks the actual filesystem spelling of a Git alias.
 
