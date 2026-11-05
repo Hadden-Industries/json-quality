@@ -4,10 +4,9 @@
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { isMainModule } from "./module-entry.js";
-import { discoverCli } from "./cli-discovery.js";
+import { discoverCli, failureCliResources } from "./cli-discovery.js";
 import { resourceCliControls, transformCliControls } from "./commands.js";
 import { renderHumanEvent, escapeHumanText } from "./cli-messages.js";
-import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 
 /** Backpressured CLI delivery; a terminal is never a substitute for cleanup. */
 export async function runJsonQualityCli(
@@ -23,6 +22,7 @@ export async function runJsonQualityCli(
     /** @type {*} */ reportDeadline,
     /** @type {*} */ reportSignal,
     /** @type {*} */ outputCeiling = null,
+    /** @type {*} */ failureResources,
     outputBytes = 0n,
     /** @type {*} */ operation,
     /** @type {*} */ values = {},
@@ -83,6 +83,7 @@ export async function runJsonQualityCli(
   const ready = async (/** @type {*} */ owner) => {
     const resources = owner.resources;
     if (!resources) throw new Error("Missing operation resources.");
+    failureResources = resources;
     if (!reportDeadline) {
       const { createExecutionDeadline, remainingDuration } =
         await import("./execution-deadline.js");
@@ -174,19 +175,28 @@ export async function runJsonQualityCli(
       await write(account(bytes), machine ? process.stdout : process.stderr);
   };
   const failure = async (/** @type {*} */ error) => {
-    const message = String(error.message ?? error);
     if (outputFailure || caller.signal.aborted) return;
     try {
-      await emit({
-        schemaVersion: cohort.eventSchemaVersion,
+      const { writeCliFailure } = await import("./cli-failure.js");
+      if (!failureResources) {
+        const { resolveExecutionResources } =
+          await import("./execution-resources.js");
+        failureResources = resolveExecutionResources();
+        try {
+          failureResources = resolveExecutionResources(
+            {},
+            failureCliResources(args),
+          );
+        } catch {
+          /* Malformed controls cannot relax the default allowance. */
+        }
+      }
+      outputBytes += await writeCliFailure(error, {
         requestId,
-        type: "failure",
-        code:
-          typeof error.code === "string"
-            ? error.code.slice(0, 256)
-            : "operation-failed",
-        message: message.slice(0, 2048),
-        truncated: message.length > 2048,
+        machine,
+        resources: failureResources,
+        usedOutputBytes: outputBytes,
+        signal: caller.signal,
       });
     } catch {
       // Delivery failure cannot become a successful result or a replayed sink.
@@ -259,6 +269,7 @@ export async function runJsonQualityCli(
     const { resolveExecutionResources } =
       await import("./execution-resources.js");
     const invocation = resolveExecutionResources({}, controls);
+    failureResources = invocation;
     if (
       values.contract !== undefined &&
       invocation.admission.maxRequestBytes !== null &&

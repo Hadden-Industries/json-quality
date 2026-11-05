@@ -14,6 +14,17 @@ For ordinary unlimited reads, select both groups as `false`.
 Invocation settings override policy; invocation settings govern policy bootstrap before the effective policy exists.
 Invocation `true` restores the configured/default profile; an invocation object preserves other unlimited fields from policy.
 
+Both CLIs apply independently validated invocation controls to failure reporting, including failures before policy or command admission.
+`maxToolOutputBytes` covers the complete serialized or escaped failure report and any earlier output; an exhausted finite allowance refuses delivery rather than presenting a partial report as complete.
+`maxCheckTimeMs` also selects a separate failure-delivery allowance, starting after the failed operation; `null` removes that deadline, including for a blocked output pipe.
+The former hidden one-second qualification reporting timeout and 2,048-character diagnostic ceiling no longer apply.
+Invalid or conflicting invocation controls cannot authorize unlimited reporting, and resource-looking filenames after `--` remain literal data.
+Failed sinks are never retried; failure-report delivery cannot turn operational exit 2 into success.
+
+The unreleased cohort-5 event schema admits complete diagnostic messages within the selected output budget and continues to accept historical `truncated: true` failure events.
+Consumers retaining a pre-fix schema copy must refresh it before accepting extended messages; there is no change to event fields, native protocol 4 or the native cohort inputs.
+This source correction does not establish published-release availability.
+
 | Admission control                       | Default     | Scope                                                                                       |
 | --------------------------------------- | ----------- | ------------------------------------------------------------------------------------------- |
 | `maxPhysicalAndNativeSources`           | 50,000      | Combined physical/native captures; independently, distinct physical/native census members.  |

@@ -14,25 +14,25 @@ export declare function executeStdinOperation(
   /** @type {*} */ { emit, ready }?: any,
 ): Promise<
   | {
-      terminal: import("../types/schemas/event.js").JsonQualityEvent;
-      refused?: undefined;
-      message?: undefined;
-      output?: undefined;
       qualityPassed?: undefined;
       findingCount?: undefined;
+      message?: undefined;
+      terminal: import("../types/schemas/event.js").JsonQualityEvent;
+      refused?: undefined;
+      output?: undefined;
     }
   | {
+      qualityPassed?: undefined;
+      findingCount?: undefined;
       terminal?: undefined;
       refused: boolean;
       message: string;
       output?: undefined;
-      qualityPassed?: undefined;
-      findingCount?: undefined;
     }
   | {
+      message?: undefined;
       terminal?: undefined;
       refused?: undefined;
-      message?: undefined;
       output: Buffer<any>;
       qualityPassed: any;
       findingCount: any;

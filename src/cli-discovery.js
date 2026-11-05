@@ -7,6 +7,7 @@ import {
   COMMANDS,
   commandHelp,
   admitCommand,
+  resourceCliControls,
 } from "./commands.js";
 
 export function packageVersion() {
@@ -22,6 +23,7 @@ export function parseCliArguments(
   /** @type {string[]} */ args,
   /** @type {*} */ options,
   allowPositionals = true,
+  strict = true,
 ) {
   const parsed = parseArgs({
     args,
@@ -29,6 +31,7 @@ export function parseCliArguments(
     allowPositionals,
     allowNegative: true,
     tokens: true,
+    strict,
   });
   const seen = new Map();
   for (const token of parsed.tokens) {
@@ -49,6 +52,16 @@ export function parseCliArguments(
     if (name === "stdin-filepath") seen.set("virtual-filename-seen", true);
   }
   return parsed;
+}
+
+/** Admit independent caller quotas even when command discovery fails. Unknown
+ * options cannot supply authority, and tokens after -- remain literal paths. */
+export function failureCliResources(
+  /** @type {string[]} */ args,
+  /** @type {*} */ options = CLI_OPTIONS,
+) {
+  const parsed = parseCliArguments(args, options, true, false);
+  return resourceCliControls(parsed.values);
 }
 
 /** Positionals contains file arguments only; command is removed. */

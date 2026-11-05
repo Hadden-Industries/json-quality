@@ -4,6 +4,7 @@ export declare function parseCliArguments(
   /** @type {string[]} */ args: string[],
   /** @type {*} */ options: any,
   allowPositionals?: boolean,
+  strict?: boolean,
 ): {
   values:
     | {
@@ -44,6 +45,11 @@ export declare function parseCliArguments(
         rawName: string;
         value: undefined;
         inlineValue: undefined;
+      }
+    | {
+        kind: "positional";
+        index: number;
+        value: string;
       }
     | {
         kind: "positional";
@@ -113,6 +119,15 @@ export declare function parseCliArguments(
         name: never;
       })
   )[];
+};
+/** Admit independent caller quotas even when command discovery fails. Unknown
+ * options cannot supply authority, and tokens after -- remain literal paths. */
+export declare function failureCliResources(
+  /** @type {string[]} */ args: string[],
+  /** @type {*} */ options?: any,
+): {
+  capacityLimits: any;
+  runtimeControls: any;
 };
 /** Positionals contains file arguments only; command is removed. */
 export declare function discoverCli(/** @type {string[]} */ args: string[]):

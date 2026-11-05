@@ -608,7 +608,7 @@ export async function* rewriteRepository(
         complete: true,
         preflightComplete: false,
         sourceObservationsComplete: true,
-        message: String(/** @type {Error} */ (error).message).slice(0, 2048),
+        message: String(/** @type {Error} */ (error).message),
       };
       return;
     }
@@ -619,10 +619,7 @@ export async function* rewriteRepository(
       preflightComplete,
       writtenPathCount: String(written),
       uncertainPath,
-      message: String(error instanceof Error ? error.message : error).slice(
-        0,
-        2048,
-      ),
+      message: String(error instanceof Error ? error.message : error),
     };
   }
 }

@@ -6,6 +6,8 @@ Only an immutable published release establishes release availability.
 
 ## Unreleased
 
+- Apply caller output and elapsed-time controls to early CLI and qualification failure reporting; remove hidden diagnostic truncation and the fixed qualification reporting timeout, with matching unreleased event-schema admission.
+
 - Discover policy inputs with dependency-cruiser, retain a readable path inventory, and fingerprint actual installed files plus relevant runtime dependency declarations without unrelated package-metadata churn.
 - Select the manifest's stable SemVer coordinate for the next release through qualification, `pilot` publication and same-artifact promotion; version selection does not establish release availability.
 - Expand consumer guidance and npm metadata with package fit, strict JSON boundaries, scoped checking, explicit repairs and completion semantics.

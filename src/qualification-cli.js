@@ -7,8 +7,25 @@ import {
   RUNTIME_OPTIONS,
   resourceCliControls,
 } from "./commands.js";
-import { packageVersion, parseCliArguments } from "./cli-discovery.js";
-import cohort from "../schemas/contract-cohort.json" with { type: "json" };
+import {
+  packageVersion,
+  parseCliArguments,
+  failureCliResources,
+} from "./cli-discovery.js";
+import { resolveExecutionResources } from "./execution-resources.js";
+import { createExecutionDeadline } from "./execution-deadline.js";
+
+const qualificationOptions = {
+  ...RESOURCE_OPTIONS,
+  ...RUNTIME_OPTIONS,
+  help: { type: "boolean", short: "h" },
+  version: { type: "boolean", short: "v" },
+  "request-id": { type: "string" },
+  "trusted-root": { type: "string" },
+  "candidate-root": { type: "string" },
+  "trusted-commit-id": { type: "string" },
+  "candidate-commit-id": { type: "string" },
+};
 
 /** Stream cohort-4 NDJSON with backpressure and a final cleaned-up verdict.
  * Output failure, cancellation or missing execution-terminal returns 2. The
@@ -19,21 +36,7 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
   const usage =
     "Usage: json-quality-qualify-git --trusted-root PATH --candidate-root PATH --trusted-commit-id COMMIT --candidate-commit-id COMMIT\n";
   try {
-    parsed = parseCliArguments(
-      args,
-      {
-        ...RESOURCE_OPTIONS,
-        ...RUNTIME_OPTIONS,
-        help: { type: "boolean", short: "h" },
-        version: { type: "boolean", short: "v" },
-        "request-id": { type: "string" },
-        "trusted-root": { type: "string" },
-        "candidate-root": { type: "string" },
-        "trusted-commit-id": { type: "string" },
-        "candidate-commit-id": { type: "string" },
-      },
-      false,
-    );
+    parsed = parseCliArguments(args, qualificationOptions, false);
     const /** @type {Record<string, any>} */ values = parsed.values;
     if (
       values.version &&
@@ -84,37 +87,50 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       return 0;
     }
   } catch (error) {
+    const [{ resolveExecutionResources }, { writeCliFailure }] =
+      await Promise.all([
+        import("./execution-resources.js"),
+        import("./cli-failure.js"),
+      ]);
+    let resources = resolveExecutionResources();
     try {
-      process.stderr.write(
-        String(error instanceof Error ? error.message : error) + "\n" + usage,
+      resources = resolveExecutionResources(
+        {},
+        failureCliResources(args, qualificationOptions),
       );
     } catch {
-      /* Failed discovery remains incomplete. */
+      /* Malformed controls cannot relax the default allowance. */
     }
+    await writeCliFailure(
+      new Error(
+        String(error instanceof Error ? error.message : error) + "\n" + usage,
+      ),
+      { requestId: randomUUID(), resources },
+    );
     return 2;
   }
-  const [
-    { qualifyGitJsonSources },
-    { encodeNativeControl },
-    { assertJsonQualityEvent },
-    { resolveExecutionResources },
-    { createExecutionDeadline },
-  ] = await Promise.all([
-    import("./qualification.js"),
-    import("./native-control.js"),
-    import("./events.js"),
-    import("./execution-resources.js"),
-    import("./execution-deadline.js"),
-  ]);
+  let /** @type {*} */ qualifyGitJsonSources,
+    /** @type {*} */ encodeNativeControl,
+    /** @type {*} */ assertJsonQualityEvent;
   const caller = new AbortController(),
+    failureCaller = new AbortController(),
     began = performance.now(),
-    interrupt = () => caller.abort(new Error("Qualification interrupted.")),
-    outputError = (/** @type {*} */ error) => caller.abort(error);
+    interrupt = () => {
+      const error = new Error("Qualification interrupted.");
+      caller.abort(error);
+      failureCaller.abort(error);
+    },
+    outputError = (/** @type {*} */ error) => {
+      outputFailed = true;
+      caller.abort(error);
+    };
   let requestId = randomUUID(),
     signal = caller.signal,
     outputBytes = 0n,
     /** @type {any} */ maximumOutput = null,
     /** @type {any} */ deadline,
+    /** @type {any} */ failureResources = resolveExecutionResources(),
+    outputFailed = false,
     exitCode = 2,
     terminal;
   process.stdout.on("error", outputError);
@@ -159,6 +175,19 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       await write(bytes);
     };
   try {
+    const /** @type {Record<string, any>} */ values = parsed.values;
+    const controls = resourceCliControls(values),
+      resources = resolveExecutionResources({}, controls);
+    failureResources = resources;
+    [
+      { qualifyGitJsonSources },
+      { encodeNativeControl },
+      { assertJsonQualityEvent },
+    ] = await Promise.all([
+      import("./qualification.js"),
+      import("./native-control.js"),
+      import("./events.js"),
+    ]);
     if (
       process.env.JSON_QUALITY_TRUSTED_SHA !== undefined ||
       process.env.JSON_QUALITY_CANDIDATE_SHA !== undefined
@@ -166,10 +195,7 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       throw new TypeError(
         "Use JSON_QUALITY_TRUSTED_COMMIT_ID and JSON_QUALITY_CANDIDATE_COMMIT_ID.",
       );
-    const /** @type {Record<string, any>} */ values = parsed.values;
     requestId = values["request-id"] ?? requestId;
-    const controls = resourceCliControls(values),
-      resources = resolveExecutionResources({}, controls);
     maximumOutput = resources.wire.admission.maxToolOutputBytes;
     deadline = createExecutionDeadline(
       resources.runtime.maxCheckTimeMs,
@@ -195,6 +221,7 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       if (event.type === "execution") {
         if (!event.resources) throw new Error("execution-resources-missing");
         maximumOutput = event.resources.admission.maxToolOutputBytes;
+        failureResources = event.resources;
         deadline.dispose();
         deadline = createExecutionDeadline(
           event.resources.runtime.maxCheckTimeMs,
@@ -210,21 +237,16 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
   } catch (error) {
     caller.abort(error);
     // A failed/aborted sink is already incomplete. Never retry it or block cleanup.
-    if (!process.stdout.destroyed) {
-      signal = AbortSignal.timeout(1000);
-      const message = String(error instanceof Error ? error.message : error);
-      try {
-        await emit({
-          schemaVersion: cohort.eventSchemaVersion,
-          requestId,
-          type: "failure",
-          code: "qualification-failed",
-          message: message.slice(0, 2048),
-          truncated: message.length > 2048,
-        });
-      } catch {
-        /* Failed delivery remains exit 2. */
-      }
+    if (!outputFailed && !process.stdout.destroyed) {
+      const { writeCliFailure } = await import("./cli-failure.js");
+      outputBytes += await writeCliFailure(error, {
+        requestId,
+        machine: true,
+        code: "qualification-failed",
+        resources: failureResources,
+        usedOutputBytes: outputBytes,
+        signal: failureCaller.signal,
+      });
     }
     exitCode = 2;
   } finally {

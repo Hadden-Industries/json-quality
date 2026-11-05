@@ -146,7 +146,7 @@ export function renderHumanEvent(
     return (
       escapeHumanText(event.code, 128) +
       ": " +
-      escapeHumanText(event.message, 2048) +
+      escapeHumanText(event.message, String(event.message ?? "").length) +
       " " +
       failureAdvice(event) +
       "\n"
@@ -159,7 +159,7 @@ export function renderHumanEvent(
         ? "; uncertain path " + escapeHumanText(event.uncertainPath)
         : "") +
       ": " +
-      escapeHumanText(event.message, 2048) +
+      escapeHumanText(event.message, String(event.message ?? "").length) +
       ". Inspect confirmed writes and any uncertain path, then rerun fresh preflight.\n"
     );
   if (event.type === "selection-terminal") {
@@ -204,7 +204,8 @@ export function renderHumanEvent(
         : "; remaining findings " + escapeHumanText(event.findingCount, 24)) +
       (event.message === undefined
         ? ""
-        : "; " + escapeHumanText(event.message, 2048)) +
+        : "; " +
+          escapeHumanText(event.message, String(event.message ?? "").length)) +
       ". No source files were replaced. Run check for the full repository verdict.\n"
     );
   }
