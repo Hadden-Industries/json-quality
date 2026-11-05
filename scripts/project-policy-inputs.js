@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Linter } from "eslint";
 import { budgets } from "./qualification-budgets.js";
@@ -89,7 +89,9 @@ async function policyGraphWorker() {
   const result = await cruise(
     [...policyResolverEntryPoints],
     {
-      doNotFollow: "node_modules",
+      // Stop package traversal even when an installed dependency is hoisted
+      // outside this root. The owning import edge distinguishes it from escape.
+      doNotFollow: "(?:^|/)node_modules/|^\\.\\.(?:/|$)",
       moduleSystems: ["es6", "cjs"],
       preserveSymlinks: true,
       outputType: "json",
@@ -112,30 +114,38 @@ async function policyGraphWorker() {
     readFileSync(assertRegularSource(directory, "package.json"), "utf8"),
   );
   const files = new Set(policyResolverResources),
-    dependencies = new Set();
-  for (const module of graph.modules) {
-    if (module.coreModule || module.source.includes("node_modules/")) continue;
-    if (
-      module.source === "package.json" ||
-      module.source === policyInputInventoryPath
-    )
+    dependencies = new Set(),
+    modules = new Map(graph.modules.map((module) => [module.source, module])),
+    pending = [...policyResolverEntryPoints],
+    visited = new Set();
+  while (pending.length) {
+    const source = pending.pop();
+    if (visited.has(source)) continue;
+    visited.add(source);
+    if (source === "package.json" || source === policyInputInventoryPath)
       throw new Error(
         "Policy module imports must not include package metadata or the generated inventory.",
       );
-    const path = assertRegularSource(directory, module.source);
-    files.add(module.source);
-    if (/\.(?:js|mjs|cjs)$/u.test(module.source)) assertStaticImports(path);
+    const path = assertRegularSource(directory, source);
+    if (source.split("/").includes("node_modules"))
+      throw new Error(
+        "Policy local imports must not enter dependency packages.",
+      );
+    files.add(source);
+    if (/\.(?:js|mjs|cjs)$/u.test(source)) assertStaticImports(path);
+    const module = modules.get(source);
+    if (!module) throw new Error("Missing policy module: " + source);
     for (const dependency of module.dependencies) {
       if (dependency.couldNotResolve)
         throw new Error(
-          "Unresolved policy import: " +
-            module.source +
-            " -> " +
-            dependency.module,
+          "Unresolved policy import: " + source + " -> " + dependency.module,
         );
       if (dependency.coreModule) continue;
-      if (!dependency.resolved.includes("node_modules/")) continue;
       const specifier = dependency.module;
+      if (specifier.startsWith(".") || isAbsolute(specifier)) {
+        pending.push(dependency.resolved);
+        continue;
+      }
       const name = specifier.startsWith("@")
         ? specifier.split("/").slice(0, 2).join("/")
         : specifier.split("/")[0];

@@ -73,7 +73,7 @@ try {
     effectivePolicy.properties.schemaVersion.const,
     cohort.configurationSchemaVersion,
   );
-  assert.equal(cohort.eventSchemaVersion, 4);
+  assert.equal(cohort.eventSchemaVersion, 5);
   for (const name of [
     "runJsonQuality",
     "checkJsonDocument",

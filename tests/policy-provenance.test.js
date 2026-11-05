@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
+  cpSync,
   readFileSync,
   writeFileSync,
   mkdirSync,
@@ -285,9 +286,11 @@ function resolverPreimage(directory) {
 function independentResolverDigest(directory) {
   return hash(Buffer.from(resolverPreimage(directory), "utf8"));
 }
-function copiedInputs(t) {
-  const directory = temporaryDirectory(t, "json-policy-input-manifest-"),
-    inventory = readPolicyInputInventory(root);
+function copiedInputs(
+  t,
+  directory = temporaryDirectory(t, "json-policy-input-manifest-"),
+) {
+  const inventory = readPolicyInputInventory(root);
   for (const path of [
     ...inventory.files,
     "package.json",
@@ -355,6 +358,55 @@ test("resolver inventory is canonical sorted local paths and selected dependenci
   }
   projectPolicyInputs(directory);
 });
+
+for (const layout of ["hoisted", "nested"]) {
+  test(`resolver inventory admits ${layout} installed dependencies without importing their bytes`, (t) => {
+    const fixture = temporaryDirectory(t, "json-policy-installed-layout-"),
+      modules = join(fixture, "node_modules"),
+      directory = join(modules, "@hadden-industries", "json-quality");
+    copiedInputs(t, directory);
+    const dependency =
+      layout === "hoisted"
+        ? join(modules, "ajv")
+        : join(directory, "node_modules", "ajv");
+    cpSync(join(root, "node_modules", "ajv"), dependency, {
+      recursive: true,
+    });
+    // Exercise the real resolver against genuine installed dependency files.
+    assert.equal(
+      policyInputManifest(directory),
+      readFileSync(join(root, policyInputInventoryPath), "utf8"),
+    );
+    assert.equal(
+      policyResolverFingerprint(directory),
+      policyResolverFingerprint(root),
+    );
+    const configuration = join(directory, "src/configuration.js");
+    writeFileSync(
+      configuration,
+      'import "eslint";\n' + readFileSync(configuration, "utf8"),
+    );
+    assert.throws(
+      () => policyInputManifest(directory),
+      /Policy import requires a declared runtime dependency: eslint/u,
+    );
+    const escaping = relative(
+      dirname(configuration),
+      join(dependency, "dist/2020.js"),
+    )
+      .split(sep)
+      .join("/");
+    writeFileSync(
+      configuration,
+      `import ${JSON.stringify(escaping)};\n` +
+        readFileSync(join(root, "src/configuration.js"), "utf8"),
+    );
+    assert.throws(
+      () => policyInputManifest(directory),
+      /Invalid repository-relative path|Policy local imports must not enter dependency packages/u,
+    );
+  });
+}
 
 test("runtime fingerprint hashes current input bytes and selected declarations without a trailing LF", (t) => {
   const { directory, inventory } = copiedInputs(t),
