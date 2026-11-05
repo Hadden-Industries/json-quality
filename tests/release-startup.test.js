@@ -17,6 +17,35 @@ import { sha256 } from "../scripts/release-contract.js";
 import { runReleaseCommand } from "../scripts/release-command.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+
+test("release preparation refuses ambiguous and incomplete operations before reading release inputs", () => {
+  const scripts = JSON.parse(readFileSync(join(root, "package.json"))).scripts;
+  const freeze = scripts["freeze:release-manifest"].split(" ").slice(1);
+  const emit = scripts["emit:release-matrix"].split(" ").slice(1);
+  for (const args of [
+    freeze,
+    [...freeze, "first", "second"],
+    [...emit, "unexpected-directory"],
+    ["scripts/release-prepare.js", "resolve"],
+    ["scripts/release-prepare.js", "directory-only"],
+  ]) {
+    const result = spawnSync(process.execPath, args, {
+      cwd: root,
+      env: { ...process.env, RELEASE_MATRIX: "malformed" },
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 10000,
+    });
+    assert.equal(result.error, undefined);
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stderr,
+      /Expected freeze-manifest DIRECTORY or resolve-matrix/u,
+    );
+    assert.equal(result.stdout, "");
+  }
+});
+
 const blockPackages = `
   import { registerHooks } from "node:module";
   registerHooks({ resolve(specifier, context, nextResolve) {
@@ -38,7 +67,7 @@ const effectCommand = (phase) => {
   }
   return [
     ...JSON.parse(readFileSync(join(root, "package.json"))).scripts[
-      "release:effect"
+      "execute:release-action"
     ].split(" "),
     phase,
   ];

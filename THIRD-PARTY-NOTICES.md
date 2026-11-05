@@ -3,9 +3,9 @@
 `CODE_OF_CONDUCT.md` adapts Contributor Covenant 3.0 under CC BY-SA 4.0.
 Its separate policy-text license does not change the JSON Quality code's AGPL-3.0-only license.
 
-Repository Markdown development tooling uses `@hadden-industries/markdown-quality` (AGPL-3.0-only) from the exact source recorded in `tooling/markdown/source.json`.
-Its retained core and platform archives include their upstream notices, native component inventories and source-offer material.
-This isolated development graph is not included in the JSON Quality npm package.
+Repository Markdown development tooling uses the published `@hadden-industries/markdown-quality` package (AGPL-3.0-only) as a root development dependency.
+Installed packages retain their upstream licenses and notices; the root `package-lock.json` records versions and integrity.
+This development tooling is not included in the JSON Quality npm runtime package.
 
 JavaScript runtime dependencies are Ajv (MIT) and Prettier (MIT).
 ESLint (MIT) and its official JSON plugin (Apache-2.0) are development dependencies; the latter supports the immutable finite-v1 test oracle and is not a runtime JSON reader.

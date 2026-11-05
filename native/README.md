@@ -62,7 +62,7 @@ Each session owns cleanup.
 Use the same entry point on Windows and Linux, with an existing external owned workspace:
 
 ```sh
-npm run native:build -- --workspace /absolute/owned/native-workspace --jobs 2
+npm run build:native -- --workspace /absolute/owned/native-workspace --jobs 2
 ```
 
 The launcher delegates to `native/build.py`.
@@ -74,13 +74,13 @@ The Windows producer uses its installed MSVC/Windows SDK through CMake; Linux us
 The producer already supports digest-verified dependency reuse:
 
 ```sh
-npm run native:build -- --workspace /absolute/owned/native-workspace --archive boost=/cache/boost_1_92_0.tar.gz
+npm run build:native -- --workspace /absolute/owned/native-workspace --archive boost=/cache/boost_1_92_0.tar.gz
 ```
 
 `--archive NAME=PATH` reuses only bytes matching the committed archive digest.
 `--reuse-source NAME=PATH` additionally compares every selected source byte against that archive before read-only reuse.
 Neither option admits an unverified cache or replaces component/source identity checks.
-The final JSON result names its artifact directory; stage it explicitly with `npm run native:stage -- --artifacts ABSOLUTE_PATH --replace`.
+The final JSON result names its artifact directory; stage it explicitly with `npm run stage:native -- --artifacts ABSOLUTE_PATH --replace`.
 Production and staging are separate from installed/runtime qualification.
 
 For hosted production, `native.yml` is the manual entry point and `native-producer.yml` is the reusable workflow used by deliberate acceptance.

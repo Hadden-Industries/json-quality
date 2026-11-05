@@ -17,7 +17,7 @@ Dated [plans](https://github.com/Hadden-Industries/json-quality/tree/main/docs/p
 | Deliberate CI and equal-input reuse  | [CI trust](ci-trust.md), [contributing](../CONTRIBUTING.md)                                 |
 | Releases, provenance and recovery    | [Release operations](release-operations.md), [changelog](../CHANGELOG.md)                   |
 | Scope selection and performance      | [Dependency graph](dependency-graph-and-tests.md), [performance](javascript-performance.md) |
-| Isolated Markdown tooling            | [Markdown quality](markdown-quality.md)                                                     |
+| Markdown development tooling         | [Markdown quality](markdown-quality.md)                                                     |
 
 The [native producer guide](https://github.com/Hadden-Industries/json-quality/blob/main/native/README.md) belongs to the source repository; the core package contains no native producer directory or platform payload.
 

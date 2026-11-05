@@ -115,8 +115,13 @@ export async function freezeRelease(directory, matrix, version) {
   return release;
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  if (process.argv[2] === "resolve") {
-    assert.equal(process.argv.length, 3);
+  const [operation, ...arguments_] = process.argv.slice(2);
+  assert.ok(
+    (operation === "resolve-matrix" && arguments_.length === 0) ||
+      (operation === "freeze-manifest" && arguments_.length === 1),
+    "Expected freeze-manifest DIRECTORY or resolve-matrix.",
+  );
+  if (operation === "resolve-matrix") {
     manualControl(process.env, "qualification");
     const { resolveQualificationMatrix } = await import("./node-matrix.js");
     const version = validVersion(process.env.RELEASE_VERSION);
@@ -126,9 +131,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       `matrix=${JSON.stringify(await resolveQualificationMatrix())}\n`,
     );
   } else {
-    assert.equal(process.argv.length, 3);
     await freezeRelease(
-      process.argv[2],
+      arguments_[0],
       JSON.parse(process.env.RELEASE_MATRIX),
       process.env.RELEASE_VERSION,
     );

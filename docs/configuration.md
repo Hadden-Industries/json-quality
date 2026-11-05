@@ -95,7 +95,7 @@ const validateEffectivePolicy = ajv.compile(effectivePolicy);
 
 `contract-cohort` inventories the coupled configuration, source-contract, event and native-protocol versions.
 Upgrade the core and rebuilt platform companions together.
-`npm run check:schemas` checks strict schema admission; `build:types` regenerates source/schema declarations.
+`npm run check:public-schemas` checks strict admission for the four exported schemas; `build:types` regenerates source/schema declarations.
 Types do not replace runtime validation.
 
 Producer, installation, acquisition and verification controls belong to their documented operations.

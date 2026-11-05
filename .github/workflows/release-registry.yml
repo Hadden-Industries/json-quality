@@ -53,7 +53,7 @@ jobs:
       - uses: ./.github/actions/setup-producer
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: npm run release:admit -- registry "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
+        run: npm run admit:release-evidence -- registry "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
       - id: matrix
         env:
           RELEASE_DIRECTORY: ${{ runner.temp }}/admitted
@@ -79,8 +79,8 @@ jobs:
       - uses: ./.github/actions/setup-producer
       - name: Retain publisher verifier and provision supported consumer npm
         run: |
-          npm run ci:producer-toolchain
-          npm run ci:consumer-npm -- "${{ runner.temp }}/consumer-npm"
+          npm run export:producer-node-and-npm-paths
+          npm run install:consumer-npm -- "${{ runner.temp }}/consumer-npm"
       - uses: ./.github/actions/download-evidence
         timeout-minutes: 15
         with:
@@ -124,7 +124,7 @@ jobs:
           path: ${{ runner.temp }}/admitted/
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: npm run release:security -- "${{ runner.temp }}/admitted" "${{ runner.temp }}/security"
+        run: npm run verify:release-codeql -- "${{ runner.temp }}/admitted" "${{ runner.temp }}/security"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         if: always()
@@ -156,7 +156,7 @@ jobs:
           path: ${{ runner.temp }}/admitted/
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: npm run release:collect -- "${{ runner.temp }}/admitted" "${{ runner.temp }}/collection"
+        run: npm run collect:registry-evidence -- "${{ runner.temp }}/admitted" "${{ runner.temp }}/collection"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         if: always()

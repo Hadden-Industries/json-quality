@@ -25,37 +25,30 @@ export function checkSecurity(output) {
   const root = fileURLToPath(new URL("../", import.meta.url)),
     observedAt = new Date().toISOString();
   if (output) mkdirSync(output, { recursive: true });
-  const results = [];
-  for (const [name, directory] of [
-    ["root", root],
-    ["markdown", join(root, "tooling", "markdown")],
-  ]) {
-    const graphLockSha256 = createHash("sha256")
-      .update(readFileSync(join(directory, "package-lock.json")))
-      .digest("hex");
-    let raw;
-    try {
-      raw = npmCommand(
-        ["audit", "--json", "--fetch-retries=2", "--fetch-timeout=120000"],
-        {
-          cwd: directory,
-          timeout: budgets.collection,
-          phase: `${name}-complete-graph-audit`,
-        },
-      );
-    } catch (error) {
-      if (output && error.stdout)
-        writeFileSync(join(output, `${name}-audit.json`), error.stdout, {
-          flag: "wx",
-        });
-      throw error;
-    }
-    const report = JSON.parse(raw);
-    if (output)
-      writeFileSync(join(output, `${name}-audit.json`), raw, { flag: "wx" });
-    requireCleanAudit(report);
-    results.push({ name, graphLockSha256, status: "passed" });
+  const graphLockSha256 = createHash("sha256")
+    .update(readFileSync(join(root, "package-lock.json")))
+    .digest("hex");
+  let raw;
+  try {
+    raw = npmCommand(
+      ["audit", "--json", "--fetch-retries=2", "--fetch-timeout=120000"],
+      {
+        cwd: root,
+        timeout: budgets.collection,
+        phase: "root-complete-graph-audit",
+      },
+    );
+  } catch (error) {
+    if (output && error.stdout)
+      writeFileSync(join(output, "root-audit.json"), error.stdout, {
+        flag: "wx",
+      });
+    throw error;
   }
+  const report = JSON.parse(raw);
+  if (output)
+    writeFileSync(join(output, "root-audit.json"), raw, { flag: "wx" });
+  requireCleanAudit(report);
   const result = {
     schemaVersion: 1,
     observedAt,
@@ -64,7 +57,7 @@ export function checkSecurity(output) {
     policySha256: createHash("sha256")
       .update(readFileSync(fileURLToPath(import.meta.url)))
       .digest("hex"),
-    results,
+    results: [{ name: "root", graphLockSha256, status: "passed" }],
   };
   if (output)
     writeFileSync(

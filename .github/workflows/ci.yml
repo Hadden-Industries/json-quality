@@ -23,7 +23,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-producer
       - name: Check complete workflow and action contracts before fan-out
-        run: npm run check:ci
+        run: npm run check:workflow-contracts
       - name: Admit the deliberate request and exact checkout
         env:
           EVENT: ${{ github.event_name }}
@@ -34,7 +34,7 @@ jobs:
         run: |
           node --input-type=module -e 'import assert from "node:assert/strict"; import {execFileSync} from "node:child_process"; const e=process.env; assert.ok(e.EVENT==="pull_request" && e.ACTION==="ready_for_review" && e.DRAFT==="false" || e.EVENT==="workflow_dispatch" && e.REF==="refs/heads/main"); assert.equal(execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim(),e.EXPECTED_SHA);'
       - id: policy
-        run: npm run ci:node-policy
+        run: npm run emit:node-matrix
   product:
     name: Product
     needs: policy
@@ -67,7 +67,7 @@ jobs:
         with:
           fail-on-severity: moderate
           comment-summary-in-pr: never
-      - run: npm run check:dependency-advisories
+      - run: npm run audit:dependencies
   codeql:
     name: CodeQL
     needs: policy

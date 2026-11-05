@@ -312,7 +312,9 @@ test("deliberate triggers and skip-resistant acceptance remain explicit", () => 
     );
   const ci = read("ci.yml");
   assert.ok(
-    ci.jobs.policy.steps.some((step) => step.run === "npm run check:ci"),
+    ci.jobs.policy.steps.some(
+      (step) => step.run === "npm run check:workflow-contracts",
+    ),
   );
   assert.deepEqual(ci.on.pull_request, {
     branches: ["main"],

@@ -39,7 +39,7 @@ export function projectResourceLimits({ write = false } = {}) {
     if (!isDeepStrictEqual(resources[wireName], rule)) {
       if (!write)
         throw new Error(
-          "Event resource contract drifted; run npm run sync:resources.",
+          "Event resource contract drifted; run npm run sync:event-resources.",
         );
       resources[wireName] = rule;
     }

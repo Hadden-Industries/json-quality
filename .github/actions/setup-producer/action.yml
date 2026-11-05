@@ -22,10 +22,7 @@ runs:
         fi
     - name: Install frozen producer dependencies
       shell: bash
-      run: npm run ci:install
-    - name: Install the pinned Markdown development toolchain
-      shell: bash
-      run: npm run install:markdown
+      run: npm run install:producer-dependencies
     - name: Retain producer executables for direct evidence commands and floor lanes
       shell: bash
-      run: npm run ci:producer-toolchain
+      run: npm run export:producer-node-and-npm-paths

@@ -52,7 +52,7 @@ test("all current Node declarations share the projector inventory and policy", (
   assert.deepEqual(
     projectNodeSupport(files),
     files,
-    "Run npm run sync:node after editing the runtime policy",
+    "Run npm run sync:node-support after editing the runtime policy",
   );
   assert.equal(
     JSON.parse(files["package-lock.json"]).packages[""].engines.node,

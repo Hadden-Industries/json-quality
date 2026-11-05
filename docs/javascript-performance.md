@@ -25,9 +25,9 @@ Prettier debug verification keeps its per-changed-source isolation and exact nat
 Run these from the repository's installed development environment:
 
 ```sh
-npm run bench:check
-npm run bench:format
-npm run check:perf
+npm run benchmark:json-checking
+npm run benchmark:json-formatting
+npm run benchmark:orchestration
 node scripts/bench-orchestration.js --workload format --files 500 --repetitions 20 --assert-batching --output /absolute/path/format.json
 node scripts/bench-orchestration.js --workload format --files 100 --changed 100 --repetitions 5 --output /absolute/path/changed.json
 node scripts/bench-orchestration.js --workload check --files 30 --records 50000 --repetitions 5 --output /absolute/path/census.json

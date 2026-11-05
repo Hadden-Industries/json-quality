@@ -91,7 +91,7 @@ export function projectPolicyInputs(directory = root, { write = false } = {}) {
   if (write) writeFileSync(path, expected);
   else if (readFileSync(path, "utf8") !== expected)
     throw new Error(
-      "Policy resolver input manifest drifted; run npm run sync:policy.",
+      "Policy resolver input manifest drifted; run npm run sync:policy-inputs.",
     );
 }
 if (process.argv[1] === fileURLToPath(import.meta.url))

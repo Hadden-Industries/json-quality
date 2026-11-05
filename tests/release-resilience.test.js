@@ -226,6 +226,45 @@ test("registry availability retries exact coordinates with a shared deadline and
   assert.equal(calls, 1);
 });
 
+test("workflow contracts reject undeclared npm scripts in package, action and workflow callers", () => {
+  const cases = [
+    [
+      "package.json",
+      (document) => {
+        document.scripts["check:repository"] += " && npm run check:missing";
+      },
+    ],
+    [
+      ".github/actions/setup-producer/action.yml",
+      (document) => {
+        document.runs.steps.push({
+          shell: "bash",
+          run: "npm run check:missing",
+        });
+      },
+    ],
+    [
+      ".github/workflows/ci.yml",
+      (document) => {
+        document.jobs.policy.steps.push({ run: "npm run check:missing" });
+      },
+    ],
+  ];
+  for (const [path, mutate] of cases) {
+    const document = parseDocument(
+      readFileSync(new URL("../" + path, import.meta.url), "utf8"),
+    ).toJS();
+    mutate(document);
+    assert.throws(
+      () =>
+        checkWorkflows({
+          overrides: { [path]: JSON.stringify(document) },
+        }),
+      /undeclared npm script check:missing/u,
+    );
+  }
+});
+
 test("workflow contracts reject reuse proof whose producer expires before the proof horizon", () => {
   const source = readFileSync(
     new URL("../.github/workflows/qualification.yml", import.meta.url),
@@ -252,7 +291,7 @@ test("release contracts reject missing setup, wrong draft authority and lost fai
       ".github/actions/setup-producer/action.yml",
       (doc) => {
         doc.runs.steps = doc.runs.steps.filter(
-          (step) => step.run !== "npm run ci:install",
+          (step) => step.run !== "npm run install:producer-dependencies",
         );
       },
       /frozen dependencies/u,
@@ -260,7 +299,8 @@ test("release contracts reject missing setup, wrong draft authority and lost fai
     [
       "package.json",
       (doc) => {
-        doc.scripts["release:effect"] = "node scripts/release-effects.js";
+        doc.scripts["execute:release-action"] =
+          "node scripts/release-effects.js";
       },
       /startup failures/u,
     ],

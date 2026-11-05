@@ -24,6 +24,16 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     assert.equal(document.errors.length, 0, `${path}: invalid YAML`);
     return document.toJS();
   };
+  const scripts = read("package.json").scripts;
+  const scriptReferences = (path, command) => {
+    for (const [, name] of command.matchAll(/\bnpm run ([a-z][a-z0-9:-]*)/gu))
+      assert.ok(
+        Object.hasOwn(scripts, name),
+        `${path}: undeclared npm script ${name}`,
+      );
+  };
+  for (const [name, command] of Object.entries(scripts))
+    scriptReferences(`package.json/scripts/${name}`, command);
   const actions = new Map();
   const pinned = (path, uses) => {
     if (uses && !uses.startsWith("./"))
@@ -70,8 +80,10 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           !Object.hasOwn(step, "timeout-minutes"),
           `${path}: composite-step timeout is unsupported`,
         );
-        if (step.run)
+        if (step.run) {
           assert.ok(step.shell, `${path}: composite command needs a shell`);
+          scriptReferences(path, step.run);
+        }
       }
     }
     actions.set(`./.github/actions/${entry.name}`, action);
@@ -137,12 +149,13 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     .steps;
   assert.ok(
     producerSteps?.some(
-      (step) => step.run === "npm run ci:install" && !step.if,
+      (step) =>
+        step.run === "npm run install:producer-dependencies" && !step.if,
     ),
     "Release producer must install its frozen dependencies unconditionally",
   );
   assert.equal(
-    read("package.json").scripts["release:effect"],
+    scripts["execute:release-action"],
     "node scripts/release-command.js",
     "Release effects must retain startup failures",
   );
@@ -187,7 +200,9 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       if (effect < 0) continue;
       if (writer !== "github")
         assert.ok(
-          steps[effect].run.startsWith(`npm run release:effect -- ${writer} `),
+          steps[effect].run.startsWith(
+            `npm run execute:release-action -- ${writer} `,
+          ),
           `${path}: effect must use the startup-safe dispatcher`,
         );
       assert.ok(
@@ -294,6 +309,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         inputs(path, job.with, called.on.workflow_call?.inputs);
       }
       for (const step of job.steps ?? []) {
+        if (step.run) scriptReferences(path, step.run);
         pinned(path, step.uses);
         checkoutRevision(path, step);
         assert.ok(

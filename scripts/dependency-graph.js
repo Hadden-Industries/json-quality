@@ -150,7 +150,7 @@ if (
     });
     if (!values.output)
       throw new Error(
-        "Use graph:dependencies -- --output ABSOLUTE_EXTERNAL_DIRECTORY [--focus PATH].",
+        "Use generate:dependency-graphs -- --output ABSOLUTE_EXTERNAL_DIRECTORY [--focus PATH].",
       );
     const report = await writeDependencyGraph(values.output, {
       focus: values.focus,

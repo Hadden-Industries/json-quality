@@ -124,7 +124,7 @@ Confirm the provider's matrix environment (`key`, `language`, `os`) and category
 Record layout phase cost, scan-build cost, critical-path elapsed time and artifact size independently.
 Until these hosted observations pass, local source checks establish neither extraction completeness nor activated hosted qualification.
 
-`npm run check:ci` checks the complete local workflow/action graph before the candidate policy job starts expensive fan-out.
+`npm run check:workflow-contracts` checks the complete local workflow/action graph before the candidate policy job starts expensive fan-out.
 The same owner, `scripts/check-workflows.js`, follows [OwlAPI's workflow governance](https://github.com/Hadden-Industries/owlapi/blob/36e28374447d94d9734960aaed6d3ab4be52ca17/scripts/workflow-governance.mjs): it validates YAML, native action entries, required/declared inputs, immutable external action references and transfer deadlines against the shared budget module.
 It also rejects checkout revisions derived from step or job outputs, including inside composite actions.
 JSON Quality's native producer builds this repository's checked-out source and has no upstream revision output to replace.
