@@ -23,6 +23,10 @@ Once publication consumes a version, a pilot defect requires a new version and f
 Its contracts use cohort/events 5, configuration/source-contract/native protocol 4, component schema 4 and Node-API 9.
 Zero-configuration policy resolution remains supported; preparing source does not publish it or select it in consumers.
 Matching new native artifacts and candidate qualification remain required before claiming installed or release acceptance.
+Produce both platform components from the reviewed source with the [native workflow](https://github.com/Hadden-Industries/json-quality/blob/main/.github/workflows/native.yml), then verify and stage their immutable payloads through the maintained native staging owner.
+Commit those platform asset changes before freezing the release archives: packing requires clean committed source and uses the checked-in `native/prebuilt` family.
+A standalone native workflow run does not supply components to the release qualification workflow automatically.
+The resulting candidate and its exact frozen archive family require their own installed-consumer and release qualification; passing focused native checks alone does not establish that acceptance.
 Formal release publication and HISEW adoption require their owner's separate decisions.
 Public API/schema exports, executable artifacts, CLI entrypoints and consumer Node floors remain separate compatibility contracts.
 

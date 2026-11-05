@@ -1,7 +1,8 @@
 # Shared native core
 
 This directory contains the private source integration of the [accepted oversized JSON design](https://github.com/Hadden-Industries/json-quality/blob/main/docs/plans/2026-10-23-oversized-json-design-checkpoint.md).
-Public API, CLI, providers and schemas now use cohort 4 and this single core.
+Public API, CLI, providers and schemas use the versions declared by the [current contract cohort](../schemas/contract-cohort.json) and this single core.
+Retained component manifests and embedded native identities must match that complete version vector before native admission succeeds.
 The retired product checker and document/result envelopes are absent from the runtime; the immutable finite-v1 oracle remains development-only.
 Final platform, transported-package, rights, review and consumer acceptance are still separate qualification work.
 
@@ -84,9 +85,19 @@ The final JSON result names its artifact directory; stage it explicitly with `np
 Production and staging are separate from installed/runtime qualification.
 
 For hosted production, `native.yml` is the manual entry point and `native-producer.yml` is the reusable workflow used by deliberate acceptance.
-Dispatching `native.yml` with `run_checks: false` produces source-bound, unqualified payloads for assembly; the default and PR acceptance retain qualification and sanitizer checks.
+Dispatching `native.yml` with `run_checks: true` and `verification_profile: cli-community` builds both platforms and runs the selected CLI/native checks against the newly staged components.
+This focused profile does not establish transported-package or release acceptance.
+The default `full` profile retains complete native qualification and sanitizer checks.
+Dispatching with `run_checks: false` and `verification_profile: full` produces source-bound, unqualified payloads for assembly.
 A hosted build needs the exact source ref available on GitHub; no entry point silently pushes source, rewrites a manifest or adopts a component.
 Compiler/sanitizer diagnostics remain in native job logs; only component payloads with a staging/package consumer are artifacts.
+
+Download both platform payloads by their immutable artifact IDs from the same successful producer run.
+Verify the recorded source commit, platform and source-input identity, then stage each exact absolute artifact directory through `native/stage.py`.
+Staging independently checks the current producer/control inputs and copied member digests; it publishes `component.json` last and reports qualification as pending.
+Commit the resulting verified platform asset changes as a new candidate before packing: the packer requires clean committed source and consumes `native/prebuilt`, not the workflow's remote artifacts.
+The release qualification workflow does not automatically adopt a separate native build's outputs.
+Qualify the resulting frozen core/platform archives in the required Windows/Linux runtime lanes and root/isolated layouts, following [release operations](../docs/release-operations.md).
 
 Rebuild both platforms when any embedded first-party producer/control input changes.
 The input inventory includes the producer and configuration/source-contract schema bytes, so a dialect/identifier migration requires new binaries even if the C++ source is unchanged.
