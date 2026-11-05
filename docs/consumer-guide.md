@@ -27,6 +27,16 @@ The next release uses the stable SemVer coordinate selected by [`package.json.ve
 Select that exact qualified version explicitly; an unversioned install follows `latest` and need not select the pilot.
 Promotion changes availability of the same published artifacts after acceptance; it does not rebuild them under a different version.
 
+### Node.js runtime boundary
+
+The CLI, root SDK and `./eslint` integration are Node.js tooling, including when used as development dependencies in frontend projects.
+Do not import the JavaScript entry points into browser application code.
+Both JavaScript exports put an explicit browser refusal before their Node condition and refuse unmatched environments.
+Their TypeScript declarations are selected within the Node condition; use Node-aware module resolution such as `NodeNext`.
+Browser conditions also refuse declarations, and generic bundler resolution without the Node condition cannot select them.
+The four JSON schemas and `./contract-cohort` remain independent data exports under all of these conditions.
+Reading those resources does not make the SDK browser-compatible.
+
 ### Advanced installation verification
 
 Consumers can optionally verify package-family integrity independently of installation, including in an isolated tooling graph.

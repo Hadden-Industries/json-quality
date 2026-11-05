@@ -3,6 +3,12 @@
 The consumer minimum is the oldest runtime justified by production dependencies and qualified package behavior.
 Use current security patches for ordinary operation; a compatibility floor is not a security recommendation.
 
+The CLI, SDK and ESLint integration target Node.js tooling rather than browser application execution.
+Frontend repositories may use them as development dependencies in Node.js build and CI workflows on the supported platforms.
+The root SDK and `./eslint` exports explicitly refuse browser conditions, including when Node is also selected, and have no fallback for unmatched environments.
+Their declarations require Node-aware TypeScript resolution such as `NodeNext`.
+The schema and cohort JSON subpaths remain independently accessible as data; they do not provide a browser SDK.
+
 <!-- node-support:start -->
 
 Installability and compatibility floor: Node >=22.13.0.

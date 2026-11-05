@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/%40hadden-industries%2Fjson-quality)](https://www.npmjs.com/package/@hadden-industries/json-quality) [![CI](https://github.com/Hadden-Industries/json-quality/actions/workflows/ci.yml/badge.svg)](https://github.com/Hadden-Industries/json-quality/actions/workflows/ci.yml) [![Node](https://img.shields.io/badge/node-supported-green)](docs/node-runtime-compatibility.md) [![AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 
-One CLI and typed ESM library for strict JSON, JSONL and NDJSON checking, canonical formatting and explicit Unicode NFC repair.
+One CLI and typed ESM library for Node.js, providing strict JSON, JSONL and NDJSON checking, canonical formatting and explicit Unicode NFC repair.
 Package defaults check syntax, duplicate decoded keys, numeric safety, Unicode, key hygiene and presentation without a configuration file.
 
 ## Why use it
@@ -25,6 +25,14 @@ Formatting preserves numeric spelling; it cannot repair an unsafe number by choo
 - You need application-schema validation or domain correctness; shared JSON quality does not establish either.
 - You need generic in-place JSONL/NDJSON repair, rewriting another producer's lockfile, or atomic rollback of a multi-file batch; those operations are outside the generic writer's authority.
 - You need a browser, a JavaScript-only runtime, macOS, ARM or Linux musl; the current native platform set is Windows x64 and Linux x64/glibc.
+
+## Runtime support
+
+The CLI, SDK and ESLint integration run in Node.js for development, build and CI workflows on the supported native platforms.
+Frontend projects can install the package as a development dependency and run its tools in Node.js; keep its JavaScript entry points out of browser application code.
+The root SDK and `./eslint` exports reject browser conditions and environments that do not select the Node condition.
+TypeScript consumers use Node-aware resolution such as `NodeNext`; browser and generic bundler resolution cannot select their declarations.
+The five JSON schema/cohort resource exports remain independently accessible; resolving those data files does not establish browser SDK support.
 
 ## Install and first check
 

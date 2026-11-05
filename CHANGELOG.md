@@ -6,6 +6,7 @@ Only an immutable published release establishes release availability.
 
 ## Unreleased
 
+- Declare the SDK and ESLint integration as Node.js-only exports, including their TypeScript declarations; refuse browser and unmatched conditions while preserving the independent JSON schema/cohort exports.
 - Advance the native contract to cohort 6/protocol 5 with accounted, pull-based reply fragments; remove fixed repository path, metadata cell and provider-ID size clamps while retaining frame bounds and caller quotas.
 - Make human path/pointer excerpts and owned-tool termination grace caller controlled, and retain complete Git diagnostics within the selected output budget.
 

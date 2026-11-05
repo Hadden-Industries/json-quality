@@ -1,7 +1,7 @@
 {
   "name": "@hadden-industries/json-quality",
   "version": "1.0.0",
-  "description": "Zero-config strict JSON/JSONL checking, single-document JSON formatting, duplicate-key detection, numeric safety and Unicode NFC repair",
+  "description": "Zero-config strict JSON/JSONL checking and single-document formatting for Node.js, with duplicate-key detection, numeric safety and Unicode NFC repair",
   "license": "AGPL-3.0-only",
   "type": "module",
   "packageManager": "npm@12.2.1",
@@ -45,12 +45,20 @@
   },
   "exports": {
     ".": {
-      "types": "./types/index.d.ts",
-      "import": "./src/index.js"
+      "browser": null,
+      "node": {
+        "types": "./types/index.d.ts",
+        "import": "./src/index.js"
+      },
+      "default": null
     },
     "./eslint": {
-      "types": "./types/eslint/index.d.ts",
-      "import": "./src/eslint/index.js"
+      "browser": null,
+      "node": {
+        "types": "./types/eslint/index.d.ts",
+        "import": "./src/eslint/index.js"
+      },
+      "default": null
     },
     "./configuration-schema": "./schemas/configuration.schema.json",
     "./source-contract-schema": "./schemas/source-contract.schema.json",
