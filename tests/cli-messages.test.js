@@ -195,12 +195,15 @@ test("bounded terminal escaping does not inspect event arguments or source value
   assert.match(text, /named rule or phase/u);
   assert.match(text, /future\\u000aidentifier/u);
   assert.doesNotMatch(text.slice(0, -1), /\p{Cc}/u);
+  // Full failure text is admitted by the report owner, not an implicit renderer
+  // ceiling. The CLI process tests retain actual finite output refusal coverage.
+  const message = "x".repeat(100000);
   assert.ok(
     renderHumanEvent({
       type: "failure",
       code: "failed",
-      message: "x".repeat(100000),
-    }).length < 2400,
+      message,
+    }).includes(message),
   );
 });
 

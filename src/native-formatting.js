@@ -153,6 +153,7 @@ export async function formatSource(
           signal: operationSignal,
           timeout: minimumDuration(remaining, selected.admission.maxToolTimeMs),
           maximumOutputBytes: selected.admission.maxToolOutputBytes,
+          terminationGraceMs: selected.runtime.terminationGraceMs,
         },
       );
     }

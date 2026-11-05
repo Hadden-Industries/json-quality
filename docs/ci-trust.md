@@ -29,7 +29,7 @@ Source-only qualification refuses policy requirements for native sources, origin
 Use the complete trusted repository adapter to discharge those obligations.
 It also makes no application-domain, archive-meaning or installation-integrity claim.
 
-Output is cohort-5 NDJSON, with correlated `execution`, source/finding/terminal events and final `execution-terminal`.
+Output uses event-version-5 NDJSON, with correlated `execution`, source/finding/terminal events and final `execution-terminal`.
 Execution metadata names trusted/candidate commits, configuration origin and policy-input digests, core source identity and `immutable-git-json` scope.
 `trustedPolicyBlobId` is present only for `git-blob` and equals its origin blob ID; `git-absence` omits it.
 Only the final terminal closes inventory, diagnostic and source-observation obligations.

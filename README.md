@@ -28,7 +28,7 @@ Formatting preserves numeric spelling; it cannot repair an unsafe number by choo
 
 ## Install and first check
 
-This README describes the current source candidate selected by [`package.json.version`](package.json), using contract cohort **5**.
+This README describes the current source candidate selected by [`package.json.version`](package.json), using contract cohort **6**.
 The owner selected that stable SemVer coordinate for the next release, with initial npm availability under `pilot` and promotion to `latest` only after acceptance of the same artifacts.
 Matching native builds, hosted checks and installed-package acceptance for that candidate remain pending; source examples do not establish registry availability.
 Choose a published, qualified version whose documentation matches these contracts, and replace `VERSION` below with that exact version:

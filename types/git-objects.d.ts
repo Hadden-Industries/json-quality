@@ -1,8 +1,15 @@
-/** Fixed-size metadata query rejects a tree/tag identity posing as a commit.
- * No source body is buffered through execFile.
+/** Caller-bounded metadata query rejects a tree/tag identity posing as a commit.
+ * Source bodies use the independently streamed blob path.
  */
 export declare function assertGitCommit(
-  /** @type {*} */ { executable, root, sha, capacities, signal }: any,
+  /** @type {*} */ {
+    executable,
+    root,
+    sha,
+    capacities,
+    signal,
+    terminationGraceMs,
+  }: any,
 ): Promise<void>;
 /** Select an external native executable, then bind its canonical path/identity
  * for this operation. JSON data never supplies an executable or Git arguments.

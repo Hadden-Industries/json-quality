@@ -1,7 +1,7 @@
 # Resource controls
 
 Cohort 4 introduced caller overrides for every package-owned resource quota.
-The current contract cohort 5 retains those configuration-schema-4 controls unchanged.
+The current contract cohort 6 extends configuration-schema-4 controls with human display and owned-tool termination settings; native protocol 5 carries larger metadata in bounded reply fragments.
 `schemas/configuration.schema.json` owns the names, ranges and defaults.
 Native build controls, API resolution, CLI flags and event resources use that authority.
 
@@ -21,9 +21,16 @@ The former hidden one-second qualification reporting timeout and 2,048-character
 Invalid or conflicting invocation controls cannot authorize unlimited reporting, and resource-looking filenames after `--` remain literal data.
 Failed sinks are never retried; failure-report delivery cannot turn operational exit 2 into success.
 
-The unreleased cohort-5 event schema admits complete diagnostic messages within the selected output budget and continues to accept historical `truncated: true` failure events.
-Consumers retaining a pre-fix schema copy must refresh it before accepting extended messages; there is no change to event fields, native protocol 4 or the native cohort inputs.
+The unreleased version-5 event schema admits complete diagnostic messages within the selected output budget and continues to accept historical `truncated: true` failure events.
+Consumers retaining a pre-fix schema copy must refresh it before accepting extended messages and the extended resource snapshot.
 This source correction does not establish published-release availability.
+
+`maxHumanPathCodePoints` and `maxHumanPointerCodePoints` select terminal display excerpts before control-character escaping; `null` keeps the full text.
+They are presentation controls: complete machine events and all integrity decisions retain their existing meaning.
+`terminationGraceMs` selects the time between cooperative termination and forced termination for formatter verification, Git commit-type and Git ignore tool processes; `null` disables forced escalation.
+Git diagnostics use `maxGitOutputBytes`, including the commit-type probe, rather than a hidden 64-byte or 4-KiB buffer.
+Long finite Git probe deadlines use rearmed timers and retain their complete selected duration.
+Native repository paths and metadata follow the selected request/path, managed-allocation, temporary-storage and output budgets; a transport frame is a chunk, not a complete-metadata ceiling.
 
 | Admission control                       | Default     | Scope                                                                                       |
 | --------------------------------------- | ----------- | ------------------------------------------------------------------------------------------- |
@@ -41,17 +48,20 @@ This source correction does not establish published-release availability.
 | `maxRequestIdCodePoints`                | 1,024       | Unicode scalar count of request correlation.                                                |
 | `maxRequestBytes`                       | 50,331,648  | Request/control admission; payloads travel separately.                                      |
 | `maxRequestPathCodePoints`              | 32,768      | Literal path/control identity admission.                                                    |
+| `maxHumanPathCodePoints`                | 512         | Human path excerpts, measured in Unicode scalar values before escaping.                     |
+| `maxHumanPointerCodePoints`             | 256         | Human JSON pointer excerpts, measured in Unicode scalar values before escaping.             |
 
 Positive safe-integer overrides are validated without coercion.
 Counts and lengths on the native wire and in events use canonical decimal strings.
 Disabling admission does not remove physical address-space, filesystem, database or protocol integer limits.
 
-| Runtime control         | Default       | Contract                                               |
-| ----------------------- | ------------- | ------------------------------------------------------ |
-| `maxManagedMemoryBytes` | 33,554,432    | Managed checker/accounted allocation quota.            |
-| `maxTemporaryBytes`     | 2,147,483,648 | Total owned spill/scratch quota.                       |
-| `maxNestingDepth`       | 128           | Strict-parser nesting quota, with no fixed 4096 cap.   |
-| `maxCheckTimeMs`        | 120,000       | Aggregate elapsed-time quota, with no one-day ceiling. |
+| Runtime control         | Default       | Contract                                                       |
+| ----------------------- | ------------- | -------------------------------------------------------------- |
+| `maxManagedMemoryBytes` | 33,554,432    | Managed checker/accounted allocation quota.                    |
+| `maxTemporaryBytes`     | 2,147,483,648 | Total owned spill/scratch quota.                               |
+| `maxNestingDepth`       | 128           | Strict-parser nesting quota, with no fixed 4096 cap.           |
+| `maxCheckTimeMs`        | 120,000       | Aggregate elapsed-time quota, with no one-day ceiling.         |
+| `terminationGraceMs`    | 1,000         | Owned tool termination grace; null disables forced escalation. |
 
 Every numeric quota accepts a positive safe integer or `null`; the native wire uses canonical decimal strings or `null`.
 No timer is armed for an unlimited deadline.

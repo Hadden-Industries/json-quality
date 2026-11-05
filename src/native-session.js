@@ -3,6 +3,7 @@
 // and protocol use the same cohort; no alternate checker.
 import { encodeNativeControl } from "./native-control.js";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
+import { resourceDefaults } from "./resource-profile.js";
 
 /** Encode one bounded wire frame, without accepting payload data as control. */
 export function nativeFrame(
@@ -19,7 +20,10 @@ export function nativeFrame(
 }
 
 /** Decode at most two complete bounded response frames from a native exchange. */
-export function decodeNativeFrames(/** @type {*} */ bytes) {
+export function decodeNativeFrames(
+  /** @type {*} */ bytes,
+  fragmentedJson = false,
+) {
   if (!Buffer.isBuffer(bytes) || bytes.length > 131082)
     throw new Error("native-response-capacity");
   const /** @type {any[]} */ result = [];
@@ -29,7 +33,7 @@ export function decodeNativeFrames(/** @type {*} */ bytes) {
     const kind = String.fromCharCode(bytes[offset]),
       length = bytes.readUInt32LE(offset + 1);
     if (
-      !["J", "D"].includes(kind) ||
+      !["J", "j", "D"].includes(kind) ||
       length > 65536 ||
       offset + 5 + length > bytes.length
     )
@@ -37,7 +41,10 @@ export function decodeNativeFrames(/** @type {*} */ bytes) {
     const body = bytes.subarray(offset + 5, offset + 5 + length);
     result.push({
       kind,
-      value: kind === "J" ? JSON.parse(body.toString("utf8")) : body,
+      value:
+        kind === "J" && !fragmentedJson
+          ? JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body))
+          : body,
     });
     offset += 5 + length;
   }
@@ -54,6 +61,8 @@ export class NativeSession {
   #owner;
   #sequence = 0n;
   /** @type {number | null} */ #maximumControlBytes = 4096;
+  /** @type {number | null} */ #maximumReplyBytes =
+    resourceDefaults("capacityLimits").maxToolOutputBytes;
   /** @type {*} */ #pending;
   /** @type {*} */ #closing;
   #closed = false;
@@ -125,6 +134,37 @@ export class NativeSession {
         ),
       );
     if (!frames) throw new Error("native-response-boundary");
+    if (frames[0]?.kind === "j") {
+      const parts = [];
+      let length = 0;
+      while (true) {
+        if (
+          frames.length !== 1 ||
+          !["j", "J"].includes(frames[0].kind) ||
+          !Buffer.isBuffer(frames[0].value)
+        )
+          throw new Error("native-fragment-boundary");
+        const part = frames[0].value;
+        length += part.length;
+        if (
+          this.#maximumReplyBytes !== null &&
+          length > this.#maximumReplyBytes
+        )
+          throw new Error("native-response-byte-capacity");
+        parts.push(part);
+        if (frames[0].kind === "J") break;
+        frames = decodeNativeFrames(
+          await this.#binding.exchange(this.#handle, nativeFrame("R")),
+          true,
+        );
+      }
+      const value = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(
+          Buffer.concat(parts, length),
+        ),
+      );
+      frames = [{ kind: "J", value }];
+    }
     const result = frames.find(({ kind }) => kind === "J")?.value;
     if (result?.requestId !== requestId)
       throw new Error("native-response-request");
@@ -145,6 +185,10 @@ export class NativeSession {
     // the native service still admits every ordinary request against its quota.
     this.#maximumControlBytes =
       maximum === null ? null : Math.max(4096, Number(maximum));
+    const replyMaximum =
+      configured.result.resources.admission.maxToolOutputBytes;
+    this.#maximumReplyBytes =
+      replyMaximum === null ? null : Number(replyMaximum);
     return configured;
   }
   capture(

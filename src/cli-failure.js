@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createExecutionDeadline } from "./execution-deadline.js";
 import { resolveExecutionResources } from "./execution-resources.js";
 import { encodeNativeControl } from "./native-control.js";
-import { renderHumanEvent } from "./cli-messages.js";
+import { renderHumanEvent, humanDisplayControls } from "./cli-messages.js";
 import { assertJsonQualityEvent } from "./events.js";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 
@@ -122,7 +122,7 @@ export async function writeCliFailure(
           ),
           Buffer.from("\n"),
         ])
-      : Buffer.from(renderHumanEvent(event));
+      : Buffer.from(renderHumanEvent(event, humanDisplayControls(resources)));
     if (remaining !== null && BigInt(bytes.length) > remaining) return 0n;
     try {
       await deliver(bytes, target, deadline.signal);

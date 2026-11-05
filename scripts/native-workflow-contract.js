@@ -35,7 +35,7 @@ export function checkNativeWorkflowContract({ producer, wrapper }) {
   }
   assert.deepEqual(
     wrapper.on.workflow_dispatch.inputs.verification_profile.options,
-    ["full", "cli-community"],
+    ["full", "cli-community", "resource-controls"],
     message,
   );
   assert.equal(
@@ -90,7 +90,7 @@ export function checkNativeWorkflowContract({ producer, wrapper }) {
       admission.run.trim(),
       `[[ "$PRODUCER_REPOSITORY" == "Hadden-Industries/json-quality" && "$CALLER_REPOSITORY" == "$PRODUCER_REPOSITORY" ]]
 [[ "$PRODUCER_SHA" =~ ^[a-f0-9]{40}$ && "$CALLER_SHA" == "$PRODUCER_SHA" ]]
-case "$VERIFICATION_PROFILE" in full|cli-community) ;; *) echo 'Unknown verification profile' >&2; exit 2;; esac
+case "$VERIFICATION_PROFILE" in full|cli-community|resource-controls) ;; *) echo 'Unknown verification profile' >&2; exit 2;; esac
 [[ "$RUN_CHECKS" == "true" || "$RUN_CHECKS" == "false" ]]
 [[ "$RUN_CHECKS" == "true" || "$VERIFICATION_PROFILE" == "full" ]]`,
       message,
@@ -177,6 +177,48 @@ case "$VERIFICATION_PROFILE" in full|cli-community) ;; *) echo 'Unknown verifica
   );
   for (const name of selectedNames)
     assert.ok(available.has(name), `${message}: unknown exact test ${name}`);
+  const resource = steps.find((step) => step.env?.RESOURCE_CONTROL_TEST_NAMES);
+  assert.equal(
+    resource.if,
+    "inputs.run_checks && inputs.verification_profile == 'resource-controls'",
+    message,
+  );
+  assert.equal(resource["continue-on-error"], undefined, message);
+  const resourceFiles = [
+    "tests/remaining-resource-controls.test.js",
+    "tests/native/resource-metadata.test.mjs",
+    "tests/native/stdio.test.mjs",
+    "tests/native/resource-policy.test.mjs",
+    "tests/native/git-qualification.test.mjs",
+  ];
+  assert.equal(
+    resource.run.trim(),
+    'node --test --test-concurrency=1 --test-name-pattern "$RESOURCE_CONTROL_TEST_NAMES" ' +
+      resourceFiles.join(" "),
+    message,
+  );
+  const resourcePattern = resource.env.RESOURCE_CONTROL_TEST_NAMES;
+  assert.ok(
+    resourcePattern.startsWith("^(") && resourcePattern.endsWith(")$"),
+    message,
+  );
+  const resourceNames = resourcePattern.slice(2, -2).split("|");
+  const resourceAvailable = new Set(
+    resourceFiles.flatMap((file) =>
+      [
+        ...readFileSync(
+          new URL("../" + file, import.meta.url),
+          "utf8",
+        ).matchAll(/\btest\(\s*"([^"\n]+)"/gu),
+      ].map((match) => match[1]),
+    ),
+  );
+  assert.equal(new Set(resourceNames).size, resourceNames.length, message);
+  for (const name of resourceNames)
+    assert.ok(
+      resourceAvailable.has(name),
+      `${message}: unknown resource test ${name}`,
+    );
   assert.equal(producer.jobs.sanitizers.if, fullCondition, message);
   const payload = steps.find((step) => step.id === "payload");
   assert.equal(payload.uses, "./.github/actions/upload-evidence", message);

@@ -1,7 +1,7 @@
-# Native protocol 4, contract cohort 5
+# Native protocol 5, contract cohort 6
 
-The current contract vector uses cohort/events 5, configuration/source-contract/native protocol 4, component schema 4 and Node-API 9.
-The event/cohort migration does not change native framing or protocol command versions.
+The current contract vector uses cohort 6, events 5, configuration/source-contract 4, native protocol 5, component schema 4 and Node-API 9.
+Protocol 5 adds pull-based JSON reply fragments; protocol-4 binaries fail cohort admission and must be rebuilt through the native owner.
 
 Each platform package supplies the standalone executable and Node addon from the same core.
 `@hadden-industries/json-quality-linux-x64` contains `json-quality-native`; `@hadden-industries/json-quality-win32-x64` contains `json-quality-native.exe`.
@@ -15,7 +15,7 @@ Python hosts can use standard-library process and binary-I/O facilities.
 Actual HISEW integration remains a separately governed consumer change.
 
 Before launch, admit the closed component/build manifests and actual artifact hashes against the intended package/source cohort.
-The hello must match protocol 4, the admitted core source identity, ICU 79.1, Unicode 18.0 and SQLite 3.54.1.
+The hello must match protocol 5, the admitted core source identity, ICU 79.1, Unicode 18.0 and SQLite 3.54.1.
 Do not accept a caller-selected executable or a different platform as fallback.
 An absent packaged artifact is unavailable, not a qualified alternative.
 
@@ -33,6 +33,8 @@ Hosts may select per-I/O supervision budgets independently of total operation ti
 | Kind | Direction    | Meaning                                                             |
 | ---- | ------------ | ------------------------------------------------------------------- |
 | `J`  | Core to host | UTF-8 JSON control, acknowledgement, event batch or range metadata. |
+| `j`  | Core to host | Nonfinal raw byte fragment of one JSON control reply.               |
+| `R`  | Host to core | Empty-body pull for the next fragment of the pending JSON reply.    |
 | `D`  | Core to host | Bounded raw range bytes preceding their correlated `J` metadata.    |
 | `E`  | Core to host | Fatal operational error; no successful completion.                  |
 | `C`  | Host to core | Nonfinal fragment of one control JSON request.                      |
@@ -41,6 +43,15 @@ Hosts may select per-I/O supervision budgets independently of total operation ti
 | `F`  | Host to core | Empty-body exact source EOF; closes immutable capture.              |
 
 The complete control envelope uses the selected `maxRequestBytes` admission, with a 4 KiB minimum configuration envelope.
+Large logical replies use one or more `j` fragments followed by one final `J` fragment.
+Accumulate their bytes before UTF-8 decoding or JSON parsing; an individual frame can split a Unicode scalar.
+Send one empty `R` after each `j`; do not replay the original command or mint a new request ID.
+The complete reply retains the original correlation ID, uses accounted managed storage, and is admitted against the remaining `maxToolOutputBytes` allowance including frame headers before delivery.
+An unexpected `R`, a nonempty pull or an interleaved operation is refused.
+`close` remains available after interrupted pulling; partial replies do not establish completion.
+Range-data `D` frames and ordinary single-frame `J` replies keep their existing meanings.
+Repository paths follow `maxRequestPathCodePoints`; path metadata, observations and provider IDs no longer inherit an unrelated 64 KiB cell or 128-character identifier quota.
+Request, memory, temporary storage and output controls still govern their complete transport and retention.
 Source payloads travel in `B` frames and do not become control JSON strings/Base64.
 Do not interleave requests or sources.
 A `C` fragment or source `B` frame has no acknowledgement of its own; wait for the relevant final response, not an invented per-fragment response.
@@ -52,7 +63,7 @@ Every request must include:
 
 ```json
 {
-  "protocolVersion": 4,
+  "protocolVersion": 5,
   "owner": "OWNER_FROM_THE_VERIFIED_HELLO",
   "requestId": "1",
   "command": "configure"

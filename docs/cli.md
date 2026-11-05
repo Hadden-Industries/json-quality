@@ -90,7 +90,7 @@ A scalar override alongside a disabled group re-enables only that quota.
 | ---------------------------------- | ------------------------------------------ | ------------------------------------------------- |
 | Discovery                          | Requested help/version                     | Delivery/argument errors                          |
 | Human check, preview or write      | Empty                                      | Findings, root/policy/scope, progress and summary |
-| `--ndjson` check, preview or write | Complete cohort-5 events only              | Last-resort operational diagnostics               |
+| `--ndjson` check, preview or write | Complete version-5 events only             | Last-resort operational diagnostics               |
 | Stdin transform                    | One complete transformed UTF-8 source only | Human diagnostics and scoped summary              |
 
 The applicable final terminal is delivered only after cleanup.

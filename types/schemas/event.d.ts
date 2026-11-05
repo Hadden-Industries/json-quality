@@ -114,12 +114,15 @@ export type JsonQualityEvent = {
       maxRequestIdCodePoints: PositiveIntegerText | null;
       maxRequestBytes: PositiveIntegerText | null;
       maxRequestPathCodePoints: PositiveIntegerText | null;
+      maxHumanPathCodePoints: PositiveIntegerText | null;
+      maxHumanPointerCodePoints: PositiveIntegerText | null;
     };
     runtime: {
       maxManagedMemoryBytes: PositiveIntegerText | null;
       maxTemporaryBytes: PositiveIntegerText | null;
       maxNestingDepth: PositiveIntegerText | null;
       maxCheckTimeMs: PositiveIntegerText | null;
+      terminationGraceMs: PositiveIntegerText | null;
     };
   };
   code?: string;
@@ -666,6 +669,7 @@ export interface RuntimeControls {
   maxTemporaryBytes?: number | null;
   maxNestingDepth?: number | null;
   maxCheckTimeMs?: number | null;
+  terminationGraceMs?: number | null;
 }
 /**
  * This interface was referenced by `undefined`'s JSON-Schema
@@ -686,6 +690,8 @@ export interface CapacityLimits {
   maxRequestIdCodePoints?: number | null;
   maxRequestBytes?: number | null;
   maxRequestPathCodePoints?: number | null;
+  maxHumanPathCodePoints?: number | null;
+  maxHumanPointerCodePoints?: number | null;
 }
 /**
  * This interface was referenced by `undefined`'s JSON-Schema

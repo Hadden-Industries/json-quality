@@ -312,6 +312,12 @@
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 120000
+        },
+        "terminationGraceMs": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 1000
         }
       }
     },
@@ -489,6 +495,18 @@
           "minimum": 1,
           "maximum": 9007199254740991,
           "default": 32768
+        },
+        "maxHumanPathCodePoints": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 512
+        },
+        "maxHumanPointerCodePoints": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "default": 256
         }
       }
     },

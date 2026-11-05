@@ -70,8 +70,8 @@ export async function* gitRecords(
     child.once("close", (code) => settle({ code }));
   });
   let bytes = 0n,
-    failure,
-    stderr = "",
+    /** @type {*} */ failure,
+    /** @type {Buffer[]} */ stderr = [],
     pending = EMPTY_BUFFER,
     timer;
   const fail = (/** @type {*} */ error) => {
@@ -104,8 +104,7 @@ export async function* gitRecords(
   }
   child.stderr.on("data", (part) => {
     admit(part.length);
-    if (stderr.length < 4096)
-      stderr += part.subarray(0, 4096 - stderr.length).toString("utf8");
+    if (!failure) stderr.push(part);
   });
   try {
     for await (const chunk of child.stdout) {
@@ -132,7 +131,10 @@ export async function* gitRecords(
     const result = await completed;
     if (failure) throw failure;
     if (result.error) throw result.error;
-    if (result.code !== 0) throw new Error(`Git discovery failed: ${stderr}`);
+    if (result.code !== 0)
+      throw new Error(
+        `Git discovery failed: ${Buffer.concat(stderr).toString("utf8")}`,
+      );
     if (pending.length) throw new Error("Truncated Git path record.");
   } finally {
     clearTimeout(timer);

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import test from "node:test";
+import contractCohort from "../schemas/contract-cohort.json" with { type: "json" };
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -34,7 +35,7 @@ test("minimal CLI evidence rejects missing, duplicate, stale and substituted obs
   const receipt = {
     status: "passed",
     packageVersion: "1.2.3",
-    cohortVersion: 5,
+    cohortVersion: contractCohort.cohortVersion,
     policy: "package-defaults",
     defaultPolicySha256: "a".repeat(64),
     command: "npm exec -- json-quality",

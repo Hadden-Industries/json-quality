@@ -1,8 +1,8 @@
-# Consumer guide: cohort 5
+# Consumer guide: cohort 6
 
-Contract cohort 5 supplies package-owned defaults for ordinary Git repositories, sparse configuration and separate presentation/NFC repairs while retaining streamed checking and lossless access.
+Contract cohort 6 supplies package-owned defaults for ordinary Git repositories, sparse configuration and separate presentation/NFC repairs while retaining streamed checking and lossless access.
 Upgrade the core and platform packages together; old explicit policy/schema names require migration.
-Use the independent versions in `./contract-cohort`: cohort/events 5, configuration/source-contract/native protocol 4, component schema 4 and Node-API 9.
+Use the independent versions in `./contract-cohort`: cohort 6, events 5, configuration/source-contract 4, native protocol 5, component schema 4 and Node-API 9.
 Cohort-4 event evidence cannot certify this cohort.
 There is no old-reader backend or size-dependent dispatch.
 Historical artifacts retain their original bytes and versions.
@@ -22,7 +22,7 @@ npm exec -- json-quality normalize --write -- authored.json
 
 No wrapper, copied repository exclusions or `.json-quality.json` is required.
 Commit the npm-generated lockfile and use `npm ci` for clean installs.
-These cohort-5 source examples do not establish matching registry publication or installed qualification.
+These cohort-6 source examples do not establish matching registry publication or installed qualification.
 The next release uses the stable SemVer coordinate selected by [`package.json.version`](../package.json), initially under npm's `pilot` tag.
 Select that exact qualified version explicitly; an unversioned install follows `latest` and need not select the pilot.
 Promotion changes availability of the same published artifacts after acceptance; it does not rebuild them under a different version.

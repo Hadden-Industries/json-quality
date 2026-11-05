@@ -116,12 +116,14 @@ export async function* qualifyGitJsonSources(options) {
         /** @type {*} */ sha,
         /** @type {*} */ capacities,
         signal = operationSignal,
+        runtime = bootstrap.runtime,
       ) => ({
         executable: authority.executable,
         root,
         sha,
         capacities,
         signal,
+        terminationGraceMs: runtime.terminationGraceMs,
       }),
       policySource = context(
         roots[0],
@@ -234,6 +236,7 @@ export async function* qualifyGitJsonSources(options) {
         options.candidateCommitId,
         selected.wire.admission,
         signal,
+        selected.runtime,
       );
       const rawEvents = async function* () {
         yield {

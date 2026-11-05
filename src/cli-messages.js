@@ -1,19 +1,47 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Human presentation only: never changes event evidence or execution decisions.
+import { resourceDefaults } from "./resource-profile.js";
+
+const defaults = resourceDefaults("capacityLimits");
+
+/** Project numeric or wire resource snapshots into presentation-only controls. */
+export function humanDisplayControls(/** @type {*} */ resources) {
+  const selected = resources?.admission ?? {};
+  const number = (/** @type {*} */ value) =>
+    value === null ? null : value === undefined ? undefined : Number(value);
+  return {
+    maxPathCodePoints: number(selected.maxHumanPathCodePoints),
+    maxPointerCodePoints: number(selected.maxHumanPointerCodePoints),
+  };
+}
 
 /** Bound before escaping; never serialize arbitrary event values or arguments. */
-export function escapeHumanText(/** @type {*} */ value, maximum = 512) {
+export function escapeHumanText(
+  /** @type {*} */ value,
+  /** @type {number | null} */ maximum = defaults.maxHumanPathCodePoints,
+) {
+  if (maximum !== null && (!Number.isSafeInteger(maximum) || maximum < 1))
+    throw new TypeError("Expected a positive display limit or null.");
   if (!["string", "number", "bigint", "boolean"].includes(typeof value))
     return "";
   const text = String(value);
+  let end = text.length;
+  if (maximum !== null) {
+    end = 0;
+    let count = 0;
+    for (const character of text) {
+      if (count++ === maximum) break;
+      end += character.length;
+    }
+  }
   return (
     text
-      .slice(0, maximum)
+      .slice(0, end)
       .replace(
         /[\p{Cc}\p{Cf}\u2028\u2029]/gu,
         (character) =>
           "\\u" + character.charCodeAt(0).toString(16).padStart(4, "0"),
-      ) + (text.length > maximum ? "…" : "")
+      ) + (text.length > end ? "…" : "")
   );
 }
 
@@ -58,9 +86,12 @@ const /** @type {Readonly<Record<string, string>>} */ messages = Object.freeze({
       "JSON Lines record identity differs from its NFC preservation contract. Review the owning record and preservation declaration.",
   });
 
-function location(/** @type {*} */ event) {
+function location(
+  /** @type {*} */ event,
+  /** @type {number | null} */ maximum,
+) {
   return (
-    escapeHumanText(event.path ?? "<stdin>") +
+    escapeHumanText(event.path ?? "<stdin>", maximum) +
     (event.line === undefined ? "" : ":" + escapeHumanText(event.line, 24)) +
     (event.column === undefined
       ? ""
@@ -72,8 +103,7 @@ function location(/** @type {*} */ event) {
 }
 
 function failureAdvice(/** @type {*} */ event) {
-  const text =
-    String(event.code ?? "") + " " + String(event.message ?? "").slice(0, 2048);
+  const text = String(event.code ?? "") + " " + String(event.message ?? "");
   if (/capacity|quota|maximum|byte-limit/u.test(text))
     return "Reduce the selected input or explicitly review the applicable resource control; integrity checks remain required.";
   if (/stale|changed|freshness/u.test(text))
@@ -83,7 +113,7 @@ function failureAdvice(/** @type {*} */ event) {
   return "Correct the reported cause and rerun; this operation did not establish successful completion.";
 }
 
-function context(/** @type {*} */ event) {
+function context(/** @type {*} */ event, /** @type {number | null} */ maximum) {
   const scope = event.operationScope;
   const description =
     scope?.kind === "selected-files"
@@ -96,13 +126,15 @@ function context(/** @type {*} */ event) {
   const origin = event.configurationOrigin;
   return (
     description +
-    (event.root === undefined ? "" : "; root " + escapeHumanText(event.root)) +
+    (event.root === undefined
+      ? ""
+      : "; root " + escapeHumanText(event.root, maximum)) +
     (scope?.policy === "explicit-contract"
       ? "; policy explicit contract"
       : origin?.kind === "repository-absence" || origin?.kind === "git-absence"
         ? "; policy packaged defaults (configuration absence observed)"
         : origin?.path
-          ? "; policy " + escapeHumanText(origin.path)
+          ? "; policy " + escapeHumanText(origin.path, maximum)
           : "") +
     ".\n"
   );
@@ -110,11 +142,16 @@ function context(/** @type {*} */ event) {
 
 /** Render one bounded human event without I/O or changes to machine evidence.
  * @param {*} event
- * @param {{quiet?: boolean, level?: 'info'|'warning'|'error'}} [options]
+ * @param {{quiet?: boolean, level?: 'info'|'warning'|'error', maxPathCodePoints?: number | null, maxPointerCodePoints?: number | null}} [options]
  */
 export function renderHumanEvent(
   event,
-  { quiet = false, level = "info" } = {},
+  {
+    quiet = false,
+    level = "info",
+    maxPathCodePoints = defaults.maxHumanPathCodePoints,
+    maxPointerCodePoints = defaults.maxHumanPointerCodePoints,
+  } = {},
 ) {
   if (event.type === "finding") {
     const identifier =
@@ -125,18 +162,18 @@ export function renderHumanEvent(
       messages[identifier] ??
       "A source requirement failed. Review this location and the named rule or phase before retrying.";
     return (
-      location(event) +
+      location(event, maxPathCodePoints) +
       ": " +
       message +
       " (" +
-      escapeHumanText(identifier, 256) +
+      escapeHumanText(identifier, null) +
       ")\n"
     );
   }
   if (event.type === "nfc-key-collision-risk")
     return level === "error"
       ? ""
-      : location(event) +
+      : location(event, maxPathCodePoints) +
           ": NFC normalization could make this key equal to another key at " +
           escapeHumanText(event.priorLine, 24) +
           ":" +
@@ -144,7 +181,7 @@ export function renderHumanEvent(
           ". Decoded keys remain preserved; reconcile the owning keys before normalizing. (json-quality/nfc-strings/collision-risk)\n";
   if (event.type === "failure")
     return (
-      escapeHumanText(event.code, 128) +
+      escapeHumanText(event.code, null) +
       ": " +
       escapeHumanText(event.message, String(event.message ?? "").length) +
       " " +
@@ -156,7 +193,8 @@ export function renderHumanEvent(
       "Incomplete replacement; confirmed writes " +
       escapeHumanText(event.writtenPathCount, 24) +
       (event.uncertainPath
-        ? "; uncertain path " + escapeHumanText(event.uncertainPath)
+        ? "; uncertain path " +
+          escapeHumanText(event.uncertainPath, maxPathCodePoints)
         : "") +
       ": " +
       escapeHumanText(event.message, String(event.message ?? "").length) +
@@ -236,9 +274,9 @@ export function renderHumanEvent(
     event.type === "selection" ||
     event.type === "operation"
   )
-    return context(event);
+    return context(event, maxPathCodePoints);
   if (event.type === "written")
-    return "Written " + escapeHumanText(event.path) + "\n";
+    return "Written " + escapeHumanText(event.path, maxPathCodePoints) + "\n";
   if (event.type === "write-terminal")
     return (
       "Replacement complete; written " +
@@ -249,7 +287,7 @@ export function renderHumanEvent(
     );
   if (event.type === "format-preview-change")
     return (
-      escapeHumanText(event.path) +
+      escapeHumanText(event.path, maxPathCodePoints) +
       ": " +
       (event.changed ? "would change" : "unchanged") +
       "; bytes " +
@@ -264,11 +302,11 @@ export function renderHumanEvent(
     );
   if (event.type === "normalization-preview-change")
     return (
-      escapeHumanText(event.path) +
+      escapeHumanText(event.path, maxPathCodePoints) +
       ": NFC change at byte " +
       escapeHumanText(event.sourceByteOffset, 24) +
       "; pointer " +
-      escapeHumanText(event.pointer, 256) +
+      escapeHumanText(event.pointer, maxPointerCodePoints) +
       "; decoded SHA-256 " +
       escapeHumanText(event.decodedSha256, 64) +
       " -> " +

@@ -164,6 +164,8 @@ export interface CapacityLimits {
   maxRequestIdCodePoints?: number | null;
   maxRequestBytes?: number | null;
   maxRequestPathCodePoints?: number | null;
+  maxHumanPathCodePoints?: number | null;
+  maxHumanPointerCodePoints?: number | null;
 }
 /**
  * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema
@@ -192,6 +194,7 @@ export interface RuntimeControls {
   maxTemporaryBytes?: number | null;
   maxNestingDepth?: number | null;
   maxCheckTimeMs?: number | null;
+  terminationGraceMs?: number | null;
 }
 /**
  * This interface was referenced by `JsonQualityPolicy`'s JSON-Schema

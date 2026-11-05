@@ -20,7 +20,7 @@ The owner selected the stable SemVer coordinate in that manifest for the next re
 Qualify and publish that final coordinate through the existing `pilot` route, then promote the same qualified artifacts after acceptance.
 Do not qualify an RC and relabel its metadata to produce different final-version bytes.
 Once publication consumes a version, a pilot defect requires a new version and fresh qualification; published archives cannot be replaced.
-Its contracts use cohort/events 5, configuration/source-contract/native protocol 4, component schema 4 and Node-API 9.
+Its contracts use cohort 6, events 5, configuration/source-contract 4, native protocol 5, component schema 4 and Node-API 9.
 Zero-configuration policy resolution remains supported; preparing source does not publish it or select it in consumers.
 Matching new native artifacts and candidate qualification remain required before claiming installed or release acceptance.
 Produce both platform components from the reviewed source with the [native workflow](https://github.com/Hadden-Industries/json-quality/blob/main/.github/workflows/native.yml), then verify and stage their immutable payloads through the maintained native staging owner.

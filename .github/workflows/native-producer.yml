@@ -42,7 +42,7 @@ jobs:
         run: |
           [[ "$PRODUCER_REPOSITORY" == "Hadden-Industries/json-quality" && "$CALLER_REPOSITORY" == "$PRODUCER_REPOSITORY" ]]
           [[ "$PRODUCER_SHA" =~ ^[a-f0-9]{40}$ && "$CALLER_SHA" == "$PRODUCER_SHA" ]]
-          case "$VERIFICATION_PROFILE" in full|cli-community) ;; *) echo 'Unknown verification profile' >&2; exit 2;; esac
+          case "$VERIFICATION_PROFILE" in full|cli-community|resource-controls) ;; *) echo 'Unknown verification profile' >&2; exit 2;; esac
           [[ "$RUN_CHECKS" == "true" || "$RUN_CHECKS" == "false" ]]
           [[ "$RUN_CHECKS" == "true" || "$VERIFICATION_PROFILE" == "full" ]]
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -105,6 +105,18 @@ jobs:
       - name: Identify focused verification limits
         if: inputs.run_checks && inputs.verification_profile == 'cli-community'
         run: echo 'Focused CLI checks only. Full native, sanitizer, installed/package and release qualification remain pending.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Check the focused resource controls profile
+        if: inputs.run_checks && inputs.verification_profile == 'resource-controls'
+        env:
+          JSON_QUALITY_NATIVE_TEST_ARTIFACTS: ${{ steps.build.outputs.artifacts }}
+          RESOURCE_CONTROL_TEST_NAMES: "^(human path and pointer controls admit finite raised and null scalar-safe displays|real Git diagnostic capture honors caller quotas beyond former 64-byte and 4-KiB clamps|bounded tools retain complete selected diagnostics and admit long finite timeouts|POSIX tool termination grace honors finite raised and null selections after real readiness|Node reply assembly preserves split UTF-8 and refuses malformed continuation frames|native census round-trips extended Unicode paths and metadata through bounded reply fragments|native extended metadata retains finite path and complete output refusal with fresh retry|direct Python metadata reads preserve full fragmented replies and close interrupted pulls|direct Python ordinary reads admit unlimited quotas and depth beyond 4096|native effective resources are projected from the maintained schema|a restrictive native output capacity fails explicitly and permits cleanup|qualification CLI delivers NDJSON for the immutable source scope)$"
+        run: >-
+          node --test --test-concurrency=1 --test-name-pattern "$RESOURCE_CONTROL_TEST_NAMES"
+          tests/remaining-resource-controls.test.js tests/native/resource-metadata.test.mjs
+          tests/native/stdio.test.mjs tests/native/resource-policy.test.mjs tests/native/git-qualification.test.mjs
+      - name: Identify focused resource verification limits
+        if: inputs.run_checks && inputs.verification_profile == 'resource-controls'
+        run: echo 'Focused resource, metadata transport and affected regression checks only. Full native, sanitizer and release qualification remain separate.' >> "$GITHUB_STEP_SUMMARY"
       - name: Identify production-only evidence
         if: ${{ !inputs.run_checks }}
         run: echo 'Production only. Native tests, installed qualification, rights acceptance and final review remain pending.' >> "$GITHUB_STEP_SUMMARY"
@@ -151,7 +163,7 @@ jobs:
         run: |
           [[ "$PRODUCER_REPOSITORY" == "Hadden-Industries/json-quality" && "$CALLER_REPOSITORY" == "$PRODUCER_REPOSITORY" ]]
           [[ "$PRODUCER_SHA" =~ ^[a-f0-9]{40}$ && "$CALLER_SHA" == "$PRODUCER_SHA" ]]
-          case "$VERIFICATION_PROFILE" in full|cli-community) ;; *) echo 'Unknown verification profile' >&2; exit 2;; esac
+          case "$VERIFICATION_PROFILE" in full|cli-community|resource-controls) ;; *) echo 'Unknown verification profile' >&2; exit 2;; esac
           [[ "$RUN_CHECKS" == "true" || "$RUN_CHECKS" == "false" ]]
           [[ "$RUN_CHECKS" == "true" || "$VERIFICATION_PROFILE" == "full" ]]
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

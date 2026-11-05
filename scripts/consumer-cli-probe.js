@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Dependency-only installed CLI proof: this module never imports the package SDK.
 import assert from "node:assert/strict";
+import contractCohort from "../schemas/contract-cohort.json" with { type: "json" };
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -446,7 +447,7 @@ export function qualifyMinimalCli({
     const cohort = JSON.parse(
       readFileSync(join(installed, "schemas", "contract-cohort.json")),
     );
-    assert.equal(cohort.cohortVersion, 5);
+    assert.deepEqual(cohort, contractCohort);
     return {
       status: "passed",
       packageVersion,

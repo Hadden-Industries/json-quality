@@ -1,5 +1,5 @@
 {
-  "title": "JSON Quality event, cohort 5",
+  "title": "JSON Quality event, schema 5",
   "description": "One delivered event. Absence of the applicable terminal means incomplete delivery. Serialized reference identities are labels, never access capabilities.",
   "type": "object",
   "additionalProperties": false,
@@ -331,7 +331,9 @@
             "maxGitTimeMs",
             "maxRequestIdCodePoints",
             "maxRequestBytes",
-            "maxRequestPathCodePoints"
+            "maxRequestPathCodePoints",
+            "maxHumanPathCodePoints",
+            "maxHumanPointerCodePoints"
           ],
           "properties": {
             "maxPhysicalAndNativeSources": {
@@ -473,6 +475,26 @@
                   "type": "null"
                 }
               ]
+            },
+            "maxHumanPathCodePoints": {
+              "anyOf": [
+                {
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxHumanPointerCodePoints": {
+              "anyOf": [
+                {
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         },
@@ -483,7 +505,8 @@
             "maxManagedMemoryBytes",
             "maxTemporaryBytes",
             "maxNestingDepth",
-            "maxCheckTimeMs"
+            "maxCheckTimeMs",
+            "terminationGraceMs"
           ],
           "properties": {
             "maxManagedMemoryBytes": {
@@ -517,6 +540,16 @@
               ]
             },
             "maxCheckTimeMs": {
+              "anyOf": [
+                {
+                  "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "terminationGraceMs": {
               "anyOf": [
                 {
                   "$ref": "https://github.com/Hadden-Industries/json-quality/schema/configuration/v4#/$defs/positiveIntegerText"

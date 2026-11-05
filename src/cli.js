@@ -6,7 +6,11 @@ import { resolve } from "node:path";
 import { isMainModule } from "./module-entry.js";
 import { discoverCli, failureCliResources } from "./cli-discovery.js";
 import { resourceCliControls, transformCliControls } from "./commands.js";
-import { renderHumanEvent, escapeHumanText } from "./cli-messages.js";
+import {
+  renderHumanEvent,
+  escapeHumanText,
+  humanDisplayControls,
+} from "./cli-messages.js";
 
 /** Backpressured CLI delivery; a terminal is never a substitute for cleanup. */
 export async function runJsonQualityCli(
@@ -169,6 +173,7 @@ export async function runJsonQualityCli(
         renderHumanEvent(event, {
           quiet: values.quiet ?? false,
           level: values["diagnostic-display-level"] ?? "info",
+          ...humanDisplayControls(failureResources),
         }),
       );
     if (bytes.length)
@@ -325,7 +330,7 @@ export async function runJsonQualityCli(
         exitCode = result.terminal.contractSatisfied ? 0 : 1;
       } else if (result.refused) {
         await write(
-          account(Buffer.from(escapeHumanText(result.message, 2048) + "\n")),
+          account(Buffer.from(escapeHumanText(result.message, null) + "\n")),
           process.stderr,
         );
         exitCode = 1;

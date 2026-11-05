@@ -6,6 +6,9 @@ Only an immutable published release establishes release availability.
 
 ## Unreleased
 
+- Advance the native contract to cohort 6/protocol 5 with accounted, pull-based reply fragments; remove fixed repository path, metadata cell and provider-ID size clamps while retaining frame bounds and caller quotas.
+- Make human path/pointer excerpts and owned-tool termination grace caller controlled, and retain complete Git diagnostics within the selected output budget.
+
 - Apply caller output and elapsed-time controls to early CLI and qualification failure reporting; remove hidden diagnostic truncation and the fixed qualification reporting timeout, with matching unreleased event-schema admission.
 
 - Discover policy inputs with dependency-cruiser, retain a readable path inventory, and fingerprint actual installed files plus relevant runtime dependency declarations without unrelated package-metadata churn.
@@ -13,7 +16,7 @@ Only an immutable published release establishes release availability.
 - Expand consumer guidance and npm metadata with package fit, strict JSON boundaries, scoped checking, explicit repairs and completion semantics.
 - Add both-bin version discovery, contextual help, literal `check-files` selection and raw UTF-8 stdin transforms with explicit virtual-file policy context.
 - Require `--write` or `--dry-run` for filesystem repairs; add actual format preview and presentation-only human display controls.
-- Advance contract cohort and events to 5; retain configuration/source-contract/native protocol 4 and Node-API 9.
+- Add event version 5 for explicit CLI scope and previews; retain configuration/source-contract schema 4 and Node-API 9.
 - Derive candidate metadata from `package.json.version`; `sync:version` refreshes its projections and `check:version` detects drift.
 - Add package-owned zero-configuration defaults, optional sparse configuration and independent immutable effective policy snapshots for cohort 4.
 - Check NFC by default, support global/path decoded-Unicode preservation, and expose normalization preview with complete collision preflight.

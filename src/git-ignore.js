@@ -123,6 +123,7 @@ export /** @returns {*} */ async function ignoredGitPaths(
               runtime.maxCheckTimeMs,
             ),
             maximumOutputBytes,
+            terminationGraceMs: runtime.terminationGraceMs,
             signal: execution.signal,
             acceptedExitCodes: [0, 1],
             captureOutput: true,

@@ -1,37 +1,47 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Raw immutable Git data transport. No checkout, filters, hooks or lazy fetch.
-import { spawn, execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, realpathSync } from "node:fs";
 import { delimiter, isAbsolute, join } from "node:path";
 import { isPathContained, assertRepositoryPath } from "./paths.js";
 import { gitRecords, gitReadEnvironment } from "./repository-discovery.js";
 import { sourceObservation } from "./source-observation.js";
+import { runBoundedTool } from "./bounded-process.js";
 
-/** Fixed-size metadata query rejects a tree/tag identity posing as a commit.
- * No source body is buffered through execFile.
+/** Caller-bounded metadata query rejects a tree/tag identity posing as a commit.
+ * Source bodies use the independently streamed blob path.
  */
 export async function assertGitCommit(
-  /** @type {*} */ { executable, root, sha, capacities, signal },
+  /** @type {*} */ {
+    executable,
+    root,
+    sha,
+    capacities,
+    signal,
+    terminationGraceMs,
+  },
 ) {
-  const { stdout } = await promisify(execFile)(
+  const { stdout } = await runBoundedTool(
     executable,
     ["-C", root, "cat-file", "-t", sha],
     {
       cwd: root,
-      windowsHide: true,
-      encoding: "utf8",
-      maxBuffer: 64,
+      captureOutput: true,
+      maximumOutputBytes:
+        capacities.maxGitOutputBytes === null
+          ? null
+          : Number(capacities.maxGitOutputBytes),
+      terminationGraceMs,
       timeout:
         capacities.maxGitTimeMs === null
-          ? undefined
-          : Math.min(Number(capacities.maxGitTimeMs), 2147483647),
+          ? null
+          : Number(capacities.maxGitTimeMs),
       signal,
       env: gitReadEnvironment(),
     },
   );
-  if (stdout !== "commit\n")
+  if (stdout.toString("utf8") !== "commit\n")
     throw new Error("Immutable Git source must name a commit.");
 }
 

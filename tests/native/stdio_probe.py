@@ -50,6 +50,8 @@ class Host:
         self.frames = queue.Queue(maxsize=4)
         self.stderr = bytearray()
         self.sequence = 0
+        self.reply_fragments = 0
+        self.control_fragment_size = 7
         self.reader = threading.Thread(target=self.read_frames, daemon=True)
         self.errors = threading.Thread(target=self.read_errors, daemon=True)
         self.reader.start()
@@ -119,12 +121,21 @@ class Host:
 
     def receive(self, kind):
         frame = self.frames.get(timeout=120)
+        parts = bytearray()
+        while kind == "J" and not isinstance(frame, BaseException) and frame[0] == "j":
+            parts.extend(frame[1])
+            self.reply_fragments += 1
+            self.frame("R")
+            frame = self.frames.get(timeout=120)
         if isinstance(frame, BaseException):
             raise frame
         if frame[0] == "E" and kind != "E":
             raise NativeError(json.loads(frame[1]))
         assert frame[0] == kind, ("Unexpected frame kind", frame[0], kind)
-        return json.loads(frame[1]) if kind != "D" else frame[1]
+        if kind in ("D", "j"):
+            return frame[1]
+        parts.extend(frame[1])
+        return json.loads(parts)
 
     def write(self, value):
         view = memoryview(value)
@@ -148,9 +159,10 @@ class Host:
         )
         body = json.dumps(request, separators=(",", ":")).encode()
         # Fragment controls as well as raw data; there is no per-C acknowledgement.
-        for offset in range(0, len(body), 7):
+        size = self.control_fragment_size
+        for offset in range(0, len(body), size):
             self.frame(
-                "c" if offset + 7 >= len(body) else "C", body[offset : offset + 7]
+                "c" if offset + size >= len(body) else "C", body[offset : offset + size]
             )
         payload = self.receive("D") if data else None
         response = self.receive("J")
@@ -475,6 +487,68 @@ def ordinary(executable, parent, manifest):
         host.fail(error, "unlimited ordinary read")
 
 
+def metadata(executable, parent, manifest):
+    """One real census record crosses the former path and metadata cell bounds."""
+    schema = json.loads(
+        (Path(__file__).resolve().parents[2] / "schemas/configuration.schema.json")
+        .read_text(encoding="utf-8")
+    )
+    controls = {
+        name: None
+        for group in ("capacityLimits", "runtimeControls")
+        for name in schema["$defs"][group]["properties"]
+    }
+    controls.update(maxManagedMemoryBytes=67108864, maxCheckTimeMs=60000)
+    host = Host(executable, parent, manifest)
+    host.control_fragment_size = 65536
+    path, observation = "é" * 33000 + ".json", "observed-" * 9000
+    try:
+        host.request("configure", **controls)
+        host.request("census-provider", id="paths", kind="physical", minimum="0")
+        host.request("census-add", provider="paths", path=path, observation=observation)
+        result = host.request("census-get", path=path)["member"]
+        assert result["path"] == path and result["observation"] == observation
+        fragments = host.reply_fragments
+        assert fragments >= 2
+        # Cleanup remains available when the consumer deliberately stops pulling.
+        host.sequence += 1
+        body = json.dumps(
+            dict(
+                command="census-get",
+                path=path,
+                protocolVersion=host.protocol_version,
+                owner=host.owner,
+                requestId=str(host.sequence),
+            ),
+            separators=(",", ":"),
+        ).encode()
+        for offset in range(0, len(body), 65536):
+            host.frame(
+                "c" if offset + 65536 >= len(body) else "C",
+                body[offset : offset + 65536],
+            )
+        assert len(host.receive("j")) == 65536
+        host.close()
+    except BaseException as error:  # noqa: BLE001 - Preserve the owning native failure and settle the process.
+        host.fail(error, "extended metadata")
+    invalid = Host(executable, parent, manifest)
+    try:
+        invalid.request("configure", **controls)
+        invalid.frame("R")
+        error = invalid.receive("E")
+        assert error["code"] == "response-read-state"
+        invalid.settle(2)
+    except BaseException as error:  # noqa: BLE001 - Preserve malformed transport evidence and settle the process.
+        invalid.fail(error, "unexpected reply read")
+    return dict(
+        pathBytes=len(path.encode()),
+        observationBytes=len(observation.encode()),
+        fragments=fragments,
+        partialReplyClosed=True,
+        unexpectedReadRefused=True,
+    )
+
+
 def main():
     executable, manifest_path, parent = map(Path, sys.argv[1:4])
     assert os.getppid() == int(sys.argv[4]), (
@@ -486,6 +560,17 @@ def main():
         digest = hashlib.file_digest(source, "sha256").hexdigest()
     assert digest == identity["sha256"]
     assert executable.stat().st_size == identity["bytes"]
+    if len(sys.argv) == 6 and sys.argv[5] == "metadata":
+        print(
+            json.dumps(
+                {
+                    "metadata": metadata(executable, parent, manifest),
+                    "executableSha256": digest,
+                    "sourceInputsSha256": manifest["sourceInputsSha256"],
+                }
+            )
+        )
+        return
     if len(sys.argv) == 6 and sys.argv[5] == "ordinary":
         print(
             json.dumps(

@@ -36,7 +36,7 @@ Consumer lanes exercise real installed CLI/API/plugin/schema behavior, preservat
 
 The compatibility floor remains owned by the policy above; producer/development tools retain their own engine requirements independently of the JSON runtime reader.
 JSON import attributes exist at that floor; native glob and filesystem behavior require real platform qualification.
-The current source selects contract cohort/events 5, configuration/source-contract/native protocol 4, component schema 4 and Node-API 9; historical packages retain their own cohorts.
+The current source selects contract cohort 6, events 5, configuration/source-contract 4, native protocol 5, component schema 4 and Node-API 9; historical packages retain their own cohorts.
 The same artifact must be qualified on each selected runtime; an ABI declaration alone is not runtime proof.
 Missing platform components fail without a compiler/downloader fallback.
 

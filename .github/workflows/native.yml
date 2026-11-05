@@ -10,7 +10,7 @@ on:
       verification_profile:
         description: Full native qualification or focused CLI checks (build-only requires full)
         type: choice
-        options: [full, cli-community]
+        options: [full, cli-community, resource-controls]
         default: full
   workflow_call:
     inputs:

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
 import test from "node:test";
+import contractCohort from "../schemas/contract-cohort.json" with { type: "json" };
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -219,7 +220,7 @@ function fixture(attempt = 1, fork = false) {
             minimalCli: {
               status: "passed",
               packageVersion: "1.0.0-rc.1",
-              cohortVersion: 5,
+              cohortVersion: contractCohort.cohortVersion,
               policy: "package-defaults",
               defaultPolicySha256: "a".repeat(64),
               command: "npm exec -- json-quality",
