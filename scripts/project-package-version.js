@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { nativePackages } from "../src/native-packages.js";
 import { packageName, validVersion } from "./release-contract.js";
 import { nativePackageMetadata } from "./project-native-packages.js";
@@ -56,7 +57,10 @@ export function synchronizePackageVersion(
     paths.map((path) => [path, readFileSync(join(directory, path), "utf8")]),
   );
   const output = projectPackageVersion(files, metadata);
-  const changed = paths.filter((path) => files[path] !== output[path]);
+  const changed = paths.filter(
+    (path) =>
+      !isDeepStrictEqual(JSON.parse(files[path]), JSON.parse(output[path])),
+  );
   if (write)
     for (const path of changed)
       writeFileSync(join(directory, path), output[path]);

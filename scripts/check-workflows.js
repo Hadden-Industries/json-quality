@@ -8,6 +8,7 @@ import { parseDocument } from "yaml";
 import { budgets } from "./qualification-budgets.js";
 import { securityScans } from "./security-scans.js";
 import { checkNativeWorkflowContract } from "./native-workflow-contract.js";
+import { checkMinimalCliCommands } from "./consumer-cli-probe.js";
 
 const repository = fileURLToPath(new URL("../", import.meta.url));
 const transferBudgets = new Map([
@@ -138,6 +139,7 @@ fi`;
 
 /** Check every local caller before expensive hosted fan-out, including dormant release paths. */
 export function checkWorkflows({ root = repository, overrides = {} } = {}) {
+  checkMinimalCliCommands();
   const read = (path) => {
     const document = parseDocument(
       overrides[path] ?? readFileSync(resolve(root, path), "utf8"),

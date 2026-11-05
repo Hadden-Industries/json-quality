@@ -12,6 +12,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { discoverCli } from "../src/cli-discovery.js";
 
 const name = "@hadden-industries/json-quality";
 export const MINIMAL_CLI_CASES = Object.freeze([
@@ -113,6 +114,25 @@ export const MINIMAL_CLI_COMMANDS = Object.freeze([
   command(["check", "--json"], 2),
   command(["source"], 2),
 ]);
+
+/** Admit the maintained main-binary corpus before installation or native work.
+ * Exit 2 can be an intentional argument refusal or a later operational refusal.
+ * Other expected exits must pass the real CLI's argument admission first. */
+export function checkMinimalCliCommands(commands = MINIMAL_CLI_COMMANDS) {
+  for (const { argv, exitCode } of commands) {
+    if (argv[3] !== "json-quality") continue;
+    try {
+      discoverCli(argv.slice(4));
+    } catch (cause) {
+      if (exitCode !== 2)
+        throw new Error(
+          `Installed qualification command is no longer admitted: ${argv.join(" ")}`,
+          { cause },
+        );
+    }
+  }
+}
+
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 export function assertInstalledPolicyDigest(
@@ -184,6 +204,7 @@ export function qualifyMinimalCli({
     cases = [],
     commands = [];
   const run = (args, expected, { input, binary = "json-quality" } = {}) => {
+    checkMinimalCliCommands([command(args, expected, binary)]);
     const result = spawnSync(
       process.execPath,
       [

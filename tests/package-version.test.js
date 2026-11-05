@@ -125,6 +125,29 @@ function fixture(t) {
   };
 }
 
+test("version synchronization ignores JSON member order and whitespace without rewriting files", (t) => {
+  const { directory, snapshot } = fixture(t);
+  const permute = (value) => {
+    if (Array.isArray(value)) return value.map(permute);
+    if (value === null || typeof value !== "object") return value;
+    return Object.fromEntries(
+      Object.entries(value)
+        .reverse()
+        .map(([key, member]) => [key, permute(member)]),
+    );
+  };
+  for (const path of VERSION_PROJECTION_PATHS)
+    writeFileSync(
+      join(directory, path),
+      JSON.stringify(permute(JSON.parse(readFileSync(join(directory, path))))) +
+        "\n",
+    );
+  const before = snapshot();
+  assert.deepEqual(synchronizePackageVersion(directory), []);
+  assert.deepEqual(synchronizePackageVersion(directory, { write: true }), []);
+  assert.deepEqual(snapshot(), before, "Equal projections must preserve bytes");
+});
+
 test("one package version edit synchronizes companions and lock identities while preserving policy inventory and fingerprint", (t) => {
   const { directory, snapshot } = fixture(t);
   const fingerprint = policyResolverFingerprint(directory);
@@ -198,6 +221,24 @@ test("version synchronization refuses malformed identity or substituted lock tar
     before,
     "A bad later target cannot permit partial synchronization",
   );
+});
+
+test("version synchronization refuses malformed later projections before any write", (t) => {
+  const { directory, snapshot } = fixture(t);
+  writeFileSync(
+    join(directory, "package.json"),
+    JSON.stringify({ ...metadata, version: "7.8.9" }),
+  );
+  writeFileSync(
+    join(directory, "native/prebuilt/win32-x64/package.json"),
+    '{"version":',
+  );
+  const before = snapshot();
+  assert.throws(
+    () => synchronizePackageVersion(directory, { write: true }),
+    SyntaxError,
+  );
+  assert.deepEqual(snapshot(), before, "Refusal must precede every write");
 });
 
 test("version CLI and native metadata imports remain read-only outside the checkout", (t) => {

@@ -28,6 +28,17 @@ It retains both native outputs and failures; a passing full run cannot erase a f
 Missing outcomes, source drift, runner errors or inconsistent common outcomes fail the operation.
 No shadow or other test mode was executed during the 2026-10-18 alignment, by explicit owner instruction.
 
+## Early qualification checks
+
+`check:repository` runs JavaScript lint and formatting/Markdown checks before test execution and installed-package qualification.
+The workflow contract check and installed qualifier also preflight the maintained main-binary CLI commands through the actual argument parser before native work or consumer installation.
+The installed CLI runner checks each constructed invocation again before launching npm, so a stale caller cannot evade the inventory preflight.
+Successful and quality-failing commands must pass admission; intentional exit-2 cases retain their argument or operational refusal semantics.
+This preflight checks command compatibility only; the installed corpus still proves execution, byte preservation, convergence and failure behavior on each selected runtime and platform.
+
+Version synchronization compares parsed JSON structurally, so member order and whitespace alone neither fail its check nor cause rewrites.
+It validates the complete projection batch before writing; malformed later inputs cannot permit partial updates.
+
 ## Tooling dependency overrides
 
 The [root manifest](https://github.com/Hadden-Industries/json-quality/blob/main/package.json) owns the selected patched `minimatch` overrides for ESLint and `@eslint/config-array`, addressing [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249).

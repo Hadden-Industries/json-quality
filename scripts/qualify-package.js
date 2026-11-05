@@ -20,7 +20,10 @@ import {
 import { native, budgets } from "./qualification-process.js";
 import { qualifyPublicApi } from "./qualify-api.js";
 import { installMinimalConsumer } from "./consumer-minimal.js";
-import { qualifyMinimalCli } from "./consumer-cli-probe.js";
+import {
+  checkMinimalCliCommands,
+  qualifyMinimalCli,
+} from "./consumer-cli-probe.js";
 import { nodeSupport } from "./node-matrix.js";
 import { verifyArchive, archiveInventory, sha256 } from "./release-contract.js";
 import {
@@ -58,6 +61,7 @@ if (
   );
 if (Boolean(values.archive) !== Boolean(values.provenance))
   throw new Error("Archive and provenance must be supplied together.");
+checkMinimalCliCommands();
 const npm = values.npm ?? process.env.npm_execpath;
 if (!npm) throw new Error("Run qualification through npm.");
 const toolchain = assertNativeNpmRuntime(npm);
