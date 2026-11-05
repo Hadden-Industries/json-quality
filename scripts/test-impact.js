@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Package-owned knowledge about non-import inputs; not a consumer configuration API.
 export const fullFiles = new Set([
-  "src/acquire.js", // Copied bootstrap and dynamic installed-package loading.
   "src/installation.js", // Reads the installed source/lock/metadata graph as data.
   "src/installed-component.js", // Fixed installed native assets are non-import inputs.
   "src/native-packages.js", // Native npm platform packages are resolved dynamically.

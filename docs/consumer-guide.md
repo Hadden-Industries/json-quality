@@ -24,15 +24,14 @@ These cohort-4 source examples do not establish matching registry publication or
 
 ### Advanced installation verification
 
-An isolated tooling graph remains supported for consumers requiring independently verified acquisition and package-family integrity.
+Consumers can optionally verify package-family integrity independently of installation, including in an isolated tooling graph.
 Declare the qualified exact package version in that graph and keep lifecycle scripts disabled when its admission workflow requires it.
 `parseJsonQualityRegistrySpecifier` admits exact registry versions or exact aliases of this package; ranges, Git dependencies, file archives and alternate packages are refused.
 The producer owns native compilation, packaging and distribution; consumers do not copy release archives into their repositories.
 Source commits identify review and CI inputs separately from the registry archive's immutable integrity.
 
-`readJsonQualityAcquisitionBootstrapSource()` generates the maintained cold adapter.
-Copy its returned source verbatim into the consumer's installer.
-After installation, `verifyJsonQualityInstallation({ toolingRoot, bootstrapPath })` verifies selector/lock identity, generated-bootstrap agreement and every installed package member against the independently cached locked payload.
+After an ordinary npm installation, `verifyJsonQualityInstallation({ toolingRoot })` verifies selector/lock identity and every installed package member against the independently cached locked payload.
+Its independent `installationControls` and `verificationControls` options govern installed-family and archive verification quotas.
 It performs no extraction or download.
 Run through the selected npm toolchain and keep its native cache available.
 The cache is populated by native npm acquisition from the locked registry artifact.
@@ -51,7 +50,7 @@ The root export supplies:
 - `openJsonSourceSession`, `openJsonRepositorySession` and `validateJsonQualityEvent`;
 - `formatJsonSource`, `formatJsonValue`, `normalizeJsonSource` and their declared capability objects;
 - `resolveJsonQualityPolicy`, `resolveJsonSourceContract` and `jsonFormatOptions`;
-- `runJsonQualityCli`, `qualifyGitJsonSources` and acquisition/installation helpers.
+- `runJsonQualityCli`, `qualifyGitJsonSources` and optional installation-verification helpers.
 
 Closed schemas are available through `./configuration-schema`, `./source-contract-schema`, `./event-schema` and `./contract-cohort`.
 `./eslint` exports the JavaScript identity guard; consumers install their own supported ESLint.

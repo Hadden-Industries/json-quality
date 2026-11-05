@@ -14,7 +14,6 @@ import {
   runJsonQualityCli,
   qualifyGitJsonSources,
   assertJsonQualityInstallationRoot,
-  readJsonQualityAcquisitionBootstrapSource,
   parseJsonQualityRegistrySpecifier,
   verifyJsonQualityInstallation,
   DEFAULT_JSON_TRANSFORM_LIMITS,
@@ -143,7 +142,6 @@ qualifyGitJsonSources({
   candidateCommitId: "1".repeat(40),
 });
 assertJsonQualityInstallationRoot(new URL(".", import.meta.url));
-const bootstrap: string = readJsonQualityAcquisitionBootstrapSource();
 parseJsonQualityRegistrySpecifier("1.0.0");
 verifyJsonQualityInstallation({
   toolingRoot: process.cwd(),
@@ -155,7 +153,6 @@ void [
   tabWidth,
   config,
   code,
-  bootstrap,
   DEFAULT_JSON_TRANSFORM_LIMITS,
   DEFAULT_JSON_PRODUCER_LIMITS,
   DEFAULT_PACKAGE_VERIFICATION_LIMITS,

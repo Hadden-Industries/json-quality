@@ -1,5 +1,3 @@
-/** Producer-owned source for the minimal cold-install bootstrap in consumers. */
-export declare function readJsonQualityAcquisitionBootstrapSource(): string;
 /** A consumer bridge may expose public exports only from its isolated install. */
 export declare function assertJsonQualityInstallationRoot(
   /** @type {string | URL} */ toolingRoot: string | URL,
@@ -25,7 +23,6 @@ export declare function verifyJsonQualityInstallation({
   cachePath,
   installationControls,
   verificationControls,
-  bootstrapPath,
   signal,
   ...otherOptions
 }: import("./api-types.js").InstallationVerificationOptions): Promise<

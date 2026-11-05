@@ -2,8 +2,16 @@
 // Public CLI controls project the same schema-owned admission/runtime vocabulary.
 import schema from "../schemas/configuration.schema.json" with { type: "json" };
 import { resolveExecutionResources } from "./execution-resources.js";
-import { capacityLimitsEnvironment } from "./acquire.js";
 import { transformResources } from "./transform-capabilities.js";
+
+/** Only the explicitly scoped capacity environment contract is admitted. */
+function capacityLimitsEnvironment() {
+  if (process.env.JSON_QUALITY_LIMITS !== undefined)
+    throw new TypeError(
+      "Use JSON_QUALITY_CAPACITY_LIMITS; JSON_QUALITY_LIMITS is not supported.",
+    );
+  return process.env.JSON_QUALITY_CAPACITY_LIMITS;
+}
 
 const capacityNames = Object.keys(schema.$defs.capacityLimits.properties),
   runtimeNames = Object.keys(schema.$defs.runtimeControls.properties);

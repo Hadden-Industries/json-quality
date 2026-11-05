@@ -84,7 +84,6 @@ try {
     "admitJsonPolicy",
     "jsonContract",
     "assertIsolatedJsonQuality",
-    "jsonQualityAcquisitionBootstrap",
     "jsonQualitySourceCoordinate",
     "qualifyJsonConsumer",
     "JSON_TRANSFORM_CAPABILITIES",

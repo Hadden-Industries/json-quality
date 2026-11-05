@@ -14,7 +14,7 @@
  * @typedef {boolean | import("../types/schemas/configuration.js").InstallationControls} InstallationControls
  * @typedef {boolean | import("../types/schemas/configuration.js").AcquisitionControls} AcquisitionControls
  * @typedef {JsonSourceContract & {path: string, excludeUntrackedSources: boolean, exceptions: {owner: string, reason: string}[]}} JsonContract
- * @typedef {{toolingRoot: string, npmCliPath?: string, cachePath?: string, installationControls?: InstallationControls, verificationControls?: VerificationControls, bootstrapPath?: string, signal?: AbortSignal}} InstallationVerificationOptions
+ * @typedef {{toolingRoot: string, npmCliPath?: string, cachePath?: string, installationControls?: InstallationControls, verificationControls?: VerificationControls, signal?: AbortSignal}} InstallationVerificationOptions
  * @typedef {{specifier: string, coordinate: {kind: "registry", version: string}, integrity: string, fileCount: number, native: {name: string, version: string, integrity: string, fileCount: number}}} InstallationVerification
  * @typedef {{capacityLimits?: CapacityLimits, runtimeControls?: RuntimeControls, temporaryDirectory?: string, signal?: AbortSignal}} SessionOptions
  * @typedef {{readonly kind: "source", readonly referenceId: string, readonly byteLength?: string, readonly sha256?: string}} SourceReference

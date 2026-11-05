@@ -2,7 +2,7 @@
 
 Cohort 4 makes every package-owned resource quota caller-overridable.
 `schemas/configuration.schema.json` owns the names, ranges and defaults.
-Native build controls, API resolution, CLI flags, event resources and cold-bootstrap projections use that authority.
+Native build controls, API resolution, CLI flags and event resources use that authority.
 
 `capacityLimits: true` enables configured/default admission.
 An override object amends only its named limits; `null` removes an individual quota.
@@ -122,15 +122,14 @@ The scalable source checker does not inherit a hidden document DOM ceiling from 
 
 Package verification has a separate profile, exposed as `DEFAULT_PACKAGE_VERIFICATION_LIMITS`: defaults are 128 MiB archive/member bytes, 512 MiB expanded bytes, 8192 members, 4 MiB inventory metadata, 1 MiB control files, 4 KiB extended tar metadata, 32 KiB paths, depth 64, decompression ratio 128 and 120 seconds.
 `verifyJsonQualityInstallation({ verificationControls: false, ... })` removes these quotas; an override object can remove or change individual quotas.
-The cold bootstrap accepts the same profile through `JSON_QUALITY_VERIFICATION_CONTROLS` and validates its schema-projected defaults before acquisition.
 Source JSON's `maxSourceBytes` does not reject a correctly admitted native library.
 Selector, SRI, member hashes, regular-file observations and unexpected-member checks remain mandatory.
 
 The verifier consumes the selected npm SDK's public streamed cache reader and tar parser.
 It incrementally hashes members and installed files and never extracts them.
 The npm SDK can own a fixed read as large as 64 MiB; package installation verification does not claim the checker's 32 MiB managed target.
-Cold acquisition honors selected cache/acquisition time and output quotas without clamping larger/unlimited selections back to defaults.
-Cleanup retry options and development/hosted job budgets are separate controls.
+Installation verification honors selected cache time and output quotas without clamping larger/unlimited selections back to defaults.
+Development/hosted job budgets are separate controls.
 
 ## Source and installation scopes
 
@@ -148,10 +147,11 @@ The independent census enforces the same first limit on physical/native members 
 | `maxCacheLookupTimeMs`      | 60,000      | npm cache lookup milliseconds                       |
 | `maxCacheOutputBytes`       | 1,048,576   | Cache lookup output bytes                           |
 
-`acquisitionControls.maxAcquisitionTimeMs` separately defaults to 1,200,000 milliseconds.
-`installationControls`, `acquisitionControls` and `verificationControls` each accept `false` or numeric/null overrides, independently of source profiles.
-The cold bootstrap accepts `JSON_QUALITY_INSTALLATION_CONTROLS`, `JSON_QUALITY_ACQUISITION_CONTROLS` and `JSON_QUALITY_VERIFICATION_CONTROLS`; source environment profiles cannot tune these owners.
-Cleanup uses `JSON_QUALITY_ACQUISITION_CLEANUP`; its Node `maxRetries` and `retryDelay` keys retain their meanings, and `retryDelay` counts milliseconds.
+The optional `verifyJsonQualityInstallation` API accepts `installationControls` and `verificationControls`, each as `false` or numeric/null overrides, independently of source profiles.
+Source environment profiles cannot tune these owners.
+
+Contributor npm setup separately accepts `JSON_QUALITY_ACQUISITION_CONTROLS` as `true`, `false` or a numeric/null override object.
+Its `maxAcquisitionTimeMs` defaults to 1,200,000 milliseconds and governs producer npm operations.
 
 ## Migrating earlier controls
 
@@ -162,7 +162,7 @@ Archive `verificationControls.maximumMembers` remains unchanged.
 
 An old source `{maxFiles: 100000, maxTotalBytes: 536870912}` that also intended installation effects becomes source `{maxPhysicalAndNativeSources: 100000, maxTotalSourceBytes: 536870912}` plus installation `{maximumPackageFamilyFiles: 100000, maximumPackageFamilyBytes: 536870912}`.
 An old `{maxFileBytes: 67108864}` changes only source bytes; archive-member verification still uses `verificationControls.maximumMemberBytes`.
-Move cache overrides into `installationControls` and acquisition time into `acquisitionControls`; source false does not disable these profiles.
+Move installation-verification cache overrides into `installationControls`; source false does not disable installation or archive verification profiles.
 An old whole-profile false with both effects must explicitly select false for each intended new operation profile.
 Defaults retain the earlier effective bounds.
 

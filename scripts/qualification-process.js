@@ -4,10 +4,23 @@ import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { acquisitionResourceLimits } from "../src/acquire.js";
+import {
+  resourceDefaults,
+  resolveResourceProfile,
+} from "../src/resource-profile.js";
 import { resolveExecutionResources } from "../src/execution-resources.js";
 export { budgets } from "./qualification-budgets.js";
 import { budgets } from "./qualification-budgets.js";
+
+export function acquisitionResources(
+  selected = JSON.parse(process.env.JSON_QUALITY_ACQUISITION_CONTROLS ?? "{}"),
+) {
+  return resolveResourceProfile(
+    resourceDefaults("acquisitionControls"),
+    undefined,
+    selected,
+  );
+}
 
 export function native(
   executable,
@@ -91,7 +104,7 @@ export function npmCli() {
 
 export const npmCommand = (args, options = {}) =>
   native(process.execPath, [npmCli(), ...args], {
-    timeout: acquisitionResourceLimits().maxAcquisitionTimeMs,
+    timeout: acquisitionResources().maxAcquisitionTimeMs ?? Infinity,
     ...options,
   });
 

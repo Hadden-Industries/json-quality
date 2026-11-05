@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-/** Keep the standalone cold bootstrap's literal defaults tied to native schema annotations. */
+/** Keep serialized event resource fields tied to the canonical schema. */
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
@@ -12,60 +12,6 @@ export function projectResourceLimits({ write = false } = {}) {
       "utf8",
     ),
   );
-  const path = new URL("../src/acquire.js", import.meta.url);
-  const source = readFileSync(path, "utf8").replaceAll("\r\n", "\n");
-  let projected = source;
-  for (const [definitionName, markerName, exportName] of [
-    ["installationControls", "INSTALLATION", "INSTALLATION_RESOURCE_DEFAULTS"],
-    ["acquisitionControls", "ACQUISITION", "ACQUISITION_RESOURCE_DEFAULTS"],
-    ["verificationControls", "VERIFICATION", "VERIFICATION_RESOURCE_DEFAULTS"],
-  ]) {
-    const definition = schema.$defs[definitionName];
-    if (
-      definition.type !== "object" ||
-      definition.additionalProperties !== false ||
-      Object.keys(definition).some(
-        (key) => !["type", "additionalProperties", "properties"].includes(key),
-      )
-    )
-      throw new Error(
-        "Cold resource validation requires a closed object schema.",
-      );
-    const values = Object.entries(definition.properties)
-      .map(([name, rule]) => {
-        if (
-          !/^[a-z][A-Za-z0-9]*$/u.test(name) ||
-          !isDeepStrictEqual(rule.type, ["integer", "null"]) ||
-          rule.minimum !== 1 ||
-          rule.maximum !== Number.MAX_SAFE_INTEGER ||
-          Object.keys(rule).some(
-            (key) => !["type", "minimum", "maximum", "default"].includes(key),
-          ) ||
-          !Number.isSafeInteger(rule.default) ||
-          rule.default < 1
-        )
-          throw new Error(
-            "Cold resource validation requires positive safe integers, matching defaults and literal property names.",
-          );
-        return `  ${name}: ${rule.default},`;
-      })
-      .join("\n");
-    const block = `// BEGIN GENERATED ${markerName} DEFAULTS\nexport const ${exportName} = Object.freeze({\n${values}\n});\n// END GENERATED ${markerName} DEFAULTS`;
-    const marker = new RegExp(
-      `// BEGIN GENERATED ${markerName} DEFAULTS[\\s\\S]*?// END GENERATED ${markerName} DEFAULTS`,
-      "gu",
-    );
-    if ([...source.matchAll(marker)].length !== 1)
-      throw new Error("Missing or duplicated resource projection marker.");
-    projected = projected.replace(marker, block);
-  }
-  if (projected !== source) {
-    if (!write)
-      throw new Error(
-        "Cold bootstrap resource defaults drifted; run npm run sync:resources.",
-      );
-    writeFileSync(path, projected);
-  }
   const eventsPath = new URL("../schemas/event.schema.json", import.meta.url),
     events = JSON.parse(readFileSync(eventsPath, "utf8")),
     resources = events.properties.resources.properties;

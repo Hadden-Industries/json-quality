@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { budgets } from "../scripts/qualification-process.js";
+import {
+  acquisitionResources,
+  budgets,
+} from "../scripts/qualification-process.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync, readFileSync, cpSync, mkdirSync } from "node:fs";
@@ -11,12 +14,10 @@ import { temporaryDirectory } from "./temporary-directory.js";
 import { resolveExecutionResources } from "../src/execution-resources.js";
 import { resourceDefaults } from "../src/resource-profile.js";
 import {
-  acquisitionResourceLimits,
-  installationResourceLimits,
-  verificationResourceLimits,
-  acquisitionCleanupOptions,
+  installationResources,
   nativeQualityCachePath,
-} from "../src/acquire.js";
+} from "../src/installation-controls.js";
+import { verificationResources } from "../src/package-payload.js";
 import {
   RESOURCE_OPTIONS,
   RUNTIME_OPTIONS,
@@ -136,18 +137,16 @@ test("both public CLIs reject the removed environment name before loading roots"
 test("source, installation, acquisition and verification profiles have independent canonical defaults", () => {
   assert.equal(projectResourceLimits().synchronized, true);
   for (const [name, resolve] of [
-    ["installationControls", installationResourceLimits],
-    ["acquisitionControls", acquisitionResourceLimits],
-    ["verificationControls", verificationResourceLimits],
+    ["installationControls", installationResources],
+    ["acquisitionControls", acquisitionResources],
+    ["verificationControls", verificationResources],
   ]) {
     const defaults = resourceDefaults(name);
     assert.deepEqual(resolve({}), defaults);
     assert.deepEqual(resolve(true), defaults);
-    assert.ok(
-      Object.values(resolve(false)).every((value) => value === Infinity),
-    );
+    assert.ok(Object.values(resolve(false)).every((value) => value === null));
     const [first, second] = Object.keys(defaults);
-    assert.equal(resolve({ [first]: null })[first], Infinity);
+    assert.equal(resolve({ [first]: null })[first], null);
     if (second)
       assert.equal(resolve({ [first]: null })[second], defaults[second]);
     for (const invalid of [{ [first]: 0 }, { unknown: 1 }, null])
@@ -155,10 +154,49 @@ test("source, installation, acquisition and verification profiles have independe
   }
   assert.throws(() => admission({}, { maxCacheOutputBytes: 1 }));
   assert.throws(() =>
-    installationResourceLimits({ maxPhysicalAndNativeSources: 1 }),
+    installationResources({ maxPhysicalAndNativeSources: 1 }),
   );
-  assert.throws(() => acquisitionResourceLimits({ maxCacheLookupTimeMs: 1 }));
+  assert.throws(() => acquisitionResources({ maxCacheLookupTimeMs: 1 }));
   assert.equal(DEFAULT_LIMITS.maxRequestBytes, 48 * 1024 * 1024);
+});
+
+test("operation resource profiles reject accessors and proxies without evaluation", () => {
+  for (const resolve of [
+    acquisitionResources,
+    installationResources,
+    verificationResources,
+  ]) {
+    let touched = false;
+    assert.throws(
+      () =>
+        resolve(
+          Object.defineProperty({}, "unknown", {
+            enumerable: true,
+            get() {
+              touched = true;
+              throw new Error("evaluated");
+            },
+          }),
+        ),
+      /Invalid/,
+    );
+    assert.throws(
+      () =>
+        resolve(
+          new Proxy(
+            {},
+            {
+              ownKeys() {
+                touched = true;
+                throw new Error("evaluated");
+              },
+            },
+          ),
+        ),
+      /Invalid/,
+    );
+    assert.equal(touched, false);
+  }
 });
 
 test("CLI controls preserve explicit budgets beside unlimited selections", () => {
@@ -277,9 +315,12 @@ test("native cache lookup uses caller output capacity rather than its former 16 
     20000,
   );
   assert.equal(nativeQualityCachePath(root, nativeNpm, false).length, 20000);
-  assert.deepEqual(
-    acquisitionCleanupOptions({ maxRetries: 0, retryDelay: 0 }),
-    { maxRetries: 0, retryDelay: 0 },
+  writeFileSync(
+    nativeNpm,
+    "setTimeout(() => process.stdout.write('cache'), 1000);",
+  );
+  assert.throws(() =>
+    nativeQualityCachePath(root, nativeNpm, { maxCacheLookupTimeMs: 1 }),
   );
 });
 
@@ -313,6 +354,7 @@ test("producer npm setup admits resource overrides before dependencies are insta
     ["{}", resourceDefaults("acquisitionControls").maxAcquisitionTimeMs],
     ["true", resourceDefaults("acquisitionControls").maxAcquisitionTimeMs],
     ['{"maxAcquisitionTimeMs":700000}', 700000],
+    ['{"maxAcquisitionTimeMs":null}', 0],
     ["false", 0],
   ]) {
     const env = {
@@ -347,23 +389,29 @@ test("producer npm setup admits resource overrides before dependencies are insta
       .find(({ state }) => state === "started");
     assert.equal(started.timeoutMs, timeoutMs);
   }
-  const rejected = spawnSync(
-    process.execPath,
-    [join(root, "scripts/qualification-process.js"), "producer-npm"],
-    {
-      cwd: root,
-      env: {
-        ...process.env,
-        NODE_PATH: "",
-        JSON_QUALITY_PRODUCER_NPM: nativeNpm,
-        JSON_QUALITY_ACQUISITION_CONTROLS: '{"maxFiles":1}',
+  for (const [encoded, message] of [
+    ['{"maxFiles":1}', /Invalid control option/u],
+    ['{"maxAcquisitionTimeMs":0}', /Invalid resource quota profile/u],
+    ["{", /SyntaxError/u],
+  ]) {
+    const rejected = spawnSync(
+      process.execPath,
+      [join(root, "scripts/qualification-process.js"), "producer-npm"],
+      {
+        cwd: root,
+        env: {
+          ...process.env,
+          NODE_PATH: "",
+          JSON_QUALITY_PRODUCER_NPM: nativeNpm,
+          JSON_QUALITY_ACQUISITION_CONTROLS: encoded,
+        },
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: budgets.read,
       },
-      encoding: "utf8",
-      windowsHide: true,
-      timeout: budgets.read,
-    },
-  );
-  assert.notEqual(rejected.status, 0);
-  assert.match(rejected.stderr, /Invalid JSON resource-limit overrides/u);
-  assert.equal(rejected.stdout, "");
+    );
+    assert.notEqual(rejected.status, 0);
+    assert.match(rejected.stderr, message);
+    assert.equal(rejected.stdout, "");
+  }
 });

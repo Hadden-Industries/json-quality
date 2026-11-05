@@ -64,7 +64,6 @@ export { DEFAULT_PACKAGE_VERIFICATION_LIMITS } from "./package-payload.js";
 export { runJsonQualityCli } from "./cli.js";
 export {
   assertJsonQualityInstallationRoot,
-  readJsonQualityAcquisitionBootstrapSource,
   parseJsonQualityRegistrySpecifier,
   verifyJsonQualityInstallation,
 } from "./installation.js";
