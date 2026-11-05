@@ -6,6 +6,10 @@ on:
       run_checks:
         type: boolean
         default: true
+      verification_profile:
+        description: Closed profile full or cli-community; build-only requires full
+        type: string
+        default: full
 
 permissions:
   contents: read
@@ -27,10 +31,32 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Admit the exact producer source and closed verification mode
+        env:
+          PRODUCER_REPOSITORY: ${{ job.workflow_repository }}
+          PRODUCER_SHA: ${{ job.workflow_sha }}
+          CALLER_REPOSITORY: ${{ github.repository }}
+          CALLER_SHA: ${{ github.sha }}
+          RUN_CHECKS: ${{ inputs.run_checks }}
+          VERIFICATION_PROFILE: ${{ inputs.verification_profile }}
+        run: |
+          [[ "$PRODUCER_REPOSITORY" == "Hadden-Industries/json-quality" && "$CALLER_REPOSITORY" == "$PRODUCER_REPOSITORY" ]]
+          [[ "$PRODUCER_SHA" =~ ^[a-f0-9]{40}$ && "$CALLER_SHA" == "$PRODUCER_SHA" ]]
+          case "$VERIFICATION_PROFILE" in full|cli-community) ;; *) echo 'Unknown verification profile' >&2; exit 2;; esac
+          [[ "$RUN_CHECKS" == "true" || "$RUN_CHECKS" == "false" ]]
+          [[ "$RUN_CHECKS" == "true" || "$VERIFICATION_PROFILE" == "full" ]]
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           persist-credentials: false
+      - name: Verify the checked-out producer before running local actions
+        env:
+          PRODUCER_SHA: ${{ job.workflow_sha }}
+        run: node --input-type=module -e 'import assert from "node:assert/strict"; import {execFileSync} from "node:child_process"; import {readFileSync} from "node:fs"; assert.equal(execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim(),process.env.PRODUCER_SHA); assert.equal(JSON.parse(readFileSync("package.json","utf8")).name,"@hadden-industries/json-quality");'
       - uses: ./.github/actions/setup-producer
+      - name: Check candidate version projections before native production
+        run: npm run check:version
       - name: Build the exact native and control sources
         id: build
         run: |
@@ -49,8 +75,10 @@ jobs:
           assert result['state'] == 'built'
           assert artifacts.name == 'artifacts' and artifacts.parent.parent == root
           assert re.fullmatch(r'producer-[a-f0-9]{32}', artifacts.parent.name)
+          assert re.fullmatch(r'[a-f0-9]{64}', result['sourceInputsSha256'])
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
               print('artifacts=' + artifacts.as_posix(), file=output)
+              print('source-inputs-sha256=' + result['sourceInputsSha256'], file=output)
           PY
       - name: Stage the verified component through its owner
         if: inputs.run_checks
@@ -58,37 +86,81 @@ jobs:
           NATIVE_ARTIFACTS: ${{ steps.build.outputs.artifacts }}
         run: python native/stage.py --artifacts "$NATIVE_ARTIFACTS" --replace
       - name: Qualify both bindings and public installed resolution
-        if: inputs.run_checks
+        if: inputs.run_checks && inputs.verification_profile == 'full'
         env:
           JSON_QUALITY_NATIVE_TEST_ARTIFACTS: ${{ steps.build.outputs.artifacts }}
         run: npm run test:native
+      - name: Check the bounded CLI community profile
+        if: inputs.run_checks && inputs.verification_profile == 'cli-community'
+        env:
+          JSON_QUALITY_NATIVE_TEST_ARTIFACTS: ${{ steps.build.outputs.artifacts }}
+          CLI_COMMUNITY_TEST_NAMES: "^(CLI discovery parses contextual help before operation admission|human messages explain concrete native findings and safe repair choices|quiet and diagnostic filtering cannot suppress findings or operational failures|quiet hides routine success while warning filtering remains presentation only|bounded terminal escaping does not inspect event arguments or source values|scope and result messages keep repository acceptance distinct from selected checks and writes|previews show candidate observations and remaining quality without claiming replacement|format preview preserves source observations and matches a fresh writer's exact candidates|format preview without a selection reports every eligible unchanged candidate|format preview retains complete native refusal for an invalid unselected peer|format preview cannot transform a protected ignored source|format preview rechecks freshness after provisional candidate delivery|format preview rechecks ignore protection after provisional candidate delivery|qualification partial and obsolete environment do not become no-operation help|scoped event admission refuses repository claims, stale versions and incomplete selected work|virtual selection completion requires input closure and cannot claim disk observations|format preview completion requires exact candidate counts or an explicit complete refusal|stdin filename admission preserves raw contracts and refuses contradictory framing before acquisition|CLI mode admission refuses legacy writes and mixed stdin reporting without opening a repository|raw stdin transforms preserve numeric lexemes and keep formatting separate from NFC|stdin transforms refuse malformed values, NFC collisions and expected-byte substitutions without source output|policy-aware stdin checks virtual bytes without reading or rewriting a bad target or peer|stdin output cannot acquire protected producer paths or bypass writer quotas|stdin transform rechecks policy absence before exposing a derived source|raw source filename context keeps terminal scope distinct from repository acceptance|stdin transform cancellation settles native storage before refusing output|broken stdin transform output exits incomplete after genuine native cleanup|selected option admission rejects implicit roots and authority-bearing fields before component acquisition|selected option admission rejects executable data and invalid literal identities|selected native checks pass beside invalid unselected peers without Git or provider execution|selected native checks retain explicit excluded reads and producer ownership|selected native admission rejects duplicate physical aliases and directories before source delivery|selected native terminals retain completed quality refusals and policy freshness|selected native iteration cleanup withholds completion and empties owned temporary storage|selected native cleanup failure withholds the aggregate terminal|selected native checks refuse linked obligations before delivering a selected source|selected native checks withhold terminals after selected mutation or newly appearing policy|selected native admission charges the complete selection before source delivery|selected virtual contracts preserve producer protection without invented disk identities|read-only repository checks retain complete scope and cannot select literal subsets|normalization preview binds decoded changes and no-change results to Unicode identity|normalization preview reports complete collision refusal without a write terminal|normalization preview keeps preserved policy and invalid selections as errors|selected formatting retains invalid-peer preflight and changes only selected sources|CLI argument admission and help run before trusted context loading|trusted CLI adapters retain fixed roots and required-output obligations|raw source checks cannot replace a trusted repository adapter's obligations|CLI consumes raw source bytes and delivers correlated complete NDJSON|CLI formats through the installed fixed component with a final write terminal|failed CLI output delivery closes its source session and exits incomplete)$"
+        run: >-
+          node --test --test-concurrency=1 --test-name-pattern "$CLI_COMMUNITY_TEST_NAMES"
+          tests/cli-entry.test.js tests/cli-messages.test.js
+          tests/cli-contracts.test.js tests/cli-stdin.test.js tests/selected-check.test.js tests/cli-flexibility.test.js
+          tests/native/repository-rewrite.test.mjs tests/native/cli-events.test.mjs
+      - name: Identify focused verification limits
+        if: inputs.run_checks && inputs.verification_profile == 'cli-community'
+        run: echo 'Focused CLI checks only. Full native, sanitizer, installed/package and release qualification remain pending.' >> "$GITHUB_STEP_SUMMARY"
       - name: Identify production-only evidence
         if: ${{ !inputs.run_checks }}
         run: echo 'Production only. Native tests, installed qualification, rights acceptance and final review remain pending.' >> "$GITHUB_STEP_SUMMARY"
       - name: Retain exact native payload, rights and source identities
+        id: payload
         if: success()
         uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         with:
-          name: "native-${{ matrix.platform }}-${{ github.run_attempt }}"
+          name: "native-${{ matrix.platform }}-${{ job.workflow_sha }}-${{ inputs.run_checks && inputs.verification_profile || 'build-only' }}-${{ github.run_attempt }}"
           path: "${{ steps.build.outputs.artifacts }}"
           retention-days: 30
+      - name: Record the immutable payload identity and verification scope
+        env:
+          SOURCE_SHA: ${{ job.workflow_sha }}
+          SOURCE_INPUTS_SHA256: ${{ steps.build.outputs.source-inputs-sha256 }}
+          PLATFORM: ${{ matrix.platform }}
+          VERIFICATION_SCOPE: ${{ inputs.run_checks && inputs.verification_profile || 'build-only' }}
+          ARTIFACT_ID: ${{ steps.payload.outputs.artifact-id }}
+        run: |
+          [[ "$ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+          printf 'Source commit: `%s`\n\nSource-input digest: `%s`\n\nPlatform: `%s`\n\nVerification scope: `%s`\n\nImmutable artifact ID: `%s`\n' "$SOURCE_SHA" "$SOURCE_INPUTS_SHA256" "$PLATFORM" "$VERIFICATION_SCOPE" "$ARTIFACT_ID" >> "$GITHUB_STEP_SUMMARY"
       - name: Write producer diagnostics to native job logs
         if: always()
         run: python scripts/log-native-diagnostics.py "$RUNNER_TEMP/json-quality-native"
 
   sanitizers:
     name: Native / address and undefined behavior sanitizers
-    if: inputs.run_checks
+    if: inputs.run_checks && inputs.verification_profile == 'full'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     defaults:
       run:
         shell: bash
     steps:
+      - name: Admit the exact producer source and full verification mode
+        env:
+          PRODUCER_REPOSITORY: ${{ job.workflow_repository }}
+          PRODUCER_SHA: ${{ job.workflow_sha }}
+          CALLER_REPOSITORY: ${{ github.repository }}
+          CALLER_SHA: ${{ github.sha }}
+          RUN_CHECKS: ${{ inputs.run_checks }}
+          VERIFICATION_PROFILE: ${{ inputs.verification_profile }}
+        run: |
+          [[ "$PRODUCER_REPOSITORY" == "Hadden-Industries/json-quality" && "$CALLER_REPOSITORY" == "$PRODUCER_REPOSITORY" ]]
+          [[ "$PRODUCER_SHA" =~ ^[a-f0-9]{40}$ && "$CALLER_SHA" == "$PRODUCER_SHA" ]]
+          case "$VERIFICATION_PROFILE" in full|cli-community) ;; *) echo 'Unknown verification profile' >&2; exit 2;; esac
+          [[ "$RUN_CHECKS" == "true" || "$RUN_CHECKS" == "false" ]]
+          [[ "$RUN_CHECKS" == "true" || "$VERIFICATION_PROFILE" == "full" ]]
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           persist-credentials: false
+      - name: Verify the checked-out producer before selecting tools
+        env:
+          PRODUCER_SHA: ${{ job.workflow_sha }}
+        run: node --input-type=module -e 'import assert from "node:assert/strict"; import {execFileSync} from "node:child_process"; import {readFileSync} from "node:fs"; assert.equal(execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim(),process.env.PRODUCER_SHA); assert.equal(JSON.parse(readFileSync("package.json","utf8")).name,"@hadden-industries/json-quality");'
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version

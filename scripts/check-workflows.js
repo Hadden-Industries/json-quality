@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { parseDocument } from "yaml";
 import { budgets } from "./qualification-budgets.js";
 import { securityScans } from "./security-scans.js";
+import { checkNativeWorkflowContract } from "./native-workflow-contract.js";
 
 const repository = fileURLToPath(new URL("../", import.meta.url));
 const transferBudgets = new Map([
@@ -225,6 +226,10 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
   checkSharedQualification(
     workflows.get("./.github/workflows/json-quality.yml"),
   );
+  checkNativeWorkflowContract({
+    producer: workflows.get("./.github/workflows/native-producer.yml"),
+    wrapper: workflows.get("./.github/workflows/native.yml"),
+  });
   function inputs(path, supplied, declared = {}) {
     for (const key of Object.keys(supplied ?? {}))
       assert.ok(

@@ -89,6 +89,32 @@ The producer supports Windows x64 and Linux x64/glibc and stages both source-bou
 Hosted Linux production is separate from installed/runtime qualification; a staged binary alone does not establish Linux acceptance.
 Node-API compatibility, clean package transport, rights, non-Node supervision and whole-process measurements must be reported for the actual candidate.
 
+### Hosted native production
+
+The [native workflow](../.github/workflows/native.yml) is both manually dispatchable and reusable through `workflow_call`.
+It delegates to the existing [native producer](../.github/workflows/native-producer.yml), building Windows x64 on `windows-2025` and Linux x64/glibc on `ubuntu-24.04`.
+No local compiler or container runtime is required to obtain those hosted payloads.
+Source changes must first be committed and available on GitHub; preparing this route does not publish or dispatch them.
+
+The closed inputs retain `run_checks: true` and `verification_profile: full` as defaults, preserving full native checks and the separate sanitizer job for ordinary CI.
+Use `run_checks: false` with profile `full` for build-only payloads, or `run_checks: true` with profile `cli-community` for the bounded literal CLI test selection on both hosts without the full native/sanitizer campaign.
+Unknown profiles and build-only combined with `cli-community` fail admission.
+Focused checks establish only the named host observations; build-only performs no runtime qualification.
+Neither mode establishes packed-consumer, release or complete repository acceptance.
+
+Calls are restricted to `Hadden-Industries/json-quality` at the same immutable caller/workflow source commit.
+The producer explicitly checks out its workflow repository and SHA, verifies HEAD and package identity, then invokes local source-owned actions and the existing builder/staging owners.
+Cross-repository callers and different source revisions are refused before checkout or dependency setup.
+Use a job-level local `uses: ./.github/workflows/native.yml` with these inputs for same-commit reuse; no arbitrary source-ref or shell-command input is accepted.
+GitHub's [job context](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context) identifies the reusable workflow's own repository and source revision separately from the caller.
+
+Each successful platform build retains its exact payload, `component.json`, `build-evidence.json`, rights and notices through the existing evidence uploader.
+Artifact names include platform, source SHA, verification scope and attempt; each job summary records its immutable artifact ID, source SHA and source-input digest.
+Download by the recorded artifact ID from that run, unpack the existing evidence bundle and supply its exact artifact directory to `native/stage.py --artifacts PATH --replace` only against matching source/control bytes.
+The staging owner rechecks hashes and cohort; it refuses mismatches rather than adapting a stale binary.
+Build manifests retain their pending qualification status, and a successful upload is transport evidence rather than a runtime verdict.
+Hosted execution, artifact retrieval and any later qualification must be reported from the actual run; an unrun workflow supplies no such proof.
+
 ## Development controls
 
 The JavaScript identity ESLint plugin is separate from JSON parsing.

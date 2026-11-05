@@ -2408,7 +2408,7 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
       minimalCli: {
         status: "passed",
         packageVersion: release.version,
-        cohortVersion: 4,
+        cohortVersion: 5,
         policy: "package-defaults",
         defaultPolicySha256: sha,
         command: "npm exec -- json-quality",

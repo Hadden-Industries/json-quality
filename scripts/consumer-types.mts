@@ -7,6 +7,7 @@ import {
   jsonFormatOptions,
   openJsonSourceSession,
   openJsonRepositorySession,
+  checkJsonFiles,
   formatJsonSource,
   formatJsonValue,
   normalizeJsonSource,
@@ -23,6 +24,7 @@ import {
 import plugin from "@hadden-industries/json-quality/eslint";
 import type {
   ResolvedResources,
+  FileCheckOptions,
   ReadonlyJsonQualityPolicy,
 } from "@hadden-industries/json-quality";
 import type { Linter } from "eslint";
@@ -119,6 +121,14 @@ session.selectByPointerStream(
   { kind: "source", referenceId: "scoped" },
   (async function* () {})(),
 );
+const selectedOptions: FileCheckOptions = {
+  root: process.cwd(),
+  files: ["a.json"],
+  capacityLimits: false,
+};
+for await (const event of checkJsonFiles(selectedOptions)) void event;
+// @ts-expect-error Selected checks cannot claim required-output authority.
+checkJsonFiles({ root: process.cwd(), files: ["a.json"], requiredOutputs: [] });
 const repository = await openJsonRepositorySession({ root: process.cwd() });
 for await (const event of repository.check()) void event;
 for await (const event of repository.rewrite("normalize", {

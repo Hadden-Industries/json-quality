@@ -17,7 +17,7 @@ Package-private source paths are not supported exports.
 | `defaultJsonQualityPolicy`                                  | Deeply frozen package-owned effective baseline value; no I/O                                                               | Use the resolver for an independent caller snapshot                                                                |
 | `resolveJsonSourceContract(path, policy, {tracked?}?)`      | Synchronous selected contract for an admitted policy and POSIX repository-relative path; no I/O                            | Contradictory matching exceptions throw; tracked files cannot be hidden by installed-tree exclusions               |
 | `jsonFormatOptions()`                                       | Promise of an independent copy of fixed formatter options; no I/O                                                          | Does not admit input or waive writer capacity                                                                      |
-| `runJsonQualityCli(args, context?)`                         | Promise of exit status; consumes CLI input and writes bounded stdout/stderr; writes sources only for explicit write verbs  | See [CLI exit statuses](cli.md); trusted context may be an object or async factory                                 |
+| `runJsonQualityCli(args, context?)`                         | Promise of exit status; consumes CLI input and writes bounded stdout/stderr; writes sources only with filesystem `--write` | See [CLI exit statuses](cli.md); trusted context may be an object or async factory                                 |
 | `qualifyGitJsonSources(options)`                            | Async generator of events checking immutable candidate Git JSON under trusted policy; reads repositories and owns scratch  | Full trusted/candidate commit IDs and absolute roots required; consume through `execution-terminal`                |
 | `assertJsonQualityInstallationRoot(toolingRoot)`            | Synchronously returns a verified isolated tooling root; reads filesystem resolution                                        | Throws when this package resolves outside that installation                                                        |
 | `parseJsonQualityRegistrySpecifier(specifier, npmCliPath?)` | Synchronous `{kind: "registry", version}` for an exact version or npm alias; uses native npm metadata tooling              | Rejects ranges, Git/source selectors and other package identities; no network                                      |
@@ -82,10 +82,18 @@ No complete pointer string is copied into collision events; very large paths rem
 
 ## Repository operations
 
+`checkJsonFiles(options)` accepts the closed `FileCheckOptions` fields `root`, nonempty `files`, `capacityLimits`, `runtimeControls`, `temporaryDirectory`, `signal` and `requestId`.
+It streams selected physical source events through `selection-terminal` after cleanup and policy/selected-source freshness checks.
+It performs no Git discovery, native/logical provider or required-output inventory and exposes no rewrite or retained-reference capability.
+The terminal declares `completeRepositoryCheck: false`; use the repository session for full acceptance.
+Explicit selection is not silently omitted by ignore/discovery exclusions; each selected contract retains expectations and protected values.
+Linked-document expectations refuse this scope instead of being discarded.
+
 `session.check()` reconciles complete physical/native/logical inventory and emits `execution-terminal` only after source, observation, diagnostic and linkage obligations settle.
 The lazy iterator can be claimed once and must reach `execution-terminal`.
 After complete checking, `session.rewrite("format" | "normalize", {files?, transformControls?, dryRun?})` selects eligible physical paths for guarded replacement.
-Normalize requires a nonempty explicit `files` list; `dryRun: true` is accepted only for normalize and performs the complete no-write preflight.
+Normalize requires a nonempty explicit `files` list; `dryRun: true` performs complete actual-candidate no-write preflight for either operation.
+Format preview ends in `format-preview-terminal`; normalize preview ends in `normalization-preview-terminal`.
 Format preserves decoded strings and may leave only ordinary NFC drift; normalize preserves presentation outside patched string spans and may leave presentation findings.
 Strict syntax, exact duplicates, enforced collisions, numbers, expectations, ownership and complete peer checks still block unsafe effects.
 Successful requested effects and overall quality are separate: inspect `qualityPassed` and `findingCount` on the terminal.

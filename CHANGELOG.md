@@ -4,8 +4,12 @@ Changes follow [Semantic Versioning](https://semver.org/).
 Public configuration/event/native schema cohorts evolve separately from package SemVer.
 Only an immutable published release establishes release availability.
 
-## Unreleased — 1.0.0-rc.2
+## Unreleased
 
+- Add both-bin version discovery, contextual help, literal `check-files` selection and raw UTF-8 stdin transforms with explicit virtual-file policy context.
+- Require `--write` or `--dry-run` for filesystem repairs; add actual format preview and presentation-only human display controls.
+- Advance contract cohort and events to 5; retain configuration/source-contract/native protocol 4 and Node-API 9.
+- Derive candidate metadata from `package.json.version`; `sync:version` refreshes its projections and `check:version` detects drift.
 - Add package-owned zero-configuration defaults, optional sparse configuration and independent immutable effective policy snapshots for cohort 4.
 - Check NFC by default, support global/path decoded-Unicode preservation, and expose normalization preview with complete collision preflight.
 - Let format preserve ordinary NFC drift and normalize preserve presentation drift while retaining strict safety, ownership and peer checks.

@@ -11,25 +11,28 @@ Install a published version with npm:
 npm install --save-dev --save-exact @hadden-industries/json-quality
 ```
 
-These examples describe the cohort **4** source contract under development.
+These examples describe the cohort **5** source contract under development.
 They do not establish that a matching version is published or installed.
 Use a version qualified for these contracts when consuming a release.
 
 Run from an existing Git repository; no configuration file or wrapper is required.
 The package supplies fixed presentation, NFC checking and dependency/VCS boundaries, including protected npm lockfiles.
-Check the repository, then select physical files for a guarded repair:
+Use `check-files -- authored.json` for a literal selected-file check without Git; it does not establish complete repository acceptance.
+Check the repository, then preview or select physical files for a guarded repair:
 
 ```sh
 npm exec -- json-quality check --root .
-npm exec -- json-quality format --root . -- authored.json
+npm exec -- json-quality format --dry-run --root . -- authored.json
+npm exec -- json-quality format --write --root . -- authored.json
 npm exec -- json-quality normalize --dry-run --root . -- authored.json
-npm exec -- json-quality normalize --root . -- authored.json
+npm exec -- json-quality normalize --write --root . -- authored.json
 ```
 
 Checking writes no source files; a spill may create owned temporary storage.
 Formatting preserves decoded strings and exact numeric lexemes, so NFC findings may remain.
 Normalization explicitly repairs NFC string/key spans and may leave presentation findings.
 Either repair order works for a file with both conditions; run `check` afterwards to assess overall quality.
+Both `format --dry-run` and `normalize --dry-run` preview actual candidates without source writes.
 The normalization preview writes nothing and refuses NFC-colliding keys before the first selected write.
 Write batches report confirmed writes and any uncertain path; they are not atomic.
 Producer-owned, logical and JSONL sources retain their owning write boundary.

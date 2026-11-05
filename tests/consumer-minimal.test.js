@@ -34,7 +34,7 @@ test("minimal CLI evidence rejects missing, duplicate, stale and substituted obs
   const receipt = {
     status: "passed",
     packageVersion: "1.2.3",
-    cohortVersion: 4,
+    cohortVersion: 5,
     policy: "package-defaults",
     defaultPolicySha256: "a".repeat(64),
     command: "npm exec -- json-quality",
@@ -61,7 +61,7 @@ test("minimal CLI evidence rejects missing, duplicate, stale and substituted obs
     (value) => value.commands.pop(),
     (value) => value.commands[0].argv.push("--json"),
     (value) => (value.commands[0].exitCode = 1),
-    (value) => (value.cohortVersion = 3),
+    (value) => (value.cohortVersion = 4),
     (value) => (value.routing = "anonymous-registry"),
     (value) => (value.defaultPolicySha256 = "f".repeat(64)),
     (value) => delete value.corePackage,

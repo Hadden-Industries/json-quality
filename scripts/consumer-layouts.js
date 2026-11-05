@@ -111,7 +111,7 @@ export function validateMinimalCli(
 ) {
   assert.equal(value.status, "passed");
   assert.equal(value.packageVersion, packageVersion);
-  assert.equal(value.cohortVersion, 4);
+  assert.equal(value.cohortVersion, 5);
   assert.equal(value.policy, "package-defaults");
   assert.equal(value.command, "npm exec -- json-quality");
   assert.equal(value.packageName, "@hadden-industries/json-quality");

@@ -9,6 +9,7 @@ import {
 import { readFileSync } from "node:fs";
 import { parse, stringify } from "yaml";
 import { checkWorkflows } from "../scripts/check-workflows.js";
+import { checkNativeWorkflowContract } from "../scripts/native-workflow-contract.js";
 import { budgets } from "../scripts/qualification-budgets.js";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -20,6 +21,95 @@ test("complete workflow contracts cover every local action and transfer caller",
       summary.localActions > 0 &&
       summary.transferCallers > 0,
   );
+});
+
+test("native workflow keeps source-bound production and focused checks distinct from full qualification", () => {
+  const load = (name) =>
+    parse(
+      readFileSync(
+        new URL(`../.github/workflows/${name}.yml`, import.meta.url),
+        "utf8",
+      ),
+    );
+  const candidate = {
+    producer: load("native-producer"),
+    wrapper: load("native"),
+  };
+  checkNativeWorkflowContract(candidate);
+  for (const mutate of [
+    ({ producer }) => {
+      producer.jobs.component.steps.find(
+        (step) => step.run === "npm run check:version",
+      )["continue-on-error"] = true;
+    },
+    ({ producer }) => {
+      const steps = producer.jobs.component.steps;
+      const index = steps.findIndex(
+        (step) => step.run === "npm run check:version",
+      );
+      steps.push(...steps.splice(index, 1));
+    },
+    ({ producer }) => {
+      producer.on.workflow_call.inputs.verification_profile.default =
+        "cli-community";
+    },
+    ({ wrapper }) => {
+      wrapper.jobs.native.with.verification_profile = "full";
+    },
+    ({ producer }) => {
+      producer.jobs.component.steps[0].if = "inputs.run_checks";
+    },
+    ({ producer }) => {
+      producer.jobs.component.steps[0].run = "echo admitted";
+    },
+    ({ producer }) => {
+      producer.jobs.component.steps[1].with.ref = "main";
+    },
+    ({ producer }) => {
+      producer.jobs.component.steps[1].with.repository =
+        "${{ github.repository }}";
+    },
+    ({ producer }) => {
+      producer.jobs.component.steps[2].run = "echo verified";
+    },
+    ({ producer }) => {
+      producer.jobs.component.steps.find(
+        (step) => step.run === "npm run test:native",
+      ).if = "inputs.run_checks";
+    },
+    ({ producer }) => {
+      producer.jobs.component.steps.find(
+        (step) => step.env?.CLI_COMMUNITY_TEST_NAMES,
+      ).run = "npm test";
+    },
+    ({ producer }) => {
+      producer.jobs.component.steps.find(
+        (step) => step.env?.CLI_COMMUNITY_TEST_NAMES,
+      ).env.CLI_COMMUNITY_TEST_NAMES = ".*";
+    },
+    ({ producer }) => {
+      producer.jobs.component.steps.find(
+        (step) => step.env?.CLI_COMMUNITY_TEST_NAMES,
+      ).env.CLI_COMMUNITY_TEST_NAMES = "^(invented test)$";
+    },
+    ({ producer }) => {
+      producer.jobs.sanitizers.if = "inputs.run_checks";
+    },
+    ({ producer }) => {
+      producer.jobs.component.steps.find(
+        (step) => step.id === "payload",
+      ).with.name = "native-qualified";
+    },
+    ({ producer }) => {
+      producer.jobs.component.steps.find(
+        (step) => step.env?.ARTIFACT_ID,
+      ).env.ARTIFACT_ID = "unverified-id";
+    },
+  ]) {
+    const changed = structuredClone(candidate);
+    mutate(changed);
+    assert.throws(() => checkNativeWorkflowContract(changed));
+  }
 });
 
 test("shared qualification rejects caller execution and changes to its immutable data boundary", async (t) => {

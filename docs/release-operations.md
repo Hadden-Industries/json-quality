@@ -15,7 +15,10 @@ The existing `--archive` and `--provenance` inputs identify the core and its fro
 Linux executable mode is checked in the actual native archive.
 The local `.provenance.json` records all three byte identities; authenticated registry provenance comes from native npm verification.
 The published `1.0.0-rc.1` uses configuration/event/native cohort 2.
-The current source candidate remains `1.0.0-rc.2` with cohort 4 and zero-configuration policy resolution; preparing source does not publish it or select it in consumers.
+The current source candidate is selected only by [`package.json.version`](../package.json).
+Its contracts use cohort/events 5, configuration/source-contract/native protocol 4, component schema 4 and Node-API 9.
+Zero-configuration policy resolution remains supported; preparing source does not publish it or select it in consumers.
+Matching new native artifacts and candidate qualification remain required before claiming installed or release acceptance.
 Formal release publication and HISEW adoption require their owner's separate decisions.
 Public API/schema exports, executable artifacts, CLI entrypoints and consumer Node floors remain separate compatibility contracts.
 
@@ -40,6 +43,10 @@ See [npm staged publishing](https://docs.npmjs.com/staged-publishing/) and [GitH
 ## Before first use
 
 Select the exact version and compatibility intent with the owner.
+Edit only `package.json.version`, then run `npm run sync:version` to project the companion manifests, owned lockfile version fields and policy-input fingerprint.
+`npm run check:version` detects drift without writing; repository qualification and hosted native production run it before expensive work.
+Synchronization preserves dependency resolution, native payloads, build evidence, historical plans, published records and release approvals.
+Changing the candidate does not authorize publication or transfer qualification from earlier bytes.
 The checked-in development version is not implicit permission to release it.
 Native npm SemVer admits intentional zero-major and prerelease releases.
 Build metadata is rejected because native npm publishing normalizes it, changing the frozen version identity.

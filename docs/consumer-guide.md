@@ -1,8 +1,9 @@
-# Consumer guide: cohort 4
+# Consumer guide: cohort 5
 
-Contract cohort 4 supplies package-owned defaults for ordinary Git repositories, sparse configuration and separate presentation/NFC repairs while retaining streamed checking and lossless access.
+Contract cohort 5 supplies package-owned defaults for ordinary Git repositories, sparse configuration and separate presentation/NFC repairs while retaining streamed checking and lossless access.
 Upgrade the core and platform packages together; old explicit policy/schema names require migration.
-Move consumers together to the configuration, source-contract, event and native-protocol versions in `./contract-cohort`.
+Use the independent versions in `./contract-cohort`: cohort/events 5, configuration/source-contract/native protocol 4, component schema 4 and Node-API 9.
+Cohort-4 event evidence cannot certify this cohort.
 There is no old-reader backend or size-dependent dispatch.
 Historical artifacts retain their original bytes and versions.
 
@@ -13,14 +14,14 @@ Ordinary consumers install a qualified package version as a development dependen
 ```sh
 npm install --save-dev --save-exact @hadden-industries/json-quality
 npm exec -- json-quality check
-npm exec -- json-quality format -- authored.json
+npm exec -- json-quality format --write -- authored.json
 npm exec -- json-quality normalize --dry-run -- authored.json
-npm exec -- json-quality normalize -- authored.json
+npm exec -- json-quality normalize --write -- authored.json
 ```
 
 No wrapper, copied repository exclusions or `.json-quality.json` is required.
 Commit the npm-generated lockfile and use `npm ci` for clean installs.
-These cohort-4 source examples do not establish matching registry publication or installed qualification.
+These cohort-5 source examples do not establish matching registry publication or installed qualification.
 
 ### Advanced installation verification
 
@@ -47,7 +48,7 @@ Omitting the matching optional dependency fails explicitly.
 
 The root export supplies:
 
-- `openJsonSourceSession`, `openJsonRepositorySession` and `validateJsonQualityEvent`;
+- `checkJsonFiles`, `openJsonSourceSession`, `openJsonRepositorySession` and `validateJsonQualityEvent`;
 - `formatJsonSource`, `formatJsonValue`, `normalizeJsonSource` and their declared capability objects;
 - `resolveJsonQualityPolicy`, `resolveJsonSourceContract` and `jsonFormatOptions`;
 - `runJsonQualityCli`, `qualifyGitJsonSources` and optional installation-verification helpers.
@@ -218,12 +219,21 @@ The policy is replaced last.
 
 ## CLI and migration
 
-| Command                                          | Input and completion                                             |
-| ------------------------------------------------ | ---------------------------------------------------------------- |
-| `check --root PATH --ndjson`                     | Complete repository, NDJSON ending in `execution-terminal`.      |
-| `check-source --ndjson --contract JSON`          | Raw stdin, closed source contract, final source `terminal`.      |
-| `format --root PATH --ndjson -- literal.json`    | Complete preflight, selected explicit writes, final write event. |
-| `normalize --root PATH --ndjson -- literal.json` | Complete preflight and explicit NFC write selection.             |
+| Command                                                  | Input and completion                                             |
+| -------------------------------------------------------- | ---------------------------------------------------------------- |
+| `check --root PATH --ndjson`                             | Complete repository, NDJSON ending in `execution-terminal`.      |
+| `check-source --ndjson --contract JSON`                  | Raw stdin, closed source contract, final source `terminal`.      |
+| `format --write --root PATH --ndjson -- literal.json`    | Complete preflight, selected explicit writes, final write event. |
+| `normalize --write --root PATH --ndjson -- literal.json` | Complete preflight and explicit NFC write selection.             |
+
+`check-files -- literal.json` checks selected physical inputs without Git and ends in `selection-terminal`, explicitly excluding complete repository acceptance.
+Filesystem transforms require `--write` or `--dry-run`; previews compute actual candidates without source writes.
+`format --stdin --stdin-filepath input.json` consumes raw UTF-8 and writes only transformed source to stdout; a filename alone does not select repository policy.
+Add explicit `--root PATH` and a virtual filename for policy-aware transform input; `--contract` is then forbidden.
+`check-source` stays raw explicit-contract checking; `check-files --stdin --stdin-filepath input.json` uses root/cwd policy.
+See [CLI grammar and conflicts](cli.md) for literal paths, protected targets and contextual help.
+Human operation reports use stderr; NDJSON uses stdout.
+`--quiet` and diagnostic display levels change presentation only and conflict with NDJSON.
 
 CLI success requires the applicable final terminal and exit 0.
 Shared quality/contract failure returns 1 for read-only checks.

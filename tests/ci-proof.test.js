@@ -219,7 +219,7 @@ function fixture(attempt = 1, fork = false) {
             minimalCli: {
               status: "passed",
               packageVersion: "1.0.0-rc.1",
-              cohortVersion: 4,
+              cohortVersion: 5,
               policy: "package-defaults",
               defaultPolicySha256: "a".repeat(64),
               command: "npm exec -- json-quality",

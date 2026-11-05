@@ -78,7 +78,7 @@ All four public document schemas use JSON Schema 2020-12 and compile offline wit
 | `configuration-schema`    | `https://github.com/Hadden-Industries/json-quality/schema/configuration/v4`    |
 | `effective-policy-schema` | `https://github.com/Hadden-Industries/json-quality/schema/effective-policy/v4` |
 | `source-contract-schema`  | `https://github.com/Hadden-Industries/json-quality/schema/source-contract/v4`  |
-| `event-schema`            | `https://github.com/Hadden-Industries/json-quality/schema/event/v4`            |
+| `event-schema`            | `https://github.com/Hadden-Industries/json-quality/schema/event/v5`            |
 
 These are logical identities, not HTTP download endpoints.
 Retrieve the actual files through package exports and register them locally:

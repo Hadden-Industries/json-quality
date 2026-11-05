@@ -1,4 +1,7 @@
-# Native protocol, cohort 4
+# Native protocol 4, contract cohort 5
+
+The current contract vector uses cohort/events 5, configuration/source-contract/native protocol 4, component schema 4 and Node-API 9.
+The event/cohort migration does not change native framing or protocol command versions.
 
 Each platform package supplies the standalone executable and Node addon from the same core.
 `@hadden-industries/json-quality-linux-x64` contains `json-quality-native`; `@hadden-industries/json-quality-win32-x64` contains `json-quality-native.exe`.
