@@ -10,10 +10,13 @@ import test from "node:test";
 const observer = fileURLToPath(
   new URL("../../scripts/observe-process-tree.py", import.meta.url),
 );
-function observe(script, timeout = "5") {
+const workload = fileURLToPath(
+  new URL("./process-observer-workload.mjs", import.meta.url),
+);
+function observe(args, timeout = "5") {
   const child = spawnSync(
     process.env.PYTHON ?? "python",
-    [observer, "--timeout", timeout, "--", process.execPath, "-e", script],
+    [observer, "--timeout", timeout, "--", process.execPath, workload, ...args],
     {
       encoding: "utf8",
       windowsHide: true,
@@ -25,9 +28,7 @@ function observe(script, timeout = "5") {
   return { exit: child.status, report: JSON.parse(child.stdout) };
 }
 test("tree accounting observes a real memory-heavy child independently of parent memory", () => {
-  const { exit, report } = observe(
-    "const {spawnSync}=require('node:child_process'); const r=spawnSync(process.execPath,['-e','const memory=Buffer.alloc(64*1024*1024,1); setTimeout(()=>console.log(memory.length),300)'],{encoding:'utf8'}); if(r.status!==0)process.exit(2); console.log(JSON.stringify({bytes:Number(r.stdout)}));",
-  );
+  const { exit, report } = observe(["memory"]);
   assert.equal(exit, 0);
   assert.equal(report.status, "passed");
   assert.equal(JSON.parse(report.stdout).bytes, 64 * 1024 * 1024);
@@ -44,9 +45,14 @@ test("surviving grandchildren and timeout fail observation and leave no live own
   const root = mkdtempSync(join(tmpdir(), "json-observer-test-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const timeout of [false, true]) {
-    const path = join(root, `${timeout}.pid`);
-    const script = `const {spawn}=require('node:child_process'); const {writeFileSync}=require('node:fs'); const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',detached:process.platform==='win32'}); writeFileSync(${JSON.stringify(path)},String(child.pid)); child.unref(); ${timeout ? "setInterval(()=>{},1000);" : ""}`;
-    const { exit, report } = observe(script, timeout ? "0.5" : "5");
+    const path = join(
+      root,
+      `literal '${timeout}' ; process.exit(91); \` Ω\u2028\u2029.pid`,
+    );
+    const { exit, report } = observe(
+      [timeout ? "timeout" : "survivor", path],
+      timeout ? "0.5" : "5",
+    );
     const pid = Number(readFileSync(path, "utf8"));
     assert.equal(exit, 1);
     assert.equal(report.status, "failed");
@@ -68,7 +74,7 @@ test("surviving grandchildren and timeout fail observation and leave no live own
   }
 });
 test("workload errors retain failed observation and successful cleanup", () => {
-  const { exit, report } = observe("process.exit(7)");
+  const { exit, report } = observe(["failure"]);
   assert.equal(exit, 1);
   assert.equal(report.exitCode, 7);
   assert.equal(report.status, "failed");
