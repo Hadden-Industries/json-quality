@@ -2,14 +2,24 @@
 
 ## Reporting a vulnerability
 
-Report suspected vulnerabilities through [GitHub private vulnerability reporting](https://github.com/Hadden-Industries/json-quality/security/advisories/new).
-If that channel is unavailable or unsuitable, email `security@haddenindustries.com`.
+[Report a vulnerability privately on GitHub](https://github.com/Hadden-Industries/json-quality/security/advisories/new).
+If that channel is unavailable or unsuitable, email [security@haddenindustries.com](mailto:security@haddenindustries.com).
 Keep vulnerability details out of public issues and pull requests.
-Community conduct reports use the separate [Code of Conduct](CODE_OF_CONDUCT.md) process.
+For a conduct incident, use the [private conduct reporting process](CODE_OF_CONDUCT.md#reporting-an-issue).
 
-Include the exact affected version or source commit, OS and architecture, Node/npm versions, invocation and relevant configuration.
-Describe the impact, expected and actual behavior, a minimal non-sensitive reproduction and any known mitigation.
-Remove credentials, personal data and unrelated document content; arrange any sensitive evidence through the private channel.
+### What to include
+
+- **Affected installation.**
+  Give the exact version or source commit, OS, architecture, and Node and npm versions.
+- **Reproduction.**
+  Include the invocation, relevant configuration and a minimal non-sensitive input.
+- **Impact.**
+  Describe what you expected, what happened and any known mitigation.
+
+Remove credentials, personal data and unrelated document content.
+Arrange any sensitive evidence through the private channel.
+
+### After reporting
 
 Maksym Shostak / Hadden Industries handles reports manually.
 Response and resolution times are not guaranteed.
@@ -19,6 +29,7 @@ Coordinate disclosure privately while a fix or effective mitigation is investiga
 
 This repository is a development candidate, not a declared stable support line.
 Report issues against the exact source or package you used; historical commits and downloadable artifacts do not imply backport support.
+
 The [runtime compatibility policy](docs/node-runtime-compatibility.md) separates consumer minima, current-family qualification and producer tooling.
 A compatibility floor is not a recommendation to run an outdated security patch.
 Use current security patches within the supported families.
@@ -34,6 +45,7 @@ Also report compromised package acquisition or evidence admission with the exact
 
 Repository configuration and native document providers are selected by the trusted operator; JSON content does not grant executable configuration or shell authority.
 Checking and inventory must not install tools or rewrite input documents.
+
 Explicit normalization has different semantics from formatting and must retain collision checks.
 Replacement is guarded per file; later failures must report completed and unprocessed paths truthfully.
 Concurrent hostile filesystem mutation is outside the documented supported guarantee.

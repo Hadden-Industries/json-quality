@@ -1,7 +1,8 @@
 # CLI reference
 
-Use repository-local npm execution.
-Discovery works outside a repository and does not load Git, policy, native components or stdin:
+Run the local binary with `npm exec -- json-quality` followed by a command.
+Command-specific help lists the accepted flags.
+Help and version discovery work outside a repository without reading stdin or loading Git, policy or the native companion.
 
 ```sh
 npm exec -- json-quality --version
@@ -16,30 +17,56 @@ The qualification binary retains environment-only execution when all required qu
 
 ## Commands and scope
 
-| Command                                                                        | Input and authority                                                                                                                   | Completion                                                               |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `check [--root R]`                                                             | Complete repository obligations, including physical, native, logical, required-output, expectation and freshness checks; requires Git | `execution-terminal`                                                     |
-| `check-files [--root R] -- A.json B.json`                                      | Nonempty literal physical selection under root policy; no Git, provider or required-output inventory                                  | `selection-terminal`; never complete repository acceptance               |
-| `check-files --stdin --stdin-filepath A.json [--root R]`                       | Raw UTF-8 stdin as one virtual file under root/cwd policy                                                                             | Stdin-scoped `selection-terminal`                                        |
-| `check-source [--contract JSON] [--stdin-filepath A.json]`                     | Raw stdin under a closed explicit contract, default `{}`; no repository policy                                                        | Source `terminal`                                                        |
-| `format --dry-run [--root R] [-- A.json ...]`                                  | Complete repository and actual candidate preflight; no source writes                                                                  | `format-preview-terminal`                                                |
-| `format --write [--root R] [-- A.json ...]`                                    | Guarded physical replacement after complete preflight; omitted files selects all eligible writable sources                            | `write-terminal`                                                         |
-| `normalize --dry-run [--root R] -- A.json ...`                                 | Explicit nonempty selection, complete preflight and NFC span preview; no source writes                                                | `normalization-preview-terminal`                                         |
-| `normalize --write [--root R] -- A.json ...`                                   | Explicit nonempty selection and guarded NFC replacement                                                                               | `write-terminal`                                                         |
-| `format --stdin` or `normalize --stdin`                                        | Raw UTF-8 transform under an optional closed `--contract`, default `{}`                                                               | Complete source output and successful delivery; no repository acceptance |
-| `format --stdin --root R --stdin-filepath A.json` or corresponding `normalize` | Policy-aware virtual transform; `--contract` forbidden                                                                                | Scoped source output and successful delivery                             |
+### Check a repository, selected files or stdin
+
+| Command                                                    | Scope                                                             | Last event           |
+| ---------------------------------------------------------- | ----------------------------------------------------------------- | -------------------- |
+| `check [--root R]`                                         | Complete Git repository, including providers and required outputs | `execution-terminal` |
+| `check-files [--root R] -- A.json B.json`                  | Named physical files under root policy                            | `selection-terminal` |
+| `check-files --stdin --stdin-filepath A.json [--root R]`   | One virtual file under root policy                                | `selection-terminal` |
+| `check-source [--contract JSON] [--stdin-filepath A.json]` | Raw stdin under a source contract (default `{}`)                  | `terminal`           |
 
 ```sh
 npm exec -- json-quality check --root .
 npm exec -- json-quality check-files --root . -- authored.json
+```
+
+### Preview or write files
+
+Choose exactly one of `--dry-run` and `--write`.
+Both modes check the complete repository and actual replacement candidates before the first possible write.
+
+| Command               | Files                             | Last event                       |
+| --------------------- | --------------------------------- | -------------------------------- |
+| `format --dry-run`    | Named files or all eligible files | `format-preview-terminal`        |
+| `format --write`      | Named files or all eligible files | `write-terminal`                 |
+| `normalize --dry-run` | Explicit, nonempty selection      | `normalization-preview-terminal` |
+| `normalize --write`   | Explicit, nonempty selection      | `write-terminal`                 |
+
+Pass `--root R` to select the repository and list filenames after `--`.
+For example, preview formatting or Unicode repair for one file, then use `--write` in the chosen command to apply it.
+
+```sh
 npm exec -- json-quality format --dry-run --root . -- authored.json
-npm exec -- json-quality format --write --root . -- authored.json
 npm exec -- json-quality normalize --dry-run --root . -- authored.json
-npm exec -- json-quality normalize --write --root . -- authored.json
+```
+
+### Return transformed bytes on stdout
+
+Use `format --stdin` or `normalize --stdin` for a strict single JSON document.
+By default these commands use a raw source contract (`{}`, or an explicit `--contract JSON`).
+Supply both `--root` and `--stdin-filepath` to apply repository policy to the virtual file.
+
+The following examples use POSIX shell redirection.
+Keep the output file separate from the input.
+
+```sh
 npm exec -- json-quality check-source --ndjson --stdin-filepath input.json < input.json
 npm exec -- json-quality format --stdin --stdin-filepath input.json < input.json > formatted.json
 npm exec -- json-quality normalize --stdin --root . --stdin-filepath authored.json < input.json > normalized.json
 ```
+
+### Root and path selection
 
 The default root is cwd, with no ancestor policy search.
 Missing root policy selects packaged defaults; malformed or inaccessible policy fails closed.
@@ -49,6 +76,7 @@ Trusted adapters retain fixed roots and required outputs and cannot be downgrade
 Selected paths are literal files, with or without `--`; quote spaces and use `--` for leading-hyphen names.
 No directory traversal, internal glob expansion, ignore-based skipping of explicit selections or alternate JSON dialect is supplied.
 Missing, duplicate, escaping, symlink, nonregular and unsupported selected paths fail operationally.
+
 Selected contracts retain expectations and protection; linked-document obligations require full `check` and refuse selected scope.
 Only selected observations and policy freshness establish selected completion; unrelated files and repository inventories remain unassessed.
 
@@ -57,6 +85,7 @@ Only selected observations and policy freshness establish selected completion; u
 `--stdin-filepath` supplies virtual identity and framing; it never reads or overwrites that path.
 For raw checking/transforms, a filename alone does not load policy.
 An explicit contract's path/framing must agree with that filename.
+
 For transforms, explicit `--root` selects policy-aware mode and requires a filename; `check-files --stdin` always uses root/cwd policy.
 Policy-aware virtual paths may be new files, but existing ancestors, containment, protection, ownership, expectations and candidate admission still apply.
 Protected locks and producer-owned paths cannot acquire transform authority through stdout.
@@ -66,8 +95,11 @@ Generic transforms reject JSONL/NDJSON, JSONC and JSON5.
 Input must be complete raw UTF-8 from non-TTY stdin, without a JSON/base64 envelope.
 Capacity, cancellation, EOF, output delivery and cleanup remain mandatory.
 
+### Incompatible flags
+
 Filesystem transforms require exactly one of `--write` and `--dry-run`.
 Old mode-less invocations fail with exit 2 and migration guidance before effects.
+
 Stdin transforms reject either filesystem mode, file positionals and `--ndjson`.
 `check` rejects files and stdin; check commands reject write/preview modes.
 Raw `check-source` rejects `--root` and `--stdin`; it consumes stdin inherently.
@@ -97,6 +129,8 @@ The applicable final terminal is delivered only after cleanup.
 Missing terminals, broken output, incomplete input and failed cleanup cannot establish success.
 A source terminal inside a repository/selected operation does not complete that enclosing operation.
 
+### Exit status
+
 | Exit | Meaning                                                                                                                                  |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `0`  | Requested discovery delivered, complete satisfied check, admissible preview or successful transform/write and delivery                   |
@@ -109,11 +143,15 @@ Format preserves decoded strings, exact numeric lexemes and member order; NFC fi
 Normalize repairs eligible NFC string/key spans and preserves other token/presentation bytes; presentation findings can remain.
 Either order works for mixed conditions.
 Run complete `check` to establish repository acceptance afterwards.
+
 Previews compute actual candidates, identities and remaining quality without source writes; they do not grant later write authority.
 NFC collisions refuse the whole selected normalization batch before the first write; reconcile those keys explicitly.
 Preserved sources cannot be normalized.
 Exact duplicates, invalid Unicode, unsafe numbers, protected ownership, stale observations and unsafe peers remain blocking.
+
 Write batches report confirmed writes and an uncertain path when applicable; they are not atomic and do not silently roll back.
+
+## Qualify immutable Git inputs
 
 The separate `json-quality-qualify-git` executable checks immutable Git inputs under trusted policy.
 It accepts help-documented roots and full commit IDs or `JSON_QUALITY_TRUSTED_ROOT`, `JSON_QUALITY_CANDIDATE_ROOT`, `JSON_QUALITY_TRUSTED_COMMIT_ID` and `JSON_QUALITY_CANDIDATE_COMMIT_ID`.

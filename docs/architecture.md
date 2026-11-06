@@ -1,12 +1,15 @@
 # Architecture
 
-Cohort 2 uses one native C++20 service for strict JSON and JSONL checking.
-Node-API and the framed executable transport bytes and controls to that service.
-Neither implements a second parser or rule engine.
-Installed resolution verifies a fixed platform artifact; source size never selects a backend.
+One C++20 core checks strict JSON and JSONL for both the Node.js API and the standalone executable.
+Node callers send bytes through Node-API.
+Other hosts use binary frames.
+Both paths reach the same grammar and Unicode checks, and the same store retains values in memory or spills them to disk.
+Installed resolution verifies a fixed platform artifact for every source size.
 
 ```mermaid
 flowchart TD
+  accTitle: JSON Quality checking paths
+  accDescr: Node and standalone clients send bytes to one native core, which parses JSON, checks Unicode and stores retained values in memory or owned scratch.
   CLI[CLI and trusted repository adapters] --> SDK[Scoped session and event API]
   SDK --> NAPI[Node-API transport]
   Host[Non-Node host] --> Frames[Framed executable]
@@ -30,7 +33,10 @@ Raw native IDs, backend selection and event projection are not public capability
 Decimal admission retains raw lexemes and uses exact reasoning before any declared conversion.
 Presentation consumes the same parser callbacks and pinned serializer primitives; no scalable path constructs a JavaScript document DOM.
 
+### Memory and scratch ownership
+
 Payload segments, SQLite metadata, decoded/NFC values, pointers, findings, identities, census rows, retained controls and materialization reservations have explicit owners in the managed ledger. The store starts in memory and can transition once to owned disk. SQLite backup moves metadata into ordinary pages; payload/range identities remain stable.
+
 A bounded immutable schema template is a separate module-level reserve with private per-session connections.
 There is no input-result cache or shared mutable execution database.
 
@@ -48,6 +54,8 @@ Configuration never selects executable provider code or retrieves schemas.
 Hidden, untracked and ignored generated JSON remain obligations.
 Tracked files inside excluded ancestors remain checked and protected from writes.
 
+### Reconcile provider sources
+
 `native-provider.js` verifies actual physical authority captures, independent inventory and streamed members.
 `logical-provider.js` selects actual frozen container values and transfers their UTF-8 or canonical Base64 bytes through the same core.
 `source_census.hpp` independently reconciles membership, identities, provenance, provider minima and completed diagnostic streams.
@@ -56,6 +64,8 @@ Required logical pins reselect the actual source pointer/record and compare reta
 `repository-check.js` rechecks source, policy, native authority, Git and directory observations before the sole final repository verdict.
 Source terminals alone establish no complete repository claim.
 Domain schemas and archive/RDF meaning remain with trusted consumer validators/adapters.
+
+### Qualify immutable Git bytes
 
 `qualification.js` composes a narrower immutable Git source owner: commit/type admission, trusted policy, streamed object-hash verification, native census and events.
 It does not create a copied checkout or execute candidate tools, hooks or filters.
@@ -70,6 +80,8 @@ Producer-owned materialized values have their own declared serialization capabil
 `repository-rewrite.js` checks complete peer contracts and actual logical dependents before effects, then rechecks discovery and permissions around each rename.
 On Windows it additionally resolves actual filesystem spelling so a Git casing alias cannot escape an excluded ancestor.
 Native authority protection remains independently enforced in the core.
+
+### Commit a file replacement
 
 `guarded-replacement.js` owns one exclusive sibling stage, partial-write completion, permissions, fsync/close, staged-byte identity, original preimage recheck, rename and committed-path verification.
 The policy is replaced last.
@@ -96,22 +108,33 @@ It delegates to the existing [native producer](https://github.com/Hadden-Industr
 No local compiler or container runtime is required to obtain those hosted payloads.
 Source changes must first be committed and available on GitHub; preparing this route does not publish or dispatch them.
 
-The closed inputs retain `run_checks: true` and `verification_profile: full` as defaults, preserving full native checks and the separate sanitizer job for ordinary CI.
-Use `run_checks: false` with profile `full` for build-only payloads, or `run_checks: true` with profile `cli-community` for the bounded literal CLI test selection on both hosts without the full native/sanitizer campaign.
-Unknown profiles and build-only combined with `cli-community` fail admission.
-Focused checks establish only the named host observations; build-only performs no runtime qualification.
-Neither mode establishes packed-consumer, release or complete repository acceptance.
+With `run_checks: true`, choose the tests for the evidence you need.
+
+- `full` (default) runs the native suite and the separate sanitizer job.
+- `cli-community` exercises the selected CLI behaviors on both platforms.
+- `resource-controls` exercises quotas, native metadata transport and the affected regression cases on both platforms.
+
+For build-only payloads, set `run_checks: false` and use `full`.
+Unknown profiles and other build-only combinations fail admission.
+Packed-consumer and release qualification run separately.
+
+#### Caller and source identity
 
 Calls are restricted to `Hadden-Industries/json-quality` at the same immutable caller/workflow source commit.
 The producer explicitly checks out its workflow repository and SHA, verifies HEAD and package identity, then invokes local source-owned actions and the existing builder/staging owners.
 Cross-repository callers and different source revisions are refused before checkout or dependency setup.
+
 Use a job-level local `uses: ./.github/workflows/native.yml` with these inputs for same-commit reuse; no arbitrary source-ref or shell-command input is accepted.
 GitHub's [job context](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context) identifies the reusable workflow's own repository and source revision separately from the caller.
 
+#### Retrieve and stage the component
+
 Each successful platform build retains its exact payload, `component.json`, `build-evidence.json`, rights and notices through the existing evidence uploader.
 Artifact names include platform, source SHA, verification scope and attempt; each job summary records its immutable artifact ID, source SHA and source-input digest.
+
 Download by the recorded artifact ID from that run, unpack the existing evidence bundle and supply its exact artifact directory to `native/stage.py --artifacts PATH --replace` only against matching source/control bytes.
 The staging owner rechecks hashes and cohort; it refuses mismatches rather than adapting a stale binary.
+
 Build manifests retain their pending qualification status, and a successful upload is transport evidence rather than a runtime verdict.
 Hosted execution, artifact retrieval and any later qualification must be reported from the actual run; an unrun workflow supplies no such proof.
 
@@ -123,6 +146,7 @@ The oracle is excluded from npm membership and never selected at runtime.
 
 Dependency-cruiser enforces package declarations, private/runtime boundaries, cycles and foundation direction. Native npm membership independently closes shipped imports and exports. The affected selector recognizes `.test.js` and `.test.mjs`, snapshots graph text/resources without native binary bodies, and binds source identity through bounded file hashing.
 Unknown or non-import scope selects the full suite.
+
 Strict source JSDoc checking, committed declarations and offline 2020-12 schema projections add package contracts without introducing a second runtime implementation.
 CI proof binds the entire tested merge tree, frozen runtimes and runner images, including JSON/schema/native/generated inputs; uncertainty selects `FULL_REQUIRED` without automatically running tests.
 

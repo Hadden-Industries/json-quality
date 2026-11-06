@@ -10,22 +10,22 @@
   },
   "platform": "linux-x64",
   "nodeApiVersion": 9,
-  "sourceInputsSha256": "343e92ee7e6866b14b777014235c595eb7c953391ef4f4e23dc209e39036279e",
+  "sourceInputsSha256": "ebdeaa9149b01ba5a8da0588fb94ab7fe128da8de6200bea71c5f41814fa7b8b",
   "artifacts": {
     "json-quality.node": {
-      "sha256": "e708b66b6f319cd008a25badc2a788cc2bbf0501265385ca106038b60ab484e0",
+      "sha256": "fc0756aa514dc638bd40f860a262dbe0974bc0a2ab38b4aa81cffd9050c94ca5",
       "bytes": 37434776
     },
     "json-quality-native": {
-      "sha256": "1e5da1c3d2ac6e048d6c76d9a011a53fc3ff320cc08c700dee09d937c10db549",
+      "sha256": "19a3c3b7bf618335307d0e4fa3e2ca101b159c972db9cb62b3df026552a195f2",
       "bytes": 37409672
     }
   },
-  "configurationSchemaSha256": "130b33014e47b0c4dfbbbf331287dc8e874659f02ee63ac20de6425b2cb650ca",
+  "configurationSchemaSha256": "6f8ebded630f7a3b0b9f95ee2c43646006aefe3c8fd59a2156446543c89107c4",
   "controlSchemas": {
     "configuration.schema.json": {
-      "sha256": "130b33014e47b0c4dfbbbf331287dc8e874659f02ee63ac20de6425b2cb650ca",
-      "bytes": 21482
+      "sha256": "6f8ebded630f7a3b0b9f95ee2c43646006aefe3c8fd59a2156446543c89107c4",
+      "bytes": 21590
     },
     "source-contract.schema.json": {
       "sha256": "53af09247162d3eb8edf5a434936f575ef0307c7a35426812dab8193b4fcda2a",

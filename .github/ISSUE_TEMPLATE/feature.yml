@@ -6,13 +6,13 @@ body:
     id: problem
     attributes:
       label: Problem and use case
-      description: Explain the intended outcome with a small non-sensitive example.
+      description: Describe what you are trying to do, where the current behavior falls short, and a small non-sensitive example.
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
       label: Proposed behavior and alternatives
-      description: Include existing approaches and compatibility, preservation or performance concerns.
+      description: Describe the behavior you want, alternatives you have considered, and any effects on compatibility, JSON preservation or performance.
     validations:
       required: true

@@ -36,11 +36,11 @@
     "native/core/wire_integer.hpp": "8040ee6b11266c12127fc6d64f4013fb1c631c9e50749b83b95bc6128f037415",
     "native/bindings/framed_stdio.cpp": "90889acde29c39026eeda75ca60869d91a14bb2cf12968d7fd422fac13343c68",
     "native/bindings/node_api.cpp": "87ba5545c8773f816bed010bdad375794b4774136260ac18b0681544b3726ac8",
-    "schemas/configuration.schema.json": "130b33014e47b0c4dfbbbf331287dc8e874659f02ee63ac20de6425b2cb650ca",
+    "schemas/configuration.schema.json": "6f8ebded630f7a3b0b9f95ee2c43646006aefe3c8fd59a2156446543c89107c4",
     "schemas/source-contract.schema.json": "53af09247162d3eb8edf5a434936f575ef0307c7a35426812dab8193b4fcda2a",
     "schemas/contract-cohort.json": "3168a26bd95c7bfde250581276d3a7df175232d22d0561182dbaed642fca457e"
   },
-  "sourceInputsSha256": "343e92ee7e6866b14b777014235c595eb7c953391ef4f4e23dc209e39036279e",
+  "sourceInputsSha256": "ebdeaa9149b01ba5a8da0588fb94ab7fe128da8de6200bea71c5f41814fa7b8b",
   "platform": "win32-x64",
   "dependencies": [
     {
@@ -127,9 +127,9 @@
     "source_contract_enums.hpp": "8b2b94f3a745266f232e779ba3681b29c7eecddcd9732c020ec632ee17288262"
   },
   "artifactFiles": {
-    "component.json": "592da5d475c17b94ca21d8639a88368549e92ff473630c59349a6ade9935f069",
-    "json-quality-native.exe": "4a55e9261a3d2c644cf9b7ec31b370d268d5a53d6dc688eb2aa32756e3a8cbb9",
-    "json-quality.node": "775ccf5226241ca57e7205f1d4825815b186fbea7483a99bae6d5934b1596225",
+    "component.json": "2a6d3f900ec9a7cd3bc51e538d55ae163ce6ad1a99be9cada2894bae9334987e",
+    "json-quality-native.exe": "557da6a7f70e20706175de89205d3744f4bff9f2b1b305d954fb6fdf3f66df1a",
+    "json-quality.node": "897d864f292c1c07a2f07e5a4082a807a3e487fa813e5923c0659ad24829e1f2",
     "notice-inventory.json": "cb9bd3641bc03aedb6c4dbefe84baf3bd2deda7c938f88415dbae80f87c94a83",
     "notices/boost/LICENSE_1_0.txt": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
     "notices/doubleConversion/AUTHORS": "02f8e5babc63a87d460219a74b97e15046d198ed3bab061e3d46b4f44ea77a9d",

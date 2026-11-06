@@ -1,13 +1,19 @@
 # Configuration and schemas
 
-An existing Git repository needs no `.json-quality.json`.
-Only proven absence selects the package-owned defaults; malformed, inaccessible, linked or changed policy sources remain errors.
-The package never searches above the chosen root or creates a configuration file.
-An optional file can contain `{}`, a sparse override, or a complete current-cohort declaration.
-See [the exception-only example](../examples/policy.json).
+Start with the built-in policy.
+Add `.json-quality.json` at the repository root when you need an exception, such as preserving the decoded Unicode in a protocol payload.
+The file can contain `{}`, a sparse override or a complete current-cohort declaration.
+See the [exception-only policy example](../examples/policy.json).
+
+## Default policy
+
+The package uses defaults when it verifies that the chosen root has no policy file.
+A malformed, inaccessible, linked or changed policy file is an error.
+Policy lookup stops at the chosen root.
 
 Defaults select fixed Prettier JSON presentation, NFC checking and ordinary physical rewrite eligibility.
 Git metadata and installed dependencies have built-in boundaries; tracked JSON under an excluded ancestor remains checked and protected from generic writes.
+
 Root and nested npm lockfiles remain structurally checked and producer-owned, with generic rewrites prohibited.
 Their admitted empty `/packages/` key does not exempt other quality rules.
 Names such as `vendor`, `dist`, `generated` and `coverage` alone do not establish external ownership.
@@ -43,6 +49,8 @@ It never grants byte identity: use protected-byte or producer ownership contract
 Normalize requires NFC eligibility and refuses a mixed selection containing any preserved source before writing.
 Potential NFC-equivalent keys under preserve produce `nfc-key-collision-risk`, a separate non-blocking event.
 Exact decoded duplicates, invalid Unicode, unsafe numbers and enforced NFC collisions remain errors.
+
+### Protect producer-owned files or exact values
 
 Use `allowSourceRewrites: false` for producer ownership.
 Use `nfcExemptStringValues` only for exact decoded value identities with their existing owner, reason, pointer/record, SHA-256 and byte-length pins; keys cannot receive this exemption.
@@ -108,12 +116,16 @@ See [resource controls](resource-limits.md), [API](api.md) and [CLI](cli.md).
 Execution `configurationOrigin` is one of `repository-file`, `repository-absence`, `git-blob`, `git-absence`, always with the root-relative path `.json-quality.json`.
 Git origins include exact `commitId`; only `git-blob` includes `blobId`.
 Present file/blob origins require `configurationBytesSha256` and canonical decimal `configurationByteLength`; absence omits both, rather than hashing an invented empty file.
+
 `defaultPolicySha256` hashes exact packaged `assets/default-json-quality-policy.json` bytes.
 `assets/json-quality-policy-inputs.json` is a readable generated inventory: `schemaVersion: 1`, sorted unique local `files`, and sorted unique runtime package names in `dependencies`.
 It stores paths and dependency names, with no cached checksums or whole-package metadata entry.
+
 Producer tooling uses dependency-cruiser to discover transitive literal imports and adds explicitly declared non-module policy resources.
 `npm run sync:policy-inputs` regenerates the inventory; `npm run check:policy-inputs` rejects drift, unresolved or computed imports and unsafe paths.
 Dependency-cruiser remains a development dependency and is not loaded by the consumer runtime.
+
+### Identify the resolver version by its inputs
 
 At runtime, `policyResolverInputsSha256` hashes this compact UTF-8 JSON tuple without a trailing newline:
 
@@ -126,9 +138,12 @@ At runtime, `policyResolverInputsSha256` hashes this compact UTF-8 JSON tuple wi
 Both lists follow the inventory's sorted order.
 File identities come from actual installed implementation, schema and default bytes, with regular-path and containment checks.
 Dependency selectors come only from the selected entries in the installed root manifest's `dependencies`.
+
 Changing package version, description, keywords or scripts does not change this policy fingerprint; changing a selected input's bytes or dependency selector does.
 Package/archive identity and installed dependency integrity remain separately verified; this fingerprint is not an artifact signature or a complete dependency-tree inventory.
 The versioned preimage distinguishes it from older manifests that stored checksums; historical event identities retain their original meaning.
+
+### Identify a specific policy invocation
 
 `policyInputsSha256` hashes the UTF-8 compact JSON array below, with no trailing newline, in this exact order:
 
@@ -142,14 +157,18 @@ The versioned preimage distinguishes it from older manifests that stored checksu
 Every item is a string or null; the displayed line breaks are explanatory and are absent from the compact preimage.
 This identifies policy inputs, not effective-policy serialization.
 Absent configuration and explicit `{}`, or two whitespace spellings of equal configuration, retain different provenance.
+
 Invocation resource overrides are excluded from this tuple and remain separately recorded with command/core/component identity and resolved resources.
 Freshness still verifies actual filesystem observations or immutable Git authority.
 
+### Migrate policy fields and diagnostics
+
 Migrate earlier policy `allowFormatWrites` to `allowSourceRewrites`, `preserveNfcValues` to `nfcExemptStringValues`, and `exclude` to `excludeUntrackedSources`.
 Their restrictions, pin bytes and tracked-source protections remain.
+
 Public policy admission is now `resolveJsonQualityPolicy`, selected path contracts use `resolveJsonSourceContract`, and input/effective schemas and types have distinct roles.
 CLI output uses `--ndjson`; raw stdin uses `check-source`; repository sessions use `check()`.
-See the resource migration examples for operation-specific quota renames and split overrides.
+See [resource migration examples](resource-limits.md#migrating-earlier-controls) for quota renames and split overrides.
 
 Diagnostic identities change without broadening their detection predicates:
 

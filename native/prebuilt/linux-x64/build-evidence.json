@@ -36,11 +36,11 @@
     "native/core/wire_integer.hpp": "8040ee6b11266c12127fc6d64f4013fb1c631c9e50749b83b95bc6128f037415",
     "native/bindings/framed_stdio.cpp": "90889acde29c39026eeda75ca60869d91a14bb2cf12968d7fd422fac13343c68",
     "native/bindings/node_api.cpp": "87ba5545c8773f816bed010bdad375794b4774136260ac18b0681544b3726ac8",
-    "schemas/configuration.schema.json": "130b33014e47b0c4dfbbbf331287dc8e874659f02ee63ac20de6425b2cb650ca",
+    "schemas/configuration.schema.json": "6f8ebded630f7a3b0b9f95ee2c43646006aefe3c8fd59a2156446543c89107c4",
     "schemas/source-contract.schema.json": "53af09247162d3eb8edf5a434936f575ef0307c7a35426812dab8193b4fcda2a",
     "schemas/contract-cohort.json": "3168a26bd95c7bfde250581276d3a7df175232d22d0561182dbaed642fca457e"
   },
-  "sourceInputsSha256": "343e92ee7e6866b14b777014235c595eb7c953391ef4f4e23dc209e39036279e",
+  "sourceInputsSha256": "ebdeaa9149b01ba5a8da0588fb94ab7fe128da8de6200bea71c5f41814fa7b8b",
   "platform": "linux-x64",
   "dependencies": [
     {
@@ -107,9 +107,9 @@
   },
   "artifactFiles": {
     "THIRD-PARTY-NOTICES.txt": "0eb3cbd86a354cfee4d3c031ec1f4cd8f3195313ecf3eca41d835030dc20af5d",
-    "component.json": "80cabbcef503b01fce56304a5c003bae6a48b56e24efed7cb0217b4fffac20de",
-    "json-quality-native": "1e5da1c3d2ac6e048d6c76d9a011a53fc3ff320cc08c700dee09d937c10db549",
-    "json-quality.node": "e708b66b6f319cd008a25badc2a788cc2bbf0501265385ca106038b60ab484e0",
+    "component.json": "1a5a99ec14db95aaa2d47bdcdd7b912628fa885e2490093992df49e5dfb47447",
+    "json-quality-native": "19a3c3b7bf618335307d0e4fa3e2ca101b159c972db9cb62b3df026552a195f2",
+    "json-quality.node": "fc0756aa514dc638bd40f860a262dbe0974bc0a2ab38b4aa81cffd9050c94ca5",
     "notice-inventory.json": "7186b1c9eb3741cadadd53219dd4ad4d5e485fdba0ce479c0627fd140d6743fb",
     "notices/boost/LICENSE_1_0.txt": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
     "notices/doubleConversion/AUTHORS": "02f8e5babc63a87d460219a74b97e15046d198ed3bab061e3d46b4f44ea77a9d",

@@ -5,38 +5,45 @@ The root `package.json` declares `@hadden-industries/markdown-quality` as `>=3.0
 
 ## Setup and commands
 
-Install the development dependencies, then use the installed public command:
+From the repository root, install the locked development dependencies and check the Markdown.
 
 ```sh
 npm ci --ignore-scripts
-npm run --silent inspect:markdown
 npm run check:markdown
-npm run format:markdown
 ```
 
-Explicit file arguments and options pass through to the command:
+The check reads the selected documents.
+Errors and formatting drift fail it.
+Warnings are advisory unless you pass `-- --strict`.
 
-```sh
-npm run --silent check:markdown -- --json -- README.md
-npm run format:markdown -- -- README.md
-```
+### Preview and format one document
 
-Checking is read-only; errors and formatting drift fail the check.
-Warnings remain visible and advisory; pass `-- --strict` to make them blocking.
-The scripts explicitly select the repository root; literal file arguments after `--` are root-relative paths.
-`format:markdown` selects physical writes explicitly with `--write`, as required by version 3.
-Preview actual candidates without writing through the public command:
+Paths after `--` are literal and relative to the repository root.
+Preview the candidate for the README, apply it if wanted, then check the file again.
 
 ```sh
 npm exec -- markdown-quality format --dry-run --root . -- README.md
+npm run format:markdown -- -- README.md
+npm run check:markdown -- -- README.md
 ```
 
-Run `check:markdown` after a repair to assess the selected policy verdict; a completed preview or repair does not certify full repository acceptance.
-Human operation summaries and findings use stderr; help, version and `--json` output use stdout.
-Use npm's `--silent` option when consuming JSON so npm's script banner does not enter the document.
-Operation JSON uses result schema 5, including candidate hashes, byte counts and change status; `inspect --json` remains the configuration inspection surface.
-`npm run format:code-and-markdown` includes Markdown formatting, and `npm run check:code-formatting-and-markdown` includes the Markdown check.
-Prettier owns JavaScript and workflow formatting and skips Markdown.
+Omit the file arguments to format or check the full selection.
+The `format:markdown` script supplies the required `--write` flag.
+Use `check:code-formatting-and-markdown` for both the generic code formatting check and the Markdown checks.
+Its writing counterpart is `format:code-and-markdown`.
+
+### Inspect policy or consume JSON results
+
+```sh
+npm run --silent inspect:markdown
+npm run --silent check:markdown -- --json -- README.md
+```
+
+Human findings and summaries go to stderr.
+Help, version and `--json` output go to stdout.
+Use npm’s `--silent` flag to keep its banner out of machine-readable output.
+Operation JSON uses result schema 5 and includes candidate hashes, byte counts and change status.
+The inspect command reports configuration.
 
 ## Defaults
 
