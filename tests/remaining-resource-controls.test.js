@@ -143,19 +143,32 @@ test(
   "POSIX tool termination grace honors finite raised and null selections after real readiness",
   { skip: process.platform === "win32" },
   async (t) => {
-    const root = temporaryDirectory(t, "json-grace-");
+    const root = temporaryDirectory(t, "json-grace-'\"\\\n雪-");
     for (const terminationGraceMs of [60, 2500, null]) {
       const name = String(terminationGraceMs),
         ready = join(root, name + "-ready"),
         settled = join(root, name + "-settled"),
         controller = new AbortController();
-      const program = `const fs=require('node:fs');process.on('SIGTERM',()=>setTimeout(()=>{fs.writeFileSync(${JSON.stringify(settled)},'settled');process.exit(0);},1300));fs.writeFileSync(${JSON.stringify(ready)},'ready');setInterval(()=>{},1000);`;
-      const child = runBoundedTool(process.execPath, ["-e", program], {
-        timeout: 10000,
-        maximumOutputBytes: null,
-        terminationGraceMs,
-        signal: controller.signal,
-      }).then(
+      const program = `
+        const fs = require('node:fs');
+        const [ready, settled] = process.argv.slice(1);
+        process.on('SIGTERM', () => setTimeout(() => {
+          fs.writeFileSync(settled, 'settled');
+          process.exit(0);
+        }, 1300));
+        fs.writeFileSync(ready, 'ready');
+        setInterval(() => {}, 1000);
+      `;
+      const child = runBoundedTool(
+        process.execPath,
+        ["-e", program, ready, settled],
+        {
+          timeout: 10000,
+          maximumOutputBytes: null,
+          terminationGraceMs,
+          signal: controller.signal,
+        },
+      ).then(
         () => ({ ok: true }),
         (error) => ({ error }),
       );
