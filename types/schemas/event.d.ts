@@ -321,11 +321,11 @@ export type JsonQualityEvent = {
   | {
       schemaVersion?: unknown;
       requestId?: unknown;
-      inventoryComplete: unknown;
+      inventoryComplete: true;
       qualification?: unknown;
-      linkedExpectationsComplete: unknown;
-      sourceObservationsComplete: unknown;
-      diagnosticsComplete: unknown;
+      linkedExpectationsComplete: true;
+      sourceObservationsComplete: true;
+      diagnosticsComplete: true;
       domainComplete: unknown;
       inventoryMemberCount: unknown;
       qualityPassed: unknown;
@@ -621,6 +621,16 @@ export type NfcExemptStringValuePins = [
     };
   }[],
 ];
+/**
+ * Native refusal identities carried by the existing v5 write-failure message before any replacement.
+ *
+ * This interface was referenced by `undefined`'s JSON-Schema
+ * via the `definition` "rewriteQualityRefusal".
+ */
+export type RewriteQualityRefusal =
+  | "rewrite-unsafe-source"
+  | "rewrite-candidate-not-accepted"
+  | "rewrite-peer-preflight-failed";
 
 /**
  * This interface was referenced by `undefined`'s JSON-Schema

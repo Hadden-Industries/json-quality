@@ -36,8 +36,10 @@ Serialization used to produce an output document remains valid.
 For an intentionally byte-, digest- or ordered-tuple-based identity, place a precise line contract directly before the serialization:
 
 ```js
+const seen = new Set();
 // json-identity-contract: ordered-tuple; owner: request coordinate; reason: The contract defines an ordered tuple of admitted strings.
 const key = JSON.stringify([repository, commit]);
+seen.add(key);
 ```
 
 The escape hatch declares the actual identity contract and owner; it does not establish that arbitrary JSON objects have stable serialization.

@@ -8,7 +8,7 @@ import {
 
 /** Open a backpressured source checker and lossless value reader. Close after
  * consuming events and references; borrowed capabilities never outlive it.
- * @param {import("./api-types.js").SessionOptions} options
+ * @param {import("./api-types.js").SessionOptions} [options]
  * @returns {Promise<import("./api-types.js").JsonSourceSession>}
  */
 export async function openJsonSourceSession(options) {

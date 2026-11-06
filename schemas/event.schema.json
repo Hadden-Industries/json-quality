@@ -1125,11 +1125,19 @@
       "properties": {
         "schemaVersion": true,
         "requestId": true,
-        "inventoryComplete": true,
+        "inventoryComplete": {
+          "const": true
+        },
         "qualification": true,
-        "linkedExpectationsComplete": true,
-        "sourceObservationsComplete": true,
-        "diagnosticsComplete": true,
+        "linkedExpectationsComplete": {
+          "const": true
+        },
+        "sourceObservationsComplete": {
+          "const": true
+        },
+        "diagnosticsComplete": {
+          "const": true
+        },
         "domainComplete": true,
         "inventoryMemberCount": true,
         "qualityPassed": true,
@@ -1285,6 +1293,26 @@
         "message": true,
         "writtenPathCount": true,
         "operationScope": true
+      },
+      "if": {
+        "properties": {
+          "message": {
+            "$ref": "#/$defs/rewriteQualityRefusal"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "preflightComplete": {
+            "const": false
+          },
+          "writtenPathCount": {
+            "const": "0"
+          },
+          "uncertainPath": {
+            "type": "null"
+          }
+        }
       },
       "required": [
         "schemaVersion",
@@ -1806,6 +1834,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Hadden-Industries/json-quality/schema/event/v5",
   "$defs": {
+    "rewriteQualityRefusal": {
+      "description": "Native refusal identities carried by the existing v5 write-failure message before any replacement.",
+      "enum": [
+        "rewrite-unsafe-source",
+        "rewrite-candidate-not-accepted",
+        "rewrite-peer-preflight-failed"
+      ]
+    },
     "valueReference": {
       "type": "object",
       "additionalProperties": false,

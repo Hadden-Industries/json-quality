@@ -112,7 +112,7 @@ test("both public CLIs reject the removed environment name before loading roots"
   delete env.JSON_QUALITY_CAPACITY_LIMITS;
   for (const [entry, args] of [
     ["../src/cli.js", ["check"]],
-    ["../src/qualification-cli.js", []],
+    ["../src/qualification-cli.js", ["--trusted-root", root]],
   ]) {
     const result = spawnSync(
       process.execPath,

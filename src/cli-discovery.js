@@ -115,5 +115,14 @@ export function discoverCli(/** @type {string[]} */ args) {
     return { command, values, positionals, discovery: commandHelp() };
   }
   admitCommand(command, values, positionals);
+  if (
+    command === "format" &&
+    !values.stdin &&
+    !positionals.length &&
+    parsed.tokens.some((token) => token.kind === "option-terminator")
+  )
+    throw new TypeError(
+      "Empty format selection after --. Supply literal files, or omit -- to format all eligible files.",
+    );
   return { command, values, positionals };
 }

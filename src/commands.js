@@ -190,7 +190,7 @@ const /** @type {Record<string, string[]>} */ commandDetails = {
     format: [
       "Usage: json-quality format (--write | --dry-run | --stdin) [options] [-- A.json ...]",
       "Filesystem modes preflight the complete repository: --write replaces sources; --dry-run previews actual candidates.",
-      "No files explicitly selects all eligible writable sources for filesystem modes.",
+      "Omit the file list to select all eligible writable sources. An explicit empty list after -- is refused.",
       "Stdin emits transformed source only. Without --root it uses --contract JSON (default {}), even with a filename.",
       "Explicit --root selects policy-aware stdin and requires --stdin-filepath; --contract is then forbidden.",
       "Example: json-quality format --dry-run -- data.json",

@@ -188,6 +188,17 @@ export function renderHumanEvent(
       failureAdvice(event) +
       "\n"
     );
+  if (
+    event.type === "write-failure" &&
+    event.preflightComplete === false &&
+    event.writtenPathCount === "0" &&
+    event.uncertainPath === null
+  )
+    return (
+      "Rewrite preflight failed before any files were replaced: " +
+      escapeHumanText(event.message, String(event.message ?? "").length) +
+      ".\n"
+    );
   if (event.type === "write-failure")
     return (
       "Incomplete replacement; confirmed writes " +

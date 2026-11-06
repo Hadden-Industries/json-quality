@@ -89,7 +89,7 @@ test("bounded capture joins fragmented binary stdout and counts stderr before re
     ["-e", "process.stdin.resume();process.exitCode=1;"],
     { ...options, acceptedExitCodes: [0, 1] },
   );
-  assert.deepEqual(ordinary, { code: 1, stdout: undefined });
+  assert.deepEqual(ordinary, { code: 1, stdout: undefined, stderr: undefined });
   await assert.rejects(
     runBoundedTool(
       process.execPath,

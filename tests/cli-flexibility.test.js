@@ -114,12 +114,93 @@ test("event admission is closed and requires complete terminal evidence", () => 
   );
   for (const name of [
     "inventoryComplete",
+    "linkedExpectationsComplete",
+    "sourceObservationsComplete",
     "diagnosticsComplete",
-    "contractSatisfied",
   ]) {
     const missing = { ...terminal };
     delete missing[name];
     assert.equal(validateJsonQualityEvent(missing), false);
+    assert.equal(
+      validateJsonQualityEvent({ ...terminal, [name]: false }),
+      false,
+    );
+  }
+  const missingVerdict = { ...terminal };
+  delete missingVerdict.contractSatisfied;
+  assert.equal(validateJsonQualityEvent(missingVerdict), false);
+  assert.equal(
+    validateJsonQualityEvent({
+      ...terminal,
+      contractSatisfied: false,
+      qualityPassed: false,
+    }),
+    true,
+  );
+  assert.equal(
+    validateJsonQualityEvent({ ...terminal, qualityPassed: false }),
+    true,
+  );
+});
+test("an explicit empty format selection never expands to the whole repository", (t) => {
+  const root = fixture(t),
+    path = join(root, "selected.json"),
+    original = '{"a":1}';
+  writeFileSync(path, original);
+  for (const mode of ["--write", "--dry-run"]) {
+    const result = run(["format", mode, "--ndjson", "--"], { root });
+    assert.equal(result.status, 2);
+    const events = delivered(result);
+    assert.deepEqual(
+      events.map((event) => event.type),
+      ["failure"],
+    );
+    assert.match(events[0].message, /empty format selection/i);
+    assert.equal(readFileSync(path, "utf8"), original);
+  }
+  assert.equal(run(["format", "--write"], { root }).status, 0);
+  assert.notEqual(readFileSync(path, "utf8"), original);
+});
+
+test("malformed selected JSON refuses checks, previews and writes with exit 1", (t) => {
+  const root = fixture(t),
+    path = join(root, "broken.json"),
+    original = '{"invalid":';
+  writeFileSync(path, original);
+  for (const args of [
+    ["check-files"],
+    ["format", "--dry-run"],
+    ["normalize", "--dry-run"],
+    ["format", "--write"],
+    ["normalize", "--write"],
+  ]) {
+    const result = run([...args, "--ndjson", "--", "broken.json"], { root });
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    const events = delivered(result),
+      terminal = events.at(-1);
+    if (args.includes("--write")) {
+      assert.equal(terminal.type, "write-failure");
+      assert.equal(terminal.message, "rewrite-unsafe-source");
+      assert.equal(Object.hasOwn(terminal, "code"), false);
+      for (const change of [
+        { writtenPathCount: "1" },
+        { uncertainPath: "broken.json" },
+        { preflightComplete: true },
+      ])
+        assert.equal(
+          validateJsonQualityEvent({ ...terminal, ...change }),
+          false,
+        );
+    } else if (args.includes("--dry-run")) {
+      assert.equal(
+        terminal.type,
+        args[0] === "format"
+          ? "format-preview-terminal"
+          : "normalization-preview-terminal",
+      );
+      assert.equal(terminal.preflightComplete, false);
+    } else assert.equal(terminal.contractSatisfied, false);
+    assert.equal(readFileSync(path, "utf8"), original);
   }
 });
 test("read-only repository checks retain complete scope and cannot select literal subsets", (t) => {

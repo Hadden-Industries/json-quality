@@ -103,9 +103,9 @@ export const MINIMAL_CLI_COMMANDS = Object.freeze([
     rewriteCommand(second, 0),
     checkCommand(0, false),
   ]),
-  rewriteCommand("normalize", 2),
+  rewriteCommand("normalize", 1),
   checkCommand(1),
-  rewriteCommand("format", 2),
+  rewriteCommand("format", 1),
   command(["format", "--write", "--root", ".", "--", "package-lock.json"], 2),
   checkCommand(0),
   rewriteCommand("normalize", 2),
@@ -420,13 +420,13 @@ export function qualifyMinimalCli({
     }
     prepare('{"é":1,"e\\u0301":2}');
     const collision = readFileSync(authored);
-    rewrite("normalize", 2);
+    rewrite("normalize", 1);
     assert.deepEqual(readFileSync(authored), collision);
     cases.push("canonical-key-collision-refusal");
     prepare('{"broken":');
     const invalid = readFileSync(authored);
     check(1);
-    rewrite("format", 2);
+    rewrite("format", 1);
     assert.deepEqual(readFileSync(authored), invalid);
     cases.push("invalid-source-zero-writes");
     prepare("{}\n");

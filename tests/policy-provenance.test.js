@@ -82,7 +82,7 @@ test("four origin vectors hash the exact literal UTF-8 tuple without a trailing 
   ]) {
     // Independent literal tuple preimage, without the production control serializer.
     const preimage =
-        '["json-quality-policy-inputs-v1","5","' +
+        '["json-quality-policy-inputs-v1","6","' +
         defaultDigest +
         '","' +
         resolverDigest +

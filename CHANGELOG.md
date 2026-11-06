@@ -10,6 +10,10 @@ See [release operations](docs/release-operations.md) for publication and promoti
 
 ### CLI and source repairs
 
+- Reject explicitly empty filesystem format selections and report completed quality refusals with exit 1 for both previews and writes.
+- Require complete inventory, linked expectations, source observations and diagnostics on repository terminal events.
+- Reduce ESLint identity-rule work on parse-only files and repeated references to the same binding.
+
 - Add both-bin version discovery, contextual help, literal `check-files` selection and raw UTF-8 stdin transforms with explicit virtual-file policy context.
 - Require `--write` or `--dry-run` for filesystem repairs; add actual format preview and presentation-only human display controls.
 - Check NFC by default, support global/path decoded-Unicode preservation, and expose normalization preview with complete collision preflight.

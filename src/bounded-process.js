@@ -96,11 +96,14 @@ export async function runBoundedTool(
           if (failure) reject(failure);
           else if (!acceptedExitCodes.includes(code))
             reject(
-              new Error(
-                `Native tool failed with exit ${code}.` +
-                  (stderrChunks?.length
-                    ? " " + Buffer.concat(stderrChunks).toString("utf8")
-                    : ""),
+              Object.assign(
+                new Error(
+                  `Native tool failed with exit ${code}.` +
+                    (stderrChunks?.length
+                      ? " " + Buffer.concat(stderrChunks).toString("utf8")
+                      : ""),
+                ),
+                { code: "native-tool-exit", exitCode: code },
               ),
             );
           else

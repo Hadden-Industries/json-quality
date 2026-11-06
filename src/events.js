@@ -9,6 +9,13 @@ const validate = new Ajv({ strict: true })
   .addSchema(configuration, "configuration.schema.json")
   .compile(schema);
 
+const rewriteQualityRefusals = new Set(schema.$defs.rewriteQualityRefusal.enum);
+
+/** A native refusal identifier carried in the closed v5 message field. */
+export function isRewriteQualityRefusal(/** @type {string} */ code) {
+  return rewriteQualityRefusals.has(code);
+}
+
 /** @param {unknown} event
  * @returns {event is import("./api-types.js").JsonQualityEvent}
  */

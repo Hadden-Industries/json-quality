@@ -44,6 +44,9 @@ Both modes check the complete repository and actual replacement candidates befor
 | `normalize --write`   | Explicit, nonempty selection      | `write-terminal`                 |
 
 Pass `--root R` to select the repository and list filenames after `--`.
+For repository-wide formatting, omit both the separator and filenames.
+A file-producing script can safely pass `--` followed by its arguments.
+An empty selection after the separator exits 2 before opening the repository.
 For example, preview formatting or Unicode repair for one file, then use `--write` in the chosen command to apply it.
 
 ```sh
@@ -126,6 +129,8 @@ A scalar override alongside a disabled group re-enables only that quota.
 | Stdin transform                    | One complete transformed UTF-8 source only | Human diagnostics and scoped summary              |
 
 The applicable final terminal is delivered only after cleanup.
+Version 1.x uses the closed version-5 event format by default.
+Future incompatible output requires explicit consumer selection.
 Missing terminals, broken output, incomplete input and failed cleanup cannot establish success.
 A source terminal inside a repository/selected operation does not complete that enclosing operation.
 
@@ -136,6 +141,12 @@ A source terminal inside a repository/selected operation does not complete that 
 | `0`  | Requested discovery delivered, complete satisfied check, admissible preview or successful transform/write and delivery                   |
 | `1`  | Complete quality/contract refusal, including invalid JSON at normal EOF or a completed preview collision refusal                         |
 | `2`  | Invalid grammar/selection/policy, operational refusal, capacity exhaustion, cancellation, incomplete transport, failed output or cleanup |
+
+A malformed selected JSON document exits 1 for checking, previewing and writing.
+A filesystem write refused on quality grounds emits `write-failure` with zero confirmed writes.
+Its `message` identifies the failed check as `rewrite-unsafe-source`, `rewrite-candidate-not-accepted` or `rewrite-peer-preflight-failed`.
+Protected or missing paths and failures during replacement exit 2.
+Inspect the confirmed write count and any uncertain path before retrying.
 
 ## Format and NFC
 

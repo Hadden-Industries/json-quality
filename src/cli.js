@@ -408,17 +408,19 @@ export async function runJsonQualityCli(
       await session?.close();
       session = undefined;
       await emit(pendingTerminal);
-      exitCode = [
-        "normalization-preview-terminal",
-        "format-preview-terminal",
-      ].includes(pendingTerminal.type)
-        ? !pendingTerminal.complete
-          ? 2
-          : pendingTerminal.preflightComplete
-            ? 0
-            : 1
-        : pendingTerminal.type === "write-failure"
-          ? 2
+      if (pendingTerminal.type === "write-failure") {
+        const { isRewriteQualityRefusal } = await import("./events.js");
+        exitCode = isRewriteQualityRefusal(pendingTerminal.message) ? 1 : 2;
+      } else
+        exitCode = [
+          "normalization-preview-terminal",
+          "format-preview-terminal",
+        ].includes(pendingTerminal.type)
+          ? !pendingTerminal.complete
+            ? 2
+            : pendingTerminal.preflightComplete
+              ? 0
+              : 1
           : pendingTerminal.type === "write-terminal" ||
               pendingTerminal.contractSatisfied
             ? 0

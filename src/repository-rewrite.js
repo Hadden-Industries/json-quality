@@ -23,6 +23,7 @@ import {
 import { jsonSourceFormat, isJsonLinesPath } from "./json-paths.js";
 import { sourceBytes, sourceText } from "./retained-transform-source.js";
 import { exceedsQuota } from "./resource-profile.js";
+import { isRewriteQualityRefusal } from "./events.js";
 
 function selection(
   /** @type {*} */ operation,
@@ -186,7 +187,20 @@ async function selectWritablePaths(
               throw new Error(
                 `Protected or undiscovered write source: ${path}`,
               );
-          } else await core.command("rewrite-select", { path });
+          } else {
+            try {
+              await core.command("rewrite-select", { path });
+            } catch (error) {
+              // A physical rewrite selection always retains the checked source.
+              // The native selector also uses this refusal for a parse failure.
+              if (
+                nativeRefusalCode(error) ===
+                "source-not-positive-retained-document"
+              )
+                throw new Error("rewrite-unsafe-source", { cause: error });
+              throw error;
+            }
+          }
         }
         paths = [];
         bytes = 0;
@@ -314,6 +328,13 @@ async function assertWritePermission(
     )
       throw new Error(`Write permission changed: ${member.path}`);
   });
+}
+
+function nativeRefusalCode(/** @type {unknown} */ error) {
+  return (
+    /** @type {NodeJS.ErrnoException} */ (error)?.code ??
+    (error instanceof Error ? error.message : "")
+  );
 }
 
 /** Internal effect owner for one completed retained repository execution. It
@@ -587,17 +608,9 @@ export async function* rewriteRepository(
   } catch (error) {
     // Native request-refused responses carry a code; direct binding faults
     // carry the same exact native identity as their Error message.
-    const refusalCode =
-      /** @type {NodeJS.ErrnoException} */ (error).code ??
-      (error instanceof Error ? error.message : "");
-    if (
-      options.dryRun &&
-      [
-        "rewrite-unsafe-source",
-        "rewrite-candidate-not-accepted",
-        "rewrite-peer-preflight-failed",
-      ].includes(refusalCode)
-    ) {
+    const code = nativeRefusalCode(error);
+    const qualityRefused = !preflightComplete && isRewriteQualityRefusal(code);
+    if (qualityRefused && options.dryRun) {
       yield {
         type:
           operation === "format"
@@ -608,7 +621,7 @@ export async function* rewriteRepository(
         complete: true,
         preflightComplete: false,
         sourceObservationsComplete: true,
-        message: String(/** @type {Error} */ (error).message),
+        message: code,
       };
       return;
     }
@@ -619,7 +632,9 @@ export async function* rewriteRepository(
       preflightComplete,
       writtenPathCount: String(written),
       uncertainPath,
-      message: String(error instanceof Error ? error.message : error),
+      message: qualityRefused
+        ? code
+        : String(error instanceof Error ? error.message : error),
     };
   }
 }
