@@ -30,7 +30,13 @@ No shadow or other test mode was executed during the 2026-10-18 alignment, by ex
 
 ## Early qualification checks
 
-`check:repository` runs JavaScript lint and formatting/Markdown checks before test execution and installed-package qualification.
+`check:repository` uses fail-fast ordering: code formatting and Markdown checks run first, followed by JavaScript lint and the remaining source, contract, type and package checks.
+Complete JSON source checking also precedes the dependency audit, test suite and installed-package qualification, so JSON formatting findings cannot arrive only after those expensive stages.
+The deliberate CI and release workflows run formatting, Markdown and JavaScript lint in their existing admission jobs before expensive jobs fan out.
+The reusable producer retains its complete checks for direct callers and its own checkout; independent expensive jobs remain parallel after admission.
+This order reduces wasted work without changing check coverage or acceptance requirements.
+After a repair, reuse earlier results only when their relevant source, dependencies, environment and fixture inputs remain unchanged; exact-commit and source-byte evidence still needs its original bindings.
+
 The workflow contract check and installed qualifier also preflight the maintained main-binary CLI commands through the actual argument parser before native work or consumer installation.
 The installed CLI runner checks each constructed invocation again before launching npm, so a stale caller cannot evade the inventory preflight.
 Successful and quality-failing commands must pass admission; intentional exit-2 cases retain their argument or operational refusal semantics.

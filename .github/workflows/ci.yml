@@ -33,6 +33,10 @@ jobs:
           DRAFT: ${{ github.event.pull_request.draft }}
         run: |
           node --input-type=module -e 'import assert from "node:assert/strict"; import {execFileSync} from "node:child_process"; const e=process.env; assert.ok(e.EVENT==="pull_request" && e.ACTION==="ready_for_review" && e.DRAFT==="false" || e.EVENT==="workflow_dispatch" && e.REF==="refs/heads/main"); assert.equal(execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim(),e.EXPECTED_SHA);'
+      - name: Check code formatting and Markdown before fan-out
+        run: npm run check:code-formatting-and-markdown
+      - name: Check JavaScript rules before fan-out
+        run: npm run lint:javascript
       - id: policy
         run: npm run emit:node-matrix
   product:
