@@ -19,6 +19,24 @@ export function qualificationEslintVersion(
   return selected.version;
 }
 
+/** npm applies overrides only from the installation root. Carry the producer's
+ * ESLint remediations into tool-enabled fixtures while auditing the package's
+ * own runtime dependencies as installed by the consumer.
+ */
+export function qualificationEslintOverrides(
+  metadata = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ),
+) {
+  return structuredClone(
+    Object.fromEntries(
+      ["eslint", "@eslint/config-array"]
+        .filter((name) => Object.hasOwn(metadata.overrides ?? {}, name))
+        .map((name) => [name, metadata.overrides[name]]),
+    ),
+  );
+}
+
 /** Refuse unsupported npm and native-module engines before consumer checks run. */
 export function assertNativeNpmRuntime(
   npmCliPath,

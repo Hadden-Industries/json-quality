@@ -34,6 +34,8 @@ The projector and its regression check share one declaration inventory, includin
 Dynamic consumer matrices and GitHub's action runtime retain their separate selections.
 
 Native npm owns lockfile updates; consumer ESLint qualification reads its exact selected version from `package-lock.json`.
+Tool-enabled consumer fixtures also apply the producer's `eslint` and `@eslint/config-array` dependency overrides at their own installation root.
+Runtime package dependencies continue to use the consumer's native resolution and audit.
 Python remains owned separately by `.python-version`, and host-proof mismatch tests derive a different version from that target rather than copying a future patch.
 
 Run `npm run sync:node-support`, refresh root metadata with native `npm install --package-lock-only --ignore-scripts --no-audit --no-fund`, then run `npm run check:node-support`.
