@@ -55,8 +55,8 @@ async function openDiscovered(/** @type {*} */ root, /** @type {*} */ member) {
 async function* sourceFragments(
   /** @type {*} */ descriptor,
   /** @type {*} */ signal,
+  buffer = Buffer.alloc(65536),
 ) {
-  const buffer = Buffer.alloc(65536);
   while (true) {
     signal?.throwIfAborted();
     const { bytesRead } = await descriptor.read(buffer, 0, buffer.length, null);
@@ -131,13 +131,13 @@ export async function captureRepositorySource(
 
 /** Verify the discovered file still has the captured identity and exact bytes. */
 export async function recheckRepositorySource(
-  /** @type {*} */ { root, member, signal },
+  /** @type {*} */ { root, member, signal, buffer },
 ) {
   const { descriptor, assertUnchanged } = await openDiscovered(root, member);
   try {
     const hash = createHash("sha256");
     let length = 0n;
-    for await (const fragment of sourceFragments(descriptor, signal)) {
+    for await (const fragment of sourceFragments(descriptor, signal, buffer)) {
       hash.update(fragment);
       length += BigInt(fragment.length);
     }

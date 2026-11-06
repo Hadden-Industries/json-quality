@@ -115,6 +115,125 @@ test("an ignore-rule change after preflight refuses the pending physical write",
   );
 });
 
+test("no-change effects avoid duplicate candidate traversal and retain final freshness", async () => {
+  await fixture(
+    { "a.json": "{}\n", "b.json": "[]\n" },
+    async (root, execution) => {
+      const commands = [];
+      const command = execution.core.command.bind(execution.core);
+      execution.core.command = (name, args) => {
+        commands.push(name);
+        return command(name, args);
+      };
+      let terminal;
+      for await (const event of rewriteRepository(
+        execution,
+        { root },
+        "format",
+      ))
+        terminal = event;
+      assert.equal(terminal.type, "write-terminal", terminal.message);
+      assert.equal(terminal.writtenPathCount, "0");
+      assert.equal(
+        commands.filter((name) => name === "rewrite-next").length,
+        4,
+      );
+      assert.equal(
+        commands.filter((name) => name === "rewrite-open").length,
+        1,
+      );
+      assert.ok(commands.filter((name) => name === "rewrite-obs").length >= 12);
+    },
+  );
+});
+
+test("membership batching preserves oversized-path and small-request singleton checks", async () => {
+  const longName = "q".repeat(150) + ".json";
+  for (const maxRequestBytes of [65536, 4095]) {
+    await fixture(
+      { "a.json": "0", "b.json": "1", [longName]: "{}\n" },
+      async (root, execution) => {
+        const queries = [];
+        const command = execution.core.command.bind(execution.core);
+        execution.core.command = (name, args) => {
+          if (name === "census-check-members" || name === "census-get")
+            queries.push({ name, ...args });
+          return command(name, args);
+        };
+        let terminal;
+        for await (const event of rewriteRepository(
+          execution,
+          { root },
+          "format",
+          { files: ["a.json", "b.json"] },
+        ))
+          terminal = event;
+        assert.equal(terminal.type, "write-terminal", terminal.message);
+        assert.equal(terminal.writtenPathCount, "2");
+        assert.ok(
+          queries.some(
+            (query) => query.name === "census-get" && query.path === longName,
+          ),
+        );
+        const batches = queries.filter(
+          (query) => query.name === "census-check-members",
+        );
+        assert.equal(batches.length > 0, maxRequestBytes >= 4096);
+        for (const batch of batches) {
+          assert.ok(batch.paths.length <= 16);
+          assert.ok(
+            batch.paths.reduce(
+              (sum, path) => sum + 2 + 2 * Buffer.byteLength(path),
+              0,
+            ) <= 256,
+          );
+        }
+      },
+      { capacityLimits: { maxRequestBytes } },
+    );
+  }
+});
+
+test("one effect traversal still replaces changed policy last", async () => {
+  const policy = {
+    schemaVersion: 4,
+    defaults: {
+      formatContract: "prettier-json",
+      normalization: "NFC",
+      allowSourceRewrites: true,
+    },
+    exceptions: [
+      {
+        paths: [".git/**"],
+        excludeUntrackedSources: true,
+        owner: "Git",
+        reason: "Metadata",
+      },
+    ],
+  };
+  await fixture(
+    {
+      "a.json": "0",
+      "b.json": "1",
+      ".json-quality.json": JSON.stringify(policy),
+    },
+    async (root, execution) => {
+      const written = [];
+      let terminal;
+      for await (const event of rewriteRepository(
+        execution,
+        { root },
+        "format",
+      )) {
+        if (event.type === "written") written.push(event.path);
+        terminal = event;
+      }
+      assert.equal(terminal.type, "write-terminal", terminal.message);
+      assert.deepEqual(written, ["a.json", "b.json", ".json-quality.json"]);
+    },
+  );
+});
+
 test("repository formatting admits all peers before replacing multiple sources", async () => {
   await fixture(
     { "a.json": '{"a":1}', "b.json": '{"b":2}' },

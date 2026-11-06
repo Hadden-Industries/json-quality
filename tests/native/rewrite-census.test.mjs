@@ -92,6 +92,25 @@ test("writer census retains every admitted candidate and truthful partial comple
     const partial = (await core.command("rewrite-status")).result;
     assert.equal(partial.selectedPathCount, "2");
     assert.equal(partial.writtenPathCount, "1");
+    const current = (await core.command("rewrite-obs", { after: "" })).result
+      .member;
+    assert.equal(current.path, "a.json");
+    assert.equal(current.observation, "verified-a");
+    assert.equal(current.byteLength, "2");
+    assert.equal(
+      current.sha256,
+      createHash("sha256").update("0\n").digest("hex"),
+    );
+    const pending = (await core.command("rewrite-obs", { after: current.path }))
+      .result.member;
+    assert.equal(pending.path, "b.json");
+    assert.equal(pending.byteLength, "1");
+    assert.equal(pending.sha256, sources["b.json"].sha256);
+    assert.equal(
+      (await core.command("rewrite-obs", { after: pending.path })).result
+        .member,
+      null,
+    );
     assert.equal(
       (await core.command("rewrite-next", { after: "a.json" })).result.candidate
         .path,
@@ -130,6 +149,99 @@ test("a candidate cannot substitute unrelated accepted bytes for its original so
   }
 });
 
+test("operation acknowledgements retain admission, final totals and bounded membership replies", async () => {
+  const core = new NativeSession();
+  try {
+    const sources = await physical(core, { "a.json": "0", "b.json": "1\n" });
+    assert.equal(
+      (await core.command("rewrite-open", { operation: "format" })).result.type,
+      "rewrite-accepted",
+    );
+    assert.equal(
+      (await core.command("rewrite-select", { path: "a.json" })).result.type,
+      "rewrite-accepted",
+    );
+    const candidate = await capture(
+      core,
+      "0\n",
+      {},
+      { transformOf: sources["a.json"].source },
+    );
+    assert.equal(
+      (
+        await core.command("rewrite-bind", {
+          path: "a.json",
+          source: candidate.source,
+        })
+      ).result.type,
+      "rewrite-accepted",
+    );
+    const admitted = (await core.command("rewrite-admit")).result;
+    assert.equal(admitted.preflightComplete, true);
+    assert.equal(admitted.changedPathCount, "1");
+    assert.equal(admitted.writesComplete, false);
+    assert.equal(
+      (
+        await core.command("rewrite-written", {
+          path: "a.json",
+          observation: "verified-a",
+        })
+      ).result.type,
+      "rewrite-accepted",
+    );
+    assert.equal(
+      (await core.command("rewrite-status")).result.writesComplete,
+      true,
+    );
+    assert.equal(
+      (
+        await core.command("census-check-members", {
+          paths: ["a.json", "b.json"],
+        })
+      ).result.missingIndex,
+      null,
+    );
+    assert.equal(
+      (
+        await core.command("census-check-members", {
+          paths: ["a.json", "missing.json", "b.json"],
+        })
+      ).result.missingIndex,
+      1,
+    );
+    const longMissing = "m".repeat(300) + ".json";
+    const missing = (
+      await core.command("census-check-members", { paths: [longMissing] })
+    ).result;
+    assert.equal(missing.missingIndex, 0);
+    assert.ok(!JSON.stringify(missing).includes(longMissing));
+    await assert.rejects(
+      core.command("census-check-members", { paths: Array(17).fill("a.json") }),
+      /census-membership-capacity/,
+    );
+  } finally {
+    await core.close();
+  }
+});
+
+test("membership rejects malformed or oversized suffixes after the first missing path", async () => {
+  for (const [paths, reason] of [
+    [["missing.json", null], /census-membership-contract/],
+    [["missing.json", "a".repeat(65537)], /census-membership-capacity/],
+  ]) {
+    const core = new NativeSession();
+    try {
+      await core.configure({});
+      await assert.rejects(
+        core.command("census-check-members", { paths }),
+        reason,
+      );
+    } finally {
+      await core.close();
+    }
+  }
+});
+
 test("writer state cannot acknowledge a replacement before complete candidate admission", async () => {
   const core = new NativeSession();
   try {
@@ -162,7 +274,7 @@ test("unsafe numeric peers cannot acquire a formatting candidate", async () => {
   }
 });
 
-test("candidate census and captured references survive a real spill with all seventeen tables reconciled", async () => {
+test("candidate census and captured references survive a real spill with all indexed tables reconciled", async () => {
   const core = new NativeSession(),
     text = '"' + "a".repeat(524288) + '"\n';
   try {

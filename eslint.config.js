@@ -30,4 +30,15 @@ export default defineConfig([
       "no-debugger": "error",
     },
   },
+  {
+    files: ["src/generated/*.cjs"],
+    // Ajv owns local names, reusable var slots and dead branches. Syntax and
+    // the identity guard still apply; generation drift/parity are checked.
+    rules: {
+      "no-unused-vars": "off",
+      "no-redeclare": "off",
+      "no-unreachable": "off",
+      "no-useless-assignment": "off",
+    },
+  },
 ]);

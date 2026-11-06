@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { normalizeJsonSource, resolveJsonQualityPolicy } from "../src/index.js";
 import { checkFixture } from "./source-fixture.js";
 
@@ -20,6 +21,68 @@ const contract = {
 };
 const nativeFindings = async (text) =>
   (await checkFixture(Buffer.from(text), contract)).findings;
+
+test("indexed pin paths retain root, escaped, array and duplicate-key semantics", async () => {
+  const value = "e\u0301";
+  const sha256 = createHash("sha256").update(value).digest("hex");
+  for (const [document, pointer] of [
+    [value, ""],
+    [{ "a/b~c": [{ é: value }] }, "/a~1b~0c/0/é"],
+  ]) {
+    const result = await checkFixture(Buffer.from(JSON.stringify(document)), {
+      ...contract,
+      nfcExemptStringValues: [{ pointer, sha256, byteLength: "3" }],
+    });
+    assert.equal(result.terminal.contractSatisfied, true);
+  }
+  const badIndex = await checkFixture(Buffer.from(JSON.stringify([value])), {
+    ...contract,
+    nfcExemptStringValues: [{ pointer: "/00", sha256, byteLength: "3" }],
+  });
+  assert.ok(
+    badIndex.findings.some((f) => f.messageId === "preservationMismatch"),
+  );
+  const repeated = await checkFixture(
+    Buffer.from('{"x":"e\\u0301","x":"other"}'),
+    {
+      ...contract,
+      nfcExemptStringValues: [{ pointer: "/x", sha256, byteLength: "3" }],
+    },
+  );
+  assert.ok(repeated.findings.some((f) => f.messageId === "duplicateKey"));
+  assert.equal(
+    repeated.findings.filter((f) => f.messageId === "preservationMismatch")
+      .length,
+    1,
+  );
+});
+
+test("wide pin inventories match exact values without waiving unpinned siblings", async () => {
+  const value = "e\u0301";
+  const sha256 = createHash("sha256").update(value).digest("hex");
+  const values = Array.from({ length: 256 }, () => value);
+  const selected = {
+    ...contract,
+    nfcExemptStringValues: values.map((_, i) => ({
+      pointer: `/${i}`,
+      sha256,
+      byteLength: "3",
+    })),
+  };
+  const checked = await checkFixture(
+    Buffer.from(JSON.stringify(values)),
+    selected,
+  );
+  assert.equal(checked.terminal.contractSatisfied, true);
+  const extra = await checkFixture(
+    Buffer.from(JSON.stringify([...values, value])),
+    selected,
+  );
+  assert.equal(
+    extra.findings.filter((f) => f.messageId === "unnormalized").length,
+    1,
+  );
+});
 
 test("value preservation admits only the exact decoded value at its declared pointer", async () => {
   assert.deepEqual(await nativeFindings('{"language":"en-K"}'), []);

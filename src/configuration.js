@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Typed policy admission and sparse contract resolution. Parsing belongs to the
 // shared reader; Ajv owns the complete closed control schema.
-import configurationSchema from "../schemas/configuration.schema.json" with { type: "json" };
-import effectiveSchema from "../schemas/effective-policy.schema.json" with { type: "json" };
+import validators from "./generated/configuration.cjs";
+import { assertNfcPreservationSemantics } from "./nfc-preservation.js";
 import packagedDefaults from "../assets/default-json-quality-policy.json" with { type: "json" };
 import {
   freezeControl,
@@ -10,7 +10,6 @@ import {
   snapshotControl,
 } from "./control-snapshot.js";
 import { resolveExecutionResources } from "./execution-resources.js";
-import { Ajv2020 as Ajv } from "ajv/dist/2020.js";
 import { isDeepStrictEqual } from "node:util";
 import { posix } from "node:path";
 import {
@@ -19,16 +18,13 @@ import {
 } from "./json-paths.js";
 
 // Closed local schema: no remote references, defaults or coercion.
-const ajv = new Ajv({ strict: true, allErrors: true }).addSchema(
-  configurationSchema,
-);
 const validateConfiguration =
   /** @type {import('ajv').ValidateFunction<import('./api-types.js').JsonQualityConfiguration>} */ (
-    ajv.getSchema(configurationSchema.$id)
+    validators.validateConfiguration
   );
 const validatePolicy =
   /** @type {import('ajv').ValidateFunction<import('./api-types.js').JsonQualityPolicy>} */ (
-    ajv.compile(effectiveSchema)
+    validators.validatePolicy
   );
 
 /** Package-owned immutable value, distinct from every resolved caller snapshot. */
@@ -123,7 +119,7 @@ function assertValidJsonQualityPolicy(policy) {
         "Preserved bytes and expected diagnostics require one exact protected path and independent byte identity.",
       );
     if (rule.nfcExemptStringValues) {
-      assertNfcPreservationContract(rule);
+      assertNfcPreservationSemantics(rule);
       if (rule.paths.length !== 1 || /[*?[\]{}()]/u.test(rule.paths[0]))
         throw new Error(
           "NFC value preservation requires one exact protected file.",
@@ -267,31 +263,4 @@ export function resolveJsonSourceContract(
   if (contract.formatContract !== "prettier-json")
     contract.allowSourceRewrites = false;
   return contract;
-}
-
-const validateNfcValues = new Ajv({ strict: true }).compile({
-  ...configurationSchema.$defs.nfcExemptStringValuePins,
-  $defs: configurationSchema.$defs,
-});
-
-/** Narrow value preservation is independently pinned, owner-attributed and
- * write-protected. It cannot coexist with whole-file or expected-negative waivers.
- */
-export function assertNfcPreservationContract(/** @type {*} */ contract) {
-  if (!contract.nfcExemptStringValues) return;
-  if (
-    !validateNfcValues(contract.nfcExemptStringValues) ||
-    contract.allowSourceRewrites !== false ||
-    contract.normalization === "preserve" ||
-    contract.expected?.diagnostics?.length ||
-    !(
-      (contract.owner?.trim() && contract.reason?.trim()) ||
-      contract.exceptions?.some(
-        (/** @type {*} */ entry) => entry.owner?.trim() && entry.reason?.trim(),
-      )
-    )
-  )
-    throw new TypeError(
-      "Invalid protected owner/reason NFC value-preservation contract.",
-    );
 }

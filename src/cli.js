@@ -285,7 +285,7 @@ export async function runJsonQualityCli(
       if (process.stdin.isTTY)
         throw new TypeError("check-source requires piped or redirected stdin.");
       const { openJsonSourceSession } = await import("./sessions.js"),
-        { stdinContract } = await import("./stdin-operation.js"),
+        { stdinContract } = await import("./stdin-contract.js"),
         contract = stdinContract(
           values.contract === undefined ? {} : JSON.parse(values.contract),
           values["stdin-filepath"],

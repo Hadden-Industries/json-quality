@@ -32,5 +32,5 @@ export declare function captureRepositorySource(
 ): Promise<any>;
 /** Verify the discovered file still has the captured identity and exact bytes. */
 export declare function recheckRepositorySource(
-  /** @type {*} */ { root, member, signal }: any,
+  /** @type {*} */ { root, member, signal, buffer }: any,
 ): Promise<void>;

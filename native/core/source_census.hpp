@@ -559,6 +559,30 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
             {"contractSatisfied", complete && contractFailures == 0}};
   }
 
+  // Read-only membership needs no source/provenance projection. Batch bounds
+  // describe one exchange, never a limit on repository size or path admission.
+  json::value firstMissing(const json::array &paths) {
+    require(paths.size() <= 16, "census-membership-capacity");
+    std::size_t bytes = 0;
+    std::uint64_t index = 0;
+    json::value missing;
+    for (const auto &item : paths) {
+      require(item.is_string(), "census-membership-contract");
+      require(item.as_string().size() <= 65536 - bytes, "census-membership-capacity");
+      bytes += item.as_string().size();
+      auto path = censusPath(item, resources);
+      if (missing.is_null()) {
+        Statement query(*store.database, "SELECT 1 FROM census_members WHERE path=?");
+        query.text(1, path);
+        bool present = query.next();
+        query.finish();
+        if (!present) missing = index;
+      }
+      ++index;
+    }
+    return missing;
+  }
+
   // Keyset iteration is deterministic and retains neither an open statement nor
   // a growing result array between requests or backing transitions.
   json::value next(const std::string &after, bool exact = false) {

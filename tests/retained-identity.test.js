@@ -317,6 +317,47 @@ test("identity-analysis capacity can be raised or explicitly bypassed without di
     ),
   );
 });
+test("indexed wide destructuring retains late origins and bounded analysis", () => {
+  const size = 2000;
+  const code =
+    `const values = {${Array.from({ length: size }, (_, i) => `p${i}:${i === size - 1 ? "JSON.stringify(input)" : "0"}`).join(",")}};\nconst {${Array.from({ length: size }, (_, i) => `p${i}:v${i}`).join(",")}}=values;\n` +
+    Array.from({ length: size }, (_, i) => `v${i} === expected;`).join("\n");
+  assert.deepEqual(
+    lint(code).map((m) => m.messageId),
+    ["identity"],
+  );
+  assert.ok(
+    lint(code, { maxSteps: 64 }).some((m) => m.messageId === "analysisLimit"),
+  );
+  assert.deepEqual(
+    lint(
+      "const {a:[wire = 'fallback']}={a:[JSON.stringify(input)]};wire===expected;",
+    ).map((m) => m.messageId),
+    ["identity"],
+  );
+});
+
+test("indexed contract attachment preserves independent, ambiguous and unused comments", () => {
+  const body = Array.from(
+    { length: 2000 },
+    (_, i) =>
+      `${contract()}const wire${i}=JSON.stringify(input); wire${i}===expected;`,
+  ).join("\n");
+  assert.deepEqual(lint(body), []);
+  const ambiguous =
+    "/* json-identity-contract: bytes; owner: A; reason: First. */ /* json-identity-contract: bytes; owner: B; reason: Second. */\nJSON.stringify(input) === expected;";
+  assert.deepEqual(
+    lint(ambiguous)
+      .map((m) => m.messageId)
+      .sort(),
+    ["contract", "contract", "identity"],
+  );
+  assert.deepEqual(
+    lint(contract() + "ordinary(input);").map((m) => m.messageId),
+    ["unused"],
+  );
+});
+
 test("repository config enables the guard for source, scripts and tests without autofixes", async () => {
   const eslint = new ESLint();
   for (const filePath of [

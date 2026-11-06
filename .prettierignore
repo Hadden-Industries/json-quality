@@ -11,3 +11,4 @@ native/prebuilt/**
 **/*.ndjson
 **/*.jsonc
 **/*.json5
+src/generated/*.cjs

@@ -13,38 +13,15 @@ import {
 import { openSelectedExecution } from "./selected-check.js";
 import { resolveExecutionResources } from "./execution-resources.js";
 import { createExecutionDeadline } from "./execution-deadline.js";
-import { sourceContract } from "./source-contract.js";
+import { stdinContract } from "./stdin-contract.js";
+export { stdinContract } from "./stdin-contract.js";
 import { resolveJsonSourceContract } from "./configuration.js";
 import { assertRepositoryPath } from "./paths.js";
-import { jsonSourceFormat } from "./json-paths.js";
 import { encodeNativeControl } from "./native-control.js";
 import { sourceText } from "./retained-transform-source.js";
 import { transformResources } from "./transform-capabilities.js";
-import { formatSource } from "./native-formatting.js";
-import { normalizeSource } from "./native-normalization.js";
 import { assertJsonQualityEvent } from "./events.js";
 import cohort from "../schemas/contract-cohort.json" with { type: "json" };
-
-/** A virtual filename supplies identity, never a file to read or replace. */
-export function stdinContract(
-  /** @type {*} */ contract = {},
-  /** @type {*} */ path,
-) {
-  const selected = sourceContract(contract);
-  if (path !== undefined) {
-    assertRepositoryPath(path);
-    const format = jsonSourceFormat(path);
-    if (
-      (selected.path !== undefined && selected.path !== path) ||
-      (selected.format !== undefined && selected.format !== format)
-    )
-      throw new TypeError(
-        "--stdin-filepath conflicts with the explicit source contract.",
-      );
-    return sourceContract({ ...selected, path, format });
-  }
-  return selected;
-}
 
 /** Check existing ancestors without opening virtual target contents. */
 export function assertVirtualSourcePath(
@@ -337,7 +314,9 @@ export async function executeStdinOperation(
         );
         const text = await sourceText(execution, captured, transformLimits);
         transformed = await (
-          operation === "format" ? formatSource : normalizeSource
+          operation === "format"
+            ? (await import("./native-formatting.js")).formatSource
+            : (await import("./native-normalization.js")).normalizeSource
         )(text, {
           core: owner.core,
           parentSource: captured.source,

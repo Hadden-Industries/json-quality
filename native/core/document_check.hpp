@@ -7,6 +7,7 @@
 #include "event_log.hpp"
 #include "index_digest.hpp"
 #include "json_pointer.hpp"
+#include "nfc_pin_index.hpp"
 #include "producer_presentation.hpp"
 #include "sha256.hpp"
 #include "unicode_normalization.hpp"
@@ -89,6 +90,7 @@ struct Frame {
   char kind = 0;
   std::uint64_t parent = 0, name = 0, valueOrdinal = 0;
   bool pathSaved = false;
+  std::uint64_t pinNode = 0;
 };
 struct Checker;
 struct Handler {
@@ -146,6 +148,7 @@ struct Checker {
   std::vector<bool> pinsSeen;
   std::vector<bool> recordSelections;
   bool recordPreservation = false;
+  std::unique_ptr<NfcPinIndex> pinIndex;
   bool sourceUtf8Admitted = false;
   bool includeValueEvents = false;
   bool retainTree = false, sourceView = false;
@@ -170,6 +173,8 @@ struct Checker {
       for (const auto &pin : item->as_array())
         recordPreservation |= pin.as_object().if_contains("record") != nullptr;
       require(!recordPreservation || record, "record-selective-pin-on-document");
+      if (!recordPreservation)
+        pinIndex = std::make_unique<NfcPinIndex>(streams, events.scope, item->as_array());
     }
     if (auto item = contract.if_contains("formatContract"))
       presentationPolicy = std::string(item->as_string());
@@ -311,6 +316,14 @@ struct Checker {
   std::optional<Value> resolvePointer(const json::string &pointer) {
     return resolveValuePointer(streams, rootValue, pointer);
   }
+  std::uint64_t pinNode(const Value &value) {
+    if (!pinIndex) return 0;
+    if (!value.parent) return 1;
+    const auto &parent = stack.back();
+    if (!parent.pinNode) return 0;
+    return parent.kind == '[' ? pinIndex->child(parent.pinNode, value.ordinal)
+                              : pinIndex->child(parent.pinNode, descriptor(value.name));
+  }
   Value begin(char token, const char *kind, bool key = false) {
     Value value;
     value.id = streams.nextValueId++;
@@ -438,18 +451,20 @@ struct Checker {
                   allTrim ? "emptyKey" : "whitespace");
       }
       bool preserved = false;
-      if (!key && !recordPreservation)
+      if (!key && pinIndex)
         if (auto items = contract.if_contains("nfcExemptStringValues"))
-          for (std::size_t i = 0; i < items->as_array().size(); ++i) {
+          for (std::uint64_t node = pinNode(current), after = 0; node;) {
+            auto selected = pinIndex->next(node, after);
+            if (!selected) break;
+            after = selected;
+            auto i = selected - 1;
             const auto &pin = items->as_array()[i].as_object();
-            if (pointerMatches(current, pin.at("pointer").as_string())) {
-              pinsSeen[i] = true;
-              if (pin.at("sha256").as_string() == current.digest &&
-                  exactInteger(pin.at("byteLength")) == current.decoded.length)
-                preserved = true;
-              else
-                finding(current, "json-quality/nfc-strings", "preservationMismatch");
-            }
+            pinsSeen[i] = true;
+            if (pin.at("sha256").as_string() == current.digest &&
+                exactInteger(pin.at("byteLength")) == current.decoded.length)
+              preserved = true;
+            else
+              finding(current, "json-quality/nfc-strings", "preservationMismatch");
           }
       if (normalization) {
         if (!preserved && !streams.equal(current.decoded, current.normalized)) {
@@ -576,7 +591,8 @@ struct Checker {
       presentation.on_array_begin(code);
     auto value = begin(kind, kind == '{' ? "object" : "array");
     publish(value);
-    stack.push_back({value.id, 0, 0, kind, value.parent, value.name, value.ordinal, false});
+    auto selectedPin = pinNode(value);
+    stack.push_back({value.id, 0, 0, kind, value.parent, value.name, value.ordinal, false, selectedPin});
   }
   void close(char kind) {
     require(!stack.empty() && stack.back().kind == kind, "container-scope");

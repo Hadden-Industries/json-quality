@@ -251,6 +251,30 @@ async function selectWritablePaths(
   );
 }
 
+async function recheckPhysicalSources(
+  /** @type {*} */ root,
+  /** @type {*} */ execution,
+) {
+  const core = execution.core;
+  // Preserve every full source rehash and its ordering. The fused indexed
+  // cursor removes duplicate native round trips; one buffer is reused only
+  // after each source's descriptor and EOF/path checks have settled.
+  const buffer = Buffer.alloc(65536);
+  let after = "";
+  while (true) {
+    execution.signal?.throwIfAborted();
+    const { member } = (await core.command("rewrite-obs", { after })).result;
+    if (!member) break;
+    await recheckRepositorySource({
+      root,
+      member,
+      signal: execution.signal,
+      buffer,
+    });
+    after = member.path;
+  }
+}
+
 async function fresh(
   /** @type {*} */ root,
   /** @type {*} */ execution,
@@ -258,16 +282,7 @@ async function fresh(
   /** @type {*} */ afterWrites,
 ) {
   const core = execution.core;
-  for await (const member of repositoryMembers(core, execution.signal)) {
-    if (member.kind !== "physical") continue;
-    const candidate = (await core.command("rewrite-get", { path: member.path }))
-      .result.candidate;
-    await recheckRepositorySource({
-      root,
-      member: candidate?.written ? { ...member, ...candidate } : member,
-      signal: execution.signal,
-    });
-  }
+  await recheckPhysicalSources(root, execution);
   const policy = (
     await core.command("rewrite-get", { path: ".json-quality.json" })
   ).result.candidate;
@@ -305,6 +320,21 @@ async function* candidates(/** @type {*} */ core, /** @type {*} */ signal) {
     yield candidate;
     after = candidate.path;
   }
+}
+
+async function* changedCandidates(
+  /** @type {*} */ core,
+  /** @type {*} */ signal,
+  /** @type {string} */ count,
+) {
+  if (count === "0") return;
+  let policy;
+  for await (const candidate of candidates(core, signal)) {
+    if (!candidate.changed) continue;
+    if (candidate.path === ".json-quality.json") policy = candidate;
+    else yield candidate;
+  }
+  if (policy) yield policy;
 }
 
 async function assertWritePermission(
@@ -359,7 +389,7 @@ export async function* rewriteRepository(
     preflightComplete = false,
     afterWrites = false;
   try {
-    await core.command("rewrite-start", { operation });
+    await core.command("rewrite-open", { operation });
     await fresh(root, execution, gitExecutable, false);
     await selectWritablePaths(
       root,
@@ -552,42 +582,40 @@ export async function* rewriteRepository(
       return;
     }
     // Re-read indexed candidates for effects, with the mutable policy last.
-    for (const policyLast of [false, true])
-      for await (const candidate of candidates(core, execution.signal)) {
-        if (
-          !candidate.changed ||
-          (candidate.path === ".json-quality.json") !== policyLast
-        )
-          continue;
-        const member = (
-          await core.command("census-get", { path: candidate.path })
-        ).result.member;
-        await fresh(root, execution, gitExecutable, afterWrites);
-        await assertWritePermission(root, member, execution, gitExecutable);
-        uncertainPath = member.path;
-        const committed = await replaceObservedSource({
-          root,
-          member,
-          candidate,
-          chunks: sourceBytes(core, candidate.source, execution.signal),
-          signal: execution.signal,
-          transformControls: controls,
-        });
-        await core.command("rewrite-written", {
-          path: member.path,
-          observation: committed.observation,
-        });
-        written++;
-        afterWrites = true;
-        uncertainPath = null;
-        yield {
-          type: "written",
-          operation,
-          path: member.path,
-          byteLength: committed.byteLength,
-          sha256: committed.sha256,
-        };
-      }
+    for await (const candidate of changedCandidates(
+      core,
+      execution.signal,
+      admitted.changedPathCount,
+    )) {
+      const member = (
+        await core.command("census-get", { path: candidate.path })
+      ).result.member;
+      await fresh(root, execution, gitExecutable, afterWrites);
+      await assertWritePermission(root, member, execution, gitExecutable);
+      uncertainPath = member.path;
+      const committed = await replaceObservedSource({
+        root,
+        member,
+        candidate,
+        chunks: sourceBytes(core, candidate.source, execution.signal),
+        signal: execution.signal,
+        transformControls: controls,
+      });
+      await core.command("rewrite-written", {
+        path: member.path,
+        observation: committed.observation,
+      });
+      written++;
+      afterWrites = true;
+      uncertainPath = null;
+      yield {
+        type: "written",
+        operation,
+        path: member.path,
+        byteLength: committed.byteLength,
+        sha256: committed.sha256,
+      };
+    }
     await fresh(root, execution, gitExecutable, afterWrites);
     const status = (await core.command("rewrite-status")).result;
     if (!status.writesComplete)

@@ -39,8 +39,10 @@ struct SourceRewrites {
   Streams &streams;
   Store &store;
   bool normalize, admitted = false;
-  SourceRewrites(SourceCensus &inventory, Streams &values, bool nfc)
-      : census(inventory), streams(values), store(values.store), normalize(nfc) {
+  const bool mutationAcknowledgements;
+  SourceRewrites(SourceCensus &inventory, Streams &values, bool nfc, bool acknowledge = false)
+      : census(inventory), streams(values), store(values.store), normalize(nfc),
+        mutationAcknowledgements(acknowledge) {
     require(census.status().at("complete").as_bool(), "rewrite-needs-complete-census");
     store.prepare(131072);
     store.database->execute(
@@ -200,6 +202,26 @@ struct SourceRewrites {
                             {"changed", query.integer(4) != 0},
                             {"written", query.integer(5) != 0},
                             {"observation", query.text(6)}};
+    query.finish();
+    return result;
+  }
+  // One indexed observation projection per physical member, including the exact
+  // post-write identity. Never materialise the census in the JavaScript owner.
+  json::value nextObservation(const std::string &after) {
+    Statement query(*store.database,
+                    "SELECT m.path,CASE WHEN r.written=1 THEN r.written_observation ELSE m.observation END,"
+                    "CASE WHEN r.written=1 THEN c.sha ELSE o.sha END,"
+                    "CASE WHEN r.written=1 THEN c.length ELSE o.length END "
+                    "FROM census_members m LEFT JOIN rewrite_candidates r USING(path) "
+                    "LEFT JOIN source_captures o ON o.source=m.source "
+                    "LEFT JOIN source_captures c ON c.source=r.source "
+                    "WHERE m.kind='physical' AND m.path>? ORDER BY m.path LIMIT 1");
+    query.text(1, after);
+    json::value result;
+    if (query.next())
+      result = json::object{{"path", query.text(0)}, {"observation", query.text(1)},
+                            {"sha256", query.text(2)},
+                            {"byteLength", std::to_string(query.integer(3))}};
     query.finish();
     return result;
   }

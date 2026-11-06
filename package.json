@@ -107,7 +107,7 @@
     "benchmark:orchestration": "npm run benchmark:json-checking && npm run benchmark:json-formatting",
     "test": "node --test --test-concurrency=1 tests/*.test.js tests/native/*.test.mjs",
     "test:affected": "node scripts/affected-tests.js",
-    "check:source": "npm run check:code-formatting-and-markdown && npm run lint:javascript && npm run check:version && npm run check:node-support && npm run check:workflow-contracts && npm run check:event-resources && npm run check:architecture && npm run check:public-schemas && npm run check:policy-inputs && npm run check:types && npm run check:types:generated && npm run check:shipment && npm run check:package-contracts && npm run check:json",
+    "check:source": "npm run check:code-formatting-and-markdown && npm run lint:javascript && npm run check:version && npm run check:node-support && npm run check:workflow-contracts && npm run check:event-resources && npm run check:architecture && npm run check:public-schemas && npm run check:validators && npm run check:policy-inputs && npm run check:types && npm run check:types:generated && npm run check:shipment && npm run check:package-contracts && npm run check:json",
     "check:product": "npm run audit:dependencies && npm test && npm run qualify:package",
     "check:repository": "npm run check:source && npm run check:product",
     "check:version": "node scripts/project-package-version.js --check",
@@ -159,7 +159,9 @@
     "check:json:ndjson": "node src/cli.js check --root . --ndjson",
     "audit:dependencies": "node scripts/check-security.js",
     "sync:policy-inputs": "node scripts/project-policy-inputs.js --write",
-    "check:policy-inputs": "node scripts/project-policy-inputs.js"
+    "check:policy-inputs": "node scripts/project-policy-inputs.js",
+    "build:validators": "node scripts/build-validators.js",
+    "check:validators": "node scripts/build-validators.js --check"
   },
   "publishConfig": {
     "access": "public"

@@ -24,8 +24,23 @@ function observe(args, timeout = "5") {
       maxBuffer: 5 * 1024 * 1024,
     },
   );
-  assert.ok(!child.error, child.error?.message);
-  return { exit: child.status, report: JSON.parse(child.stdout) };
+  const diagnostic = JSON.stringify({
+    mode: args[0],
+    timeout,
+    status: child.status,
+    signal: child.signal,
+    stdoutBytes: Buffer.byteLength(child.stdout ?? ""),
+    stdout: child.stdout?.slice(0, 4096),
+    stderr: child.stderr?.slice(0, 4096),
+  });
+  assert.ok(!child.error, child.error?.message + " " + diagnostic);
+  try {
+    return { exit: child.status, report: JSON.parse(child.stdout) };
+  } catch (error) {
+    throw new Error("Missing or malformed process observation: " + diagnostic, {
+      cause: error,
+    });
+  }
 }
 test("tree accounting observes a real memory-heavy child independently of parent memory", () => {
   const { exit, report } = observe(["memory"]);
@@ -56,7 +71,15 @@ test("surviving grandchildren and timeout fail observation and leave no live own
     const pid = Number(readFileSync(path, "utf8"));
     assert.equal(exit, 1);
     assert.equal(report.status, "failed");
-    assert.equal(report.cleanup, "passed");
+    assert.equal(
+      report.cleanup,
+      "passed",
+      JSON.stringify({
+        error: report.error,
+        cleanupError: report.cleanupError,
+        failures: report.failures,
+      }),
+    );
     assert.equal(report.timedOut, timeout);
     // Native readback, independent of the observer's claimed cleanup.
     if (process.platform === "linux") {
@@ -96,4 +119,16 @@ test("permanently unavailable observation cannot prevent admitted-domain termina
     cleanup: "failed",
     terminationAttempted: true,
   });
+});
+
+test("cleanup faults retain reports and continue independent cleanup phases", () => {
+  const helper = fileURLToPath(
+    new URL("./process-observer-cleanup.py", import.meta.url),
+  );
+  const child = spawnSync(
+    process.env.PYTHON ?? "python",
+    [helper, process.execPath, workload],
+    { encoding: "utf8", windowsHide: true, timeout: 15000 },
+  );
+  assert.equal(child.status, 0, child.error?.message ?? child.stderr);
 });
