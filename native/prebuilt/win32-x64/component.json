@@ -13,12 +13,12 @@
   "sourceInputsSha256": "d5d1b3766d160006f396d2b25371783b876ebe8b58b7d27f3a9743945ae70689",
   "artifacts": {
     "json-quality.node": {
-      "sha256": "d5778b0149fb15e7c4376757bfb641871d8adbfe0037a679364ddb604e29d3cf",
-      "bytes": 36293632
+      "sha256": "da4cd8dc542f278145379d845a26c84323a64aa4c36ebebceb44e42bfa5b1c2b",
+      "bytes": 36298240
     },
     "json-quality-native.exe": {
-      "sha256": "cd655ea9147a05706885efb692c8470a80ac3d5e15357a1686c2cd4d1b7faa64",
-      "bytes": 36282880
+      "sha256": "cd62ad61d02b989f9cfcb42eeea22545a54020e059331f341f6bc1a22d5ab6e1",
+      "bytes": 36287488
     }
   },
   "configurationSchemaSha256": "6f8ebded630f7a3b0b9f95ee2c43646006aefe3c8fd59a2156446543c89107c4",

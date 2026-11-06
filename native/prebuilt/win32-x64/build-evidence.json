@@ -105,14 +105,14 @@
     {
       "language": "C",
       "id": "MSVC",
-      "version": "19.44.35229.0",
-      "executableSha256": "fe251ef50a1545b1b0835ee17b1e785459712b38d79e45b5c1d3d28970a36619"
+      "version": "19.51.36260.0",
+      "executableSha256": "b0a1818ebae6da7f18230a84e76ce839212584ac4c2ab55b97a0d5268085da57"
     },
     {
       "language": "CXX",
       "id": "MSVC",
-      "version": "19.44.35229.0",
-      "executableSha256": "fe251ef50a1545b1b0835ee17b1e785459712b38d79e45b5c1d3d28970a36619"
+      "version": "19.51.36260.0",
+      "executableSha256": "b0a1818ebae6da7f18230a84e76ce839212584ac4c2ab55b97a0d5268085da57"
     },
     {
       "language": "RC",
@@ -128,9 +128,9 @@
     "source_contract_enums.hpp": "8b2b94f3a745266f232e779ba3681b29c7eecddcd9732c020ec632ee17288262"
   },
   "artifactFiles": {
-    "component.json": "34ee05da330cd723e2d2f42a094eff9508c5726f4e93a7297bd6c5c2901ff302",
-    "json-quality-native.exe": "cd655ea9147a05706885efb692c8470a80ac3d5e15357a1686c2cd4d1b7faa64",
-    "json-quality.node": "d5778b0149fb15e7c4376757bfb641871d8adbfe0037a679364ddb604e29d3cf",
+    "component.json": "cc483b58cc67578710f32e91a792c097e7d70be912ea5bba77add8adf33e6d80",
+    "json-quality-native.exe": "cd62ad61d02b989f9cfcb42eeea22545a54020e059331f341f6bc1a22d5ab6e1",
+    "json-quality.node": "da4cd8dc542f278145379d845a26c84323a64aa4c36ebebceb44e42bfa5b1c2b",
     "notice-inventory.json": "cb9bd3641bc03aedb6c4dbefe84baf3bd2deda7c938f88415dbae80f87c94a83",
     "notices/boost/LICENSE_1_0.txt": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
     "notices/doubleConversion/AUTHORS": "02f8e5babc63a87d460219a74b97e15046d198ed3bab061e3d46b4f44ea77a9d",
