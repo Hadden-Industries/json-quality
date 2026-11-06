@@ -16,6 +16,7 @@ import { packCandidate } from "./pack.js";
 import {
   assertNativeNpmRuntime,
   qualificationEslintVersion,
+  qualificationEslintOverrides,
 } from "./consumer-toolchain.js";
 import { native, budgets } from "./qualification-process.js";
 import { qualifyPublicApi } from "./qualify-api.js";
@@ -159,13 +160,12 @@ try {
             ? provenance.version
             : `file:${archive}`,
         },
-        ...(!values.registry
-          ? {
-              overrides: {
-                [provenance.name]: transportedPlatforms,
-              },
-            }
-          : {}),
+        overrides: {
+          ...qualificationEslintOverrides(),
+          ...(!values.registry
+            ? { [provenance.name]: transportedPlatforms }
+            : {}),
+        },
       },
       null,
       2,

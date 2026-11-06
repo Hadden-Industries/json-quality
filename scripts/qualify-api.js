@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 import { native, budgets } from "./qualification-process.js";
 import { isolatedNpmEnvironment } from "./release-inventory.js";
 import { checkPackage } from "./check-package.js";
+import {
+  qualificationEslintVersion,
+  qualificationEslintOverrides,
+} from "./consumer-toolchain.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const metadata = JSON.parse(readFileSync(join(root, "package.json")));
@@ -38,10 +42,10 @@ export async function qualifyPublicApi({
       type: "module",
       dependencies: {
         [metadata.name]: `file:${archive}`,
-        eslint: version("eslint"),
+        eslint: qualificationEslintVersion(),
         "@types/node": version("@types/node"),
       },
-      overrides: platforms,
+      overrides: { ...qualificationEslintOverrides(), ...platforms },
     }),
   );
   native(

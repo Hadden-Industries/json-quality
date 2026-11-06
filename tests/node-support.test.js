@@ -14,6 +14,7 @@ import {
 import {
   assertNativeNpmRuntime,
   qualificationEslintVersion,
+  qualificationEslintOverrides,
 } from "../scripts/consumer-toolchain.js";
 import { nodeMatrixFixture, nextPatchVersion } from "./node-matrix-fixture.js";
 
@@ -36,6 +37,32 @@ test("consumer ESLint qualification follows the exact selected lock entry", () =
     () => qualificationEslintVersion(changed),
     /Locked ESLint identity/u,
   );
+});
+
+test("consumer ESLint fixtures retain producer remediations without changing runtime dependencies", () => {
+  const metadata = {
+    overrides: {
+      eslint: { minimatch: "11.0.4" },
+      "@eslint/config-array": { minimatch: "11.0.4" },
+      ajv: "0.0.0-test-runtime-override",
+      "archiver-utils": { glob: "14.0.3" },
+    },
+  };
+  const overrides = qualificationEslintOverrides(metadata);
+  assert.deepEqual(overrides, {
+    eslint: { minimatch: "11.0.4" },
+    "@eslint/config-array": { minimatch: "11.0.4" },
+  });
+  overrides.eslint.minimatch = "0.0.0-test-mutation";
+  assert.equal(metadata.overrides.eslint.minimatch, "11.0.4");
+  assert.deepEqual(qualificationEslintOverrides({}), {});
+  const current = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  );
+  assert.deepEqual(qualificationEslintOverrides(), {
+    eslint: current.overrides.eslint,
+    "@eslint/config-array": current.overrides["@eslint/config-array"],
+  });
 });
 
 test("all current Node declarations share the projector inventory and policy", () => {
