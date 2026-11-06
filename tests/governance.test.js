@@ -327,6 +327,24 @@ test("workflow contracts reject broken metadata, callers and shared deadline dri
     );
   for (const [name, path, change, expected] of [
     [
+      "skipped source admission",
+      ci,
+      (data) => {
+        data.jobs.policy.steps.find(
+          (step) => step.run === "npm run check:source",
+        ).if = "false";
+      },
+      /one blocking source gate/u,
+    ],
+    [
+      "disconnected source admission",
+      ci,
+      (data) => {
+        data.jobs.product.needs = [];
+      },
+      /one blocking source gate/u,
+    ],
+    [
       "composite timeout",
       download,
       (data) => {
@@ -606,9 +624,7 @@ test("deliberate triggers and skip-resistant acceptance remain explicit", () => 
     );
   const ci = read("ci.yml");
   assert.ok(
-    ci.jobs.policy.steps.some(
-      (step) => step.run === "npm run check:workflow-contracts",
-    ),
+    ci.jobs.policy.steps.some((step) => step.run === "npm run check:source"),
   );
   assert.deepEqual(ci.on.pull_request, {
     branches: ["main"],
@@ -632,7 +648,7 @@ test("deliberate triggers and skip-resistant acceptance remain explicit", () => 
   const main = read("main-qualification.yml");
   assert.equal(
     main.jobs.full.if,
-    "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
+    "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.verification_profile || 'full') == 'full'",
   );
   assert.equal(main.jobs.full.uses, "./.github/workflows/ci.yml");
   const checks = governance.ruleset.rules.find(

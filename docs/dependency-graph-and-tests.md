@@ -33,7 +33,10 @@ No shadow or other test mode was executed during the 2026-10-18 alignment, by ex
 `check:repository` uses fail-fast ordering: code formatting and Markdown checks run first, followed by JavaScript lint and the remaining source, contract, type and package checks.
 Complete JSON source checking also precedes the dependency audit, test suite and installed-package qualification, so JSON formatting findings cannot arrive only after those expensive stages.
 The deliberate CI and release workflows run formatting, Markdown and JavaScript lint in their existing admission jobs before expensive jobs fan out.
-The reusable producer retains its complete checks for direct callers and its own checkout; independent expensive jobs remain parallel after admission.
+`check:repository` composes `check:source` and `check:product` for complete local assurance.
+CI and release admission run the source, contract, type and package checks once through `check:source`; the reusable producer runs the audit, tests and installed-package qualification through `check:product` after that prerequisite.
+Every maintained caller must retain that source gate, and the workflow validator checks the dependency.
+Independent expensive jobs remain parallel after admission.
 This order reduces wasted work without changing check coverage or acceptance requirements.
 After a repair, reuse earlier results only when their relevant source, dependencies, environment and fixture inputs remain unchanged; exact-commit and source-byte evidence still needs its original bindings.
 

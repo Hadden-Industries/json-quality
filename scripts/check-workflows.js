@@ -225,6 +225,37 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       `./.github/workflows/${name}`,
       read(`.github/workflows/${name}`),
     );
+  // Maintained callers own the source gate; the reusable producer runs only
+  // the remaining phase. Do not replace this dependency with a skip flag.
+  for (const [path, workflow] of workflows)
+    for (const job of Object.values(workflow.jobs ?? {})) {
+      if (job.uses !== "./.github/workflows/qualification.yml") continue;
+      const gates = [job.needs].flat().filter((name) => {
+        const gate = workflow.jobs[name];
+        const checks = gate?.steps?.filter(
+          (step) => step.run === "npm run check:source",
+        );
+        return (
+          checks?.length === 1 &&
+          !checks[0].if &&
+          !checks[0]["continue-on-error"] &&
+          !gate["continue-on-error"]
+        );
+      });
+      assert.ok(
+        gates.length === 1 && !job.if && !job["continue-on-error"],
+        `${path}: package qualification requires one blocking source gate`,
+      );
+    }
+  const productChecks = workflows
+    .get("./.github/workflows/qualification.yml")
+    .jobs.producer.steps.filter((step) => step.run === "npm run check:product");
+  assert.ok(
+    productChecks.length === 1 &&
+      !productChecks[0].if &&
+      !productChecks[0]["continue-on-error"],
+    "Reusable producer must run the complete remaining qualification phase",
+  );
   checkSharedQualification(
     workflows.get("./.github/workflows/json-quality.yml"),
   );

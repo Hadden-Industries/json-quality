@@ -24,10 +24,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-producer
-      - name: Check code formatting and Markdown before fan-out
-        run: npm run check:code-formatting-and-markdown
-      - name: Check JavaScript rules before fan-out
-        run: npm run lint:javascript
+      - name: Check source quality before fan-out
+        run: npm run check:source
       - id: resolve
         env:
           RELEASE_VERSION: ${{ inputs.version }}

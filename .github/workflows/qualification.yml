@@ -44,8 +44,8 @@ jobs:
           FROZEN_MATRIX: ${{ inputs.matrix }}
           RELEASE_MODE: ${{ inputs.release-mode }}
         run: npm run emit:node-matrix
-      - name: Qualify the complete reference producer
-        run: npm run check:repository
+      - name: Qualify the reference producer after source admission
+        run: npm run check:product
       - name: Record reference orchestration performance
         shell: bash
         run: |
