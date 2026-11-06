@@ -5,13 +5,13 @@ body:
   - type: markdown
     attributes:
       value: >-
-        Report vulnerabilities privately through the repository's Security tab.
+        Use [private vulnerability reporting](https://github.com/Hadden-Industries/json-quality/security/advisories/new) for security issues.
         Do not include credentials, private JSON or personal information here.
   - type: input
     id: version
     attributes:
       label: Package version or source commit
-      description: Include the exact version or full commit, not only a moving tag.
+      description: Give the installed version number or full commit ID.
     validations:
       required: true
   - type: input
@@ -31,6 +31,8 @@ body:
     id: result
     attributes:
       label: Expected and actual behavior
-      description: Include exit codes and complete terminal evidence; identify check, source, format or normalize. For CI include the run URL, attempt, native companion and effective capacity/runtime settings; keep diagnostics in native logs.
+      description: |-
+        Identify the command and include the exit code and final event or summary.
+        For CI, link the run and attempt. Give the native companion and effective capacity and runtime settings. Keep diagnostics in the original job logs.
     validations:
       required: true

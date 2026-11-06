@@ -60,7 +60,7 @@ jobs:
       - name: Read complete predecessor and writer history
         env:
           GH_TOKEN: ${{ github.token }}
-        run: npm run release:admit -- stage "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
+        run: npm run admit:release-evidence -- stage "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         id: admitted
@@ -91,7 +91,7 @@ jobs:
       - name: Apply admitted release effect
         env:
           GH_TOKEN: ${{ github.token }}
-        run: npm run release:effect -- stage "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
+        run: npm run execute:release-action -- stage "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         if: always()

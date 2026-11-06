@@ -80,7 +80,7 @@ jobs:
       - name: Read complete predecessor and writer history
         env:
           GH_TOKEN: ${{ github.token }}
-        run: npm run release:admit -- promote "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
+        run: npm run admit:release-evidence -- promote "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         id: admitted

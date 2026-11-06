@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Package-owned knowledge about non-import inputs; not a consumer configuration API.
 export const fullFiles = new Set([
-  "src/acquire.js", // Copied bootstrap and dynamic installed-package loading.
   "src/installation.js", // Reads the installed source/lock/metadata graph as data.
   "src/installed-component.js", // Fixed installed native assets are non-import inputs.
   "src/native-packages.js", // Native npm platform packages are resolved dynamically.
   "src/native-component.js", // Admission binds binary and generated-control bytes.
 ]);
 export const relations = [
+  {
+    dependency: "tests/native/process-observer-workload.mjs",
+    consumer: "tests/native/process-observer.test.mjs",
+    kind: "node-process",
+  },
   {
     dependency: "tests/native/process-observer-failure.py",
     consumer: "tests/native/process-observer.test.mjs",

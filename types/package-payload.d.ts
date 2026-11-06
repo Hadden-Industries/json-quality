@@ -9,7 +9,7 @@ export declare const DEFAULT_PACKAGE_VERIFICATION_LIMITS: {
 export declare function verificationResources(
   /** @type {*} */ selected: any,
 ): any;
-/** Incremental metadata admission, also used for the copied cold bootstrap.
+/** Incremental package metadata admission.
  * Descriptor and pathname must retain the same regular file observation.
  */
 export declare function readPackageMetadataBytes(

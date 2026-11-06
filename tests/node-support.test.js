@@ -1,14 +1,64 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   qualificationMatrix,
   validatePolicy,
   nodeSupport,
 } from "../scripts/node-matrix.js";
-import { projectNodeSupport } from "../scripts/project-node-support.js";
-import { assertNativeNpmRuntime } from "../scripts/consumer-toolchain.js";
-import { nodeMatrixFixture } from "./node-matrix-fixture.js";
+import {
+  projectNodeSupport,
+  nodeSupportProjectionPaths,
+} from "../scripts/project-node-support.js";
+import {
+  assertNativeNpmRuntime,
+  qualificationEslintVersion,
+} from "../scripts/consumer-toolchain.js";
+import { nodeMatrixFixture, nextPatchVersion } from "./node-matrix-fixture.js";
+
+test("consumer ESLint qualification follows the exact selected lock entry", () => {
+  const lock = JSON.parse(
+    readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
+  );
+  const selected = lock.packages["node_modules/eslint"];
+  assert.equal(qualificationEslintVersion(), selected.version);
+  const changed = structuredClone(lock);
+  changed.packages["node_modules/eslint"].version = nextPatchVersion(
+    selected.version,
+  );
+  assert.equal(
+    qualificationEslintVersion(changed),
+    changed.packages["node_modules/eslint"].version,
+  );
+  delete changed.packages["node_modules/eslint"];
+  assert.throws(
+    () => qualificationEslintVersion(changed),
+    /Locked ESLint identity/u,
+  );
+});
+
+test("all current Node declarations share the projector inventory and policy", () => {
+  const paths = nodeSupportProjectionPaths();
+  assert.ok(paths.includes(".node-version"));
+  assert.ok(paths.includes(".github/workflows/native-producer.yml"));
+  assert.ok(paths.includes(".github/actions/setup-producer/action.yml"));
+  const files = Object.fromEntries(
+    paths.map((path) => [
+      path,
+      readFileSync(new URL(`../${path}`, import.meta.url), "utf8"),
+    ]),
+  );
+  assert.deepEqual(
+    projectNodeSupport(files),
+    files,
+    "Run npm run sync:node-support after editing the runtime policy",
+  );
+  assert.equal(
+    JSON.parse(files["package-lock.json"]).packages[""].engines.node,
+    `>=${nodeSupport.minimum}`,
+  );
+});
 
 test("consumer qualification refuses an unsupported native npm runtime before execution", () => {
   const npm = process.env.npm_execpath;
@@ -173,6 +223,11 @@ test("floor policy projects metadata and documentation idempotently", () => {
         2,
       ) + "\n",
     ".node-version": "24.21.0\n",
+    "package-lock.json": "frozen native npm bytes\n",
+    ".github/workflows/fixture.yml":
+      "node-version: '22.0.0' # reference\nnode-version: ${{ matrix.node }}\nnode-version-file: .node-version\n",
+    ".github/actions/fixture/action.yml":
+      "node-version: 22.0.0\nusing: node24\n",
     "docs/node-runtime-compatibility.md":
       "Before\n<!-- node-support:start -->\nold\n<!-- node-support:end -->\nAfter\n",
   };
@@ -181,6 +236,17 @@ test("floor policy projects metadata and documentation idempotently", () => {
   assert.deepEqual(JSON.parse(projected["package.json"]).dependencies, {
     x: "1.0.0",
   });
+  assert.equal(projected[".node-version"], policy.reference + "\n");
+  assert.equal(projected["package-lock.json"], files["package-lock.json"]);
+  assert.equal(
+    projected[".github/workflows/fixture.yml"],
+    `node-version: '${policy.reference}' # reference\n` +
+      "node-version: ${{ matrix.node }}\nnode-version-file: .node-version\n",
+  );
+  assert.equal(
+    projected[".github/actions/fixture/action.yml"],
+    `node-version: ${policy.reference}\nusing: node24\n`,
+  );
   assert.match(
     projected["docs/node-runtime-compatibility.md"],
     /Qualified LTS majors: 22, 24/u,

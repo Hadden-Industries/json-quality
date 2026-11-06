@@ -75,7 +75,7 @@ export function resolvePolicySnapshot(
     );
   if (!validateConfiguration(input.value))
     throw new TypeError(
-      `Invalid JSON configuration; use contract cohort 4 and current option names: ${JSON.stringify(validateConfiguration.errors)}`,
+      `Invalid JSON configuration; use configuration schema v4 and current option names: ${JSON.stringify(validateConfiguration.errors)}`,
     );
   const merged = {
     ...defaultJsonQualityPolicy,

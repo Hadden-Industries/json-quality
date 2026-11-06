@@ -14,7 +14,7 @@
  * @typedef {boolean | import("../types/schemas/configuration.js").InstallationControls} InstallationControls
  * @typedef {boolean | import("../types/schemas/configuration.js").AcquisitionControls} AcquisitionControls
  * @typedef {JsonSourceContract & {path: string, excludeUntrackedSources: boolean, exceptions: {owner: string, reason: string}[]}} JsonContract
- * @typedef {{toolingRoot: string, npmCliPath?: string, cachePath?: string, installationControls?: InstallationControls, verificationControls?: VerificationControls, bootstrapPath?: string, signal?: AbortSignal}} InstallationVerificationOptions
+ * @typedef {{toolingRoot: string, npmCliPath?: string, cachePath?: string, installationControls?: InstallationControls, verificationControls?: VerificationControls, signal?: AbortSignal}} InstallationVerificationOptions
  * @typedef {{specifier: string, coordinate: {kind: "registry", version: string}, integrity: string, fileCount: number, native: {name: string, version: string, integrity: string, fileCount: number}}} InstallationVerification
  * @typedef {{capacityLimits?: CapacityLimits, runtimeControls?: RuntimeControls, temporaryDirectory?: string, signal?: AbortSignal}} SessionOptions
  * @typedef {{readonly kind: "source", readonly referenceId: string, readonly byteLength?: string, readonly sha256?: string}} SourceReference
@@ -36,6 +36,7 @@
  * @typedef {{signal?: AbortSignal, includeValueEvents?: boolean, retainValues?: boolean, requestId?: string}} SourceCheckOptions
  * @typedef {JsonValueSession & {check: (source: JsonSource, contract?: JsonSourceContract, options?: SourceCheckOptions) => AsyncIterable<JsonQualityEvent>}} JsonSourceSession
  * @typedef {SessionOptions & {root: string, nativeProviders?: Record<string, NativeProvider>, logicalProviders?: LogicalProvider[], requiredOutputs?: string[], gitExecutable?: string, retainValues?: boolean, requestId?: string}} RepositoryOptions
+ * @typedef {SessionOptions & {root: string, files: string[], requestId?: string}} FileCheckOptions
  * @typedef {{files?: string[], transformControls?: TransformControls, dryRun?: boolean}} RepositoryRewriteOptions
  * @typedef {JsonValueSession & {check: () => AsyncIterable<JsonQualityEvent>, rewrite: (operation: "format" | "normalize", options?: RepositoryRewriteOptions) => AsyncIterable<JsonQualityEvent>}} JsonRepositorySession
  * @typedef {Partial<Pick<RepositoryOptions, "root" | "nativeProviders" | "logicalProviders" | "requiredOutputs">>} CliContext

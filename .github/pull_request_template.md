@@ -1,19 +1,13 @@
 ## Problem and change
 
-Describe the consumer or contributor problem and resulting behavior.
-Keep the PR in draft while batching changes; marking it Ready for review requests full acceptance of that exact candidate.
+<!-- Describe who encounters the problem, what they observe, and how this change addresses it. Keep unrelated changes separate. -->
 
 ## Verification
 
-Record commands, results and gaps for focused/affected checks, Markdown and JSON checks.
-Include full, transported-package or hosted evidence when the changed contract requires it.
-Link the deliberate CI run and its original producing attempts where a job was retained by a partial rerun.
-After a source/policy/base update, return to draft and request a new ready checkpoint.
+<!-- Give the commands, results, and any gaps for focused or affected tests, Markdown, and JSON checks. Include full-suite, installed-package or hosted evidence where the contract requires it. Link the deliberate CI run and the original producing attempts for any retained jobs. -->
 
-## Impact
+## Impact and recovery
 
-State relevant CLI/API/schema/output, runtime, JSON-preservation, protected-input, dependency/license and performance effects.
-Describe recovery for any material tooling or package change.
-Keep unrelated edits separate; report vulnerabilities through the private security channel.
-Call out changes to CI, tests, evidence or trust policy for the owner's review before merge.
-The owner merges deliberately after `CI / acceptance` passes; no extra required reviewer or unattended merge is introduced.
+<!-- Identify relevant CLI, API, schema, output, runtime, JSON preservation, protected-input, dependency, license or performance effects. Explain how to recover from a material tooling or package change. Flag CI, test, evidence or trust-policy changes for owner review. -->
+
+<!-- Keep this PR in draft while batching changes. Mark it Ready for review to qualify the exact candidate. After a source, policy or base change, return to draft and request a new ready checkpoint. The owner merges after CI / acceptance passes. Report suspected vulnerabilities privately through the security policy. -->

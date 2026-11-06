@@ -4,7 +4,10 @@ export declare function nativeFrame(
   /** @type {Buffer<ArrayBufferLike>} */ body?: Buffer<ArrayBufferLike>,
 ): Buffer<ArrayBuffer>;
 /** Decode at most two complete bounded response frames from a native exchange. */
-export declare function decodeNativeFrames(/** @type {*} */ bytes: any): any[];
+export declare function decodeNativeFrames(
+  /** @type {*} */ bytes: any,
+  fragmentedJson?: boolean,
+): any[];
 /** One configured execution, with serialized bounded exchanges and explicit
  * cleanup. The component has already passed the acquisition/identity boundary.
  * Inputs must cooperate with cancellation; close settles started work first.

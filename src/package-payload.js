@@ -38,7 +38,7 @@ const observation = (/** @type {*} */ value) =>
     ].join(":"),
   decoder = new TextDecoder("utf-8", { fatal: true });
 
-/** Incremental metadata admission, also used for the copied cold bootstrap.
+/** Incremental package metadata admission.
  * Descriptor and pathname must retain the same regular file observation.
  */
 export async function readPackageMetadataBytes(

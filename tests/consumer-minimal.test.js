@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import test from "node:test";
+import contractCohort from "../schemas/contract-cohort.json" with { type: "json" };
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -16,8 +17,43 @@ import {
   MINIMAL_CLI_CASES,
   MINIMAL_CLI_COMMANDS,
   assertInstalledPolicyDigest,
+  checkMinimalCliCommands,
 } from "../scripts/consumer-cli-probe.js";
 import { validateMinimalCli } from "../scripts/consumer-layouts.js";
+
+test("installed CLI preflight admits the maintained corpus without native execution", () => {
+  checkMinimalCliCommands();
+});
+
+test("installed CLI preflight refuses stale positive commands while retaining negative cases", () => {
+  const command = (args, exitCode = 0) => ({
+    argv: ["npm", "exec", "--", "json-quality", ...args],
+    exitCode,
+  });
+  for (const args of [
+    ["format", "--root", ".", "--", "authored.json"],
+    ["normalize", "--root", ".", "--", "authored.json"],
+    ["format", "--", "--write"],
+    ["format", "--write", "--dry-run"],
+    ["format", "--stdin", "--write"],
+    ["check", "--json"],
+    ["source"],
+  ]) {
+    for (const exitCode of [0, 1])
+      assert.throws(
+        () => checkMinimalCliCommands([command(args, exitCode)]),
+        /Installed qualification command is no longer admitted/u,
+      );
+    checkMinimalCliCommands([command(args, 2)]);
+  }
+  // A native collision/refusal can still follow syntactically valid arguments.
+  checkMinimalCliCommands([
+    command(["normalize", "--write", "--", "authored.json"], 2),
+    command(["format", "--dry-run"], 1),
+    command(["format", "--stdin", "--stdin-filepath", "input.json"]),
+    command(["format", "--help"]),
+  ]);
+});
 
 test("minimal CLI evidence rejects missing, duplicate, stale and substituted observations", () => {
   const corePackage = {
@@ -34,7 +70,7 @@ test("minimal CLI evidence rejects missing, duplicate, stale and substituted obs
   const receipt = {
     status: "passed",
     packageVersion: "1.2.3",
-    cohortVersion: 4,
+    cohortVersion: contractCohort.cohortVersion,
     policy: "package-defaults",
     defaultPolicySha256: "a".repeat(64),
     command: "npm exec -- json-quality",
@@ -61,7 +97,7 @@ test("minimal CLI evidence rejects missing, duplicate, stale and substituted obs
     (value) => value.commands.pop(),
     (value) => value.commands[0].argv.push("--json"),
     (value) => (value.commands[0].exitCode = 1),
-    (value) => (value.cohortVersion = 3),
+    (value) => (value.cohortVersion = 4),
     (value) => (value.routing = "anonymous-registry"),
     (value) => (value.defaultPolicySha256 = "f".repeat(64)),
     (value) => delete value.corePackage,

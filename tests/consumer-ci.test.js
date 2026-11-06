@@ -110,7 +110,7 @@ test("shared qualification rejects missing immutable inputs and excludes uncommi
       trustedCommitId: sha,
       candidateCommitId: "0".repeat(40),
     }),
-    /Command failed/u,
+    { code: "native-tool-exit", exitCode: 128 },
   );
   writeFileSync(join(root, "untracked.json"), "{}\n");
   const events = await qualificationEvents({
@@ -196,7 +196,9 @@ test("qualification resource overrides reach the immutable Git census", async (t
     trustedCommitId: sha,
     candidateCommitId: sha,
   };
-  await assert.rejects(qualificationEvents(input), /git-output-byte-capacity/u);
+  await assert.rejects(qualificationEvents(input), {
+    code: "native-tool-output-capacity",
+  });
   assert.equal(
     (
       await qualificationEvents({

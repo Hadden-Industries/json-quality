@@ -9,6 +9,42 @@ import { promisify } from "node:util";
 import test from "node:test";
 import { installedNativeComponent } from "../../src/installed-component.js";
 
+test("direct Python metadata reads preserve full fragmented replies and close interrupted pulls", async () => {
+  const component = await installedNativeComponent();
+  const { stdout: python } = await promisify(execFile)(
+    process.platform === "win32" ? "python" : "python3",
+    ["-c", "import sys; print(sys.executable)"],
+    { windowsHide: true, timeout: budgets.read },
+  );
+  const { stdout, stderr } = await promisify(execFile)(
+    python.trim(),
+    [
+      fileURLToPath(new URL("./stdio_probe.py", import.meta.url)),
+      join(
+        component.directory,
+        `json-quality-native${process.platform === "win32" ? ".exe" : ""}`,
+      ),
+      join(component.directory, "component.json"),
+      tmpdir(),
+      String(process.pid),
+      "metadata",
+    ],
+    { windowsHide: true, timeout: budgets.read, maxBuffer: 65536 },
+  );
+  assert.equal(stderr, "");
+  const report = JSON.parse(stdout);
+  assert.equal(
+    report.sourceInputsSha256,
+    component.manifest.sourceInputsSha256,
+  );
+  assert.equal(report.metadata.pathBytes, 66005);
+  assert.equal(report.metadata.observationBytes, 81000);
+  assert.equal(report.metadata.partialReplyClosed, true);
+  assert.equal(report.metadata.unexpectedReadRefused, true);
+  assert.ok(report.metadata.fragments >= 2);
+  console.log(JSON.stringify(report));
+});
+
 test("direct Python ordinary reads admit unlimited quotas and depth beyond 4096", async () => {
   const component = await installedNativeComponent();
   const { stdout: selectedPython } = await promisify(execFile)(

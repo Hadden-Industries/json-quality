@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 import { parseDocument } from "yaml";
 import { budgets } from "./qualification-budgets.js";
 import { securityScans } from "./security-scans.js";
+import { checkNativeWorkflowContract } from "./native-workflow-contract.js";
+import { checkMinimalCliCommands } from "./consumer-cli-probe.js";
 
 const repository = fileURLToPath(new URL("../", import.meta.url));
 const transferBudgets = new Map([
@@ -14,8 +16,130 @@ const transferBudgets = new Map([
   ["./.github/actions/download-evidence", budgets.collection],
 ]);
 
+/** Caller repositories supply Git objects, never executable qualification code. */
+function checkSharedQualification(workflow) {
+  const message =
+    "Shared qualification must retain its producer-owned data-only boundary";
+  const job = workflow.jobs.qualify;
+  assert.deepEqual(Object.keys(workflow.jobs), ["qualify"], message);
+  assert.deepEqual(workflow.permissions, { contents: "read" }, message);
+  assert.equal(workflow.env, undefined, message);
+  assert.equal(job.permissions, undefined, message);
+  assert.equal(job.container, undefined, message);
+  assert.equal(job.services, undefined, message);
+  assert.equal(
+    workflow.defaults?.run?.["working-directory"],
+    undefined,
+    message,
+  );
+  assert.equal(job.defaults?.run?.["working-directory"], undefined, message);
+  assert.equal(job.defaults?.run?.shell, "bash", message);
+  assert.deepEqual(
+    job.env,
+    {
+      JSON_QUALITY_CAPACITY_LIMITS: "${{ inputs.capacity-limits }}",
+    },
+    message,
+  );
+  for (const kind of ["trusted", "candidate"])
+    for (const suffix of ["repository", "commit-id"]) {
+      const input = workflow.on.workflow_call.inputs[`${kind}-${suffix}`];
+      assert.equal(input.type, "string", message);
+      assert.equal(input.required, true, message);
+      assert.equal(input.default, undefined, message);
+    }
+
+  // These short bootstrap commands run before producer dependencies exist.
+  // Keep their reviewed semantics exact; step names and YAML formatting are free.
+  const validate = String.raw`node --input-type=module -e 'if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(process.env.PRODUCER_REPOSITORY ?? "")) throw new Error("Producer repository is required"); for (const key of ["PRODUCER_SHA", "TRUSTED_COMMIT_ID", "CANDIDATE_COMMIT_ID"]) if (!/^[a-f0-9]{40}$/u.test(process.env[key] ?? "")) throw new Error("Full immutable commits are required")'
+git config --global core.autocrlf false`;
+  const verify = `node --input-type=module -e 'import { execFileSync } from "node:child_process"; import { readFileSync } from "node:fs"; if (execFileSync("git", ["-C", "producer", "rev-parse", "HEAD"], { encoding: "utf8" }).trim() !== process.env.PRODUCER_SHA || JSON.parse(readFileSync("producer/package.json", "utf8")).name !== "@hadden-industries/json-quality") throw new Error("Producer identity mismatch")'`;
+  const select = `npm exec --global --call 'node scripts/qualification-process.js producer-npm'
+npm_prefix="$(npm prefix --global)"
+if [[ "$RUNNER_OS" == "Windows" ]]; then
+  echo "$npm_prefix" >> "$GITHUB_PATH"
+else
+  echo "$npm_prefix/bin" >> "$GITHUB_PATH"
+fi`;
+  const checkout = (kind) => ({
+    repository:
+      kind === "producer"
+        ? "${{ job.workflow_repository }}"
+        : `\${{ inputs.${kind}-repository }}`,
+    ref:
+      kind === "producer"
+        ? "${{ job.workflow_sha }}"
+        : `\${{ inputs.${kind}-commit-id }}`,
+    path: kind,
+    "persist-credentials": false,
+  });
+  const expected = [
+    {
+      run: validate,
+      env: {
+        PRODUCER_REPOSITORY: "${{ job.workflow_repository }}",
+        PRODUCER_SHA: "${{ job.workflow_sha }}",
+        TRUSTED_COMMIT_ID: "${{ inputs.trusted-commit-id }}",
+        CANDIDATE_COMMIT_ID: "${{ inputs.candidate-commit-id }}",
+      },
+    },
+    { action: "actions/checkout", with: checkout("producer") },
+    { run: verify, env: { PRODUCER_SHA: "${{ job.workflow_sha }}" } },
+    {
+      action: "actions/setup-node",
+      with: {
+        "node-version-file": "producer/.node-version",
+        "package-manager-cache": false,
+      },
+    },
+    { run: select, "working-directory": "producer" },
+    {
+      run: "npm run install:producer-dependencies",
+      "working-directory": "producer",
+    },
+    { action: "actions/checkout", with: checkout("trusted") },
+    { action: "actions/checkout", with: checkout("candidate") },
+    {
+      run: "node producer/src/qualification-cli.js",
+      env: {
+        JSON_QUALITY_TRUSTED_ROOT: "${{ github.workspace }}/trusted",
+        JSON_QUALITY_CANDIDATE_ROOT: "${{ github.workspace }}/candidate",
+        JSON_QUALITY_TRUSTED_COMMIT_ID: "${{ inputs.trusted-commit-id }}",
+        JSON_QUALITY_CANDIDATE_COMMIT_ID: "${{ inputs.candidate-commit-id }}",
+        JSON_QUALITY_RUNTIME_CONTROLS: '{"maxCheckTimeMs":600000}',
+        NODE_OPTIONS: "",
+        NODE_PATH: "",
+        GH_TOKEN: "",
+        GITHUB_TOKEN: "",
+      },
+    },
+  ];
+  assert.equal(job.steps.length, expected.length, message);
+  for (const [index, contract] of expected.entries()) {
+    const step = job.steps[index];
+    assert.equal(step.if, undefined, message);
+    assert.ok(!step["continue-on-error"], message);
+    assert.equal(step.shell, undefined, message);
+    assert.equal(
+      step["working-directory"],
+      contract["working-directory"],
+      message,
+    );
+    assert.deepEqual(step.env, contract.env, message);
+    assert.deepEqual(step.with, contract.with, message);
+    if (contract.action) {
+      assert.equal(step.uses?.split("@")[0], contract.action, message);
+      assert.equal(step.run, undefined, message);
+    } else {
+      assert.equal(step.run?.trim(), contract.run, message);
+      assert.equal(step.uses, undefined, message);
+    }
+  }
+}
+
 /** Check every local caller before expensive hosted fan-out, including dormant release paths. */
 export function checkWorkflows({ root = repository, overrides = {} } = {}) {
+  checkMinimalCliCommands();
   const read = (path) => {
     const document = parseDocument(
       overrides[path] ?? readFileSync(resolve(root, path), "utf8"),
@@ -24,6 +148,16 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     assert.equal(document.errors.length, 0, `${path}: invalid YAML`);
     return document.toJS();
   };
+  const scripts = read("package.json").scripts;
+  const scriptReferences = (path, command) => {
+    for (const [, name] of command.matchAll(/\bnpm run ([a-z][a-z0-9:-]*)/gu))
+      assert.ok(
+        Object.hasOwn(scripts, name),
+        `${path}: undeclared npm script ${name}`,
+      );
+  };
+  for (const [name, command] of Object.entries(scripts))
+    scriptReferences(`package.json/scripts/${name}`, command);
   const actions = new Map();
   const pinned = (path, uses) => {
     if (uses && !uses.startsWith("./"))
@@ -32,6 +166,14 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         /^[\w.-]+\/[\w./-]+@[a-f0-9]{40}$/u,
         `${path}: external action needs a full reviewed SHA`,
       );
+  };
+  const checkoutRevision = (path, step) => {
+    if (!step.uses?.startsWith("actions/checkout@")) return;
+    const ref = String(step.with?.ref ?? "");
+    assert.ok(
+      !ref.includes("${{") || !/\b(?:steps|needs)\s*(?:\.|\[)/iu.test(ref),
+      `${path}: output-derived checkout revision; project reviewed literal pins from their canonical build configuration`,
+    );
   };
   for (const entry of readdirSync(resolve(root, ".github/actions"), {
     withFileTypes: true,
@@ -57,12 +199,15 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       );
       for (const step of action.runs.steps) {
         pinned(path, step.uses);
+        checkoutRevision(path, step);
         assert.ok(
           !Object.hasOwn(step, "timeout-minutes"),
           `${path}: composite-step timeout is unsupported`,
         );
-        if (step.run)
+        if (step.run) {
           assert.ok(step.shell, `${path}: composite command needs a shell`);
+          scriptReferences(path, step.run);
+        }
       }
     }
     actions.set(`./.github/actions/${entry.name}`, action);
@@ -80,6 +225,44 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       `./.github/workflows/${name}`,
       read(`.github/workflows/${name}`),
     );
+  // Maintained callers own the source gate; the reusable producer runs only
+  // the remaining phase. Do not replace this dependency with a skip flag.
+  for (const [path, workflow] of workflows)
+    for (const job of Object.values(workflow.jobs ?? {})) {
+      if (job.uses !== "./.github/workflows/qualification.yml") continue;
+      const gates = [job.needs].flat().filter((name) => {
+        const gate = workflow.jobs[name];
+        const checks = gate?.steps?.filter(
+          (step) => step.run === "npm run check:source",
+        );
+        return (
+          checks?.length === 1 &&
+          !checks[0].if &&
+          !checks[0]["continue-on-error"] &&
+          !gate["continue-on-error"]
+        );
+      });
+      assert.ok(
+        gates.length === 1 && !job.if && !job["continue-on-error"],
+        `${path}: package qualification requires one blocking source gate`,
+      );
+    }
+  const productChecks = workflows
+    .get("./.github/workflows/qualification.yml")
+    .jobs.producer.steps.filter((step) => step.run === "npm run check:product");
+  assert.ok(
+    productChecks.length === 1 &&
+      !productChecks[0].if &&
+      !productChecks[0]["continue-on-error"],
+    "Reusable producer must run the complete remaining qualification phase",
+  );
+  checkSharedQualification(
+    workflows.get("./.github/workflows/json-quality.yml"),
+  );
+  checkNativeWorkflowContract({
+    producer: workflows.get("./.github/workflows/native-producer.yml"),
+    wrapper: workflows.get("./.github/workflows/native.yml"),
+  });
   function inputs(path, supplied, declared = {}) {
     for (const key of Object.keys(supplied ?? {}))
       assert.ok(
@@ -128,12 +311,13 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     .steps;
   assert.ok(
     producerSteps?.some(
-      (step) => step.run === "npm run ci:install" && !step.if,
+      (step) =>
+        step.run === "npm run install:producer-dependencies" && !step.if,
     ),
     "Release producer must install its frozen dependencies unconditionally",
   );
   assert.equal(
-    read("package.json").scripts["release:effect"],
+    scripts["execute:release-action"],
     "node scripts/release-command.js",
     "Release effects must retain startup failures",
   );
@@ -178,7 +362,9 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       if (effect < 0) continue;
       if (writer !== "github")
         assert.ok(
-          steps[effect].run.startsWith(`npm run release:effect -- ${writer} `),
+          steps[effect].run.startsWith(
+            `npm run execute:release-action -- ${writer} `,
+          ),
           `${path}: effect must use the startup-safe dispatcher`,
         );
       assert.ok(
@@ -285,7 +471,9 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         inputs(path, job.with, called.on.workflow_call?.inputs);
       }
       for (const step of job.steps ?? []) {
+        if (step.run) scriptReferences(path, step.run);
         pinned(path, step.uses);
+        checkoutRevision(path, step);
         assert.ok(
           !/scripts\/(?:upload-evidence\.js|ci-command\.js upload)/u.test(
             step.run ?? "",

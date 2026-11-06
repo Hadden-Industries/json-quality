@@ -9,11 +9,41 @@ const validate = new Ajv({ strict: true })
   .addSchema(configuration, "configuration.schema.json")
   .compile(schema);
 
+const rewriteQualityRefusals = new Set(schema.$defs.rewriteQualityRefusal.enum);
+
+/** A native refusal identifier carried in the closed v5 message field. */
+export function isRewriteQualityRefusal(/** @type {string} */ code) {
+  return rewriteQualityRefusals.has(code);
+}
+
 /** @param {unknown} event
  * @returns {event is import("./api-types.js").JsonQualityEvent}
  */
 export function validateJsonQualityEvent(event) {
   if (!validate(event)) return false;
+  if (
+    event.operationScope?.completeRepositoryCheck &&
+    !["execution", "execution-terminal"].includes(event.type)
+  )
+    return false;
+  if (event.type === "selection" || event.type === "selection-terminal") {
+    if (
+      event.operationScope?.kind !==
+      (event.inputKind === "physical" ? "selected-files" : "stdin")
+    )
+      return false;
+    if (
+      event.type === "selection-terminal" &&
+      event.selectedSourceCount !== event.completedSourceCount
+    )
+      return false;
+    if (
+      event.type === "selection-terminal" &&
+      (event.contractSatisfied || event.qualityPassed) &&
+      !event.diagnosticsComplete
+    )
+      return false;
+  }
   if (event.type !== "execution") return true;
   const origin = event.configurationOrigin;
   if (!origin) return false;

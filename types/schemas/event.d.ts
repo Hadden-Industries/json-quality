@@ -11,7 +11,7 @@ export type JsonQualityEvent = {
     trustedPolicyBlobId?: string;
     scope: "immutable-git-json";
   };
-  schemaVersion: 4;
+  schemaVersion: 5;
   requestId: string;
   type:
     | "source"
@@ -27,7 +27,11 @@ export type JsonQualityEvent = {
     | "write-failure"
     | "nfc-key-collision-risk"
     | "normalization-preview-change"
-    | "normalization-preview-terminal";
+    | "normalization-preview-terminal"
+    | "selection"
+    | "selection-terminal"
+    | "format-preview-change"
+    | "format-preview-terminal";
   path?: string;
   source?: SourceReference;
   reference?: ValueReference;
@@ -110,12 +114,15 @@ export type JsonQualityEvent = {
       maxRequestIdCodePoints: PositiveIntegerText | null;
       maxRequestBytes: PositiveIntegerText | null;
       maxRequestPathCodePoints: PositiveIntegerText | null;
+      maxHumanPathCodePoints: PositiveIntegerText | null;
+      maxHumanPointerCodePoints: PositiveIntegerText | null;
     };
     runtime: {
       maxManagedMemoryBytes: PositiveIntegerText | null;
       maxTemporaryBytes: PositiveIntegerText | null;
       maxNestingDepth: PositiveIntegerText | null;
       maxCheckTimeMs: PositiveIntegerText | null;
+      terminationGraceMs: PositiveIntegerText | null;
     };
   };
   code?: string;
@@ -170,6 +177,44 @@ export type JsonQualityEvent = {
   unicodeVersion?: string;
   decodedByteLength?: UnsignedIntegerText;
   decodedSha256?: string;
+  operationScope?: (
+    | {
+        kind?: "repository";
+        policy?: "repository";
+        [k: string]: unknown | undefined;
+      }
+    | {
+        kind?: "selected-files";
+        policy?: "repository";
+        completeRepositoryCheck?: false;
+        [k: string]: unknown | undefined;
+      }
+    | {
+        kind?: "stdin";
+        policy?: "repository" | "explicit-contract";
+        completeRepositoryCheck?: false;
+        [k: string]: unknown | undefined;
+      }
+    | {
+        kind?: "immutable-git-json";
+        policy?: "trusted-git";
+        completeRepositoryCheck?: false;
+        [k: string]: unknown | undefined;
+      }
+  ) & {
+    kind: "repository" | "selected-files" | "stdin" | "immutable-git-json";
+    policy: "repository" | "explicit-contract" | "trusted-git";
+    completeRepositoryCheck: boolean;
+  };
+  root?: string;
+  inputKind?: "physical" | "stdin";
+  selectedSourceCount?: PositiveIntegerText;
+  completedSourceCount?: UnsignedIntegerText;
+  policyObservationComplete?: boolean;
+  inputComplete?: boolean;
+  changed?: boolean;
+  candidateSha256?: string;
+  candidateByteLength?: UnsignedIntegerText;
 } & (
   | {
       schemaVersion?: unknown;
@@ -181,6 +226,7 @@ export type JsonQualityEvent = {
       byteLength?: unknown;
       sha256?: string;
       type?: "source";
+      operationScope?: unknown;
     }
   | {
       schemaVersion?: unknown;
@@ -203,6 +249,7 @@ export type JsonQualityEvent = {
       record?: unknown;
       nfcByteLength?: unknown;
       type?: "value";
+      operationScope?: unknown;
     }
   | {
       schemaVersion?: unknown;
@@ -223,6 +270,7 @@ export type JsonQualityEvent = {
       linkedExpectationsComplete?: unknown;
       record?: unknown;
       type?: "finding";
+      operationScope?: unknown;
     }
   | {
       schemaVersion?: unknown;
@@ -252,6 +300,7 @@ export type JsonQualityEvent = {
       type?: "terminal";
       formatEligible: unknown;
       normalizeEligible: unknown;
+      operationScope?: unknown;
     }
   | {
       schemaVersion?: unknown;
@@ -266,20 +315,24 @@ export type JsonQualityEvent = {
       policyInputsSha256: unknown;
       configurationBytesSha256?: unknown;
       configurationByteLength?: unknown;
+      operationScope?: unknown;
+      root?: unknown;
     }
   | {
       schemaVersion?: unknown;
       requestId?: unknown;
-      inventoryComplete: unknown;
+      inventoryComplete: true;
       qualification?: unknown;
-      linkedExpectationsComplete: unknown;
-      sourceObservationsComplete: unknown;
-      diagnosticsComplete: unknown;
+      linkedExpectationsComplete: true;
+      sourceObservationsComplete: true;
+      diagnosticsComplete: true;
       domainComplete: unknown;
       inventoryMemberCount: unknown;
       qualityPassed: unknown;
       contractSatisfied: unknown;
       type?: "execution-terminal";
+      operationScope?: unknown;
+      root?: unknown;
     }
   | {
       schemaVersion?: unknown;
@@ -288,6 +341,7 @@ export type JsonQualityEvent = {
       message: unknown;
       truncated: unknown;
       type?: "failure";
+      operationScope?: unknown;
     }
   | {
       schemaVersion: unknown;
@@ -297,6 +351,7 @@ export type JsonQualityEvent = {
       selectedPathCount: unknown;
       changedPathCount: unknown;
       preflightComplete: true;
+      operationScope?: unknown;
     }
   | {
       schemaVersion: unknown;
@@ -306,6 +361,7 @@ export type JsonQualityEvent = {
       path: unknown;
       byteLength: unknown;
       sha256: unknown;
+      operationScope?: unknown;
     }
   | {
       schemaVersion: unknown;
@@ -321,6 +377,7 @@ export type JsonQualityEvent = {
       writtenPathCount: unknown;
       qualityPassed: unknown;
       findingCount: unknown;
+      operationScope?: unknown;
     }
   | {
       schemaVersion: unknown;
@@ -332,6 +389,7 @@ export type JsonQualityEvent = {
       uncertainPath: unknown;
       message: unknown;
       writtenPathCount: unknown;
+      operationScope?: unknown;
     }
   | {
       schemaVersion: unknown;
@@ -355,6 +413,7 @@ export type JsonQualityEvent = {
       normalizedSha256: unknown;
       normalizedByteLength: unknown;
       type?: "nfc-key-collision-risk";
+      operationScope?: unknown;
     }
   | {
       schemaVersion: unknown;
@@ -375,6 +434,7 @@ export type JsonQualityEvent = {
       type?: "normalization-preview-change";
       decodedByteLength: unknown;
       decodedSha256: unknown;
+      operationScope?: unknown;
     }
   | {
       schemaVersion: unknown;
@@ -392,6 +452,133 @@ export type JsonQualityEvent = {
       coreSourceInputsSha256: unknown;
       icuVersion: unknown;
       unicodeVersion: unknown;
+      operationScope?: unknown;
+    }
+  | {
+      schemaVersion: unknown;
+      requestId: unknown;
+      operationScope: (
+        | {
+            kind?: "repository";
+            policy?: "repository";
+            [k: string]: unknown | undefined;
+          }
+        | {
+            kind?: "selected-files";
+            policy?: "repository";
+            completeRepositoryCheck?: false;
+            [k: string]: unknown | undefined;
+          }
+        | {
+            kind?: "stdin";
+            policy?: "repository" | "explicit-contract";
+            completeRepositoryCheck?: false;
+            [k: string]: unknown | undefined;
+          }
+        | {
+            kind?: "immutable-git-json";
+            policy?: "trusted-git";
+            completeRepositoryCheck?: false;
+            [k: string]: unknown | undefined;
+          }
+      ) & {
+        kind: "selected-files" | "stdin";
+        policy: "repository";
+        completeRepositoryCheck: false;
+      };
+      root: unknown;
+      inputKind: unknown;
+      selectedSourceCount: unknown;
+      resources: unknown;
+      configurationOrigin: unknown;
+      defaultPolicySha256: unknown;
+      policyResolverInputsSha256: unknown;
+      configurationBytesSha256?: unknown;
+      configurationByteLength?: unknown;
+      policyInputsSha256: unknown;
+      coreSourceInputsSha256: unknown;
+      type: "selection";
+    }
+  | {
+      schemaVersion: unknown;
+      requestId: unknown;
+      operationScope: (
+        | {
+            kind?: "repository";
+            policy?: "repository";
+            [k: string]: unknown | undefined;
+          }
+        | {
+            kind?: "selected-files";
+            policy?: "repository";
+            completeRepositoryCheck?: false;
+            [k: string]: unknown | undefined;
+          }
+        | {
+            kind?: "stdin";
+            policy?: "repository" | "explicit-contract";
+            completeRepositoryCheck?: false;
+            [k: string]: unknown | undefined;
+          }
+        | {
+            kind?: "immutable-git-json";
+            policy?: "trusted-git";
+            completeRepositoryCheck?: false;
+            [k: string]: unknown | undefined;
+          }
+      ) & {
+        kind: "selected-files" | "stdin";
+        policy: "repository";
+        completeRepositoryCheck: false;
+      };
+      root?: unknown;
+      inputKind: unknown;
+      selectedSourceCount: unknown;
+      completedSourceCount: unknown;
+      complete: true;
+      diagnosticsComplete: unknown;
+      qualityPassed: unknown;
+      contractSatisfied: unknown;
+      policyObservationComplete: true;
+      sourceObservationsComplete?: unknown;
+      inputComplete?: unknown;
+      findingCount?: unknown;
+      coreSourceInputsSha256?: unknown;
+      type: "selection-terminal";
+    }
+  | {
+      schemaVersion: unknown;
+      requestId: unknown;
+      operationScope?: unknown;
+      operation: "format";
+      path: unknown;
+      changed: unknown;
+      sourceSha256: unknown;
+      sourceByteLength: unknown;
+      candidateSha256: unknown;
+      candidateByteLength: unknown;
+      coreSourceInputsSha256: unknown;
+      icuVersion: unknown;
+      unicodeVersion: unknown;
+      type: "format-preview-change";
+    }
+  | {
+      schemaVersion: unknown;
+      requestId: unknown;
+      operation: "format";
+      complete: true;
+      preflightComplete: unknown;
+      sourceObservationsComplete: unknown;
+      selectedPathCount?: unknown;
+      changedPathCount?: unknown;
+      qualityPassed?: unknown;
+      findingCount?: unknown;
+      message?: unknown;
+      type?: "format-preview-terminal";
+      coreSourceInputsSha256: unknown;
+      icuVersion: unknown;
+      unicodeVersion: unknown;
+      operationScope?: unknown;
     }
 );
 /**
@@ -434,6 +621,16 @@ export type NfcExemptStringValuePins = [
     };
   }[],
 ];
+/**
+ * Native refusal identities carried by the existing v5 write-failure message before any replacement.
+ *
+ * This interface was referenced by `undefined`'s JSON-Schema
+ * via the `definition` "rewriteQualityRefusal".
+ */
+export type RewriteQualityRefusal =
+  | "rewrite-unsafe-source"
+  | "rewrite-candidate-not-accepted"
+  | "rewrite-peer-preflight-failed";
 
 /**
  * This interface was referenced by `undefined`'s JSON-Schema
@@ -482,6 +679,7 @@ export interface RuntimeControls {
   maxTemporaryBytes?: number | null;
   maxNestingDepth?: number | null;
   maxCheckTimeMs?: number | null;
+  terminationGraceMs?: number | null;
 }
 /**
  * This interface was referenced by `undefined`'s JSON-Schema
@@ -502,6 +700,8 @@ export interface CapacityLimits {
   maxRequestIdCodePoints?: number | null;
   maxRequestBytes?: number | null;
   maxRequestPathCodePoints?: number | null;
+  maxHumanPathCodePoints?: number | null;
+  maxHumanPointerCodePoints?: number | null;
 }
 /**
  * This interface was referenced by `undefined`'s JSON-Schema

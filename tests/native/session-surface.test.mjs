@@ -140,7 +140,7 @@ test("versioned event delivery preserves caller correlation and snapshotted flag
       root;
     for await (const event of iterator) {
       assert.equal(validateJsonQualityEvent(event), true);
-      assert.equal(event.schemaVersion, 4);
+      assert.equal(event.schemaVersion, 5);
       assert.equal(event.requestId, "independent-request");
       if (event.type === "source") reference = event.source;
       if (event.type === "value") {

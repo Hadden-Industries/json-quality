@@ -6,6 +6,7 @@
  * @typedef {import("./api-types.js").JsonQualityEvent} JsonQualityEvent
  * @typedef {import("./api-types.js").SessionOptions} SessionOptions
  * @typedef {import("./api-types.js").RepositoryOptions} RepositoryOptions
+ * @typedef {import("./api-types.js").FileCheckOptions} FileCheckOptions
  * @typedef {import("./api-types.js").WriterOptions} WriterOptions
  * @typedef {import("./api-types.js").CapacityLimits} CapacityLimits
  * @typedef {import("./api-types.js").RuntimeControls} RuntimeControls
@@ -52,6 +53,7 @@ export {
   normalizeJsonSource,
 } from "./writers.js";
 export { validateJsonQualityEvent } from "./events.js";
+export { checkJsonFiles } from "./selected-check.js";
 export {
   resolveJsonSourceContract,
   resolveJsonQualityPolicy,
@@ -64,7 +66,6 @@ export { DEFAULT_PACKAGE_VERIFICATION_LIMITS } from "./package-payload.js";
 export { runJsonQualityCli } from "./cli.js";
 export {
   assertJsonQualityInstallationRoot,
-  readJsonQualityAcquisitionBootstrapSource,
   parseJsonQualityRegistrySpecifier,
   verifyJsonQualityInstallation,
 } from "./installation.js";

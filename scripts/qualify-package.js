@@ -13,11 +13,17 @@ import { join, sep, dirname } from "node:path";
 import { createHash } from "node:crypto";
 import { parseArgs } from "node:util";
 import { packCandidate } from "./pack.js";
-import { assertNativeNpmRuntime } from "./consumer-toolchain.js";
+import {
+  assertNativeNpmRuntime,
+  qualificationEslintVersion,
+} from "./consumer-toolchain.js";
 import { native, budgets } from "./qualification-process.js";
 import { qualifyPublicApi } from "./qualify-api.js";
 import { installMinimalConsumer } from "./consumer-minimal.js";
-import { qualifyMinimalCli } from "./consumer-cli-probe.js";
+import {
+  checkMinimalCliCommands,
+  qualifyMinimalCli,
+} from "./consumer-cli-probe.js";
 import { nodeSupport } from "./node-matrix.js";
 import { verifyArchive, archiveInventory, sha256 } from "./release-contract.js";
 import {
@@ -55,6 +61,7 @@ if (
   );
 if (Boolean(values.archive) !== Boolean(values.provenance))
   throw new Error("Archive and provenance must be supplied together.");
+checkMinimalCliCommands();
 const npm = values.npm ?? process.env.npm_execpath;
 if (!npm) throw new Error("Run qualification through npm.");
 const toolchain = assertNativeNpmRuntime(npm);
@@ -146,7 +153,7 @@ try {
         version: "0.0.0",
         private: true,
         type: "module",
-        devDependencies: { eslint: "10.13.0" },
+        devDependencies: { eslint: qualificationEslintVersion() },
         dependencies: {
           [provenance.name]: values.registry
             ? provenance.version

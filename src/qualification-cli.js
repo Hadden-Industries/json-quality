@@ -1,34 +1,136 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from "node:crypto";
-import { parseArgs } from "node:util";
 import { isMainModule } from "./module-entry.js";
-import { qualifyGitJsonSources } from "./qualification.js";
 import {
   RESOURCE_OPTIONS,
   RUNTIME_OPTIONS,
   resourceCliControls,
 } from "./commands.js";
-import { encodeNativeControl } from "./native-control.js";
-import { assertJsonQualityEvent } from "./events.js";
+import {
+  packageVersion,
+  parseCliArguments,
+  failureCliResources,
+} from "./cli-discovery.js";
 import { resolveExecutionResources } from "./execution-resources.js";
 import { createExecutionDeadline } from "./execution-deadline.js";
-import cohort from "../schemas/contract-cohort.json" with { type: "json" };
+
+const qualificationOptions = {
+  ...RESOURCE_OPTIONS,
+  ...RUNTIME_OPTIONS,
+  help: { type: "boolean", short: "h" },
+  version: { type: "boolean", short: "v" },
+  "request-id": { type: "string" },
+  "trusted-root": { type: "string" },
+  "candidate-root": { type: "string" },
+  "trusted-commit-id": { type: "string" },
+  "candidate-commit-id": { type: "string" },
+};
 
 /** Stream cohort-4 NDJSON with backpressure and a final cleaned-up verdict.
  * Output failure, cancellation or missing execution-terminal returns 2. The
  * source-only scope is declared in execution events; no candidate code runs.
  */
 export async function runJsonQualificationCli(/** @type {*} */ args) {
+  let parsed;
+  const usage =
+    "Usage: json-quality-qualify-git --trusted-root PATH --candidate-root PATH --trusted-commit-id COMMIT --candidate-commit-id COMMIT\n";
+  try {
+    parsed = parseCliArguments(args, qualificationOptions, false);
+    const /** @type {Record<string, any>} */ values = parsed.values;
+    if (
+      values.version &&
+      (values.help ||
+        parsed.tokens.some(
+          (token) => token.kind === "option" && token.name !== "version",
+        ))
+    )
+      throw new TypeError(
+        "--version accepts no other options; use json-quality-qualify-git --version.",
+      );
+    const environmentKeys = [
+      "JSON_QUALITY_TRUSTED_ROOT",
+      "JSON_QUALITY_CANDIDATE_ROOT",
+      "JSON_QUALITY_TRUSTED_COMMIT_ID",
+      "JSON_QUALITY_CANDIDATE_COMMIT_ID",
+      "JSON_QUALITY_TRUSTED_SHA",
+      "JSON_QUALITY_CANDIDATE_SHA",
+    ];
+    if (
+      values.help ||
+      values.version ||
+      (!args.length &&
+        !environmentKeys.some((name) => process.env[name] !== undefined))
+    ) {
+      const text = values.version
+        ? packageVersion()
+        : usage +
+          "Checks immutable Git JSON under trusted commit policy; emits versioned NDJSON.\n" +
+          "No candidate scripts, installs, native/logical providers or domain validation.\n" +
+          "Discovery: --help (-h), --version (-v). --request-id ID identifies events.\n" +
+          "Roots and commit IDs may instead be supplied by JSON_QUALITY_TRUSTED_ROOT, JSON_QUALITY_CANDIDATE_ROOT, JSON_QUALITY_TRUSTED_COMMIT_ID and JSON_QUALITY_CANDIDATE_COMMIT_ID.\n" +
+          "Resource options: " +
+          Object.keys({ ...RESOURCE_OPTIONS, ...RUNTIME_OPTIONS })
+            .map((name) => "--" + name)
+            .join(", ") +
+          "\n" +
+          "--no-capacity-limits and --no-runtime-controls disable quotas; individual controls accept N|null.\n";
+      await new Promise((done, reject) => {
+        const failed = (/** @type {*} */ error) => reject(error);
+        process.stdout.once("error", failed);
+        process.stdout.write(text, (error) => {
+          process.stdout.removeListener("error", failed);
+          if (error) reject(error);
+          else done(undefined);
+        });
+      });
+      return 0;
+    }
+  } catch (error) {
+    const [{ resolveExecutionResources }, { writeCliFailure }] =
+      await Promise.all([
+        import("./execution-resources.js"),
+        import("./cli-failure.js"),
+      ]);
+    let resources = resolveExecutionResources();
+    try {
+      resources = resolveExecutionResources(
+        {},
+        failureCliResources(args, qualificationOptions),
+      );
+    } catch {
+      /* Malformed controls cannot relax the default allowance. */
+    }
+    await writeCliFailure(
+      new Error(
+        String(error instanceof Error ? error.message : error) + "\n" + usage,
+      ),
+      { requestId: randomUUID(), resources },
+    );
+    return 2;
+  }
+  let /** @type {*} */ qualifyGitJsonSources,
+    /** @type {*} */ encodeNativeControl,
+    /** @type {*} */ assertJsonQualityEvent;
   const caller = new AbortController(),
+    failureCaller = new AbortController(),
     began = performance.now(),
-    interrupt = () => caller.abort(new Error("Qualification interrupted.")),
-    outputError = (/** @type {*} */ error) => caller.abort(error);
+    interrupt = () => {
+      const error = new Error("Qualification interrupted.");
+      caller.abort(error);
+      failureCaller.abort(error);
+    },
+    outputError = (/** @type {*} */ error) => {
+      outputFailed = true;
+      caller.abort(error);
+    };
   let requestId = randomUUID(),
     signal = caller.signal,
     outputBytes = 0n,
     /** @type {any} */ maximumOutput = null,
     /** @type {any} */ deadline,
+    /** @type {any} */ failureResources = resolveExecutionResources(),
+    outputFailed = false,
     exitCode = 2,
     terminal;
   process.stdout.on("error", outputError);
@@ -50,6 +152,15 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       });
     },
     emit = async (/** @type {*} */ event) => {
+      if (event.type === "execution" || event.type === "execution-terminal")
+        event = {
+          ...event,
+          operationScope: {
+            kind: "immutable-git-json",
+            policy: "trusted-git",
+            completeRepositoryCheck: false,
+          },
+        };
       assertJsonQualityEvent(event);
       const bytes = Buffer.concat([
         encodeNativeControl(
@@ -64,6 +175,19 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       await write(bytes);
     };
   try {
+    const /** @type {Record<string, any>} */ values = parsed.values;
+    const controls = resourceCliControls(values),
+      resources = resolveExecutionResources({}, controls);
+    failureResources = resources;
+    [
+      { qualifyGitJsonSources },
+      { encodeNativeControl },
+      { assertJsonQualityEvent },
+    ] = await Promise.all([
+      import("./qualification.js"),
+      import("./native-control.js"),
+      import("./events.js"),
+    ]);
     if (
       process.env.JSON_QUALITY_TRUSTED_SHA !== undefined ||
       process.env.JSON_QUALITY_CANDIDATE_SHA !== undefined
@@ -71,40 +195,7 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       throw new TypeError(
         "Use JSON_QUALITY_TRUSTED_COMMIT_ID and JSON_QUALITY_CANDIDATE_COMMIT_ID.",
       );
-    const parsed = parseArgs({
-      args,
-      allowNegative: true,
-      options: {
-        ...RESOURCE_OPTIONS,
-        ...RUNTIME_OPTIONS,
-        help: { type: "boolean", short: "h" },
-        "request-id": { type: "string" },
-        "trusted-root": { type: "string" },
-        "candidate-root": { type: "string" },
-        "trusted-commit-id": { type: "string" },
-        "candidate-commit-id": { type: "string" },
-      },
-    });
-    const /** @type {Record<string, any>} */ values = parsed.values;
-    if (values.help) {
-      await write(
-        Buffer.from(
-          "Usage: json-quality-qualify-git --trusted-root PATH --candidate-root PATH --trusted-commit-id COMMIT --candidate-commit-id COMMIT\n" +
-            "Checks immutable Git JSON under the trusted commit policy; emits cohort-4 NDJSON.\n" +
-            "No candidate scripts, installs, native/logical providers or domain validation.\n" +
-            "Resource options: " +
-            Object.keys({ ...RESOURCE_OPTIONS, ...RUNTIME_OPTIONS })
-              .map((name) => "--" + name)
-              .join(", ") +
-            "\n" +
-            "--no-capacity-limits and --no-runtime-controls disable their quotas; individual controls also accept null.\n",
-        ),
-      );
-      return 0;
-    }
     requestId = values["request-id"] ?? requestId;
-    const controls = resourceCliControls(values),
-      resources = resolveExecutionResources({}, controls);
     maximumOutput = resources.wire.admission.maxToolOutputBytes;
     deadline = createExecutionDeadline(
       resources.runtime.maxCheckTimeMs,
@@ -130,6 +221,7 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
       if (event.type === "execution") {
         if (!event.resources) throw new Error("execution-resources-missing");
         maximumOutput = event.resources.admission.maxToolOutputBytes;
+        failureResources = event.resources;
         deadline.dispose();
         deadline = createExecutionDeadline(
           event.resources.runtime.maxCheckTimeMs,
@@ -145,21 +237,16 @@ export async function runJsonQualificationCli(/** @type {*} */ args) {
   } catch (error) {
     caller.abort(error);
     // A failed/aborted sink is already incomplete. Never retry it or block cleanup.
-    if (!process.stdout.destroyed) {
-      signal = AbortSignal.timeout(1000);
-      const message = String(error instanceof Error ? error.message : error);
-      try {
-        await emit({
-          schemaVersion: cohort.eventSchemaVersion,
-          requestId,
-          type: "failure",
-          code: "qualification-failed",
-          message: message.slice(0, 2048),
-          truncated: message.length > 2048,
-        });
-      } catch {
-        /* Failed delivery remains exit 2. */
-      }
+    if (!outputFailed && !process.stdout.destroyed) {
+      const { writeCliFailure } = await import("./cli-failure.js");
+      outputBytes += await writeCliFailure(error, {
+        requestId,
+        machine: true,
+        code: "qualification-failed",
+        resources: failureResources,
+        usedOutputBytes: outputBytes,
+        signal: failureCaller.signal,
+      });
     }
     exitCode = 2;
   } finally {

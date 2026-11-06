@@ -52,10 +52,10 @@
       "paths": [
         "assets/json-quality-policy-inputs.json"
       ],
-      "formatContract": "producer-json-compact",
+      "formatContract": "producer-json-indent",
       "allowSourceRewrites": false,
-      "owner": "Policy input manifest generator",
-      "reason": "The versioned ordered tuple and one LF define exact policy provenance bytes."
+      "owner": "Policy input inventory generator",
+      "reason": "Dependency-cruiser projects the sorted input inventory as indented JSON; runtime hashes actual input bytes and selected dependency declarations."
     }
   ]
 }

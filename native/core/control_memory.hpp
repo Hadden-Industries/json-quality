@@ -3,8 +3,43 @@
 // Boost still owns control parsing; this adapter owns allocation accounting only.
 #pragma once
 #include "allocation_ledger.hpp"
+#include "failure.hpp"
 #include <boost/json.hpp>
 #include <memory_resource>
+
+// Standard-library metadata copies may live until the reply is serialized.
+// Hold their conservative workspace charge for the complete native exchange.
+struct MetadataCopyScope {
+  inline static thread_local MetadataCopyScope *current = nullptr;
+  MetadataCopyScope *previous;
+  SqliteMemoryOwner *owner;
+  std::uint64_t bytes = 0;
+  explicit MetadataCopyScope(SqliteMemoryOwner *account) : previous(current), owner(account) {
+    owner->retain();
+    current = this;
+  }
+  ~MetadataCopyScope() {
+    current = previous;
+    owner->external.fetch_sub(bytes);
+    owner->release();
+  }
+  static void charge(std::size_t count) {
+    // Existing frame-sized temporaries fit the fixed native workspace. Charge
+    // the newly admitted growing copies without accumulating tiny row visits.
+    if (count <= 65536)
+      return;
+    require(current, "metadata-copy-owner");
+    if (!current->owner->acquireExternal(count))
+      throw std::bad_alloc();
+    current->bytes += count;
+  }
+};
+
+inline std::string metadataString(const boost::json::string &text) {
+  MetadataCopyScope::charge(text.size());
+  return std::string(text);
+}
+
 struct ControlHeap {
   SqliteMemoryOwner *owner;
   explicit ControlHeap(SqliteMemoryOwner *account) : owner(account) { owner->retain(); }

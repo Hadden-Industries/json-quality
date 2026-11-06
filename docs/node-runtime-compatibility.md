@@ -1,7 +1,10 @@
 # Node runtime compatibility
 
-The consumer minimum is the oldest runtime justified by production dependencies and qualified package behavior.
-Use current security patches for ordinary operation; a compatibility floor is not a security recommendation.
+Use the CLI, SDK and ESLint integration on Windows x64 or Linux x64 with glibc.
+Install the matching native companion through npm’s optional dependencies.
+Use current security patches within a supported family.
+
+## Node and npm versions
 
 <!-- node-support:start -->
 
@@ -15,24 +18,45 @@ Producer npm: 12.2.1; consumer qualification npm: 11.21.1.
 
 <!-- node-support:end -->
 
-`assets/node-support.json` is the sole editable version policy.
-Run `npm run sync:node`, refresh root metadata with native `npm install --package-lock-only --ignore-scripts --no-audit --no-fund`, then run `npm run check:node`.
+## Frontend projects and TypeScript
+
+The CLI, SDK and ESLint integration target Node.js tooling rather than browser application execution.
+Frontend repositories may use them as development dependencies in Node.js build and CI workflows on the supported platforms.
+
+The root SDK and `./eslint` exports explicitly refuse browser conditions, including when Node is also selected, and have no fallback for unmatched environments.
+Their declarations require Node-aware TypeScript resolution such as `NodeNext`.
+The schema and cohort JSON subpaths remain independently accessible as data; they do not provide a browser SDK.
+
+## Update the development toolchain
+
+`assets/node-support.json` is the sole editable Node/npm version policy.
+The projector and its regression check share one declaration inventory, including `.node-version`, package metadata, workflow pins and local action pins.
+Dynamic consumer matrices and GitHub's action runtime retain their separate selections.
+
+Native npm owns lockfile updates; consumer ESLint qualification reads its exact selected version from `package-lock.json`.
+Python remains owned separately by `.python-version`, and host-proof mismatch tests derive a different version from that target rather than copying a future patch.
+
+Run `npm run sync:node-support`, refresh root metadata with native `npm install --package-lock-only --ignore-scripts --no-audit --no-fund`, then run `npm run check:node-support`.
 The check rejects drift without writing; dependency resolutions and historical evidence remain native-owned or immutable.
 The supported families exclude odd, future and prerelease Node releases.
 
 The producer remains on its reference Node and npm 12; its keyed native pack report is unchanged.
 Consumer qualification uses the npm selection in the generated policy block above; its native argument parser, cache reader, tar parser and Git acquisition controls support the older runtimes.
+
 Cold Git acquisition and installed-payload verification retain the public exact-selector, cache-integrity and archive-member contracts.
 An unverified `file:` installation is not a substitute for those public admission checks.
+
+## How compatibility is qualified
 
 CI freezes each exact minimum, current stable release per family and the independent reference from official Node metadata.
 It qualifies the same immutable producer archive on Windows 2025 and Ubuntu 24.04, recording the selected Node/npm identities.
 The reference lane owns producer packing, lint, format, policy-drift and JSON dogfood checks.
 Consumer lanes exercise real installed CLI/API/plugin/schema behavior, preservation, failure paths and native installation verification.
 
-The retained Node 22 policy floor is 22.13.0; producer/development ESLint uses that floor independently of the JSON runtime reader.
+The compatibility floor remains owned by the policy above; producer/development tools retain their own engine requirements independently of the JSON runtime reader.
 JSON import attributes exist at that floor; native glob and filesystem behavior require real platform qualification.
-The current source selects configuration/event/native cohort 4 and Node-API 9; historical packages retain their own cohorts.
+
+The current source selects contract cohort 6, events 5, configuration/source-contract 4, native protocol 5, component schema 4 and Node-API 9; historical packages retain their own cohorts.
 The same artifact must be qualified on each selected runtime; an ABI declaration alone is not runtime proof.
 Missing platform components fail without a compiler/downloader fallback.
 

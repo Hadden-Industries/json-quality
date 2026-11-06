@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
 import test from "node:test";
+import contractCohort from "../schemas/contract-cohort.json" with { type: "json" };
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,7 +21,7 @@ import {
 import { nodeSupport } from "../scripts/node-matrix.js";
 import { pythonVersion } from "../scripts/ci-host.js";
 import { budgets } from "../scripts/qualification-budgets.js";
-import { nodeMatrixFixture } from "./node-matrix-fixture.js";
+import { nodeMatrixFixture, nextPatchVersion } from "./node-matrix-fixture.js";
 import {
   MINIMAL_CLI_CASES,
   MINIMAL_CLI_COMMANDS,
@@ -219,7 +220,7 @@ function fixture(attempt = 1, fork = false) {
             minimalCli: {
               status: "passed",
               packageVersion: "1.0.0-rc.1",
-              cohortVersion: 4,
+              cohortVersion: contractCohort.cohortVersion,
               policy: "package-defaults",
               defaultPolicySha256: "a".repeat(64),
               command: "npm exec -- json-quality",
@@ -592,7 +593,7 @@ test("platform, runtime and image provenance remain mandatory for reuse", async 
   for (const [field, invalid] of [
     ["os", "Linux"],
     ["architecture", "ARM64"],
-    ["python", "3.15.2"],
+    ["python", nextPatchVersion(pythonVersion)],
     ["image", "win22"],
     ["imageVersion", undefined],
     ["imageVersion", "unobserved"],
@@ -605,9 +606,9 @@ test("platform, runtime and image provenance remain mandatory for reuse", async 
   for (const [field, invalid] of [
     ["os", "Windows"],
     ["architecture", "ARM64"],
-    ["python", "3.15.2"],
+    ["python", nextPatchVersion(pythonVersion)],
     ["node", "0.0.0"],
-    ["npm", "12.2.1"],
+    ["npm", nextPatchVersion(nodeSupport.consumerNpm)],
     ["image", "ubuntu22"],
     ["image", "ubuntu24-slim"],
     ["imageVersion", undefined],

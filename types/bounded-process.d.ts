@@ -6,6 +6,7 @@ export declare function runBoundedTool(
     signal,
     timeout,
     maximumOutputBytes,
+    terminationGraceMs,
     acceptedExitCodes,
     cwd,
     captureOutput,

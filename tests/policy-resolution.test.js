@@ -30,7 +30,7 @@ test("absent and sparse policy resolve into independent immutable NFC defaults",
   assert.equal(copy.defaults.allowSourceRewrites, true);
   assert.throws(
     () => resolveJsonQualityPolicy({ schemaVersion: 3 }),
-    /cohort 4/u,
+    /configuration schema v4/u,
   );
   assert.throws(() => resolveJsonQualityPolicy(null), /configuration/u);
 });

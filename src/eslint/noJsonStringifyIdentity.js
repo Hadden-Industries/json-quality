@@ -145,18 +145,31 @@ const rule = {
     // Prune impossible flows from native scope facts, rather than exempting
     // generated files. Escaped identifiers have their decoded binding names.
     const roots = new Set(["JSON", "globalThis", "global", "window"]);
+    function possibleRoot(/** @type {*} */ reference) {
+      const id = reference.identifier;
+      if (!roots.has(id.name)) return false;
+      const member = id.parent;
+      if (
+        id.name !== "JSON" ||
+        member.type !== "MemberExpression" ||
+        member.object !== id
+      )
+        return true;
+      const key = propertyName(member);
+      return key === null || key === "stringify";
+    }
     const maySerialize = source.scopeManager.scopes.some(
       (/** @type {*} */ scope) =>
-        scope.through.some((/** @type {*} */ reference) =>
-          roots.has(reference.identifier.name),
-        ) ||
+        scope.through.some(possibleRoot) ||
         scope.variables.some(
           (/** @type {*} */ bound) =>
             roots.has(bound.name) &&
             !bound.defs.length &&
-            bound.references.length,
+            bound.references.some(possibleRoot),
         ),
     );
+    /** @type {WeakMap<object, {node: any, path: string[]}[]>} */
+    const valuesByBinding = new WeakMap();
     let remainingAnalysisSteps = limits.maxSteps;
     let analysisLimited = false;
 
@@ -178,6 +191,10 @@ const rule = {
     function values(/** @type {*} */ node) {
       const bound = variable(node);
       if (!bound) return [];
+      // ESLint has finished scope analysis before listeners run. Cache only
+      // direct writes; recursive results depend on the caller's cycle guard.
+      const cached = valuesByBinding.get(bound);
+      if (cached) return cached;
       const /** @type {any[]} */ entries = [];
       for (const definition of bound.defs) {
         if (definition.type === "Variable" && definition.node.init) {
@@ -210,6 +227,7 @@ const rule = {
           });
         }
       }
+      valuesByBinding.set(bound, entries);
       return entries;
     }
 
@@ -531,7 +549,7 @@ const rule = {
       }
     }
 
-    return {
+    const listeners = {
       BinaryExpression(/** @type {*} */ node) {
         if (EQUALITY.has(node.operator)) sinks.push(node.left, node.right);
       },
@@ -542,7 +560,6 @@ const rule = {
         if (node.computed) sinks.push(node.key);
       },
       NewExpression(/** @type {*} */ node) {
-        if (!maySerialize) return;
         const called = roles(node.callee);
         if (called.includes("set-constructor"))
           collectionElements(node.arguments[0], false);
@@ -550,7 +567,13 @@ const rule = {
           collectionElements(node.arguments[0], true);
       },
       CallExpression(/** @type {*} */ node) {
-        if (!maySerialize) return;
+        // Unbound ordinary callees cannot be any of the supported sinks.
+        if (
+          node.callee.type === "Identifier" &&
+          !ROOT_ROLES.has(node.callee.name) &&
+          !variable(node.callee)?.defs.length
+        )
+          return;
         const called = roles(node.callee);
         if (called.includes("compare"))
           sinks.push(...node.arguments.slice(0, 2));
@@ -574,7 +597,7 @@ const rule = {
           sinks.push(node.arguments[0]);
       },
       "Program:exit"(/** @type {*} */ node) {
-        if (maySerialize) sinks.forEach(inspect);
+        sinks.forEach(inspect);
         if (analysisLimited)
           context.report({ node, messageId: "analysisLimit", data: limits });
         for (const comment of contracts) {
@@ -589,6 +612,9 @@ const rule = {
         }
       },
     };
+    return maySerialize
+      ? listeners
+      : { "Program:exit": listeners["Program:exit"] };
   },
 };
 export default rule;

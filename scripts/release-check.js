@@ -7,9 +7,10 @@ import { fileURLToPath } from "node:url";
 import { runNpmPack } from "./pack.js";
 import { npmCli } from "./qualification-process.js";
 import { verifyShippedLinks } from "./release-contract.js";
+import { projectNativePackages } from "./project-native-packages.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-await import("./project-native-packages.js");
+projectNativePackages();
 const pack = runNpmPack(root, { npm: npmCli() });
 const contents = new Map(
   pack.files

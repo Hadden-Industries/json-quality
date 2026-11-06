@@ -19,7 +19,6 @@ import { createRequire } from "node:module";
 import { gzipSync } from "node:zlib";
 import {
   parseJsonQualityRegistrySpecifier,
-  readJsonQualityAcquisitionBootstrapSource,
   verifyJsonQualityInstallation,
 } from "../src/installation.js";
 import { readPackReport } from "../scripts/pack.js";
@@ -75,12 +74,13 @@ async function installation(
     name,
     version: "1.2.3",
     type: "module",
-    files: ["index.js", "src/acquire.js"],
+    files: ["index.js", "src/check.js"],
     optionalDependencies: Object.fromEntries(
       Object.values(nativePackages).map((spec) => [spec.package, "1.2.3"]),
     ),
   };
   const payload = "export const approved = true;\n";
+  const implementation = "export const checked = true;\n";
   const binary = nativeBinary
     ? join(
         process.env.JSON_QUALITY_NATIVE_TEST_ARTIFACTS ??
@@ -104,10 +104,7 @@ async function installation(
   writeFileSync(join(producer, "package.json"), JSON.stringify(manifest));
   writeFileSync(join(producer, "index.js"), payload);
   mkdirSync(join(producer, "src"));
-  writeFileSync(
-    join(producer, "src/acquire.js"),
-    readJsonQualityAcquisitionBootstrapSource(),
-  );
+  writeFileSync(join(producer, "src/check.js"), implementation);
   const packed = readPackReport(
     execFileSync(
       process.env.JSON_QUALITY_PRODUCER_NODE ?? process.execPath,
@@ -138,10 +135,7 @@ async function installation(
   mkdirSync(join(installedRoot, "src"));
   if (nativeBinary)
     copyFileSync(binary, join(installedRoot, "native-component.node"));
-  writeFileSync(
-    join(installedRoot, "src/acquire.js"),
-    readJsonQualityAcquisitionBootstrapSource(),
-  );
+  writeFileSync(join(installedRoot, "src/check.js"), implementation);
   writeFileSync(
     join(toolingRoot, "package.json"),
     JSON.stringify({ private: true, devDependencies: { [name]: source } }),
@@ -426,7 +420,7 @@ test("family quotas admit two payloads exactly once and constrain the remaining 
     bytes = [
       join(context.installedRoot, "package.json"),
       join(context.installedRoot, "index.js"),
-      join(context.installedRoot, "src/acquire.js"),
+      join(context.installedRoot, "src/check.js"),
       join(context.nativeRoot, "package.json"),
       join(context.nativeRoot, "binding.txt"),
     ].reduce((total, path) => total + statSync(path).size, 0);
@@ -503,12 +497,10 @@ test("a registry declaration rejects Git and non-registry resolved archives", as
   }
 });
 
-test("default verification follows the same native cache policy as acquisition", async (t) => {
+test("default verification uses the selected npm CLI's native cache configuration", async (t) => {
   const context = await installation(t);
   const previous = process.env.npm_config_cache;
-  const previousInstallation = process.env.JSON_QUALITY_INSTALLATION_CONTROLS;
   process.env.npm_config_cache = context.cachePath;
-  process.env.JSON_QUALITY_INSTALLATION_CONTROLS = '{"maxCacheOutputBytes":1}';
   try {
     assert.equal(
       (
@@ -521,32 +513,7 @@ test("default verification follows the same native cache policy as acquisition",
   } finally {
     if (previous === undefined) delete process.env.npm_config_cache;
     else process.env.npm_config_cache = previous;
-    if (previousInstallation === undefined)
-      delete process.env.JSON_QUALITY_INSTALLATION_CONTROLS;
-    else process.env.JSON_QUALITY_INSTALLATION_CONTROLS = previousInstallation;
   }
-});
-
-test("consumer bootstraps are generated from one shared source and drift fails", async (t) => {
-  const context = await installation(t);
-  const bootstrapPath = join(context.toolingRoot, "bootstrap.mjs");
-  writeFileSync(
-    bootstrapPath,
-    readJsonQualityAcquisitionBootstrapSource().replaceAll("\r\n", "\n"),
-  );
-  assert.equal(
-    (await verifyJsonQualityInstallation({ ...context, bootstrapPath }))
-      .fileCount,
-    5,
-  );
-  writeFileSync(
-    bootstrapPath,
-    readJsonQualityAcquisitionBootstrapSource() + "\n// unreviewed change\n",
-  );
-  await assert.rejects(
-    verifyJsonQualityInstallation({ ...context, bootstrapPath }),
-    /bootstrap differs/u,
-  );
 });
 
 for (const headerOptions of [
@@ -640,7 +607,7 @@ for (const type of ["SolarisACL", "SparseFile", "ExtendedHeader"]) {
         Buffer.alloc((512 - (payload.length % 512)) % 512),
       );
     };
-    for (const path of ["package.json", "index.js", "src/acquire.js"])
+    for (const path of ["package.json", "index.js", "src/check.js"])
       add(
         `package/${path}`,
         "File",

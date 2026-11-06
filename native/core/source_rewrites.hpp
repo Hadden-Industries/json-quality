@@ -205,7 +205,7 @@ struct SourceRewrites {
   }
   void written(const std::string &path, const std::string &observation) {
     require(admitted, "rewrite-preflight-required");
-    require(!observation.empty() && observation.size() <= 65536, "rewrite-write-observation");
+    require(!observation.empty(), "rewrite-write-observation");
     store.prepare(32768);
     Statement update(
         *store.database,

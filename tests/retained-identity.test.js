@@ -268,6 +268,34 @@ test("scope pruning permits generated alias graphs without any JSON serializatio
   assert.deepEqual(lint(`${declarations.join("\n")}\nv99 === 'plain';`), []);
 });
 
+test("identity scaling on repeated reads preserves late serializer findings", (t) => {
+  for (const size of [3000, 6000, 12000]) {
+    const body =
+      "JSON.parse(input);\nconst mode = 0;\n" +
+      "if (mode === 2) {}\n".repeat(size);
+    assert.deepEqual(lint(body, { maxSteps: 1 }), []);
+    const linter = new Linter();
+    const { messages } = linter.verifyAndFix(
+      body + "JSON.stringify(a) === b;",
+      config,
+      { fix: false, stats: true },
+    );
+    assert.deepEqual(
+      messages.map((m) => m.messageId),
+      ["identity"],
+    );
+    t.diagnostic(
+      `${size} repeated comparisons: ${linter.getTimes().passes[0].rules[ruleId].total.toFixed(1)} ms in the rule`,
+    );
+  }
+  assert.deepEqual(
+    lint("ordinary(x);\n".repeat(64) + "JSON.stringify(a) === b;", {
+      maxSteps: 32,
+    }).map((m) => m.messageId),
+    ["identity"],
+  );
+});
+
 test("identity-analysis capacity can be raised or explicitly bypassed without disabling the guard", () => {
   const declarations = ["const v0 = JSON.stringify(a);"];
   for (let index = 1; index < 80; index++)

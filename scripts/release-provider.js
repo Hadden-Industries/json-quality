@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { native, budgets } from "./qualification-process.js";
 import { sameJobExecution } from "./github-job-execution.js";
+import { nativePackages } from "../src/native-packages.js";
 import {
   repository,
   regularBytes,
@@ -17,6 +18,8 @@ import {
   verifyRun,
   retainedRecoveries,
   releaseTransportMaximumBytes,
+  packageName,
+  validVersion,
 } from "./release-contract.js";
 export { evidenceIndex, sealBundle } from "./release-records.js";
 
@@ -448,12 +451,189 @@ function writerEffect(entry) {
   );
   return { job, step };
 }
+// Serialized version claims never authorize omission. Bind derived subjects to
+// the original bytes and exact live entry admitted by this native collector.
+const historySubjects = new WeakMap();
+
+function restoreHistory(entry, record) {
+  assert.equal(record.phase, entry.phase);
+  assert.equal(record.service, entry.service);
+  assert.equal(String(record.run), String(entry.run.id));
+  assert.equal(String(record.attempt), String(entry.run.run_attempt));
+  assert.equal(record.controller, entry.run.head_sha);
+  if (record.availability) entry.availability = record.availability;
+  if (record.journal) {
+    entry.journal = Buffer.from(record.journal, "base64");
+    assert.equal(entry.journal.toString("base64"), record.journal);
+  }
+  if (record.noEffect) entry.noEffect = record.noEffect;
+  if (record.settlements) entry.settlements = record.settlements;
+  return entry;
+}
+
+function admitHistorySubject(entry, retainedRecord) {
+  if (entry.phase === "promote" || !entry.journal?.length) return;
+  assert.ok(
+    !entry.noEffect,
+    "No-effect marker conflicts with a request journal",
+  );
+  const records = new TextDecoder("utf-8", { fatal: true })
+    .decode(entry.journal)
+    .trim()
+    .split("\n")
+    .map(JSON.parse);
+  const intents = records.filter((_, index) => index % 2 === 0);
+  // Legacy records without a complete original subject remain unclassified.
+  if (
+    intents.some((intent) =>
+      ["version", "source", "manifestSha256", "integrity"].some(
+        (key) => !Object.hasOwn(intent, key),
+      ),
+    )
+  )
+    return;
+  const effect = writerEffect(entry);
+  assert.ok(effect, "Subject evidence has no native writer effect");
+  if (retainedRecord) {
+    if (!retainedRecord.provider) return;
+    const previous = {
+      ...retainedRecord.provider,
+      phase: entry.phase,
+      service: entry.service,
+    };
+    for (const key of [
+      "id",
+      "run_attempt",
+      "head_sha",
+      "event",
+      "path",
+      "head_branch",
+    ])
+      assert.equal(
+        previous.run[key],
+        entry.run[key],
+        "Retained writer identity changed",
+      );
+    const original = writerEffect(previous);
+    assert.ok(
+      original && sameJobExecution(original.job, effect.job),
+      "Retained writer execution changed",
+    );
+    assert.equal(original.job.conclusion, effect.job.conclusion);
+    assert.deepEqual(
+      original.step,
+      effect.step,
+      "Retained writer step changed",
+    );
+  }
+  const packages = new Set([
+    packageName,
+    ...Object.values(nativePackages).map((spec) => spec.package),
+  ]);
+  let subject;
+  for (const [index, intent] of intents.entries()) {
+    assert.equal(intent.state, "intent");
+    assert.equal(intent.run, String(entry.run.id));
+    assert.equal(intent.attempt, String(entry.run.run_attempt));
+    assert.equal(intent.controller, entry.run.head_sha);
+    assert.equal(intent.service, entry.service);
+    assert.ok(packages.has(intent.package), "Unknown historical package");
+    if (entry.phase === "stage")
+      assert.ok(
+        intent.operation === "stage" ||
+          intent.operation === `stage:${intent.package}`,
+      );
+    else {
+      assert.equal(entry.phase, "archive");
+      assert.equal(intent.package, packageName);
+      assert.ok(
+        intent.operation === "archive" || /^upload:.+$/u.test(intent.operation),
+      );
+    }
+    validVersion(intent.version);
+    assert.match(intent.source, /^[a-f0-9]{40}$/u);
+    assert.match(intent.manifestSha256, /^[a-f0-9]{64}$/u);
+    assert.match(intent.integrity, /^sha512-[A-Za-z0-9+/]+={0,2}$/u);
+    const identity = {
+      version: intent.version,
+      source: intent.source,
+      manifestSha256: intent.manifestSha256,
+    };
+    if (subject)
+      assert.deepEqual(
+        identity,
+        subject,
+        "Conflicting historical version subjects",
+      );
+    else subject = identity;
+    const outcome = records[index * 2 + 1];
+    if (outcome) {
+      assert.ok(["completed", "outcome-unknown"].includes(outcome.state));
+      assert.equal(
+        outcome.intentSha256,
+        sha256(Buffer.from(JSON.stringify(intent) + "\n")),
+      );
+    }
+  }
+  historySubjects.set(entry, {
+    ...subject,
+    journalSha256: sha256(entry.journal),
+    identity: structuredClone({
+      run: entry.run,
+      jobs: entry.jobs,
+      phase: entry.phase,
+      service: entry.service,
+      noEffect: entry.noEffect,
+      availability: entry.availability,
+      settlements: entry.settlements,
+    }),
+  });
+}
+
+function otherVersionHistory(entry, subject) {
+  const admitted = historySubjects.get(entry);
+  if (!admitted) return false;
+  assert.equal(subject.package, packageName);
+  validVersion(subject.version);
+  assert.deepEqual(
+    {
+      run: entry.run,
+      jobs: entry.jobs,
+      phase: entry.phase,
+      service: entry.service,
+      noEffect: entry.noEffect,
+      availability: entry.availability,
+      settlements: entry.settlements,
+    },
+    admitted.identity,
+    "Admitted historical writer changed",
+  );
+  assert.equal(
+    sha256(entry.journal),
+    admitted.journalSha256,
+    "Admitted historical journal changed",
+  );
+  return admitted.version !== subject.version;
+}
+
 export function verifyEffectHistory(
   history,
   current,
   subject,
   recovery = null,
 ) {
+  const scoped = history.filter((entry) => {
+    assert.equal(entry.run.repository.full_name, repository);
+    for (const value of [entry.run.id, entry.run.run_attempt]) id(value);
+    assert.ok(
+      !(
+        String(entry.run.id) === String(current.run) &&
+        String(entry.run.run_attempt) === String(current.attempt)
+      ),
+      "Current attempt included as history",
+    );
+    return !otherVersionHistory(entry, subject);
+  });
   const evidence = [];
   const settled = history.filter(
     (entry) => entry.settlements?.length && entry.run.conclusion === "success",
@@ -475,16 +655,7 @@ export function verifyEffectHistory(
       entry.settlements.map((record) => ({ record })),
     ),
   ];
-  for (const entry of history) {
-    assert.ok(entry.run.repository.full_name === repository);
-    for (const value of [entry.run.id, entry.run.run_attempt]) id(value);
-    assert.ok(
-      !(
-        String(entry.run.id) === String(current.run) &&
-        String(entry.run.run_attempt) === String(current.attempt)
-      ),
-      "Current attempt included as history",
-    );
+  for (const entry of scoped) {
     if (!writerEffect(entry)) continue;
     if (entry.noEffect) {
       assert.equal(entry.noEffect.schemaVersion, 1);
@@ -621,7 +792,17 @@ export function readHistoryCheckpoint(
   assert.equal(new Set(keys).size, keys.length, "Ambiguous retained history");
   return record.entries;
 }
-export function readEffectHistory(env, root, checkpoint, readers = {}) {
+export function readEffectHistory(
+  env,
+  root,
+  checkpoint,
+  readers = {},
+  subject = null,
+) {
+  if (subject) {
+    assert.equal(subject.package, packageName);
+    validVersion(subject.version);
+  }
   const list = readers.pages ?? pages;
   const observe = readers.provider ?? provider;
   const acquire = readers.download ?? download;
@@ -691,6 +872,26 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
                 continue;
               }
             }
+            const records = (retained ?? []).filter(
+              (record) =>
+                record.phase === phase &&
+                record.service === entry.service &&
+                String(record.run) === String(run.id) &&
+                String(record.attempt) === String(attempt),
+            );
+            assert.ok(records.length <= 1, "Ambiguous retained writer history");
+            const retainedRecord = records[0];
+            if (subject && retainedRecord && phase !== "promote") {
+              const cached = restoreHistory(
+                structuredClone(entry),
+                retainedRecord,
+              );
+              admitHistorySubject(cached, retainedRecord);
+              if (otherVersionHistory(cached, subject)) {
+                history.push(cached);
+                continue;
+              }
+            }
             const name = `effect-${phase}${service ? `-${service}` : ""}-${attempt}`;
             const artifacts = list(
               `actions/runs/${id(run.id)}/artifacts?per_page=100`,
@@ -727,14 +928,8 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
                 "Missing exact historical attempt in checkpoint",
               );
               const record = records[0];
-              assert.equal(record.controller, entry.run.head_sha);
-              if (record.availability) entry.availability = record.availability;
-              if (record.journal) {
-                entry.journal = Buffer.from(record.journal, "base64");
-                assert.equal(entry.journal.toString("base64"), record.journal);
-              }
-              if (record.noEffect) entry.noEffect = record.noEffect;
-              if (record.settlements) entry.settlements = record.settlements;
+              restoreHistory(entry, record);
+              if (subject) admitHistorySubject(entry, record);
               history.push(entry);
               continue;
             }
@@ -758,6 +953,18 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
               entry.availability = readJson(
                 join(directory, "npm-continuation.json"),
               ).availability;
+            if (retainedRecord?.journal && entry.journal)
+              assert.equal(
+                entry.journal.toString("base64"),
+                retainedRecord.journal,
+                "Original history bytes conflict with signed checkpoint",
+              );
+            assert.ok(
+              !(retainedRecord?.noEffect && entry.journal?.length) &&
+                !(retainedRecord?.journal && entry.noEffect),
+              "No-effect evidence conflicts with signed checkpoint",
+            );
+            if (subject) admitHistorySubject(entry);
           }
           history.push(entry);
         }
@@ -806,13 +1013,8 @@ export function readEffectHistory(env, root, checkpoint, readers = {}) {
     );
     entry.phase = record.phase;
     if (record.service) entry.service = record.service;
-    if (record.availability) entry.availability = record.availability;
-    if (record.journal) {
-      entry.journal = Buffer.from(record.journal, "base64");
-      assert.equal(entry.journal.toString("base64"), record.journal);
-    }
-    if (record.noEffect) entry.noEffect = record.noEffect;
-    if (record.settlements) entry.settlements = record.settlements;
+    restoreHistory(entry, record);
+    if (subject) admitHistorySubject(entry, record);
     history.push(entry);
     seen.add(key);
   }

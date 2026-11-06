@@ -62,7 +62,7 @@ jobs:
         id: admission
         env:
           GH_TOKEN: ${{ github.token }}
-        run: npm run release:admit -- archive "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
+        run: npm run admit:release-evidence -- archive "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         id: admitted
@@ -102,7 +102,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           JSON_QUALITY_BUILD_ATTESTATION: ${{ steps.attest.outputs.bundle-path }}
-        run: npm run release:effect -- archive "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
+        run: npm run execute:release-action -- archive "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         if: always()

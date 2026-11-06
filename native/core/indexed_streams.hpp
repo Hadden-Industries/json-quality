@@ -4,6 +4,7 @@
 #pragma once
 #include "adaptive_store.hpp"
 #include "resource_policy.hpp"
+#include "control_memory.hpp"
 struct Statement {
   sqlite3_stmt *value = nullptr;
   Database::Entry *entry = nullptr;
@@ -30,9 +31,8 @@ struct Statement {
   }
   void text(int position, const std::string &text) {
     SqliteOwnerScope scope(memory);
-    require(text.size() <= 65536, "metadata-cell-limit");
-    require(sqlite3_bind_text(value, position, text.data(), static_cast<int>(text.size()),
-                              SQLITE_TRANSIENT) == SQLITE_OK,
+    require(sqlite3_bind_text64(value, position, text.data(), text.size(),
+                              SQLITE_TRANSIENT, SQLITE_UTF8) == SQLITE_OK,
             "text-bind");
   }
   bool next() {
@@ -47,6 +47,10 @@ struct Statement {
   std::string text(int column) const {
     SqliteOwnerScope scope(memory);
     auto p = sqlite3_column_text(value, column);
+    // Cover the returned string and its potential JSON field copy together.
+    auto length = std::size_t(sqlite3_column_bytes(value, column));
+    if (length > 65536)
+      MetadataCopyScope::charge(length * 2);
     return p ? std::string(reinterpret_cast<const char *>(p), sqlite3_column_bytes(value, column))
              : std::string();
   }

@@ -44,13 +44,13 @@ export async function checkPackage(
     ].sort(),
   );
   for (const key of [".", "./eslint"]) {
-    assert.equal(Object.keys(metadata.exports[key])[0], "types");
-    assert.ok(
-      readFileSync(join(directory, metadata.exports[key].types)).length,
-    );
-    assert.ok(
-      readFileSync(join(directory, metadata.exports[key].import)).length,
-    );
+    const entry = metadata.exports[key];
+    assert.deepEqual(Object.keys(entry), ["browser", "node", "default"]);
+    assert.equal(entry.browser, null);
+    assert.equal(entry.default, null);
+    assert.deepEqual(Object.keys(entry.node), ["types", "import"]);
+    assert.ok(readFileSync(join(directory, entry.node.types)).length);
+    assert.ok(readFileSync(join(directory, entry.node.import)).length);
   }
   assert.equal(
     metadata.repository.url,

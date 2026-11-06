@@ -12,8 +12,8 @@ namespace json = boost::json;
 // lowercasing, preserving the existing case-collision policy across platforms.
 inline std::string censusPath(const json::value &input, const ResourcePolicy &resources) {
   require(input.is_string(), "census-path-contract");
-  std::string path(input.as_string());
-  require(!path.empty() && path.size() <= 65536 && path.front() != '/', "census-path-contract");
+  std::string path = metadataString(input.as_string());
+  require(!path.empty() && path.front() != '/', "census-path-contract");
   std::size_t start = 0;
   std::uint64_t characters = 0;
   for (std::size_t i = 0; i <= path.size(); ++i) {
@@ -35,6 +35,7 @@ inline std::string censusPath(const json::value &input, const ResourcePolicy &re
 }
 
 inline std::string lowercaseCensusPath(const std::string &path) {
+  require(path.size() <= INT32_MAX, "census-path-representation");
   UErrorCode code = U_ZERO_ERROR;
   std::unique_ptr<UCaseMap, decltype(&ucasemap_close)> mapper(ucasemap_open("", 0, &code),
                                                               &ucasemap_close);
@@ -42,7 +43,8 @@ inline std::string lowercaseCensusPath(const std::string &path) {
   auto length = ucasemap_utf8ToLower(mapper.get(), nullptr, 0, path.data(),
                                      static_cast<int32_t>(path.size()), &code);
   require(code == U_BUFFER_OVERFLOW_ERROR || U_SUCCESS(code), "census-path-unicode");
-  require(length >= 0 && length <= 65536, "census-path-capacity");
+  require(length >= 0, "census-path-capacity");
+  MetadataCopyScope::charge(static_cast<std::size_t>(length));
   std::string folded(static_cast<std::size_t>(length), '\0');
   code = U_ZERO_ERROR;
   ucasemap_utf8ToLower(mapper.get(), folded.data(), length, path.data(),
@@ -92,8 +94,9 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
   // Provider registration precedes inventory and delivery. The independent
   // iterator's end closes only inventory; actual checked members close delivery.
   void addProvider(const json::object &request) {
-    std::string id(request.at("id").as_string()), kind(request.at("kind").as_string());
-    require(!id.empty() && id.size() <= 128 &&
+    std::string id = metadataString(request.at("id").as_string()),
+                kind = metadataString(request.at("kind").as_string());
+    require(!id.empty() &&
                 id.find_first_not_of(
                     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.") ==
                     std::string::npos,
@@ -135,17 +138,17 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
     return result;
   }
   json::value addAuthority(const json::object &request) {
-    std::string id(request.at("provider").as_string());
+    std::string id = metadataString(request.at("provider").as_string());
     auto selected = provider(id);
     require(selected.kind == "native" && !selected.inventoryClosed, "census-authority-provider");
     auto path = censusPath(request.at("path"), resources), folded = lowercaseCensusPath(path);
     auto source = exactInteger(request.at("source"));
     const auto &identity = request.at("identity").as_object();
     auto length = exactInteger(identity.at("byteLength"));
-    std::string sha(identity.at("sha256").as_string());
+    std::string sha = metadataString(identity.at("sha256").as_string());
     std::string observation;
     if (auto item = request.if_contains("observation"))
-      observation = std::string(item->as_string());
+      observation = metadataString(item->as_string());
     store.prepare(131072);
     {
       Statement captured(*store.database,
@@ -199,21 +202,21 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
   // A path can have independent physical sightings. Every individual provider
   // must enumerate it once; derived/native identities have exactly one owner.
   void add(const json::object &request) {
-    std::string id(request.at("provider").as_string());
+    std::string id = metadataString(request.at("provider").as_string());
     auto selected = provider(id);
     require(!selected.inventoryClosed, "census-inventory-closed");
     auto path = censusPath(request.at("path"), resources), folded = lowercaseCensusPath(path);
     std::string sha, encoding, observation;
     if (auto item = request.if_contains("observation")) {
-      require(item->is_string() && item->as_string().size() <= 65536,
+      require(item->is_string(),
               "census-observation-contract");
-      observation = std::string(item->as_string());
+      observation = metadataString(item->as_string());
     }
     std::uint64_t length = 0, parentSource = 0, parentValue = 0, originSource = 0;
     std::string originKind, originMember;
     if (auto identity = request.if_contains("identity")) {
       const auto &object = identity->as_object();
-      sha = std::string(object.at("sha256").as_string());
+      sha = metadataString(object.at("sha256").as_string());
       require(object.size() == 2 && sha.size() == 64 &&
                   sha.find_first_not_of("0123456789abcdef") == std::string::npos,
               "census-member-identity");
@@ -225,7 +228,7 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
     if (selected.kind == "native") {
       const auto &origin = request.at("origin").as_object();
       originSource = exactInteger(origin.at("source"));
-      originKind = std::string(origin.at("kind").as_string());
+      originKind = metadataString(origin.at("kind").as_string());
       require(originKind == "archive-member" || originKind == "content-addressed",
               "census-native-origin");
       Statement authority(*store.database,
@@ -241,7 +244,9 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
               "census-native-origin-identity");
       if (originKind == "archive-member") {
         originMember = censusPath(origin.at("memberPath"), resources);
-        require(path == authority.text(0) + "!/" + originMember, "census-native-member-path");
+        auto authorityPath = authority.text(0);
+        MetadataCopyScope::charge(authorityPath.size() + 2 + originMember.size());
+        require(path == authorityPath + "!/" + originMember, "census-native-member-path");
       } else {
         require(path == authority.text(0) && sha == authority.text(1) &&
                     length == authority.integer(2),
@@ -252,7 +257,7 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
     if (selected.kind == "logical") {
       parentSource = exactInteger(request.at("containerSource"));
       parentValue = exactInteger(request.at("value"));
-      encoding = std::string(request.at("encoding").as_string());
+      encoding = metadataString(request.at("encoding").as_string());
       require(parentSource && parentValue && (encoding == "utf8" || encoding == "base64"),
               "census-logical-linkage");
     }
@@ -440,7 +445,7 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
   // The filesystem owner opens only the returned directory and explicitly
   // acknowledges its completed read. An interrupted lease prevents closure.
   json::value directory(const json::object &request, const std::string &command) {
-    std::string id(request.at("provider").as_string());
+    std::string id = metadataString(request.at("provider").as_string());
     auto selected = provider(id);
     require(selected.kind == "physical" && !selected.inventoryClosed, "census-directory-state");
     std::string path;
@@ -493,7 +498,7 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
     }
     std::string observation;
     if (auto item = request.if_contains("observation"))
-      observation = std::string(item->as_string());
+      observation = metadataString(item->as_string());
     Statement update(
         *store.database,
         "UPDATE census_directories SET state=?,observation=? WHERE provider=? AND path=?");
@@ -503,6 +508,7 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
     update.text(4, path);
     require(!update.next(), "census-directory-update");
     update.finish();
+    MetadataCopyScope::charge(path.size());
     return json::value(path);
   }
 
@@ -514,9 +520,9 @@ CREATE TABLE census_authority_providers(provider TEXT,path TEXT,PRIMARY KEY(prov
     Statement query(*store.database,
                     "SELECT path,observation FROM census_directories WHERE provider=? AND state=2 "
                     "AND (?=1 OR path>?) ORDER BY path LIMIT 1");
-    query.text(1, std::string(request.at("provider").as_string()));
+    query.text(1, metadataString(request.at("provider").as_string()));
     query.integer(2, after.is_null());
-    query.text(3, after.is_null() ? "" : std::string(after.as_string()));
+    query.text(3, after.is_null() ? "" : metadataString(after.as_string()));
     json::value result;
     if (query.next())
       result = json::object{{"path", query.text(0)}, {"observation", query.text(1)}};

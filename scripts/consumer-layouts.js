@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
+import contractCohort from "../schemas/contract-cohort.json" with { type: "json" };
 import {
   MINIMAL_CLI_CASES,
   MINIMAL_CLI_COMMANDS,
@@ -111,7 +112,7 @@ export function validateMinimalCli(
 ) {
   assert.equal(value.status, "passed");
   assert.equal(value.packageVersion, packageVersion);
-  assert.equal(value.cohortVersion, 4);
+  assert.equal(value.cohortVersion, contractCohort.cohortVersion);
   assert.equal(value.policy, "package-defaults");
   assert.equal(value.command, "npm exec -- json-quality");
   assert.equal(value.packageName, "@hadden-industries/json-quality");

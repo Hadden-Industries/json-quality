@@ -1,68 +1,16 @@
 # Shared native core
 
-This directory contains the private source integration of the [accepted oversized JSON design](https://github.com/Hadden-Industries/json-quality/blob/main/docs/plans/2026-10-23-oversized-json-design-checkpoint.md).
-Public API, CLI, providers and schemas now use cohort 4 and this single core.
-The retired product checker and document/result envelopes are absent from the runtime; the immutable finite-v1 oracle remains development-only.
-Final platform, transported-package, rights, review and consumer acceptance are still separate qualification work.
-
-`core/session.hpp` owns the bounded framed service used by both bindings.
-`document_check.hpp` and `json_lines.hpp` apply one strict Boost grammar and the shared quality rules.
-`adaptive_store.hpp`, `allocation_ledger.hpp`, `scratch_quota_vfs.hpp` and `indexed_streams.hpp` own retention, accounting, migration and stable range identity.
-`unicode_normalization.hpp` owns the residual NFC orchestration over pinned public ICU primitives.
-`producer_presentation.hpp` observes presentation using the same parser callbacks, public Boost escaping and bounded double-conversion number output.
-`source_outcome.hpp` keeps intrinsic quality separate from exact expected-negative admission.
-`value_index.hpp` owns exact lookup independently of parser lifetime; `value_pointer.hpp` renders escaped paths in bounded fragments, including giant member names.
-`streamed_pointer.hpp` decodes identified UTF-8 pointer streams into adaptive segments and uses the same exact child selector, so a giant key needs neither a complete JavaScript pointer string nor a giant control frame.
-Ordinary findings retain the necessary structural ancestors, while explicit value retention supports later selection without requiring every value event to cross the binding.
-
-`resource_policy.hpp` uses annotations projected from the configuration schema by the verified builder.
-One session accounts for source bytes and counts, records, diagnostics, transport output, retained state and materialization reservations across successive sources.
-Admission ceilings may be removed explicitly; finite working memory, scratch, nesting, elapsed time and the single active checking lane remain enforced.
-Repository and acquisition adapters apply the remaining tool, Git, cache and policy controls through their owning operations.
-
-`linked_bytes.hpp` transfers an identified decoded string or canonical base64 member directly into the same store and checker.
-Its container must have a completed strict parse, and any declared decoded length and digest are verified before checking.
-`source_census.hpp` reconciles physical sightings, independent native inventories and actual checked members in the same adaptive index.
-Provider inventory and delivery close separately; omitted/extra/duplicate members, case collisions, changed identities and wrong pointer linkage prevent complete census.
-Binary authority captures preserve source bytes and declared identities without making a JSON quality claim.
-Native member provenance is bound to a separately frozen authority and its independent declared identity; archive-domain extraction remains with the trusted archive owner.
-
-The internal Node adapters in `src/repository-discovery.js`, `repository-source.js`, `native-provider.js` and `logical-provider.js` stream discovery and providers through that service.
-The filesystem walk holds one directory lease at a time, and Git output uses bounded NUL framing with backpressure.
-Filesystem observations, exact source rechecks, Git membership and directory freshness remain adapter-owned checks before overall success.
-Census membership completion alone does not assert final filesystem freshness or downstream domain admission.
-`src/repository-check.js` composes physical/native/logical/JSONL checks, exact expected-linkage reconciliation and source freshness before an execution verdict.
-`src/value-session.js` wraps the verified service with session-scoped capabilities, bounded reads and explicitly charged materialization leases.
-Source framing follows literal dialect identity, and blank JSONL records retain their framing findings.
-The exported session API/CLI and strict policy bootstrap compose these owners; external consumer migration and final acceptance evidence remain separate.
-
-`bindings/node_api.cpp` transfers bounded byte frames through Node-API 9 asynchronous work.
-`bindings/framed_stdio.cpp` supplies the same service without a Node runtime.
-Neither binding implements grammar or quality decisions.
-Windows path boundaries convert UTF-8 explicitly to native filesystem paths and use UTF-8 for the SQLite C API.
-
-Build only from pinned, verified dependency artifacts.
-ICU's official ZIP supplies Windows sources; its separately pinned POSIX tar archive supplies Linux sources with their original shell-script line endings.
-The producer preserves their executable mode bits on POSIX hosts while removing set-id and group/world write permissions.
-Build progress is written to standard error; standard output contains only the final JSON result.
-Consumer acquisition must load verified platform artifacts without lifecycle downloads, a compiler, global ICU or an alternate JavaScript reader.
-The producer build and explicit staging verify a closed source/control/artifact manifest.
-Clean installed and final qualification remain part of the implementation work.
-See the [native protocol contract](../docs/native-protocol.md) for non-Node supervision, framing, authority and completion requirements.
-
-Focused native conformance tests live under `tests/native/`.
-The native CI workflow separately builds an instrumented Linux component and exercises actual spill, framed faults, cancellation and cleanup with address, leak and undefined-behavior checks.
-That job retains verification diagnostics and never stages its instrumented binaries as production package assets.
-They default to fixed installed resolution; explicit test-only artifact locations verify binary digest, byte length, platform, component versions and embedded source identity before opening a session.
-Default test scratch uses the OS temporary parent; explicit artifact qualification can use its identified producer group.
-Each session owns cleanup.
+The Node-API addon and standalone executable share one C++20 checker.
+Use this guide to produce and stage verified native payloads on Windows x64 and Linux x64/glibc.
+Consumers install the matching platform package with npm.
+See the [native protocol](../docs/native-protocol.md) to call the executable from another host and the [design checkpoint](../docs/plans/2026-10-23-oversized-json-design-checkpoint.md) for its design history.
 
 ## Reuse the maintained producer
 
 Use the same entry point on Windows and Linux, with an existing external owned workspace:
 
 ```sh
-npm run native:build -- --workspace /absolute/owned/native-workspace --jobs 2
+npm run build:native -- --workspace /absolute/owned/native-workspace --jobs 2
 ```
 
 The launcher delegates to `native/build.py`.
@@ -71,24 +19,121 @@ Supply `--cmake /path/to/cmake` or `JSON_QUALITY_CMAKE` to select an existing in
 `JSON_QUALITY_PYTHON` selects an existing Python executable.
 The Windows producer uses its installed MSVC/Windows SDK through CMake; Linux uses its installed C/C++ toolchain.
 
-The producer already supports digest-verified dependency reuse:
+### Reuse verified dependencies
+
+Use `--archive` when you already have a pinned archive.
 
 ```sh
-npm run native:build -- --workspace /absolute/owned/native-workspace --archive boost=/cache/boost_1_92_0.tar.gz
+npm run build:native -- --workspace /absolute/owned/native-workspace --archive boost=/cache/boost_1_92_0.tar.gz
 ```
 
 `--archive NAME=PATH` reuses only bytes matching the committed archive digest.
 `--reuse-source NAME=PATH` additionally compares every selected source byte against that archive before read-only reuse.
 Neither option admits an unverified cache or replaces component/source identity checks.
-The final JSON result names its artifact directory; stage it explicitly with `npm run native:stage -- --artifacts ABSOLUTE_PATH --replace`.
+The final JSON result names its artifact directory; stage it explicitly with `npm run stage:native -- --artifacts ABSOLUTE_PATH --replace`.
 Production and staging are separate from installed/runtime qualification.
 
-For hosted production, `native.yml` is the manual entry point and `native-producer.yml` is the reusable workflow used by deliberate acceptance.
-Dispatching `native.yml` with `run_checks: false` produces source-bound, unqualified payloads for assembly; the default and PR acceptance retain qualification and sanitizer checks.
+### Build on GitHub Actions
+
+Use `native.yml` for a manual build.
+It calls the same `native-producer.yml` workflow used by repository acceptance.
+
+For both builds and verification, select `run_checks: true` and a [verification profile](../docs/architecture.md#hosted-native-production).
+The default `full` profile includes the native suite and sanitizer checks.
+The focused profiles cover CLI behavior (`cli-community`) or resource controls and metadata transport (`resource-controls`).
+
+For source-bound payloads without runtime qualification, use `run_checks: false` with `verification_profile: full`.
+
 A hosted build needs the exact source ref available on GitHub; no entry point silently pushes source, rewrites a manifest or adopts a component.
 Compiler/sanitizer diagnostics remain in native job logs; only component payloads with a staging/package consumer are artifacts.
 
+### Stage and qualify the outputs
+
+Download both platform payloads by their immutable artifact IDs from the same successful producer run.
+Verify the recorded source commit, platform and source-input identity, then stage each exact absolute artifact directory through `native/stage.py`.
+Staging independently checks the current producer/control inputs and copied member digests; it publishes `component.json` last and reports qualification as pending.
+
+Commit the resulting verified platform asset changes as a new candidate before packing: the packer requires clean committed source and consumes `native/prebuilt`, not the workflow's remote artifacts.
+The release qualification workflow does not automatically adopt a separate native build's outputs.
+Qualify the resulting frozen core/platform archives in the required Windows/Linux runtime lanes and root/isolated layouts, following [release operations](../docs/release-operations.md).
+
 Rebuild both platforms when any embedded first-party producer/control input changes.
 The input inventory includes the producer and configuration/source-contract schema bytes, so a dialect/identifier migration requires new binaries even if the C++ source is unchanged.
+
 Do not edit hashes in old component manifests to make them appear current.
 When the inputs match, reuse the existing verified component; when they differ, reuse this process and its checked dependencies to produce the new component.
+
+## Native implementation and verification
+
+The public API, CLI, providers and schemas share the [contract cohort](../schemas/contract-cohort.json).
+The installed manifests and embedded identities must match its version vector.
+The finite-v1 oracle is reserved for development comparisons.
+
+`core/session.hpp` owns the bounded framed service used by both bindings.
+`document_check.hpp` and `json_lines.hpp` apply one strict Boost grammar and the shared quality rules.
+
+`adaptive_store.hpp`, `allocation_ledger.hpp`, `scratch_quota_vfs.hpp` and `indexed_streams.hpp` own retention, accounting, migration and stable range identity.
+`unicode_normalization.hpp` owns the residual NFC orchestration over pinned public ICU primitives.
+`producer_presentation.hpp` observes presentation using the same parser callbacks, public Boost escaping and bounded double-conversion number output.
+
+`source_outcome.hpp` keeps intrinsic quality separate from exact expected-negative admission.
+`value_index.hpp` owns exact lookup independently of parser lifetime; `value_pointer.hpp` renders escaped paths in bounded fragments, including giant member names.
+
+`streamed_pointer.hpp` decodes identified UTF-8 pointer streams into adaptive segments and uses the same exact child selector, so a giant key needs neither a complete JavaScript pointer string nor a giant control frame.
+Ordinary findings retain the necessary structural ancestors, while explicit value retention supports later selection without requiring every value event to cross the binding.
+
+`resource_policy.hpp` uses annotations projected from the configuration schema by the verified builder.
+One session accounts for source bytes and counts, records, diagnostics, transport output, retained state and materialization reservations across successive sources.
+
+Admission ceilings may be removed explicitly; finite working memory, scratch, nesting, elapsed time and the single active checking lane remain enforced.
+Repository and acquisition adapters apply the remaining tool, Git, cache and policy controls through their owning operations.
+
+### Linked sources and repository inventory
+
+`linked_bytes.hpp` transfers an identified decoded string or canonical base64 member directly into the same store and checker.
+Its container must have a completed strict parse, and any declared decoded length and digest are verified before checking.
+
+`source_census.hpp` reconciles physical sightings, independent native inventories and actual checked members in the same adaptive index.
+Provider inventory and delivery close separately; omitted/extra/duplicate members, case collisions, changed identities and wrong pointer linkage prevent complete census.
+
+Binary authority captures preserve source bytes and declared identities without making a JSON quality claim.
+Native member provenance is bound to a separately frozen authority and its independent declared identity; archive-domain extraction remains with the trusted archive owner.
+
+The internal Node adapters in `src/repository-discovery.js`, `repository-source.js`, `native-provider.js` and `logical-provider.js` stream discovery and providers through that service.
+The filesystem walk holds one directory lease at a time, and Git output uses bounded NUL framing with backpressure.
+
+Filesystem observations, exact source rechecks, Git membership and directory freshness remain adapter-owned checks before overall success.
+Census membership completion alone does not assert final filesystem freshness or downstream domain admission.
+
+`src/repository-check.js` composes physical/native/logical/JSONL checks, exact expected-linkage reconciliation and source freshness before an execution verdict.
+`src/value-session.js` wraps the verified service with session-scoped capabilities, bounded reads and explicitly charged materialization leases.
+Source framing follows literal dialect identity, and blank JSONL records retain their framing findings.
+The exported session API/CLI and strict policy bootstrap compose these owners; external consumer migration and final acceptance evidence remain separate.
+
+### Transport bindings
+
+`bindings/node_api.cpp` transfers bounded byte frames through Node-API 9 asynchronous work.
+`bindings/framed_stdio.cpp` supplies the same service without a Node runtime.
+Neither binding implements grammar or quality decisions.
+Windows path boundaries convert UTF-8 explicitly to native filesystem paths and use UTF-8 for the SQLite C API.
+
+### Build inputs and conformance tests
+
+Build only from pinned, verified dependency artifacts.
+ICU's official ZIP supplies Windows sources; its separately pinned POSIX tar archive supplies Linux sources with their original shell-script line endings.
+The producer preserves their executable mode bits on POSIX hosts while removing set-id and group/world write permissions.
+Build progress is written to standard error; standard output contains only the final JSON result.
+
+Consumer acquisition must load verified platform artifacts without lifecycle downloads, a compiler, global ICU or an alternate JavaScript reader.
+The producer build and explicit staging verify a closed source/control/artifact manifest.
+Clean installed and final qualification remain part of the implementation work.
+See the [native protocol contract](../docs/native-protocol.md) for non-Node supervision, framing, authority and completion requirements.
+
+Focused native conformance tests live under `tests/native/`.
+The native CI workflow separately builds an instrumented Linux component and exercises actual spill, framed faults, cancellation and cleanup with address, leak and undefined-behavior checks.
+That job retains verification diagnostics and never stages its instrumented binaries as production package assets.
+
+The tests default to fixed installed resolution.
+Explicit test-only artifact locations verify binary digest, byte length, platform, component versions and embedded source identity before opening a session.
+Default test scratch uses the OS temporary parent; explicit artifact qualification can use its identified producer group.
+Each session owns cleanup.

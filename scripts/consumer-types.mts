@@ -7,6 +7,7 @@ import {
   jsonFormatOptions,
   openJsonSourceSession,
   openJsonRepositorySession,
+  checkJsonFiles,
   formatJsonSource,
   formatJsonValue,
   normalizeJsonSource,
@@ -14,7 +15,6 @@ import {
   runJsonQualityCli,
   qualifyGitJsonSources,
   assertJsonQualityInstallationRoot,
-  readJsonQualityAcquisitionBootstrapSource,
   parseJsonQualityRegistrySpecifier,
   verifyJsonQualityInstallation,
   DEFAULT_JSON_TRANSFORM_LIMITS,
@@ -24,6 +24,7 @@ import {
 import plugin from "@hadden-industries/json-quality/eslint";
 import type {
   ResolvedResources,
+  FileCheckOptions,
   ReadonlyJsonQualityPolicy,
 } from "@hadden-industries/json-quality";
 import type { Linter } from "eslint";
@@ -120,6 +121,14 @@ session.selectByPointerStream(
   { kind: "source", referenceId: "scoped" },
   (async function* () {})(),
 );
+const selectedOptions: FileCheckOptions = {
+  root: process.cwd(),
+  files: ["a.json"],
+  capacityLimits: false,
+};
+for await (const event of checkJsonFiles(selectedOptions)) void event;
+// @ts-expect-error Selected checks cannot claim required-output authority.
+checkJsonFiles({ root: process.cwd(), files: ["a.json"], requiredOutputs: [] });
 const repository = await openJsonRepositorySession({ root: process.cwd() });
 for await (const event of repository.check()) void event;
 for await (const event of repository.rewrite("normalize", {
@@ -143,7 +152,6 @@ qualifyGitJsonSources({
   candidateCommitId: "1".repeat(40),
 });
 assertJsonQualityInstallationRoot(new URL(".", import.meta.url));
-const bootstrap: string = readJsonQualityAcquisitionBootstrapSource();
 parseJsonQualityRegistrySpecifier("1.0.0");
 verifyJsonQualityInstallation({
   toolingRoot: process.cwd(),
@@ -155,7 +163,6 @@ void [
   tabWidth,
   config,
   code,
-  bootstrap,
   DEFAULT_JSON_TRANSFORM_LIMITS,
   DEFAULT_JSON_PRODUCER_LIMITS,
   DEFAULT_PACKAGE_VERIFICATION_LIMITS,

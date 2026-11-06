@@ -385,7 +385,13 @@ export function refreshAdmission(
       "A complete signed writer-history checkpoint, including an empty first-use baseline, is required before release effects",
     );
     history = verifyEffectHistory(
-      readEffectHistory(env, historyRoot, decision.historyCheckpoint),
+      readEffectHistory(
+        env,
+        historyRoot,
+        decision.historyCheckpoint,
+        {},
+        release,
+      ),
       { run: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT },
       release,
       recovery,

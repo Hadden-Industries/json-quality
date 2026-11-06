@@ -1,6 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+
+/** Consumer ESLint qualification follows the frozen producer selection. */
+export function qualificationEslintVersion(
+  lock = JSON.parse(
+    readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
+  ),
+) {
+  const selected = lock.packages?.["node_modules/eslint"];
+  assert.ok(
+    typeof selected?.version === "string" &&
+      selected.version.length > 0 &&
+      !selected.link,
+    "Locked ESLint identity is required for consumer qualification",
+  );
+  return selected.version;
+}
 
 /** Refuse unsupported npm and native-module engines before consumer checks run. */
 export function assertNativeNpmRuntime(

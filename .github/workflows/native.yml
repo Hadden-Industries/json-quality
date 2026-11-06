@@ -7,6 +7,21 @@ on:
         description: Qualify the built components (false produces source-bound, unqualified payloads)
         type: boolean
         default: true
+      verification_profile:
+        description: Full native qualification or focused CLI checks (build-only requires full)
+        type: choice
+        options: [full, cli-community, resource-controls]
+        default: full
+  workflow_call:
+    inputs:
+      run_checks:
+        description: False produces source-bound, unqualified payloads
+        type: boolean
+        default: true
+      verification_profile:
+        description: Closed profile full or cli-community; build-only requires full
+        type: string
+        default: full
 
 permissions:
   contents: read
@@ -16,3 +31,4 @@ jobs:
     uses: ./.github/workflows/native-producer.yml
     with:
       run_checks: ${{ inputs.run_checks }}
+      verification_profile: ${{ inputs.verification_profile }}

@@ -1,27 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { readFileSync, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, isAbsolute, relative, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
-import { installationResources } from "./installation-controls.js";
+import {
+  installationResources,
+  nativeQualityCachePath,
+} from "./installation-controls.js";
 import {
   readPackageMetadata as metadata,
-  readPackageMetadataBytes as metadataBytes,
   verificationResources,
   verifyPackagePayload,
 } from "./package-payload.js";
 import { assertRegularSource } from "./paths.js";
-import { nativeQualityCachePath } from "./acquire.js";
 import { nativePackages, resolveNativePackage } from "./native-packages.js";
 import { createExecutionDeadline } from "./execution-deadline.js";
 
 const packageName = "@hadden-industries/json-quality";
-
-/** Producer-owned source for the minimal cold-install bootstrap in consumers. */
-export function readJsonQualityAcquisitionBootstrapSource() {
-  return readFileSync(new URL("./acquire.js", import.meta.url), "utf8");
-}
 
 /** A consumer bridge may expose public exports only from its isolated install. */
 export function assertJsonQualityInstallationRoot(
@@ -81,7 +77,6 @@ export async function verifyJsonQualityInstallation({
   cachePath,
   installationControls,
   verificationControls,
-  bootstrapPath,
   signal,
   ...otherOptions
 }) {
@@ -106,9 +101,7 @@ export async function verifyJsonQualityInstallation({
       signal,
     ]),
     readPackageMetadata = (/** @type {*} */ path) =>
-      metadata(path, selected, deadline.signal),
-    readPackageMetadataBytes = (/** @type {*} */ path) =>
-      metadataBytes(path, selected, deadline.signal);
+      metadata(path, selected, deadline.signal);
   signal = deadline.signal;
   try {
     const root = realpathSync(toolingRoot);
@@ -231,23 +224,6 @@ export async function verifyJsonQualityInstallation({
         bytes > BigInt(familyBudget.maximumPackageFamilyBytes))
     )
       throw new Error("Installed package family resource limit exceeded.");
-    if (bootstrapPath) {
-      const normalize = (/** @type {*} */ bytes) =>
-        new TextDecoder("utf-8", { fatal: true })
-          .decode(bytes)
-          .replaceAll("\r\n", "\n");
-      if (
-        normalize(await readPackageMetadataBytes(bootstrapPath)) !==
-        normalize(
-          await readPackageMetadataBytes(
-            assertRegularSource(installedRoot, "src/acquire.js"),
-          ),
-        )
-      )
-        throw new Error(
-          "Quality acquisition bootstrap differs from its shared producer source.",
-        );
-    }
     return {
       specifier,
       coordinate,

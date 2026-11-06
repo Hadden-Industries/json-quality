@@ -19,6 +19,7 @@ import { isPathContained } from "../src/paths.js";
 import { assertNativeExecutableModes } from "./release-contract.js";
 import { stageCore } from "./package-stage.js";
 import { nativePackages } from "../src/native-packages.js";
+import { producerToolchain } from "./qualification-process.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -46,12 +47,16 @@ export function readPackReport(text) {
 }
 
 /** Native producer packing: omitted destination inspects membership without writing. */
-export function runNpmPack(root, { npm, destination }) {
+export function runNpmPack(root, { npm, destination } = {}) {
+  const { executable, cli } = producerToolchain(
+    process.env,
+    npm ?? process.env.npm_execpath,
+  );
   return readPackReport(
     execFileSync(
-      process.execPath,
+      executable,
       [
-        npm,
+        cli,
         "pack",
         "--ignore-scripts",
         "--json",
@@ -79,11 +84,7 @@ export function packCandidate(destination) {
     throw new Error("Pack destination must be outside the producer checkout.");
   if (git(["status", "--porcelain", "--untracked-files=normal"]))
     throw new Error("Adoption archives require clean committed source.");
-  const npm = process.env.npm_execpath;
-  if (!npm)
-    throw new Error(
-      "Use npm run qualify:package or npm run pack:archive -- DESTINATION.",
-    );
+  const npm = producerToolchain().cli;
   mkdirSync(destination, { recursive: true });
   const sourceCommit = git(["rev-parse", "HEAD"]);
   const sourceTree = git(["rev-parse", "HEAD^{tree}"]);

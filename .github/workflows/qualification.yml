@@ -43,9 +43,9 @@ jobs:
         env:
           FROZEN_MATRIX: ${{ inputs.matrix }}
           RELEASE_MODE: ${{ inputs.release-mode }}
-        run: npm run ci:node-policy
-      - name: Qualify the complete reference producer
-        run: npm run check:full
+        run: npm run emit:node-matrix
+      - name: Qualify the reference producer after source admission
+        run: npm run check:product
       - name: Record reference orchestration performance
         shell: bash
         run: |
@@ -54,7 +54,7 @@ jobs:
       - name: Retain one immutable archive for every consumer lane
         shell: bash
         run: |
-          npm run pack:archive -- "${{ runner.temp }}/json-quality-archive"
+          npm run pack:package-family -- "${{ runner.temp }}/json-quality-archive"
           cp "${{ runner.temp }}/perf-check.json" "${{ runner.temp }}/perf-format.json" "${{ runner.temp }}/json-quality-archive/"
       - name: Freeze release identity and native source production inventory
         if: inputs.release-mode
@@ -63,8 +63,8 @@ jobs:
           RELEASE_VERSION: ${{ inputs.version }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          npm run release:prepare -- "${{ runner.temp }}/json-quality-archive"
-          npm run release:inventory -- . "${{ runner.temp }}/json-quality-archive"
+          npm run freeze:release-manifest -- "${{ runner.temp }}/json-quality-archive"
+          npm run generate:source-dependency-evidence -- . "${{ runner.temp }}/json-quality-archive"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
         id: archive
@@ -92,8 +92,8 @@ jobs:
         env:
           CONSUMER_NPM: ${{ needs.producer.outputs.consumer-npm }}
         run: |
-          npm run ci:producer-toolchain
-          npm run ci:consumer-npm -- "${{ runner.temp }}/consumer-npm"
+          npm run export:producer-node-and-npm-paths
+          npm run install:consumer-npm -- "${{ runner.temp }}/consumer-npm"
       - uses: ./.github/actions/download-evidence
         timeout-minutes: 15
         with:

@@ -2,11 +2,14 @@
 
 # Contributor Covenant 3.0 Code of Conduct
 
+[Report a conduct concern privately](#reporting-an-issue) or [read how moderators respond](#addressing-and-repairing-harm).
+
 ## Our Pledge
 
 We pledge to make our community welcoming, safe, and equitable for all.
 
 We are committed to fostering an environment that respects and promotes the dignity, rights, and contributions of all individuals, regardless of characteristics including race, ethnicity, caste, color, age, physical characteristics, neurodiversity, disability, sex or gender, gender identity or expression, sexual orientation, language, philosophy or religion, national or social origin, socio-economic position, level of education, or other status.
+
 The same privileges of participation are extended to everyone who participates in good faith and in accordance with this Covenant.
 
 ## Encouraged Behaviors
@@ -60,7 +63,7 @@ Instances, threats, and promotion of these behaviors are violations of this Code
 Tensions can occur between community members even when they are trying their best to collaborate.
 Not every conflict represents a Code of Conduct violation, and this policy reinforces encouraged behaviors and norms that can help avoid conflicts and minimize harm.
 
-Report a possible violation privately to `conduct@haddenindustries.com`.
+Report a possible violation privately to [conduct@haddenindustries.com](mailto:conduct@haddenindustries.com).
 Do not submit a report through a public issue or discussion, the security mailbox, or GitHub's vulnerability-reporting mechanism.
 Include only information reasonably necessary to understand the incident and avoid unnecessary personal or sensitive information.
 
@@ -70,6 +73,7 @@ The project cannot promise absolute confidentiality or a response deadline.
 Fair investigation or an applicable legal or platform process may require limited disclosure, but handlers must avoid unnecessary disclosure and minimize personal information in public enforcement statements.
 
 If Maksym Shostak is named in a report, directly involved in the reported events, or otherwise materially conflicted, he **must not adjudicate** or take enforcement action on that report alone.
+
 The report will remain restricted and pending until a separately governed independent handler is appointed or an applicable external legal or platform process can handle it.
 The initial project governance has no independent internal substitute; appointing one is a future governance improvement rather than a present promise.
 
@@ -107,8 +111,8 @@ Moderators retain proportionate discretion in the community's best interests, su
 This Code of Conduct applies in all `json-quality` community spaces and when an individual officially represents the project in public or other spaces.
 Examples include repository interactions, official email, an official social-media account, or acting as an appointed project representative at an online or offline event.
 
-`CONTRIBUTING.md` governs contribution mechanics and licensing.
-`SECURITY.md` governs vulnerabilities.
+[Contributing](CONTRIBUTING.md) governs contribution mechanics and licensing.
+The [security policy](SECURITY.md) governs vulnerabilities.
 Neither process is a substitute for this behavioral policy.
 
 ## Attribution

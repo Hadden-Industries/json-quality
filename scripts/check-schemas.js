@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import Ajv from "ajv/dist/2020.js";
+import cohort from "../schemas/contract-cohort.json" with { type: "json" };
 
 export const publicSchemaNames = [
   "configuration",
@@ -23,14 +24,14 @@ export function checkSchemas() {
   const ajv = new Ajv({ strict: true, allErrors: true });
   const schemas = publicSchemaNames.map(readSchema);
   const identities = new Set();
-  for (const schema of schemas) {
+  for (const [index, schema] of schemas.entries()) {
     assert.equal(
       schema.$schema,
       "https://json-schema.org/draft/2020-12/schema",
     );
-    assert.match(
+    assert.equal(
       schema.$id,
-      /^https:\/\/github\.com\/Hadden-Industries\/json-quality\/schema\/[a-z-]+\/v4$/u,
+      `https://github.com/Hadden-Industries/json-quality/schema/${publicSchemaNames[index]}/v${publicSchemaNames[index] === "event" ? cohort.eventSchemaVersion : cohort.configurationSchemaVersion}`,
     );
     assert.ok(!identities.has(schema.$id), "Duplicate public schema identity");
     identities.add(schema.$id);

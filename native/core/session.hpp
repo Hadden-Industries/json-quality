@@ -75,6 +75,8 @@ struct CoreSession {
   json::storage_ptr controlStorage = json::make_shared_resource<ControlJsonResource>(memory.value);
   std::string nonce = newNonce(), scratch, lastRequestId = "0", uploadRequestId, sourceDigest;
   std::pmr::vector<unsigned char> control{&controlResource};
+  std::pmr::vector<unsigned char> pendingReply{&controlResource};
+  std::size_t replyOffset = 0;
   bool uploading = false, closed = false, terminal = false, configured = false;
   bool includeValueEvents = false, retainValues = false;
   std::unique_ptr<Store> store;
@@ -105,6 +107,51 @@ struct CoreSession {
           resources.admission[static_cast<std::size_t>(ResourcePolicy::Admission::maxSourceBytes)];
   std::string sourceKind;
   std::uint64_t transformParent = 0;
+
+  ProtocolFrame nextReplyFrame() {
+    require(replyOffset < pendingReply.size(), "response-read-state");
+    auto end = (std::min)(pendingReply.size(), replyOffset + std::size_t(65536));
+    bool final = end == pendingReply.size();
+    ProtocolFrame frame{final ? 'J' : 'j', Bytes(pendingReply.begin() + replyOffset,
+                                                pendingReply.begin() + end)};
+    replyOffset = end;
+    if (final) {
+      pendingReply.clear();
+      pendingReply.shrink_to_fit();
+      replyOffset = 0;
+    }
+    return frame;
+  }
+
+  // Logical control replies may span frames. All retained serialization bytes
+  // use the execution's managed owner; full wire admission precedes delivery.
+  ProtocolFrame replyFrame(json::object object) {
+    if (closed)
+      return jsonFrame(std::move(object)); // quota-exempt cleanup acknowledgement
+    require(pendingReply.empty(), "response-read-incomplete");
+    json::value value(std::move(object), controlStorage);
+    json::serializer serializer(controlStorage);
+    serializer.reset(&value);
+    std::array<char, 65536> buffer;
+    try {
+      while (!serializer.done()) {
+        operation.check();
+        auto part = serializer.read(buffer.data(), buffer.size());
+        auto size = std::uint64_t(pendingReply.size()) + part.size();
+        auto frames = size / 65536 + (size % 65536 != 0);
+        auto remaining = resources.get(ResourcePolicy::Admission::maxToolOutputBytes) - outputBytes;
+        require(size <= remaining && frames <= (remaining - size) / 5,
+                "native-output-byte-capacity");
+        pendingReply.insert(pendingReply.end(), part.begin(), part.end());
+      }
+      return nextReplyFrame();
+    } catch (...) {
+      pendingReply.clear();
+      pendingReply.shrink_to_fit();
+      replyOffset = 0;
+      throw;
+    }
+  }
   explicit CoreSession(std::string location) : scratch(std::move(location)) {
     scratch = pathToUtf8(pathFromUtf8(scratch));
     memory.value->fixed.store(Store::reserve);
@@ -160,6 +207,9 @@ struct CoreSession {
     control.clear();
     control.shrink_to_fit();
     pendingEvent.reset();
+    pendingReply.clear();
+    pendingReply.shrink_to_fit();
+    replyOffset = 0;
     closed = true;
   }
   Stream representation(const json::object &request, bool describeOnly = false) {
@@ -227,7 +277,7 @@ struct CoreSession {
     auto kind = request.if_contains("sourceKind");
     std::string selectedKind = transformedFrom ? "transformed"
                                : linked        ? "logical"
-                               : kind          ? std::string(kind->as_string())
+                               : kind          ? metadataString(kind->as_string())
                                                : "physical";
     require(selectedKind == "physical" || selectedKind == "logical" || selectedKind == "native" ||
                 selectedKind == "authority" || (transformedFrom && selectedKind == "transformed"),
@@ -243,7 +293,7 @@ struct CoreSession {
     std::optional<std::uint64_t> expectedLength;
     if (auto identity = request.if_contains("identity")) {
       const auto &object = identity->as_object();
-      expectedDigest = std::string(object.at("sha256").as_string());
+      expectedDigest = metadataString(object.at("sha256").as_string());
       require(object.size() == 2 && expectedDigest.size() == 64 &&
                   expectedDigest.find_first_not_of("0123456789abcdef") == std::string::npos,
               "source-identity-contract");
@@ -337,7 +387,7 @@ struct CoreSession {
       capture.integer(6, linkage.empty() ? 0 : exactInteger(linkage.at("value")));
       capture.text(7, transformParent   ? "transform"
                       : linkage.empty() ? ""
-                                        : std::string(linkage.at("encoding").as_string()));
+                                        : metadataString(linkage.at("encoding").as_string()));
       require(!capture.next(), "source-capture-insert");
       capture.finish();
     }
@@ -388,8 +438,14 @@ struct CoreSession {
   }
   std::vector<ProtocolFrame> dispatch(char kind, std::span<const unsigned char> bytes) {
     SqliteOwnerScope memoryScope(memory.value);
+    MetadataCopyScope metadataCopies(memory.value);
     require(!closed, "closed-session");
     require(bytes.size() <= 65536, "input-frame-size");
+    if (kind == 'R') {
+      require(bytes.empty() && control.empty() && !uploading, "response-read-state");
+      operation.check();
+      return {nextReplyFrame()};
+    }
     if (uploading && (kind == 'B' || kind == 'F')) {
       operation.check();
       if (kind == 'B') {
@@ -419,8 +475,8 @@ struct CoreSession {
     require(request.at("protocolVersion").to_number<unsigned>() ==
                 ContractCohort::nativeProtocolVersion,
             "unsupported-protocol-version");
-    std::string requestId(request.at("requestId").as_string()),
-        command(request.at("command").as_string());
+    std::string requestId = metadataString(request.at("requestId").as_string()),
+                command = metadataString(request.at("command").as_string());
     require(!requestId.empty() && requestId.size() <= 64 && requestId[0] != '0' &&
                 requestId.find_first_not_of("0123456789") == std::string::npos,
             "request-sequence");
@@ -429,6 +485,7 @@ struct CoreSession {
             "request-replay");
     lastRequestId = requestId;
     require(request.at("owner").as_string() == nonce, "session-authority");
+    require(pendingReply.empty() || command == "close", "response-read-incomplete");
     if (command != "close") {
       require(requestBytes <= resources.get(ResourcePolicy::Admission::maxRequestBytes),
               "request-byte-capacity");
@@ -439,7 +496,7 @@ struct CoreSession {
     require(!uploading || command == "close", "source-upload-incomplete");
     auto reply = [&](json::object object) {
       object["requestId"] = requestId;
-      return jsonFrame(std::move(object));
+      return replyFrame(std::move(object));
     };
     if (command == "configure") {
       require(!configured && !store, "resources-already-configured");
@@ -545,7 +602,7 @@ struct CoreSession {
         else if (command == "rewrite-next")
           return {
               reply({{"type", "rewrite-candidate"},
-                     {"candidate", rewrites->next(std::string(request.at("after").as_string()))}})};
+                     {"candidate", rewrites->next(metadataString(request.at("after").as_string()))}})};
         else if (command == "rewrite-get")
           return {reply(
               {{"type", "rewrite-candidate"},
@@ -571,7 +628,7 @@ struct CoreSession {
           rewrites->admit();
         else if (command == "rewrite-written")
           rewrites->written(censusPath(request.at("path"), resources),
-                            std::string(request.at("observation").as_string()));
+                            metadataString(request.at("observation").as_string()));
         else if (command != "rewrite-status")
           throw Fault("unknown-command");
       }
@@ -596,7 +653,7 @@ struct CoreSession {
       else if (command == "census-next-authority")
         return {reply({{"type", "census-authority"},
                        {"authority",
-                        census->authority(std::string(request.at("after").as_string()), true)}})};
+                        census->authority(metadataString(request.at("after").as_string()), true)}})};
       else if (command == "census-get")
         return {reply({{"type", "census-member"},
                        {"member", census->next(censusPath(request.at("path"), resources), true)}})};
@@ -604,14 +661,14 @@ struct CoreSession {
         census->bind(request);
       else if (command == "census-close-inventory" || command == "census-close-provider")
         census->closeProvider(
-            std::string(request.at("provider").as_string()), command == "census-close-inventory",
-            request.if_contains("observation") ? std::string(request.at("observation").as_string())
+            metadataString(request.at("provider").as_string()), command == "census-close-inventory",
+            request.if_contains("observation") ? metadataString(request.at("observation").as_string())
                                                : "");
       else if (command == "census-provider-observation")
         return {reply(
             {{"type", "census-observation"},
              {"observation",
-              census->provider(std::string(request.at("provider").as_string())).observation}})};
+              census->provider(metadataString(request.at("provider").as_string())).observation}})};
       else if (command == "census-next-closed-directory")
         return {
             reply({{"type", "census-directory"}, {"directory", census->nextDirectory(request)}})};
@@ -623,7 +680,7 @@ struct CoreSession {
             {{"type", "census-directory"}, {"directory", census->directory(request, command)}})};
       else if (command == "census-next")
         return {reply({{"type", "census-member"},
-                       {"member", census->next(std::string(request.at("after").as_string()))}})};
+                       {"member", census->next(metadataString(request.at("after").as_string()))}})};
       else
         throw Fault("unknown-command");
       store->observe();

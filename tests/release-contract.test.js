@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import test from "node:test";
+import contractCohort from "../schemas/contract-cohort.json" with { type: "json" };
 import assert from "node:assert/strict";
 import {
   mkdtempSync,
@@ -2408,7 +2409,7 @@ test("consumer reports cannot substitute a source, lane, registry boundary or sc
       minimalCli: {
         status: "passed",
         packageVersion: release.version,
-        cohortVersion: 4,
+        cohortVersion: contractCohort.cohortVersion,
         policy: "package-defaults",
         defaultPolicySha256: sha,
         command: "npm exec -- json-quality",
