@@ -57,52 +57,6 @@ function propertyName(/** @type {*} */ node) {
   return null;
 }
 
-/** @returns {*} */ function bindingPath(
-  /** @type {*} */ pattern,
-  /** @type {*} */ target,
-  /** @type {*} */ path = [],
-) {
-  if (pattern === target) return path;
-  if (pattern?.type === "AssignmentPattern")
-    return bindingPath(pattern.left, target, path);
-  if (pattern?.type === "ObjectPattern") {
-    for (const property of pattern.properties) {
-      if (property.type !== "Property" || property.computed) continue;
-      const /** @type {any} */ found = bindingPath(property.value, target, [
-          ...path,
-          property.key.name ?? String(property.key.value),
-        ]);
-      if (found) return found;
-    }
-  }
-  if (pattern?.type === "ArrayPattern") {
-    for (const [index, element] of pattern.elements.entries()) {
-      const /** @type {any} */ found = bindingPath(element, target, [
-          ...path,
-          String(index),
-        ]);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-function selectedValue(/** @type {*} */ node, /** @type {*} */ path) {
-  if (!path.length) return node;
-  if (node?.type === "ObjectExpression") {
-    const property = node.properties.find(
-      (/** @type {*} */ candidate) =>
-        candidate.type === "Property" &&
-        !candidate.computed &&
-        (candidate.key.name ?? String(candidate.key.value)) === path[0],
-    );
-    return selectedValue(property?.value, path.slice(1));
-  }
-  if (node?.type === "ArrayExpression")
-    return selectedValue(node.elements[Number(path[0])], path.slice(1));
-  return null;
-}
-
 /** @type {import("eslint").Rule.RuleModule} */
 const rule = {
   meta: {
@@ -141,6 +95,13 @@ const rule = {
       );
     const used = new Set();
     const reported = new Set();
+    const contractsByLine = new Map();
+    for (const comment of contracts) {
+      const line = comment.loc.end.line;
+      const entries = contractsByLine.get(line) ?? [];
+      entries.push(comment);
+      contractsByLine.set(line, entries);
+    }
     const /** @type {any[]} */ sinks = [];
     // Prune impossible flows from native scope facts, rather than exempting
     // generated files. Escaped identifiers have their decoded binding names.
@@ -170,6 +131,8 @@ const rule = {
     );
     /** @type {WeakMap<object, {node: any, path: string[]}[]>} */
     const valuesByBinding = new WeakMap();
+    const pathsByPattern = new WeakMap();
+    const propertiesByObject = new WeakMap();
     let remainingAnalysisSteps = limits.maxSteps;
     let analysisLimited = false;
 
@@ -179,6 +142,85 @@ const rule = {
         return false;
       }
       return true;
+    }
+
+    // AST indexes contain only direct, context-independent facts. Recursive
+    // alias results still use the caller's cycle guard and global allowance.
+    function bindingPath(/** @type {*} */ pattern, /** @type {*} */ target) {
+      let paths = pathsByPattern.get(pattern);
+      if (!paths) {
+        paths = new WeakMap();
+        pathsByPattern.set(pattern, paths);
+        const pending = [
+          { node: pattern, path: /** @type {string[]} */ ([]), depth: 0 },
+        ];
+        while (pending.length) {
+          const { node, path, depth } = /** @type {any} */ (pending.pop());
+          if (!node) continue;
+          if (depth >= limits.maxFrames || --remainingAnalysisSteps < 0) {
+            analysisLimited = true;
+            break;
+          }
+          paths.set(node, path);
+          if (node.type === "AssignmentPattern")
+            pending.push({ node: node.left, path, depth: depth + 1 });
+          else if (node.type === "ObjectPattern") {
+            for (const property of node.properties)
+              if (--remainingAnalysisSteps < 0) {
+                analysisLimited = true;
+                break;
+              } else if (property.type === "Property" && !property.computed)
+                pending.push({
+                  node: property.value,
+                  path: [
+                    ...path,
+                    property.key.name ?? String(property.key.value),
+                  ],
+                  depth: depth + 1,
+                });
+          } else if (node.type === "ArrayPattern") {
+            for (const [index, element] of node.elements.entries())
+              if (--remainingAnalysisSteps < 0) {
+                analysisLimited = true;
+                break;
+              } else
+                pending.push({
+                  node: element,
+                  path: [...path, String(index)],
+                  depth: depth + 1,
+                });
+          }
+        }
+      }
+      return paths.get(target) ?? null;
+    }
+
+    function selectedValue(
+      /** @type {*} */ node,
+      /** @type {string[]} */ path,
+    ) {
+      for (const name of path) {
+        if (node?.type === "ObjectExpression") {
+          let properties = propertiesByObject.get(node);
+          if (!properties) {
+            properties = new Map();
+            propertiesByObject.set(node, properties);
+            for (const property of node.properties) {
+              if (--remainingAnalysisSteps < 0) {
+                analysisLimited = true;
+                break;
+              }
+              if (property.type !== "Property" || property.computed) continue;
+              const key = property.key.name ?? String(property.key.value);
+              if (!properties.has(key)) properties.set(key, property.value);
+            }
+          }
+          node = properties.get(name);
+        } else if (node?.type === "ArrayExpression")
+          node = node.elements[Number(name)];
+        else return null;
+      }
+      return node;
     }
 
     function variable(/** @type {*} */ node) {
@@ -467,20 +509,25 @@ const rule = {
           )
             break;
         }
-        const attached = contracts.filter((/** @type {*} */ comment) =>
-          starts.has(comment.loc.end.line + 1),
-        );
+        let attached;
+        let attachedCount = 0;
+        for (const line of starts) {
+          const entries = contractsByLine.get(line - 1);
+          attachedCount += entries?.length ?? 0;
+          if (entries?.length) attached = entries[0];
+          if (attachedCount > 1) break;
+        }
         if (
-          attached.length === 1 &&
-          attached[0].type === "Line" &&
-          !used.has(attached[0]) &&
-          !source.lines[attached[0].loc.start.line - 1]
-            .slice(0, attached[0].loc.start.column)
+          attachedCount === 1 &&
+          attached.type === "Line" &&
+          !used.has(attached) &&
+          !source.lines[attached.loc.start.line - 1]
+            .slice(0, attached.loc.start.column)
             .trim() &&
-          CONTRACT.test(attached[0].value.trim()) &&
-          CONTRACT.exec(attached[0].value.trim())?.[2].trim()
+          CONTRACT.test(attached.value.trim()) &&
+          CONTRACT.exec(attached.value.trim())?.[2].trim()
         ) {
-          used.add(attached[0]);
+          used.add(attached);
         } else context.report({ node: origin, messageId: "identity" });
       }
     }

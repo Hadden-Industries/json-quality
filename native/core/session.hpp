@@ -587,11 +587,11 @@ struct CoreSession {
     }
     if (command.starts_with("rewrite-")) {
       require(census && streams, "rewrite-needs-complete-census");
-      if (command == "rewrite-start") {
+      if (command == "rewrite-start" || command == "rewrite-open") {
         require(!rewrites, "rewrite-already-started");
         const auto mode = request.at("operation").as_string();
         require(mode == "format" || mode == "normalize", "rewrite-operation");
-        rewrites = std::make_unique<SourceRewrites>(*census, *streams, mode == "normalize");
+        rewrites = std::make_unique<SourceRewrites>(*census, *streams, mode == "normalize", command == "rewrite-open");
       } else {
         require(bool(rewrites), "rewrite-not-started");
         if (command == "rewrite-select")
@@ -603,6 +603,9 @@ struct CoreSession {
           return {
               reply({{"type", "rewrite-candidate"},
                      {"candidate", rewrites->next(metadataString(request.at("after").as_string()))}})};
+        else if (command == "rewrite-obs")
+          return {reply({{"type", "rewrite-observation"},
+                         {"member", rewrites->nextObservation(metadataString(request.at("after").as_string()))}})};
         else if (command == "rewrite-get")
           return {reply(
               {{"type", "rewrite-candidate"},
@@ -633,6 +636,9 @@ struct CoreSession {
           throw Fault("unknown-command");
       }
       store->observe();
+      if (rewrites->mutationAcknowledgements && (command == "rewrite-open" ||
+          command == "rewrite-select" || command == "rewrite-bind" || command == "rewrite-written"))
+        return {reply({{"type", "rewrite-accepted"}})};
       return {reply(rewrites->status())};
     }
     if (command.starts_with("census-")) {
@@ -657,6 +663,11 @@ struct CoreSession {
       else if (command == "census-get")
         return {reply({{"type", "census-member"},
                        {"member", census->next(censusPath(request.at("path"), resources), true)}})};
+      else if (command == "census-check-members") {
+        require(request.at("paths").is_array(), "census-membership-contract");
+        return {reply({{"type", "census-membership"},
+                       {"missingIndex", census->firstMissing(request.at("paths").as_array())}})};
+      }
       else if (command == "census-bind")
         census->bind(request);
       else if (command == "census-close-inventory" || command == "census-close-provider")

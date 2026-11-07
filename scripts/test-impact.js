@@ -8,6 +8,16 @@ export const fullFiles = new Set([
 ]);
 export const relations = [
   {
+    dependency: "tests/native/process-observer-cleanup.py",
+    consumer: "tests/native/process-observer.test.mjs",
+    kind: "python-process",
+  },
+  {
+    dependency: "schemas/",
+    consumer: "tests/validators.test.js",
+    kind: "generated-validator-schema",
+  },
+  {
     dependency: "tests/native/process-observer-workload.mjs",
     consumer: "tests/native/process-observer.test.mjs",
     kind: "node-process",

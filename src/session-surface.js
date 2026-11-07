@@ -9,7 +9,6 @@ import { NativeSession } from "./native-session.js";
 import { createValueSession } from "./value-session.js";
 import { resolveExecutionResources } from "./execution-resources.js";
 import { createExecutionDeadline } from "./execution-deadline.js";
-import { createRepositoryExecution } from "./repository-execution.js";
 import { requireAsyncStream } from "./source-streams.js";
 import { isPathContained } from "./paths.js";
 import { sourceContract } from "./source-contract.js";
@@ -382,6 +381,8 @@ export async function createRepositorySession(
       ? AbortSignal.any([context.signal, options.signal])
       : context.signal;
   signal.throwIfAborted();
+  const { createRepositoryExecution } =
+    await import("./repository-execution.js");
   const execution = await createRepositoryExecution({
       ...options,
       root,

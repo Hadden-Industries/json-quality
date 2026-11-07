@@ -164,14 +164,16 @@ struct Database {
     require(sqlite3_close(value) == SQLITE_OK, "database-close");
     value = nullptr;
   }
-  std::array<std::uint64_t, 17> count() const {
+  std::array<std::uint64_t, 19> count() const {
     SqliteOwnerScope scope(memory);
-    constexpr std::array<const char *, 17> tables = {"chunks",
+    constexpr std::array<const char *, 19> tables = {"chunks",
                                                      "values_index",
                                                      "keys_index",
                                                      "events",
                                                      "nfc_pending",
                                                      "nfc_preserved",
+                                                     "nfc_pin_nodes",
+                                                     "nfc_pin_targets",
                                                      "source_closures",
                                                      "paths_index",
                                                      "pointer_index",
@@ -192,7 +194,7 @@ struct Database {
       require(result >= 0 && sqlite3_step(raw) == SQLITE_DONE, "count-finish");
       return static_cast<std::uint64_t>(result);
     };
-    std::array<std::uint64_t, 17> counts{};
+    std::array<std::uint64_t, 19> counts{};
     std::uint64_t present = 0;
     for (std::size_t index = 0; index < tables.size(); ++index) {
       if (operation)
@@ -238,6 +240,9 @@ CREATE INDEX events_values ON events(scope,kind,id);
 CREATE INDEX events_findings ON events(scope,kind,accepted,line,column_number,rule,message,id);
 CREATE TABLE nfc_pending(scope INTEGER,value INTEGER,PRIMARY KEY(scope,value));
 CREATE TABLE nfc_preserved(scope INTEGER,value INTEGER,PRIMARY KEY(scope,value));
+CREATE TABLE nfc_pin_nodes(scope INTEGER,node INTEGER,parent INTEGER,digest TEXT,segment TEXT,PRIMARY KEY(scope,node));
+CREATE INDEX nfc_pin_children ON nfc_pin_nodes(scope,parent,digest,node);
+CREATE TABLE nfc_pin_targets(scope INTEGER,node INTEGER,ordinal INTEGER,PRIMARY KEY(scope,node,ordinal));
 CREATE TABLE source_closures(source INTEGER PRIMARY KEY,parsed INTEGER,quality INTEGER,contract_satisfied INTEGER,root INTEGER,retained INTEGER,repair_format INTEGER,repair_nfc INTEGER,format_eligible INTEGER,normalize_eligible INTEGER,finding_count INTEGER NOT NULL);
 CREATE TABLE paths_index(id INTEGER PRIMARY KEY,parent INTEGER,name INTEGER,ordinal INTEGER,kind TEXT);
 CREATE TABLE pointer_index(value INTEGER PRIMARY KEY,stream INTEGER,length INTEGER);

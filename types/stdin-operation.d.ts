@@ -1,8 +1,4 @@
-/** A virtual filename supplies identity, never a file to read or replace. */
-export declare function stdinContract(
-  /** @type {*} */ contract: any | undefined,
-  /** @type {*} */ path: any,
-): import("../types/schemas/source-contract.js").JsonSourceContract;
+export { stdinContract } from "./stdin-contract.js";
 /** Check existing ancestors without opening virtual target contents. */
 export declare function assertVirtualSourcePath(
   /** @type {*} */ root: any,

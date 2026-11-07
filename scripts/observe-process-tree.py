@@ -150,6 +150,23 @@ def linux_sample(group, seen):
     return rss, active, len(seen)
 
 
+def remove_scratch(path):
+    deadline = time.monotonic() + 0.5
+    while True:
+        try:
+            shutil.rmtree(path)
+            return
+        except OSError as error:
+            remaining = deadline - time.monotonic()
+            if (
+                sys.platform != "win32"
+                or getattr(error, "winerror", None) != 32
+                or remaining <= 0
+            ):
+                raise
+            time.sleep(min(0.05, remaining))
+
+
 def observe(command, timeout):
     began = time.monotonic()
     result = {
@@ -175,6 +192,21 @@ def observe(command, timeout):
     stop = None
     scratch = None
     admitted = False
+
+    def failure(phase, error, cleanup=False):
+        detail = {"phase": phase, "type": type(error).__name__, "message": str(error)}
+        for key in ("errno", "winerror"):
+            value = getattr(error, key, None)
+            if value is not None:
+                detail[key] = value
+        result.setdefault("failures", []).append(detail)
+        result["status"] = "failed"
+        result.setdefault(
+            "cleanupError" if cleanup else "error", f"{type(error).__name__}: {error}"
+        )
+        if cleanup:
+            result["cleanup"] = "failed"
+
     try:
         if sys.platform == "win32":
             assign, sample, stop, close = windows_domain()
@@ -251,7 +283,7 @@ def observe(command, timeout):
             )
             result["status"] = "passed"
     except BaseException as error:  # noqa: BLE001 -- Cancellation must retain the failed observation and clean the owned domain.
-        result["error"] = f"{type(error).__name__}: {error}"
+        failure("observe", error)
         result["cancelled"] = isinstance(error, KeyboardInterrupt)
     finally:
         try:
@@ -276,19 +308,27 @@ def observe(command, timeout):
                     child.wait(timeout=5)
             result["cleanup"] = "passed"
         except BaseException as error:  # noqa: BLE001 -- Cleanup failure must remain visible even during cancellation.
-            result.update(status="failed", cleanup="failed", cleanupError=str(error))
-        finally:
+            failure("processes", error, cleanup=True)
+        try:
             if close:
                 close()
+        except BaseException as error:  # noqa: BLE001 -- Continue scratch cleanup and preserve the report.
+            failure("close", error, cleanup=True)
         if scratch:
             for name in ("stdout", "stderr"):
-                path = Path(scratch) / name
-                if path.exists() and name not in result:
-                    with path.open("rb") as stream:
-                        result[name] = stream.read(4 * 1024 * 1024).decode(
-                            "utf-8", errors="replace"
-                        )
-            shutil.rmtree(scratch)
+                try:
+                    path = Path(scratch) / name
+                    if path.exists() and name not in result:
+                        with path.open("rb") as stream:
+                            result[name] = stream.read(4 * 1024 * 1024).decode(
+                                "utf-8", errors="replace"
+                            )
+                except BaseException as error:  # noqa: BLE001 -- Readback failure must not prevent deletion or report delivery.
+                    failure(name, error)
+            try:
+                remove_scratch(scratch)
+            except BaseException as error:  # noqa: BLE001 -- Permanent cleanup failure is a failed structured observation.
+                failure("scratch", error, cleanup=True)
         result["elapsedMs"] = (time.monotonic() - began) * 1000
     return result
 

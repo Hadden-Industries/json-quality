@@ -39,9 +39,3 @@ export declare function resolveJsonSourceContract(
     tracked?: boolean;
   },
 ): import("./api-types.js").JsonContract;
-/** Narrow value preservation is independently pinned, owner-attributed and
- * write-protected. It cannot coexist with whole-file or expected-negative waivers.
- */
-export declare function assertNfcPreservationContract(
-  /** @type {*} */ contract: any,
-): void;

@@ -405,6 +405,35 @@ export async function recheckRepositoryWriteDiscovery(
       bufferSize: 16,
       encoding: "buffer",
     });
+    // The queue fits the existing 64 KiB control-fragment workspace. Small
+    // request budgets keep their exact singleton envelope; otherwise 4 KiB
+    // leaves fixed envelope headroom well beyond this 256-byte path batch.
+    const maximumInputBytes =
+      capacities.maxRequestBytes === null || capacities.maxRequestBytes >= 4096
+        ? 256
+        : 0;
+    let /** @type {string[]} */ paths = [],
+      bytes = 0;
+    const flush = async () => {
+      if (!paths.length) return;
+      signal?.throwIfAborted();
+      const { missingIndex } = (
+        await session.command("census-check-members", { paths })
+      ).result;
+      if (missingIndex !== null) {
+        if (
+          !Number.isSafeInteger(missingIndex) ||
+          missingIndex < 0 ||
+          missingIndex >= paths.length
+        )
+          throw new Error("Invalid census membership reply.");
+        throw new Error(
+          `New JSON source during replacement: ${paths[missingIndex]}`,
+        );
+      }
+      paths = [];
+      bytes = 0;
+    };
     try {
       while (true) {
         const entry = await handle.read();
@@ -433,10 +462,26 @@ export async function recheckRepositoryWriteDiscovery(
         } else if (JSON_SUFFIX.test(path)) {
           assertQualified(path);
           assertRegularSource(root, path);
-          if (!(await session.command("census-get", { path })).result.member)
-            throw new Error(`New JSON source during replacement: ${path}`);
+          // Qualified paths exclude controls/backslashes and are well-formed
+          // UTF-8. This upper bound admits quotes without allocating wire text.
+          const size = 2 + 2 * Buffer.byteLength(path);
+          if (
+            paths.length &&
+            (paths.length === 16 || bytes + size > maximumInputBytes)
+          )
+            await flush();
+          if (size > maximumInputBytes) {
+            // Batching cannot impose a new path or request quota. Retain the
+            // previously admitted singleton exchange for oversized names.
+            if (!(await session.command("census-get", { path })).result.member)
+              throw new Error(`New JSON source during replacement: ${path}`);
+          } else {
+            paths.push(path);
+            bytes += size;
+          }
         }
       }
+      await flush();
     } finally {
       await handle.close();
     }

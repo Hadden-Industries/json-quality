@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Public serialized event admission does not mint reference capabilities.
-import { Ajv2020 as Ajv } from "ajv/dist/2020.js";
-import configuration from "../schemas/configuration.schema.json" with { type: "json" };
+import validators from "./generated/events.cjs";
 import schema from "../schemas/event.schema.json" with { type: "json" };
 
-/** @type {import("ajv").ValidateFunction<import("./api-types.js").JsonQualityEvent>} */
-const validate = new Ajv({ strict: true })
-  .addSchema(configuration, "configuration.schema.json")
-  .compile(schema);
+const validate =
+  /** @type {((value: unknown) => value is import("./api-types.js").JsonQualityEvent) & Pick<import("ajv").ValidateFunction, "errors">} */ (
+    /** @type {unknown} */ (validators.validateEvent)
+  );
 
 const rewriteQualityRefusals = new Set(schema.$defs.rewriteQualityRefusal.enum);
 
