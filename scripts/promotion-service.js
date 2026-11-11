@@ -8,6 +8,14 @@ import {
   verifyNpmOnlyGithubState,
 } from "./release-effects.js";
 
+const npmTagReadbackBudgetMs = 300_000;
+const npmTagReadbackMaxDelayMs = 16_000;
+
+function sleepForReadback(ms) {
+  // Release commands and their durable journal callbacks run synchronously.
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 /** A deliberately service-specific mutation seam; tests supply recording transports. */
 export function applyNpmAvailability(input, operations) {
   assert.ok(
@@ -25,9 +33,29 @@ export function applyNpmAvailability(input, operations) {
     env,
   } = input;
   assert.equal(env.PROMOTION_SERVICE, "npm");
+  const recovered = recovery?.observed.npmLatest === target;
+  const { now = () => performance.now(), sleep = sleepForReadback } =
+    operations;
   const readback = () => {
-    const npm = operations.readNpmTags();
-    assert.equal(npm.latest, target);
+    const deadline = recovered ? undefined : now() + npmTagReadbackBudgetMs;
+    const unresolved =
+      "npm latest update outcome unresolved; inspect the registry before resuming";
+    let npm = operations.readNpmTags(deadline);
+    let backoff = 1_000;
+    while (
+      deadline !== undefined &&
+      npm.latest !== target &&
+      (npm.latest ?? null) === expected.latest
+    ) {
+      const remaining = deadline - now();
+      if (remaining <= 0) break;
+      sleep(Math.min(backoff, remaining));
+      if (now() >= deadline) break;
+      npm = operations.readNpmTags(deadline);
+      backoff = Math.min(backoff * 2, npmTagReadbackMaxDelayMs);
+    }
+    assert.equal(npm.latest, target, unresolved);
+    if (deadline !== undefined) assert.ok(now() < deadline, unresolved);
     const github = operations.readGithubState();
     if (planOptions.npmOnly) verifyNpmOnlyGithubState(githubSnapshot, github);
     else
@@ -53,7 +81,6 @@ export function applyNpmAvailability(input, operations) {
     priorLabels: expected,
     ...(planOptions.npmOnly ? { githubState: githubSnapshot } : {}),
   };
-  const recovered = recovery?.observed.npmLatest === target;
   const outcome = journalEffect(
     journal,
     release,

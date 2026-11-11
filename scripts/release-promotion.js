@@ -29,7 +29,7 @@ import {
   signedTag,
 } from "./release-provider.js";
 import { isolatedNpmEnvironment, verifyAudit } from "./release-inventory.js";
-import { npmCommand } from "./qualification-process.js";
+import { acquisitionResources, npmCommand } from "./qualification-process.js";
 import { qualifySecurity } from "./release-security.js";
 import { acquireArchiveEvidence } from "./release-assets.js";
 import { verifyPublicMetadata } from "./qualify-registry.js";
@@ -92,8 +92,17 @@ export function preparePromotion(
   assert.equal(acceptance.registryAttempt, context.registry.attempt);
   assert.equal(acceptance.reviewSha256, env.REVIEW_SHA);
   const isolation = isolatedNpmEnvironment(scratch);
-  const tags = () =>
-    npmViewObject(
+  const tags = (deadline) => {
+    const options = { env: isolation };
+    if (deadline !== undefined) {
+      const remaining = Math.floor(deadline - performance.now());
+      assert.ok(remaining > 0, "npm tag readback budget exhausted");
+      options.timeout = Math.min(
+        remaining,
+        acquisitionResources().maxAcquisitionTimeMs ?? Infinity,
+      );
+    }
+    return npmViewObject(
       npmCommand(
         [
           "view",
@@ -102,9 +111,10 @@ export function preparePromotion(
           "--json",
           "--registry=https://registry.npmjs.org/",
         ],
-        { env: isolation },
+        options,
       ),
     );
+  };
   const before = tags(),
     expected = JSON.parse(env.EXPECTED_LABELS);
   assert.ok(

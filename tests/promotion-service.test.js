@@ -149,6 +149,82 @@ test("separate writers preserve npm-complete/GitHub-pending and make one request
   assert.notEqual(f.input("npm").journal, f.input("github").journal);
 });
 
+test("an acknowledged npm write tolerates stale prior tags before sealing completion", (t) => {
+  const f = fixture(t);
+  const prior = f.reads.readNpmTags();
+  let elapsed = 0;
+  const input = f.input("npm");
+  const completed = applyNpmAvailability(input, {
+    ...f.reads,
+    readNpmTags: (deadline) => {
+      if (deadline !== undefined) {
+        assert.equal(deadline, 300_000);
+        if (elapsed < 270_000) return prior;
+      }
+      return f.reads.readNpmTags();
+    },
+    writeNpmLatest: f.npmWrite,
+    now: () => elapsed,
+    sleep: (ms) => {
+      elapsed += ms;
+      assert.ok(elapsed <= 300_000);
+    },
+  });
+  assert.equal(completed.npm.latest, f.target);
+  assert.deepEqual(f.calls, ["guard", "npm"]);
+  assert.ok(elapsed >= 270_000 && elapsed < 300_000);
+  const journal = readFileSync(input.journal, "utf8").trim().split("\n");
+  assert.deepEqual(
+    journal.map((line) => JSON.parse(line).state),
+    ["intent", "completed"],
+  );
+});
+
+test("npm readback leaves a single unknown write when the prior tag persists or a third version appears", async (t) => {
+  for (const [label, retry] of [
+    ["1.1.0", true],
+    ["1.3.0", false],
+  ]) {
+    await t.test(label, (subtest) => {
+      const f = fixture(subtest);
+      const input = f.input("npm");
+      let elapsed = 0;
+      const observations = [];
+      assert.throws(
+        () =>
+          applyNpmAvailability(input, {
+            ...f.reads,
+            readNpmTags: (deadline) => {
+              if (deadline !== undefined) {
+                assert.equal(deadline, 300_000);
+                assert.ok(elapsed < deadline);
+                observations.push(elapsed);
+                elapsed += Math.min(2_000, deadline - elapsed);
+              }
+              return f.reads.readNpmTags();
+            },
+            writeNpmLatest: () => f.npmWrite(label),
+            now: () => elapsed,
+            sleep: (ms) => {
+              elapsed += ms;
+              assert.ok(elapsed <= 300_000);
+            },
+          }),
+        /npm latest update outcome unresolved/u,
+      );
+      assert.equal(elapsed, retry ? 300_000 : 2_000);
+      if (retry) assert.ok(observations.at(-1) > 270_000);
+      else assert.deepEqual(observations, [0]);
+      assert.deepEqual(f.calls, ["guard", "npm"]);
+      const journal = readFileSync(input.journal, "utf8").trim().split("\n");
+      assert.deepEqual(
+        journal.map((line) => JSON.parse(line).state),
+        ["intent", "outcome-unknown"],
+      );
+    });
+  }
+});
+
 test("unknown npm request cannot be replayed; owner readback can continue only GitHub", (t) => {
   const f = fixture(t);
   const operations = {
