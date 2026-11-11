@@ -10,16 +10,16 @@
     26
   ],
   "reference": "26.13.0",
+  "compatibilityPins": ["22.23.4", "24.22.2"],
   "platforms": [
     "ubuntu-24.04",
     "windows-2025"
   ],
   "producerNpm": {
-    "version": "12.2.1",
-    "range": ">=12.2.1 <13"
+    "version": "12.2.2"
   },
   "support": {
     "otherEngineCompatibleReleases": "best-effort"
   },
-  "consumerNpm": "11.21.1"
+  "consumerNpm": "11.21.2"
 }

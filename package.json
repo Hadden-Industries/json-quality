@@ -4,14 +4,7 @@
   "description": "Zero-config strict JSON/JSONL checking and single-document formatting for Node.js, with duplicate-key detection, numeric safety and Unicode NFC repair",
   "license": "AGPL-3.0-only",
   "type": "module",
-  "packageManager": "npm@12.2.1",
-  "devEngines": {
-    "packageManager": {
-      "name": "npm",
-      "version": ">=12.2.1 <13",
-      "onFail": "error"
-    }
-  },
+  "packageManager": "npm@12.2.2",
   "engines": {
     "node": ">=22.13.0"
   },

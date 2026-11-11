@@ -14,6 +14,11 @@ const production = Object.entries(
     .packages,
 ).filter(([path, entry]) => path && !entry.dev);
 
+// Older release manifests carry their original explicit development range.
+export function producerNpmRange({ version, range = `>=${version}` }) {
+  return range;
+}
+
 /** Installability is a floor; the explicit LTS policy owns qualification. */
 export function validatePolicy(policy) {
   assert.equal(policy.schemaVersion, 2);
@@ -54,12 +59,32 @@ export function validatePolicy(policy) {
       policy.testedLtsMajors.includes(semver.major(policy.reference)),
     "Reference is outside qualified LTS policy",
   );
+  if (policy.compatibilityPins !== undefined) {
+    assert.ok(Array.isArray(policy.compatibilityPins));
+    for (const version of policy.compatibilityPins) {
+      assert.equal(semver.valid(version), version);
+      assert.equal(semver.prerelease(version), null);
+      assert.ok(semver.gte(version, policy.minimum));
+    }
+    assert.deepEqual(
+      policy.compatibilityPins
+        .map((version) => semver.major(version))
+        .sort((a, b) => a - b),
+      policy.testedLtsMajors
+        .filter((major) => major !== semver.major(policy.reference))
+        .sort((a, b) => a - b),
+      "Pin exactly one stable version for each non-reference family",
+    );
+  }
   for (const version of [policy.consumerNpm, policy.producerNpm?.version]) {
     assert.equal(semver.valid(version), version);
     assert.equal(semver.prerelease(version), null);
   }
   assert.ok(
-    semver.satisfies(policy.producerNpm.version, policy.producerNpm.range),
+    semver.satisfies(
+      policy.producerNpm.version,
+      producerNpmRange(policy.producerNpm),
+    ),
   );
   assert.ok(Array.isArray(policy.platforms) && policy.platforms.length > 0);
   assert.equal(new Set(policy.platforms).size, policy.platforms.length);
@@ -72,9 +97,21 @@ export function validatePolicy(policy) {
   return policy;
 }
 
-/** Freeze the one floor and latest qualified LTS patches; never infer LTS by parity. */
+/** Resolve exact CI pins and retain support for legacy release policies. */
 export function qualificationMatrix(releases, policy = nodeSupport) {
   validatePolicy(policy);
+  if (policy.compatibilityPins) {
+    return {
+      os: policy.platforms,
+      node: [
+        ...new Set([
+          policy.minimum,
+          ...policy.compatibilityPins,
+          policy.reference,
+        ]),
+      ].sort(semver.compare),
+    };
+  }
   assert.ok(
     Array.isArray(releases) && releases.length > 0 && releases.length <= 10000,
   );
@@ -109,20 +146,12 @@ export function qualificationMatrix(releases, policy = nodeSupport) {
   };
 }
 
-export async function resolveQualificationMatrix() {
-  const response = await fetch("https://nodejs.org/dist/index.json", {
-    redirect: "error",
-    signal: AbortSignal.timeout(30000),
-  });
-  assert.equal(response.status, 200);
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of response.body) {
-    size += chunk.byteLength;
-    assert.ok(size <= 1048576, "Node metadata exceeds its bound");
-    chunks.push(chunk);
-  }
-  return qualificationMatrix(JSON.parse(Buffer.concat(chunks)));
+export function resolveQualificationMatrix() {
+  assert.ok(
+    nodeSupport.compatibilityPins,
+    "CI requires exact compatibility pins",
+  );
+  return qualificationMatrix();
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   assert.equal(process.argv.length, 2);

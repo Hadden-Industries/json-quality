@@ -6,7 +6,8 @@ Report suspected vulnerabilities privately through [SECURITY.md](SECURITY.md); c
 
 ## Development setup
 
-Use the development/producer Node and npm versions in [the runtime policy](docs/node-runtime-compatibility.md).
+Use the exact producer Node and npm selections in [the runtime policy](docs/node-runtime-compatibility.md) to reproduce CI and release checks.
+Local development may use another stable Node/npm pair supported by the locked tools; the repository does not enforce a separate local npm floor.
 Edit version selections only in `assets/node-support.json`, then run `npm run sync:node-support` and `npm run check:node-support`.
 Consumer compatibility minima and producer tooling requirements are separate contracts.
 The policy's compatibility floor, maintained LTS families and explicit advance lanes are qualified independently of the reference producer.

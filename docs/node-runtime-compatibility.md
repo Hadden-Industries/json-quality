@@ -10,13 +10,24 @@ Use current security patches within a supported family.
 
 Installability and compatibility floor: Node >=22.13.0.
 Qualified LTS majors: 22, 24, 26.
-Advance qualification for imminent LTS: 26.
+Advance-qualification policy allowance: 26.
 Other engine-compatible releases receive best-effort compatibility.
 
 Development/producer reference: 26.13.0.
-Producer npm: 12.2.1; consumer qualification npm: 11.21.1.
+Producer npm: 12.2.2; consumer qualification npm: 11.21.2.
 
 <!-- node-support:end -->
+
+## Choose the right toolchain
+
+Routine CI, release construction and qualification select the exact producer Node and npm references above.
+Compatibility lanes retain the separate consumer npm and exact Node endpoints from [the version policy](../assets/node-support.json).
+The advance-qualification allowance is a policy exception, not a statement of a family's current release phase.
+
+Local development can use another stable Node/npm pair supported by the locked development graph.
+There is no repository-enforced local npm floor.
+The generated `packageManager` records the producer selection; the package's `engines.node` describes consumer admission.
+Published consumers do not install the contributor graph or inherit the producer npm requirement.
 
 ## Frontend projects and TypeScript
 
@@ -31,7 +42,8 @@ The schema and cohort JSON subpaths remain independently accessible as data; the
 
 `assets/node-support.json` is the sole editable Node/npm version policy.
 The projector and its regression check share one declaration inventory, including `.node-version`, package metadata, workflow pins and local action pins.
-Dynamic consumer matrices and GitHub's action runtime retain their separate selections.
+The consumer matrix reads its exact Node pins from this policy.
+GitHub supplies the action runtime separately.
 
 Native npm owns lockfile updates; consumer ESLint qualification reads its exact selected version from `package-lock.json`.
 Tool-enabled consumer fixtures also apply the producer's `eslint` and `@eslint/config-array` dependency overrides at their own installation root.
@@ -42,7 +54,7 @@ Run `npm run sync:node-support`, refresh root metadata with native `npm install 
 The check rejects drift without writing; dependency resolutions and historical evidence remain native-owned or immutable.
 The supported families exclude odd, future and prerelease Node releases.
 
-The producer remains on its reference Node and npm 12; its keyed native pack report is unchanged.
+The producer remains on its exact reference Node and npm selections; its keyed native pack report is unchanged.
 Consumer qualification uses the npm selection in the generated policy block above; its native argument parser, cache reader, tar parser and Git acquisition controls support the older runtimes.
 
 Cold Git acquisition and installed-payload verification retain the public exact-selector, cache-integrity and archive-member contracts.
@@ -50,7 +62,7 @@ An unverified `file:` installation is not a substitute for those public admissio
 
 ## How compatibility is qualified
 
-CI freezes each exact minimum, current stable release per family and the independent reference from official Node metadata.
+CI uses the exact compatibility floor, pinned patches and producer reference from the version policy.
 It qualifies the same immutable producer archive on Windows 2025 and Ubuntu 24.04, recording the selected Node/npm identities.
 The reference lane owns producer packing, lint, format, policy-drift and JSON dogfood checks.
 Consumer lanes exercise real installed CLI/API/plugin/schema behavior, preservation, failure paths and native installation verification.

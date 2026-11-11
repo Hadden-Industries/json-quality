@@ -30,7 +30,18 @@ export function projectNodeSupport(files, policy = nodeSupport) {
         const manifest = JSON.parse(source);
         manifest.engines.node = `>=${policy.minimum}`;
         manifest.packageManager = `npm@${policy.producerNpm.version}`;
-        manifest.devEngines.packageManager.version = policy.producerNpm.range;
+        if (policy.producerNpm.range !== undefined) {
+          manifest.devEngines ??= {};
+          manifest.devEngines.packageManager = {
+            name: "npm",
+            version: policy.producerNpm.range,
+            onFail: "error",
+          };
+        } else if (manifest.devEngines?.packageManager?.name === "npm") {
+          delete manifest.devEngines.packageManager;
+          if (Object.keys(manifest.devEngines).length === 0)
+            delete manifest.devEngines;
+        }
         return [path, JSON.stringify(manifest, null, 2) + "\n"];
       }
       if (path === ".node-version") return [path, policy.reference + "\n"];
@@ -66,7 +77,7 @@ export function projectNodeSupport(files, policy = nodeSupport) {
         `Qualified LTS majors: ${policy.testedLtsMajors.join(", ")}.`,
         ...(policy.preLtsMajors.length
           ? [
-              `Advance qualification for imminent LTS: ${policy.preLtsMajors.join(", ")}.`,
+              `Advance-qualification policy allowance: ${policy.preLtsMajors.join(", ")}.`,
             ]
           : []),
         "Other engine-compatible releases receive best-effort compatibility.",

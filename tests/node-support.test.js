@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   qualificationMatrix,
+  resolveQualificationMatrix,
   validatePolicy,
   nodeSupport,
 } from "../scripts/node-matrix.js";
@@ -106,7 +107,7 @@ const policy = {
   preLtsMajors: [],
   reference: "24.21.0",
   platforms: ["ubuntu-24.04", "windows-2025"],
-  producerNpm: { version: "12.2.1", range: ">=12.2.1 <13" },
+  producerNpm: { version: "12.2.1" },
   consumerNpm: "11.21.1",
   support: { otherEngineCompatibleReleases: "best-effort" },
 };
@@ -121,6 +122,14 @@ const releases = [
 ].map(([version, lts]) => ({ version: "v" + version, lts }));
 
 test("matrix has one floor, latest qualified LTS patches and the producer reference", () => {
+  assert.deepEqual(resolveQualificationMatrix(), {
+    os: nodeSupport.platforms,
+    node: [
+      nodeSupport.minimum,
+      ...nodeSupport.compatibilityPins,
+      nodeSupport.reference,
+    ],
+  });
   assert.deepEqual(qualificationMatrix(releases, policy), {
     os: ["ubuntu-24.04", "windows-2025"],
     node: ["22.13.0", "22.23.4", "24.21.0", "24.22.1"],
@@ -226,6 +235,10 @@ test("policy validates exact stable versions and an explicit unique LTS list wit
   ])
     assert.throws(() => validatePolicy({ ...policy, ...change }));
   validatePolicy(nodeSupport);
+  validatePolicy({
+    ...policy,
+    producerNpm: { version: "12.2.1", range: ">=12.2.1 <13" },
+  });
   validatePolicy({ ...policy, testedLtsMajors: [22, 24, 27] });
 });
 
@@ -260,6 +273,11 @@ test("floor policy projects metadata and documentation idempotently", () => {
   };
   const projected = projectNodeSupport(files, policy);
   assert.equal(JSON.parse(projected["package.json"]).engines.node, ">=22.13.0");
+  assert.equal(
+    JSON.parse(projected["package.json"]).packageManager,
+    "npm@12.2.1",
+  );
+  assert.equal(JSON.parse(projected["package.json"]).devEngines, undefined);
   assert.deepEqual(JSON.parse(projected["package.json"]).dependencies, {
     x: "1.0.0",
   });
