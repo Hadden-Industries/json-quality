@@ -15,7 +15,7 @@ defaults:
 jobs:
   resolve:
     if: github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     outputs:
       matrix: ${{ steps.resolve.outputs.matrix }}
@@ -48,7 +48,7 @@ jobs:
       security-events: write
   security:
     needs: [product, codeql]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read
@@ -79,7 +79,7 @@ jobs:
   qualified:
     if: always()
     needs: [resolve, product, codeql, security]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - env:

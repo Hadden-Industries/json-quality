@@ -64,7 +64,7 @@ env:
 jobs:
   admit:
     if: github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read
@@ -90,7 +90,7 @@ jobs:
           retention-days: 1
   npm:
     needs: admit
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     environment: npm-promotion
     permissions:
@@ -129,7 +129,7 @@ jobs:
   github:
     needs: npm
     if: needs.npm.result == 'success' && needs.npm.outputs.availability == 'npm-and-github'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     environment: github-release
     permissions:
@@ -166,7 +166,7 @@ jobs:
   complete:
     needs: [npm, github]
     if: always() && needs.npm.result == 'success' && (needs.github.result == 'success' || needs.github.result == 'skipped')
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read

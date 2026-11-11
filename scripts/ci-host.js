@@ -5,6 +5,8 @@ import { writeFileSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { budgets } from "./qualification-process.js";
+import nodeSupport from "../assets/node-support.json" with { type: "json" };
+import { ubuntuRunnerPattern } from "./runner-policy.js";
 export const pythonVersion = readFileSync(
   new URL("../.python-version", import.meta.url),
   "utf8",
@@ -12,16 +14,13 @@ export const pythonVersion = readFileSync(
 
 // Adapter from the frozen workflow platform labels to GitHub image families.
 // Build numbers and Windows tool-image variants remain execution provenance.
-const platforms = {
-  "ubuntu-24.04": { os: "Linux", image: /^ubuntu24$/u },
-  "windows-2025": { os: "Windows", image: /^win25(?:-[a-zA-Z0-9]+)*$/u },
-};
 export function assertHostedPlatform(host, lane) {
-  const platform = platforms[lane];
-  assert.ok(platform, "Unsupported hosted platform");
+  const ubuntu = ubuntuRunnerPattern.exec(lane);
+  const windows = lane === "windows-2025";
+  assert.ok(ubuntu || windows, "Unsupported hosted platform");
   assert.equal(
     host?.os,
-    platform.os,
+    windows ? "Windows" : "Linux",
     "Hosted OS differs from the qualified platform",
   );
   assert.equal(host.architecture, "X64", "Hosted architecture changed");
@@ -29,7 +28,9 @@ export function assertHostedPlatform(host, lane) {
   assert.ok(
     typeof host.image === "string" &&
       host.image.length <= 80 &&
-      platform.image.test(host.image),
+      (windows
+        ? /^win25(?:-[a-zA-Z0-9]+)*$/u.test(host.image)
+        : host.image === `ubuntu${ubuntu[1]}`),
     "Hosted image family differs from the qualified platform",
   );
   assert.ok(
@@ -39,6 +40,10 @@ export function assertHostedPlatform(host, lane) {
   );
 }
 export function hostIdentity(environment = process.env) {
+  assert.ok(
+    nodeSupport.platforms.includes(environment.CI_OS),
+    "Runner lane is outside the current qualification policy",
+  );
   const python = execFileSync(
     process.platform === "win32" ? "python" : "python3",
     ["--version"],

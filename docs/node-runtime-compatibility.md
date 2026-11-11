@@ -21,7 +21,9 @@ Producer npm: 12.2.2; consumer qualification npm: 11.21.2.
 ## Choose the right toolchain
 
 Routine CI, release construction and qualification select the exact producer Node and npm references above.
-Compatibility lanes retain the separate consumer npm and exact Node endpoints from [the version policy](../assets/node-support.json).
+Compatibility lanes use the separate consumer npm and exact Node endpoints from the repository's `assets/node-support.json` policy.
+The Ubuntu entry in the same policy selects the GitHub-hosted Linux image for CI and release workflows.
+After changing it, run `npm run sync:node-support` and commit the regenerated workflows with the policy.
 The advance-qualification allowance is a policy exception, not a statement of a family's current release phase.
 
 Local development can use another stable Node/npm pair supported by the locked development graph.

@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2025]
+        os: [ubuntu-26.04, windows-2025]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     steps:
@@ -49,7 +49,7 @@ jobs:
     name: Main / reuse decision
     if: always() && github.event_name == 'push'
     needs: host
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read

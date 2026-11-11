@@ -18,6 +18,8 @@ import { createRequire } from "node:module";
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { native, budgets } from "../scripts/qualification-process.js";
+import { ubuntuRunner } from "../scripts/runner-policy.js";
+import runtimePolicy from "../assets/node-support.json" with { type: "json" };
 import {
   MINIMAL_CLI_CASES,
   MINIMAL_CLI_COMMANDS,
@@ -256,6 +258,15 @@ test("native SemVer permits intentional zero-major and prerelease identities wit
 test("schema and semantic identities independently reject substitutions and unsafe shipment", () => {
   verifyManifest(fixture());
   verifyArchive(bytes, fixture().archive);
+  const historical = fixture();
+  const linux = ubuntuRunner(historical.policy);
+  const earlier = linux === "ubuntu-24.04" ? "ubuntu-26.04" : "ubuntu-24.04";
+  historical.matrix.os = historical.matrix.os.map((lane) =>
+    lane === linux ? earlier : lane,
+  );
+  assert.throws(() => verifyManifest(historical));
+  historical.policy.platforms = [...historical.matrix.os];
+  assert.doesNotThrow(() => verifyManifest(historical));
   const changes = [
     (r) => (r.package = "@other/tool"),
     (r) => (r.source.clean = false),
@@ -264,6 +275,10 @@ test("schema and semantic identities independently reject substitutions and unsa
       r.archive.files.push({ ...r.archive.files[0], path: "PACKAGE.JSON" }),
     (r) => (r.archive.files[0].path = "../escape"),
     (r) => r.matrix.node.splice(0, 1),
+    (r) => {
+      r.matrix.os = [linux, earlier];
+      r.policy.platforms = [...r.matrix.os];
+    },
     (r) => (r.toolchain.npm = "0.0.1"),
     (r) => (r.extra = true),
     (r) => r.platformArchives.pop(),
@@ -2082,16 +2097,17 @@ test("signed source tags must be annotated, verified and name the original candi
   );
 });
 test("CodeQL gate uses exact-source native analyses and query inventories, including newest failures", () => {
+  const linux = ubuntuRunner();
   const analyses = [
-    ["actions", "actions", "ubuntu-24.04", "/language:actions"],
+    ["actions", "actions", linux, "/language:actions"],
     [
       "javascript-typescript",
       "javascript-typescript",
-      "ubuntu-24.04",
+      linux,
       "/language:javascript-typescript",
     ],
-    ["python", "python", "ubuntu-24.04", "/language:python"],
-    ["cpp-linux", "c-cpp", "ubuntu-24.04", "/language:c-cpp/platform:linux"],
+    ["python", "python", linux, "/language:python"],
+    ["cpp-linux", "c-cpp", linux, "/language:c-cpp/platform:linux"],
     [
       "cpp-windows",
       "c-cpp",
@@ -2112,10 +2128,32 @@ test("CodeQL gate uses exact-source native analyses and query inventories, inclu
     rules_count: 1,
   }));
   assert.equal(verifyCodeql(analyses, source).length, 5);
+  const archivedRunner =
+    linux === "ubuntu-24.04" ? "ubuntu-26.04" : "ubuntu-24.04";
+  const archivedPolicy = {
+    ...runtimePolicy,
+    platforms: runtimePolicy.platforms.map((lane) =>
+      lane === linux ? archivedRunner : lane,
+    ),
+  };
+  const archived = analyses.map((analysis) => {
+    const environment = JSON.parse(analysis.environment);
+    if (environment.os !== linux) return analysis;
+    return {
+      ...analysis,
+      environment: JSON.stringify({ ...environment, os: archivedRunner }),
+    };
+  });
+  assert.throws(() => verifyCodeql(archived, source));
+  assert.equal(verifyCodeql(archived, source, archivedPolicy).length, 5);
   for (const change of [
     (a) => a.pop(),
     (a) => (a[0].results_count = 1),
     (a) => (a[0].warning = "incomplete"),
+    (a) => {
+      const environment = JSON.parse(a[0].environment);
+      a[0].environment = JSON.stringify({ ...environment, os: archivedRunner });
+    },
     (a) => (a[0].commit_sha = "e".repeat(40)),
     (a) => (a[0].rules_count = 0),
   ]) {

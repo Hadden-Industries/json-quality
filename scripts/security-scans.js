@@ -1,32 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { ubuntuRunner } from "./runner-policy.js";
+
+const linux = ubuntuRunner();
+
 /** One inventory for provider jobs, SARIF categories and workflow projections. */
 export const securityScans = Object.freeze(
   [
     {
       key: "actions",
       language: "actions",
-      os: "ubuntu-24.04",
+      os: linux,
       "build-mode": "none",
       category: "/language:actions",
     },
     {
       key: "javascript-typescript",
       language: "javascript-typescript",
-      os: "ubuntu-24.04",
+      os: linux,
       "build-mode": "none",
       category: "/language:javascript-typescript",
     },
     {
       key: "python",
       language: "python",
-      os: "ubuntu-24.04",
+      os: linux,
       "build-mode": "none",
       category: "/language:python",
     },
     {
       key: "cpp-linux",
       language: "c-cpp",
-      os: "ubuntu-24.04",
+      os: linux,
       "build-mode": "manual",
       category: "/language:c-cpp/platform:linux",
     },

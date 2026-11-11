@@ -37,7 +37,7 @@ env:
 jobs:
   admit:
     if: github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read
@@ -106,7 +106,7 @@ jobs:
           retention-days: 30
   security:
     needs: admit
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read
@@ -135,7 +135,7 @@ jobs:
   qualified:
     if: always()
     needs: [admit, registry, security]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read

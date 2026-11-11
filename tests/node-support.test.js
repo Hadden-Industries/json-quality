@@ -18,6 +18,7 @@ import {
   qualificationEslintOverrides,
 } from "../scripts/consumer-toolchain.js";
 import { nodeMatrixFixture, nextPatchVersion } from "./node-matrix-fixture.js";
+import { ubuntuRunner } from "../scripts/runner-policy.js";
 
 test("consumer ESLint qualification follows the exact selected lock entry", () => {
   const lock = JSON.parse(
@@ -86,6 +87,27 @@ test("all current Node declarations share the projector inventory and policy", (
     JSON.parse(files["package-lock.json"]).packages[""].engines.node,
     `>=${nodeSupport.minimum}`,
   );
+  const linux = ubuntuRunner();
+  const previous = linux === "ubuntu-24.04" ? "ubuntu-26.04" : "ubuntu-24.04";
+  const rollback = projectNodeSupport(files, {
+    ...nodeSupport,
+    platforms: nodeSupport.platforms.map((lane) =>
+      lane === linux ? previous : lane,
+    ),
+  });
+  const workflow = ".github/workflows/native-producer.yml";
+  assert.ok(rollback[workflow].includes(previous));
+  assert.notEqual(rollback[workflow], files[workflow]);
+  assert.deepEqual(projectNodeSupport(rollback), files);
+  const source = files[".github/workflows/ci.yml"];
+  for (const stale of ["ubuntu-24.04-arm", "ubuntu-slim"]) {
+    const altered = source.replace(`runs-on: ${linux}`, `runs-on: ${stale}`);
+    assert.notEqual(altered, source);
+    assert.deepEqual(
+      projectNodeSupport({ ".github/workflows/ci.yml": altered }),
+      { ".github/workflows/ci.yml": source },
+    );
+  }
 });
 
 test("consumer qualification refuses an unsupported native npm runtime before execution", () => {

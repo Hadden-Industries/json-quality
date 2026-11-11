@@ -122,11 +122,12 @@
           "minItems": 2,
           "maxItems": 2,
           "uniqueItems": true,
+          "contains": {
+            "const": "windows-2025"
+          },
           "items": {
-            "enum": [
-              "ubuntu-24.04",
-              "windows-2025"
-            ]
+            "type": "string",
+            "pattern": "^(?:ubuntu-[0-9][02468]\\.04|windows-2025)$"
           }
         },
         "node": {

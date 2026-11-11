@@ -157,7 +157,7 @@ export function verifySecurity(record, release, manifestSha, run, attempt) {
     securityScans.map(({ category }) => category).sort(),
   );
   assert.deepEqual(
-    verifyCodeql(record.analyses, release.source.commit),
+    verifyCodeql(record.analyses, release.source.commit, release.policy),
     record.analyses,
   );
   assert.deepEqual(
