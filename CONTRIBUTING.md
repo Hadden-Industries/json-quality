@@ -20,6 +20,9 @@ npm run test:contracts-and-identity
 Markdown tooling is the root `@hadden-industries/markdown-quality` development dependency, installed by the same `npm ci --ignore-scripts` command.
 Follow the [Markdown tooling guide](docs/markdown-quality.md); do not add it to the product's runtime dependencies.
 Retain native npm lockfiles and inspect dependency changes before accepting them.
+The root overrides select `fast-uri` 4.2.3 for Ajv and share the current Prettier with Markdown tooling.
+Recheck schema compilation and generated validators when updating the URI resolver.
+These overrides govern this checkout; npm consumers resolve Ajv's declared dependency range using their own root manifest and lockfile.
 
 ## Changes and verification
 

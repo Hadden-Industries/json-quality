@@ -169,31 +169,37 @@
   },
   "dependencies": {
     "ajv": "8.20.0",
-    "prettier": "3.9.10"
+    "prettier": "3.10.1"
   },
   "optionalDependencies": {
     "@hadden-industries/json-quality-linux-x64": "file:native/prebuilt/linux-x64",
     "@hadden-industries/json-quality-win32-x64": "file:native/prebuilt/win32-x64"
   },
   "overrides": {
+    "ajv": {
+      "fast-uri": "4.2.3"
+    },
+    "@hadden-industries/markdown-quality": {
+      "prettier": "$prettier"
+    },
     "eslint": {
-      "minimatch": "11.0.4"
+      "minimatch": "11.0.8"
     },
     "@eslint/config-array": {
-      "minimatch": "11.0.4"
+      "minimatch": "11.0.8"
     },
     "readdir-glob": {
-      "minimatch": "11.0.4"
+      "minimatch": "11.0.8"
     },
     "archiver-utils": {
-      "glob": "14.0.3"
+      "glob": "14.0.6"
     }
   },
   "devDependencies": {
     "@actions/artifact": ">=6.3.1",
     "@eslint/js": ">=10.0.1",
     "@eslint/json": ">=2.1.1",
-    "@hadden-industries/markdown-quality": ">=3.0.0",
+    "@hadden-industries/markdown-quality": ">=3.0.1",
     "@humanwhocodes/momoa": ">=3.3.13",
     "@types/node": ">=26.6.6",
     "dependency-cruiser": ">=18.7.2",
