@@ -514,6 +514,27 @@ test("authenticated supersession survives the next native stage graph and fresh 
   const settlements = authenticatedHistoricalSettlements([
     { ...staged, phase: "stage", settlements: [record] },
   ]);
+  native.name =
+    "inputs.stage_phase == 'core' && format('native-public ({0})', matrix.os) || 'native-public'";
+  assert.deepEqual(
+    authenticatedHistoricalSettlements([
+      { ...staged, phase: "stage", settlements: [record] },
+    ]),
+    settlements,
+  );
+  native.conclusion = "success";
+  assert.throws(() =>
+    authenticatedHistoricalSettlements([
+      { ...staged, phase: "stage", settlements: [record] },
+    ]),
+  );
+  native.conclusion = "skipped";
+  native.name += " ";
+  assert.throws(() =>
+    authenticatedHistoricalSettlements([
+      { ...staged, phase: "stage", settlements: [record] },
+    ]),
+  );
   assert.equal(settlements[0].observed.state, "superseded-family-reconciled");
   assert.equal(
     admitPendingDecisions(

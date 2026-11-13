@@ -117,7 +117,7 @@ export function writerWorld(t, phase, { npmTag, schema3 = false } = {}) {
     ACTIONS_ID_TOKEN_REQUEST_URL: "https://example.invalid/oidc",
     ACTIONS_ID_TOKEN_REQUEST_TOKEN: "fixture-oidc",
     ADMISSION_ARTIFACT_ID: "50",
-    ADMISSION_ARTIFACT_DIGEST: "sha256:" + "c".repeat(64),
+    ADMISSION_ARTIFACT_DIGEST: "c".repeat(64),
     RELEASE_PROVIDER_FIXTURE: join(root, "provider.json"),
     RELEASE_ADMITTED_DIRECTORY: directory,
   };
@@ -394,7 +394,11 @@ export function writerWorld(t, phase, { npmTag, schema3 = false } = {}) {
         ...artifact(id, name, "sha256:" + sha256(bytes)),
         size_in_bytes: bytes.length,
       };
-      if (id === 50) env.ADMISSION_ARTIFACT_DIGEST = identity.digest;
+      if (id === 50)
+        env.ADMISSION_ARTIFACT_DIGEST = identity.digest.replace(
+          /^sha256:/u,
+          "",
+        );
       current.routes[`actions/artifacts/${id}`] = identity;
       current.routes[`actions/runs/${env.GITHUB_RUN_ID}`] =
         current.routes[`actions/runs/${env.GITHUB_RUN_ID}/attempts/1`];
