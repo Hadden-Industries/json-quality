@@ -126,6 +126,113 @@ test("raw writer transport adopts an unknown upload only after exact native read
   assert.ok(existsSync(record.path + "-recovery-2"));
 });
 
+test("acknowledged writer uploads wait for their exact immutable ID within one read deadline", async (t) => {
+  const root = temporary(t),
+    source = join(root, "source");
+  mkdirSync(source);
+  writeFileSync(join(source, "journal.jsonl"), '{"state":"completed"}\n');
+  const env = {
+    ...process.env,
+    RUNNER_TEMP: root,
+    GITHUB_OUTPUT: join(root, "output"),
+    GITHUB_RUN_ID: "17",
+    GITHUB_SHA: "a".repeat(40),
+    GITHUB_REPOSITORY_ID: "11",
+    UPLOAD_RESULT: "success",
+    UPLOAD_ID: "90",
+  };
+  const record = prepareWriterEvidence(source, "effect-stage-1", env),
+    transport = join(record.path, "..", "transport.json"),
+    artifact = {
+      id: 90,
+      name: record.name,
+      digest: record.digest,
+      size_in_bytes: record.size,
+      expired: false,
+      workflow_run: { id: 17, repository_id: 11, head_sha: env.GITHUB_SHA },
+    };
+  env.UPLOAD_DIGEST = record.digest.slice(7);
+  let clock = 1000000,
+    reads = 0;
+  const waits = [];
+  const result = await reconcileWriterEvidence(transport, 1, env, {
+    now: () => clock,
+    wallNow: () => clock,
+    sleep: async (milliseconds) => {
+      waits.push(milliseconds);
+      clock += milliseconds;
+    },
+    read: async (path) => {
+      assert.equal(path, "/actions/artifacts/90");
+      if (++reads === 1)
+        throw Object.assign(new Error("not visible yet"), {
+          httpStatus: 404,
+          retryAt: new Date(clock + 3000).toISOString(),
+        });
+      return artifact;
+    },
+  });
+  assert.equal(result, artifact);
+  assert.equal(reads, 2);
+  assert.deepEqual(waits, [3000]);
+  assert.ok(!existsSync(record.path + "-recovery-2"));
+  for (const status of [401, 403, 500]) {
+    let calls = 0;
+    await assert.rejects(() =>
+      reconcileWriterEvidence(transport, 1, env, {
+        read: async () => {
+          calls++;
+          throw Object.assign(new Error("terminal provider response"), {
+            httpStatus: status,
+          });
+        },
+        sleep: async () => assert.fail("Terminal responses must not retry"),
+      }),
+    );
+    assert.equal(calls, 1);
+  }
+  await assert.rejects(() =>
+    reconcileWriterEvidence(transport, 1, env, {
+      read: async () => ({ ...artifact, digest: "sha256:" + "0".repeat(64) }),
+      sleep: async () => assert.fail("Changed evidence must not retry"),
+    }),
+  );
+  for (const malformed of [null, false, 0, [], {}, { ...artifact, id: 91 }]) {
+    let calls = 0;
+    await assert.rejects(() =>
+      reconcileWriterEvidence(transport, 1, env, {
+        read: async () => {
+          calls++;
+          return malformed;
+        },
+        sleep: async () => assert.fail("Malformed evidence must not retry"),
+      }),
+    );
+    assert.equal(calls, 1);
+  }
+  let expiredReads = 0;
+  await assert.rejects(
+    () =>
+      reconcileWriterEvidence(transport, 1, env, {
+        now: () => clock,
+        wallNow: () => clock,
+        sleep: async (milliseconds) => {
+          assert.equal(milliseconds, budgets.read);
+          clock += milliseconds;
+        },
+        read: async () => {
+          expiredReads++;
+          throw Object.assign(new Error("visibility deadline"), {
+            httpStatus: 404,
+            retryAt: new Date(clock + budgets.read * 2).toISOString(),
+          });
+        },
+      }),
+    /visibility deadline/u,
+  );
+  assert.equal(expiredReads, 1);
+});
+
 test("rejection settlement requires original request binding, native acknowledgement and full authenticated absence", () => {
   const expected = {
     run: "17",

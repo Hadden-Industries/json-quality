@@ -136,6 +136,7 @@ import {
   validateFrozenMatrix,
   verifyProvenance,
   verifyRun,
+  verifyNativeStageEvidence,
   verifyShippedLinks,
   releaseArtifactBytes,
   releasePackages,
@@ -662,6 +663,202 @@ test("native staging admits GitHub's exact skipped matrix display name while cor
     }),
   );
 });
+test("native staging retains completed effects when only the later evidence upload fails", () => {
+  const observed = providerFixture(),
+    release = fixture(),
+    stage = observed.jobs.jobs[1];
+  observed.run.conclusion = "failure";
+  stage.conclusion = "failure";
+  stage.steps = [
+    {
+      name: "Apply admitted release effect",
+      status: "completed",
+      conclusion: "success",
+    },
+    {
+      name: "Run ./.github/actions/upload-writer-evidence",
+      status: "completed",
+      conclusion: "failure",
+    },
+  ];
+  observed.jobs.jobs.push({
+    ...observed.jobs.jobs[0],
+    id: 99,
+    name: "native-public",
+    conclusion: "skipped",
+  });
+  observed.jobs.total_count++;
+  const original = structuredClone(observed);
+  const accepted = verifyRun(observed, "stage", source, release.matrix, {
+    stagePhase: "natives",
+  });
+  assert.equal(accepted.run.conclusion, "failure");
+  assert.deepEqual(observed, original);
+  for (const mutate of [
+    (value) => (value.run.conclusion = "cancelled"),
+    (value) => (value.jobs.jobs[0].conclusion = "failure"),
+    (value) => (value.jobs.jobs[1].steps[0].conclusion = "failure"),
+    (value) => (value.jobs.jobs[1].steps[0].conclusion = "skipped"),
+    (value) => (value.jobs.jobs[1].steps[1].name = "Unrelated failed step"),
+    (value) => (value.jobs.jobs[1].steps[1].status = "in_progress"),
+    (value) => value.jobs.jobs[1].steps.reverse(),
+    (value) =>
+      value.jobs.jobs[1].steps.push({
+        name: "Failed cleanup",
+        status: "completed",
+        conclusion: "failure",
+      }),
+    (value) =>
+      value.jobs.jobs[1].steps.push({ ...value.jobs.jobs[1].steps[0] }),
+  ]) {
+    const changed = structuredClone(observed);
+    mutate(changed);
+    assert.throws(() =>
+      verifyRun(changed, "stage", source, release.matrix, {
+        stagePhase: "natives",
+      }),
+    );
+  }
+  assert.throws(() =>
+    verifyRun(observed, "stage", source, release.matrix, {
+      stagePhase: "core",
+    }),
+  );
+  assert.throws(() => verifyRun(observed, "stage", source, release.matrix));
+});
+
+test("completed native-stage custody binds both original requests, outcomes and later package origins", () => {
+  const release = fixture(),
+    manifestSha = "b".repeat(64),
+    origin = {
+      run: "17",
+      attempt: "1",
+      controller: source,
+      phase: "natives",
+      reviewSha256: "c".repeat(64),
+    },
+    records = [],
+    stages = [],
+    origins = {};
+  for (const [index, subject] of release.platformArchives.entries()) {
+    const intent = {
+      state: "intent",
+      operation: `stage:${subject.package}`,
+      package: subject.package,
+      version: release.version,
+      source,
+      manifestSha256: manifestSha,
+      integrity: subject.archive.integrity,
+      run: origin.run,
+      attempt: origin.attempt,
+      controller: origin.controller,
+      guard: { reviewSha256: origin.reviewSha256 },
+    };
+    const stageId = `native-stage-${index}`;
+    records.push(intent, {
+      state: "completed",
+      intentSha256: sha256(Buffer.from(JSON.stringify(intent) + "\n")),
+      result: { stageId, state: "staged-awaiting-owner" },
+    });
+    stages.push({
+      package: subject.package,
+      version: release.version,
+      integrity: subject.archive.integrity,
+      stageId,
+      state: "staged-awaiting-owner",
+    });
+    origins[subject.package] = {
+      ...origin,
+      package: subject.package,
+      integrity: subject.archive.integrity,
+      stageId,
+    };
+  }
+  const journal = Buffer.from(
+      records.map((record) => JSON.stringify(record)).join("\n") + "\n",
+    ),
+    context = {
+      nativeStage: origin,
+      stage: { run: "18", phase: "core" },
+      packageOrigins: origins,
+    },
+    outcome = {
+      schemaVersion: 2,
+      manifestSha256: manifestSha,
+      origin,
+      origins,
+      subject: {
+        package: release.package,
+        version: release.version,
+        source,
+        integrity: release.archive.integrity,
+      },
+      journalSha256: sha256(journal),
+      result: {
+        state: "staged-awaiting-owner",
+        stageId: stages.at(-1).stageId,
+        stages,
+      },
+    },
+    files = new Map([
+      ["context.json", jsonBytes(context)],
+      ["native-stage-outcome.json", jsonBytes(outcome)],
+      [effectJournal("stage", origin), journal],
+    ]);
+  const verify = (values) =>
+    verifyNativeStageEvidence(release, origin, manifestSha, (name) => {
+      assert.ok(values.has(name));
+      return values.get(name);
+    });
+  assert.deepEqual(verify(files), outcome);
+  for (const [name, mutate] of [
+    ["native-stage-outcome.json", (value) => value.result.stages.pop()],
+    [
+      "native-stage-outcome.json",
+      (value) =>
+        (value.result.stages[1].stageId = value.result.stages[0].stageId),
+    ],
+    [
+      "native-stage-outcome.json",
+      (value) => (value.journalSha256 = "0".repeat(64)),
+    ],
+    [
+      "native-stage-outcome.json",
+      (value) => (value.origins[stages[0].package].controller = "d".repeat(40)),
+    ],
+    [
+      "context.json",
+      (value) => (value.packageOrigins[stages[0].package].stageId = "changed"),
+    ],
+    ["context.json", (value) => (value.stage.run = origin.run)],
+  ]) {
+    const changed = new Map(files),
+      value = JSON.parse(changed.get(name));
+    mutate(value);
+    changed.set(name, jsonBytes(value));
+    assert.throws(() => verify(changed));
+  }
+  for (const mutate of [
+    (value) => (value[1].state = "outcome-unknown"),
+    (value) => (value[0].source = "d".repeat(40)),
+    (value) => (value[0].guard.reviewSha256 = "d".repeat(64)),
+    (value) => (value[1].intentSha256 = "0".repeat(64)),
+    (value) => value.pop(),
+  ]) {
+    const changed = new Map(files),
+      value = structuredClone(records);
+    mutate(value);
+    const bytes = Buffer.from(
+        value.map((record) => JSON.stringify(record)).join("\n") + "\n",
+      ),
+      metadata = structuredClone(outcome);
+    metadata.journalSha256 = sha256(bytes);
+    changed.set(effectJournal("stage", origin), bytes);
+    changed.set("native-stage-outcome.json", jsonBytes(metadata));
+    assert.throws(() => verify(changed));
+  }
+});
+
 test("durable request intent precedes native execution and unknown outcomes forbid replay", (t) => {
   const path = join(temp(t), "stage.jsonl"),
     release = fixture();

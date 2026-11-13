@@ -14,7 +14,7 @@ on:
         description: SHA256 of exact fresh continuation review bytes
         type: string
       native_stage_run:
-        description: Original successful native staging run (required for core)
+        description: Original native staging run with completed requests and retained evidence
         type: string
       native_stage_attempt:
         description: Original native staging attempt (required for core)

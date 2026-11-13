@@ -12,6 +12,8 @@ import {
   verifyManifest,
   isLegacyReleaseManifest,
   verifyRun,
+  nativeStageCompletedBeforeUploadFailure,
+  verifyNativeStageEvidence,
   lanes,
   safeMember,
   releasePackages,
@@ -98,9 +100,30 @@ export function verifyQualifiedTarget(record, expected) {
       assert.equal(item.provider.run.id, Number(origin.run));
       assert.equal(item.provider.run.run_attempt, Number(origin.attempt));
       let reconciled = false;
+      const completedNativeStage =
+        origin === context.nativeStage &&
+        nativeStageCompletedBeforeUploadFailure(
+          item.provider,
+          phase,
+          origin.phase,
+        );
+      if (completedNativeStage)
+        verifyNativeStageEvidence(
+          release,
+          origin,
+          expected.manifestSha256,
+          (name) => {
+            assert.ok(
+              files.has(name),
+              `Missing completed native-stage evidence ${name}`,
+            );
+            return files.get(name);
+          },
+        );
       if (
         ["stage", "archive"].includes(phase) &&
-        item.provider.run.conclusion !== "success"
+        item.provider.run.conclusion !== "success" &&
+        !completedNativeStage
       ) {
         assert.ok(
           files.has("recovery-observations.json") &&

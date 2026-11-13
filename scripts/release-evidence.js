@@ -18,6 +18,7 @@ import {
   verifyArchive,
   verifyManifest,
   verifyRun,
+  verifyNativeStageEvidence,
   lanes,
   manualControl,
   verifyDecision,
@@ -375,16 +376,11 @@ export function refreshAdmission(
         { stagePhase: "natives" },
       );
       retainProvider(directory, "stage", native);
-      const outcome = readJson(join(directory, "native-stage-outcome.json"));
-      assert.deepEqual(outcome.origin, context.nativeStage);
-      assert.equal(outcome.manifestSha256, env.MANIFEST_SHA);
-      assert.equal(
-        outcome.journalSha256,
-        sha256(
-          regularBytes(
-            join(directory, effectJournal("stage", context.nativeStage)),
-          ),
-        ),
+      verifyNativeStageEvidence(
+        release,
+        context.nativeStage,
+        env.MANIFEST_SHA,
+        (name) => regularBytes(join(directory, name)),
       );
     }
     const staged = readProvider("stage", context.stage);
