@@ -10,6 +10,7 @@ import {
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
+import { performance } from "node:perf_hooks";
 import { createRepositoryReader } from "./github-evidence.js";
 import { budgets, native } from "./qualification-process.js";
 import { artifactLimits } from "./artifact-policy.js";
@@ -57,11 +58,17 @@ export async function reconcileWriterEvidence(
   transport,
   attempt,
   env = process.env,
-  { read, sleep = delay } = {},
+  {
+    read,
+    sleep = delay,
+    now = () => performance.now(),
+    wallNow = Date.now,
+  } = {},
 ) {
   assert.ok([1, 2, 3].includes(attempt));
   const record = readJson(transport),
     name = attempt === 1 ? record.name : `${record.name}-recovery-${attempt}`;
+  const deadline = now() + budgets.read;
   assert.equal(`sha256:${sha256(readFileSync(record.path))}`, record.digest);
   read ??= createRepositoryReader({
     repository: env.GITHUB_REPOSITORY,
@@ -75,7 +82,32 @@ export async function reconcileWriterEvidence(
       env.UPLOAD_DIGEST.replace(/^sha256:/u, ""),
       record.digest.slice(7),
     );
-    found = await read(`/actions/artifacts/${env.UPLOAD_ID}`);
+    // Acknowledged immutable IDs can briefly precede REST visibility.
+    let pending;
+    for (;;) {
+      if (pending && now() >= deadline) throw pending;
+      try {
+        found = await read(`/actions/artifacts/${env.UPLOAD_ID}`);
+        assert.ok(
+          found && typeof found === "object" && !Array.isArray(found),
+          "Malformed acknowledged artifact response",
+        );
+        assert.equal(found.id, Number(env.UPLOAD_ID));
+        break;
+      } catch (error) {
+        if (error.httpStatus !== 404) throw error;
+        pending = error;
+        const remaining = deadline - now();
+        if (remaining <= 0) throw error;
+        const hinted = Date.parse(error.retryAt) - wallNow();
+        await sleep(
+          Math.min(
+            remaining,
+            Math.max(1000, Number.isFinite(hinted) ? hinted : 0),
+          ),
+        );
+      }
+    }
   } else {
     assert.equal(env.UPLOAD_RESULT, "failure");
     for (let observation = 0; observation < 3; observation++) {

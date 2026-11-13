@@ -4,7 +4,13 @@ import assert from "node:assert/strict";
 import { mkdirSync, appendFileSync, readdirSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readJson, manualControl, verifyRun } from "./release-contract.js";
+import {
+  readJson,
+  regularBytes,
+  manualControl,
+  verifyRun,
+  verifyNativeStageEvidence,
+} from "./release-contract.js";
 import { download, provider } from "./release-provider.js";
 import {
   assembleQualification,
@@ -37,12 +43,18 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       `effect-stage-${process.env.NATIVE_STAGE_ATTEMPT}`,
       scratch,
     );
-    verifyBundle(prior.directory, process.env.MANIFEST_SHA);
+    const release = verifyBundle(prior.directory, process.env.MANIFEST_SHA);
     copyTree(prior.directory, output);
     const context = readJson(join(output, "context.json"));
     assert.equal(context.nativeStage.run, process.env.NATIVE_STAGE_RUN);
     assert.equal(context.nativeStage.attempt, process.env.NATIVE_STAGE_ATTEMPT);
     assert.ok(!context.stage, "Core was already requested");
+    verifyNativeStageEvidence(
+      release,
+      context.nativeStage,
+      process.env.MANIFEST_SHA,
+      (name) => regularBytes(join(output, name)),
+    );
     verifyRun(
       provider(context.nativeStage.run, context.nativeStage.attempt),
       "stage",

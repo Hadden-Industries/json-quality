@@ -558,6 +558,128 @@ export function expectedJobs(phase, matrix) {
 export const skippedNativePublicJobName =
   "inputs.stage_phase == 'core' && format('native-public ({0})', matrix.os) || 'native-public'";
 
+export function nativeStageCompletedBeforeUploadFailure(
+  provider,
+  phase,
+  stagePhase,
+) {
+  if (
+    phase !== "stage" ||
+    stagePhase !== "natives" ||
+    provider.run.conclusion !== "failure"
+  )
+    return false;
+  const stage = provider.jobs.jobs.find((job) => job.name === "stage");
+  if (stage?.conclusion !== "failure" || !Array.isArray(stage.steps))
+    return false;
+  const effects = stage.steps.filter(
+      (step) => step.name === "Apply admitted release effect",
+    ),
+    uploads = stage.steps.filter(
+      (step) => step.name === "Run ./.github/actions/upload-writer-evidence",
+    );
+  return (
+    effects.length === 1 &&
+    effects[0].conclusion === "success" &&
+    uploads.length === 1 &&
+    uploads[0].conclusion === "failure" &&
+    stage.steps.indexOf(uploads[0]) > stage.steps.indexOf(effects[0]) &&
+    stage.steps.every(
+      (step) =>
+        step.status === "completed" &&
+        (step === uploads[0] ||
+          ["success", "skipped"].includes(step.conclusion)),
+    )
+  );
+}
+
+/** Complete original native requests remain authoritative after transport-only failure. */
+export function verifyNativeStageEvidence(release, origin, manifestSha, read) {
+  assert.equal(origin.phase, "natives");
+  assert.match(origin.controller, /^[a-f0-9]{40}$/u);
+  assert.match(manifestSha, /^[a-f0-9]{64}$/u);
+  assert.match(origin.reviewSha256, /^[a-f0-9]{64}$/u);
+  const context = JSON.parse(read("context.json")),
+    outcome = JSON.parse(read("native-stage-outcome.json")),
+    journal = read(effectJournal("stage", origin));
+  assert.deepEqual(context.nativeStage, origin);
+  if (context.stage) {
+    assert.equal(context.stage.phase, "core");
+    assert.notEqual(context.stage.run, origin.run);
+  }
+  assert.equal(outcome.schemaVersion, 2);
+  assert.deepEqual(outcome.origin, origin);
+  assert.equal(outcome.manifestSha256, manifestSha);
+  assert.equal(outcome.journalSha256, sha256(journal));
+  assert.deepEqual(outcome.subject, {
+    package: release.package,
+    version: release.version,
+    source: release.source.commit,
+    integrity: release.archive.integrity,
+  });
+  assert.equal(outcome.result.state, "staged-awaiting-owner");
+  const subjects = release.platformArchives,
+    records = journal.toString("utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(records.length, subjects.length * 2);
+  assert.deepEqual(
+    outcome.result.stages.map((stage) => stage.package),
+    subjects.map((subject) => subject.package),
+  );
+  assert.equal(
+    new Set(outcome.result.stages.map((stage) => stage.stageId)).size,
+    subjects.length,
+  );
+  assert.deepEqual(
+    Object.keys(outcome.origins).sort(),
+    subjects.map((subject) => subject.package).sort(),
+  );
+  for (const [index, subject] of subjects.entries()) {
+    const intent = records[index * 2],
+      completed = records[index * 2 + 1],
+      stage = outcome.result.stages[index];
+    assert.equal(intent.state, "intent");
+    assert.equal(intent.service, undefined);
+    assert.equal(intent.operation, `stage:${subject.package}`);
+    for (const [key, value] of Object.entries({
+      package: subject.package,
+      version: release.version,
+      source: release.source.commit,
+      manifestSha256: manifestSha,
+      integrity: subject.archive.integrity,
+      run: origin.run,
+      attempt: origin.attempt,
+      controller: origin.controller,
+    }))
+      assert.equal(intent[key], value);
+    assert.equal(intent.guard.reviewSha256, origin.reviewSha256);
+    assert.equal(completed.state, "completed");
+    assert.equal(
+      completed.intentSha256,
+      sha256(Buffer.from(JSON.stringify(intent) + "\n")),
+    );
+    assert.equal(stage.version, release.version);
+    assert.equal(stage.integrity, subject.archive.integrity);
+    assert.equal(stage.state, "staged-awaiting-owner");
+    assert.equal(typeof stage.stageId, "string");
+    // eslint-disable-next-line no-control-regex -- Native identifiers must not contain controls.
+    assert.match(stage.stageId, /^[^\x00-\x1f]{1,256}$/u);
+    assert.deepEqual(completed.result, {
+      stageId: stage.stageId,
+      state: stage.state,
+    });
+    const expectedOrigin = {
+      ...origin,
+      package: subject.package,
+      integrity: subject.archive.integrity,
+      stageId: stage.stageId,
+    };
+    assert.deepEqual(outcome.origins[subject.package], expectedOrigin);
+    assert.deepEqual(context.packageOrigins[subject.package], expectedOrigin);
+  }
+  assert.equal(outcome.result.stageId, outcome.result.stages.at(-1).stageId);
+  return outcome;
+}
+
 export function verifyRun(
   provider,
   phase,
@@ -577,6 +699,11 @@ export function verifyRun(
   assert.equal(run.head_branch, "main");
   assert.equal(run.head_sha, source);
   assert.equal(run.status, "completed");
+  const completedNativeStage = nativeStageCompletedBeforeUploadFailure(
+    provider,
+    phase,
+    stagePhase,
+  );
   if (reconciled)
     assert.ok(
       ["stage", "archive"].includes(phase) &&
@@ -584,7 +711,7 @@ export function verifyRun(
           run.conclusion,
         ),
     );
-  else assert.equal(run.conclusion, "success");
+  else if (!completedNativeStage) assert.equal(run.conclusion, "success");
   const legacyPromotion =
     historical &&
     phase === "promote" &&
@@ -639,7 +766,9 @@ export function verifyRun(
   assert.deepEqual(jobs.jobs.map(({ name }) => name).sort(), names.sort());
   for (const job of jobs.jobs) {
     assert.equal(job.status, "completed");
-    if (reconciled && job.name === phase)
+    if (completedNativeStage && job.name === "stage")
+      assert.equal(job.conclusion, "failure");
+    else if (reconciled && job.name === phase)
       assert.ok(
         ["success", "failure", "cancelled", "timed_out"].includes(
           job.conclusion,

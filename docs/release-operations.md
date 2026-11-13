@@ -182,6 +182,10 @@ The resulting context retains one original producing run/attempt/controller/inte
 Success is `staged-awaiting-owner`; it is not public availability.
 The effect artifact retains the manifest, source, evidence, native response, original journal and stage identity.
 
+If both native requests completed and only the later evidence-upload step failed, continue from the original run after verifying its retained artifact and complete journals.
+The original run remains failed; the core phase still requires owner approval and both public-native proofs.
+Do not repeat the native staging requests.
+
 The owner uses interactive npm authentication and 2FA to inspect the exact stage, download and compare bytes/integrity, and approve that specific item.
 Stage list, view, approval and rejection cannot be impersonated by CI's OIDC token.
 Never poll indefinitely for a person or automatically reject a staged item.
