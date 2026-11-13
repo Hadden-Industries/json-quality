@@ -10,6 +10,7 @@ import {
 import {
   sha256,
   verifyManifest,
+  isLegacyReleaseManifest,
   verifyRun,
   lanes,
   safeMember,
@@ -26,7 +27,7 @@ export function verifyQualifiedTarget(record, expected) {
   assert.equal(record.manifestSha256, expected.manifestSha256);
   const manifest = Buffer.from(record.manifest, "base64");
   assert.equal(sha256(manifest), expected.manifestSha256);
-  const release = verifyManifest(JSON.parse(manifest));
+  const release = verifyManifest(JSON.parse(manifest), { historical: true });
   assert.equal(release.version, record.version);
   assert.equal(release.source.commit, record.source);
   assert.equal(record.release.id, expected.releaseId);
@@ -224,6 +225,7 @@ export function verifyQualifiedTarget(record, expected) {
         {
           stagePhase: phase === "stage" ? origin.phase : undefined,
           reconciled,
+          historical: isLegacyReleaseManifest(release),
         },
       );
     }
@@ -309,6 +311,7 @@ export function verifyQualifiedTarget(record, expected) {
     expected.manifestSha256,
     proof.origin.run,
     String(security[0].attempt),
+    { historical: true },
   );
   for (const lane of lanes(release.matrix)) {
     const prefix = `public-${lane.os}-${lane.node}/`;
@@ -320,6 +323,7 @@ export function verifyQualifiedTarget(record, expected) {
     verifyLane(prefix.slice(0, -1), release, lane, "public registry", {
       read: (path) => JSON.parse(virtual(path)),
       bytes: virtual,
+      historical: true,
     });
     for (const subject of releasePackages(release)) {
       const name = subject.platform

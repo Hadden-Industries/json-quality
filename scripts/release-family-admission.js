@@ -214,7 +214,9 @@ export function prepareFamilyPromotion(
     }
     const manifest = regularBytes(join(root, "release-manifest.json"));
     assert.equal(sha256(manifest), target.manifestSha256);
-    const candidate = verifyManifest(JSON.parse(manifest));
+    const candidate = verifyManifest(JSON.parse(manifest), {
+      historical: true,
+    });
     assert.equal(candidate.version, target.version);
     const originalTag = signedTag(candidate);
     const assetIndex = readJson(join(root, "release-assets.json"));
@@ -342,7 +344,7 @@ export function prepareFamilyPromotion(
       );
     }
     const security = {
-      codeql: qualifySecurity(candidate, manifest),
+      codeql: qualifySecurity(candidate, manifest, { historical: true }),
       recipient: audits,
     };
     const checkpoint =

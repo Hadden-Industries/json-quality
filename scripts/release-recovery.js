@@ -401,6 +401,7 @@ function reconcileOne(
     readLatest = readers.optionalApi ?? optionalApi;
   const current = verifyManifest(
     readJson(join(directory, "release-manifest.json")),
+    { historical: readers.historical === true },
   );
   let release = current,
     manifestSha = env.MANIFEST_SHA;
@@ -420,7 +421,9 @@ function reconcileOne(
       ),
     );
     assert.equal(sha256(bytes), record.manifestSha256);
-    release = verifyManifest(JSON.parse(bytes));
+    release = verifyManifest(JSON.parse(bytes), {
+      historical: readers.historical === true,
+    });
     assert.notEqual(release.version, current.version);
     manifestSha = record.manifestSha256;
   }

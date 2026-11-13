@@ -46,6 +46,7 @@ export function collectQualifiedTarget(
       throw error;
     const release = verifyManifest(
         readJson(join(directory, "release-manifest.json")),
+        { historical: true },
       ),
       live = api(`releases/tags/v${release.version}`);
     assert.equal(live.immutable, true);
@@ -88,6 +89,7 @@ export function collectQualifiedTarget(
 function collectOriginalQualifiedTarget(directory, scratch) {
   const release = verifyManifest(
       readJson(join(directory, "release-manifest.json")),
+      { historical: true },
     ),
     context = readJson(join(directory, "context.json"));
   const liveRelease = api(`releases/tags/v${release.version}`),
@@ -127,7 +129,9 @@ function collectOriginalQualifiedTarget(directory, scratch) {
       `registry-${lane.os}-${lane.node}-${original}`,
       scratch,
     );
-    verifyLane(acquired.directory, release, lane, "public registry");
+    verifyLane(acquired.directory, release, lane, "public registry", {
+      historical: true,
+    });
     const archived = join(directory, `public-${lane.os}-${lane.node}`);
     for (const name of readdirSync(archived).filter((name) =>
       name.endsWith(".json"),
@@ -194,7 +198,10 @@ export function captureQualifiedTarget(
 ) {
   const manifest = regularBytes(join(directory, "release-manifest.json")),
     context = readJson(join(directory, "context.json"));
-  assert.deepEqual(verifyManifest(JSON.parse(manifest)), release);
+  assert.deepEqual(
+    verifyManifest(JSON.parse(manifest), { historical: true }),
+    release,
+  );
   assert.equal(liveRelease.immutable, true);
   assert.equal(liveRelease.draft, false);
   assert.equal(liveRelease.tag_name, `v${release.version}`);
@@ -275,6 +282,7 @@ export function materializeQualifiedTarget(record, expected, directory) {
       verified.release,
       lane,
       "public registry",
+      { historical: true },
     );
   const security = record.qualification.artifacts.find((artifact) =>
     artifact.name.startsWith("public-security-"),
@@ -286,6 +294,7 @@ export function materializeQualifiedTarget(record, expected, directory) {
     expected.manifestSha256,
     verified.context.registry.run,
     String(security.attempt),
+    { historical: true },
   );
   return verified;
 }

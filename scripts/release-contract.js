@@ -142,7 +142,18 @@ export function safeMember(path) {
 }
 // Schema admission belongs to read-only jobs; narrow writers import identities only.
 let manifestValidator;
-export function verifyManifest(release) {
+/** Original schema-2 archives predate the effective-policy API, independently of Node policy. */
+export function isLegacyReleaseManifest(release) {
+  return (
+    release.schemaVersion === 2 &&
+    [
+      "schemas/effective-policy.schema.json",
+      "assets/default-json-quality-policy.json",
+    ].every((path) => !release.archive.files.some((file) => file.path === path))
+  );
+}
+
+export function verifyManifest(release, { historical = false } = {}) {
   const validate = (manifestValidator ??= new (createRequire(import.meta.url)(
     "ajv/dist/2020.js",
   ))({ allErrors: true, strict: true }).compile(
@@ -209,21 +220,8 @@ export function verifyManifest(release) {
       "Release expanded bytes exceed package transport capability",
     );
   }
-  const { matrix, policy } = release;
-  assert.deepEqual([...matrix.os].sort(), [...policy.platforms].sort());
-  assert.ok(matrix.node.includes(policy.reference));
-  assert.ok(matrix.node.includes(policy.minimum), "Missing floor lane");
-  for (const major of policy.testedLtsMajors)
-    assert.ok(
-      matrix.node.some((node) => Number(node.split(".")[0]) === major),
-      "Missing LTS lane",
-    );
-  const semver = createRequire(npmCli())("semver");
-  for (const node of matrix.node)
-    assert.ok(
-      semver.gte(node, policy.minimum) &&
-        policy.testedLtsMajors.includes(semver.major(node)),
-    );
+  const { policy } = release;
+  validateFrozenMatrix(release.matrix, policy);
   assert.equal(release.toolchain.node, policy.reference);
   assert.equal(release.toolchain.npm, policy.producerNpm.version);
   const paths = release.archive.files.map(({ path }) => safeMember(path));
@@ -240,8 +238,13 @@ export function verifyManifest(release) {
     "src/index.js",
     "src/cli.js",
     "schemas/configuration.schema.json",
-    "schemas/effective-policy.schema.json",
-    "assets/default-json-quality-policy.json",
+    // Only readers of retained public qualification may use the original shipment contract.
+    ...(historical && isLegacyReleaseManifest(release)
+      ? []
+      : [
+          "schemas/effective-policy.schema.json",
+          "assets/default-json-quality-policy.json",
+        ]),
     "schemas/event.schema.json",
     "schemas/source-contract.schema.json",
     "schemas/contract-cohort.json",
@@ -292,8 +295,20 @@ export function validateFrozenMatrix(matrix, policy) {
   assert.equal(new Set(matrix.node).size, matrix.node.length);
   assert.ok(matrix.node.length <= 9 && matrix.node.includes(policy.reference));
   const semver = createRequire(npmCli())("semver");
-  assert.ok(matrix.node.includes(policy.minimum));
-  for (const major of policy.testedLtsMajors)
+  assert.ok([1, 2].includes(policy.schemaVersion));
+  const minimums =
+    policy.schemaVersion === 1 ? policy.minimums : [policy.minimum];
+  assert.ok(Array.isArray(minimums) && minimums.length > 0);
+  assert.ok(minimums.every((minimum) => semver.valid(minimum) === minimum));
+  const floors = new Map(
+    minimums.map((minimum) => [semver.major(minimum), minimum]),
+  );
+  assert.equal(floors.size, minimums.length, "Ambiguous runtime family floor");
+  const majors =
+    policy.schemaVersion === 1 ? [...floors.keys()] : policy.testedLtsMajors;
+  for (const minimum of minimums)
+    assert.ok(matrix.node.includes(minimum), "Missing floor lane");
+  for (const major of majors)
     assert.ok(
       matrix.node.some((node) => semver.major(node) === major),
       "Missing LTS lane",
@@ -301,8 +316,13 @@ export function validateFrozenMatrix(matrix, policy) {
   for (const node of matrix.node)
     assert.ok(
       semver.valid(node) === node &&
-        semver.gte(node, policy.minimum) &&
-        policy.testedLtsMajors.includes(semver.major(node)),
+        majors.includes(semver.major(node)) &&
+        semver.gte(
+          node,
+          policy.schemaVersion === 1
+            ? floors.get(semver.major(node))
+            : policy.minimum,
+        ),
     );
   return matrix;
 }
@@ -568,6 +588,20 @@ export function verifyRun(
   let names = legacyPromotion
     ? ["admit", "promote"]
     : expectedJobs(phase, matrix);
+  if (historical && phase === "qualification") {
+    const scans = jobs.jobs.filter((job) => job.name.startsWith("codeql /"));
+    if (scans.length === 0)
+      names = names.filter((name) => !name.startsWith("codeql /"));
+    else if (scans.length <= 2)
+      names = names.filter(
+        (name) =>
+          !name.startsWith("codeql /") ||
+          [
+            "codeql / Scan actions",
+            "codeql / Scan javascript-typescript",
+          ].includes(name),
+      );
+  }
   if (phase === "stage" && stagePhase) {
     assert.ok(["natives", "core"].includes(stagePhase));
     const nativeNames = jobs.jobs
