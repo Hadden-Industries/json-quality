@@ -111,8 +111,13 @@ export function consumeWriterAdmission(directory, phase, env, readers = {}) {
     observe = readers.provider ?? provider;
   const artifact = read(`actions/artifacts/${env.ADMISSION_ARTIFACT_ID}`);
   assert.equal(artifact.id, Number(env.ADMISSION_ARTIFACT_ID));
-  assert.equal(artifact.digest, env.ADMISSION_ARTIFACT_DIGEST);
   assert.match(artifact.digest, /^sha256:[a-f0-9]{64}$/u);
+  assert.match(env.ADMISSION_ARTIFACT_DIGEST, /^(?:sha256:)?[a-f0-9]{64}$/u);
+  assert.equal(
+    artifact.digest,
+    `sha256:${env.ADMISSION_ARTIFACT_DIGEST.replace(/^sha256:/u, "")}`,
+    "Read-only admission artifact digest differs from the native upload",
+  );
   assert.equal(artifact.expired, false);
   assert.equal(artifact.workflow_run.id, Number(record.origin.run));
   assert.equal(artifact.workflow_run.head_sha, record.controller);

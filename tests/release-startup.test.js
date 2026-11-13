@@ -21,6 +21,45 @@ import { mkdirSync } from "node:fs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 
+test("native writer admits upload and reconciled SHA256 forms but refuses changed or malformed digests before requests", async (t) => {
+  for (const form of [
+    "bare",
+    "prefixed",
+    "different",
+    "double-prefix",
+    "uppercase",
+    "trailing-space",
+    "provider-bare",
+  ])
+    await t.test(form, (subtest) => {
+      const world = writerWorld(subtest, "stage");
+      const digest = world.env.ADMISSION_ARTIFACT_DIGEST;
+      assert.match(digest, /^[a-f0-9]{64}$/u);
+      if (form === "prefixed")
+        world.env.ADMISSION_ARTIFACT_DIGEST = `sha256:${digest}`;
+      if (form === "different")
+        world.env.ADMISSION_ARTIFACT_DIGEST = "f".repeat(64);
+      if (form === "double-prefix")
+        world.env.ADMISSION_ARTIFACT_DIGEST = `sha256:sha256:${digest}`;
+      if (form === "uppercase")
+        world.env.ADMISSION_ARTIFACT_DIGEST = digest.toUpperCase();
+      if (form === "trailing-space")
+        world.env.ADMISSION_ARTIFACT_DIGEST = digest + " ";
+      if (form === "provider-bare")
+        world.update((state) => {
+          state.routes["actions/artifacts/50"].digest = digest;
+        });
+      const result = world.run("stage");
+      if (["bare", "prefixed"].includes(form)) {
+        assert.equal(result.status, 0, result.stderr);
+        assert.equal(world.state().mutations.length, 2);
+      } else {
+        assert.notEqual(result.status, 0);
+        assert.deepEqual(world.state().mutations, []);
+      }
+    });
+});
+
 test("ordinary native staging dispatch loads without project packages and preserves omitted or explicit channel", async (t) => {
   for (const npmTag of [undefined, "latest"])
     await t.test(npmTag ?? "omitted pilot", (subtest) => {

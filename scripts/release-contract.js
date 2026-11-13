@@ -554,6 +554,10 @@ export function expectedJobs(phase, matrix) {
   if (phase === "promote") return ["admit", "npm", "github", "complete"];
   return ["admit", phase];
 }
+// GitHub retains the unevaluated name when it skips the whole matrix job.
+export const skippedNativePublicJobName =
+  "inputs.stage_phase == 'core' && format('native-public ({0})', matrix.os) || 'native-public'";
+
 export function verifyRun(
   provider,
   phase,
@@ -608,6 +612,7 @@ export function verifyRun(
       .filter(
         (job) =>
           job.name === "native-public" ||
+          job.name === skippedNativePublicJobName ||
           job.name.startsWith("native-public ("),
       )
       .map((job) => job.name);
@@ -618,7 +623,10 @@ export function verifyRun(
       );
     else
       assert.ok(
-        (nativeNames.length === 1 && nativeNames[0] === "native-public") ||
+        (nativeNames.length === 1 &&
+          ["native-public", skippedNativePublicJobName].includes(
+            nativeNames[0],
+          )) ||
           (nativeNames.length === 2 &&
             matrix.os.every((os) =>
               nativeNames.includes(`native-public (${os})`),
@@ -640,7 +648,8 @@ export function verifyRun(
     else if (
       phase === "stage" &&
       stagePhase === "natives" &&
-      job.name.startsWith("native-public")
+      job.name !== "admit" &&
+      job.name !== "stage"
     )
       assert.equal(job.conclusion, "skipped");
     else if (

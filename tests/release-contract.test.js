@@ -612,6 +612,56 @@ test("provider admission denies missing, duplicate, skipped, stale-attempt and w
     assert.throws(() => verifyRun(p, "stage", source, fixture().matrix));
   }
 });
+test("native staging admits GitHub's exact skipped matrix display name while core still requires both successful lanes", () => {
+  const release = fixture(),
+    observed = providerFixture(),
+    skippedName =
+      "inputs.stage_phase == 'core' && format('native-public ({0})', matrix.os) || 'native-public'";
+  observed.jobs.jobs.push({
+    ...observed.jobs.jobs[0],
+    id: 99,
+    name: skippedName,
+    conclusion: "skipped",
+  });
+  observed.jobs.total_count++;
+  verifyRun(observed, "stage", source, release.matrix, {
+    stagePhase: "natives",
+  });
+  for (const mutate of [
+    (value) => (value.jobs.jobs[2].name += " "),
+    (value) => (value.jobs.jobs[2].conclusion = "success"),
+    (value) => (value.jobs.jobs[2].run_attempt = 1),
+    (value) => (value.jobs.jobs[2].head_sha = "d".repeat(40)),
+  ]) {
+    const changed = structuredClone(observed);
+    mutate(changed);
+    assert.throws(() =>
+      verifyRun(changed, "stage", source, release.matrix, {
+        stagePhase: "natives",
+      }),
+    );
+  }
+  assert.throws(() =>
+    verifyRun(observed, "stage", source, release.matrix, {
+      stagePhase: "core",
+    }),
+  );
+  observed.jobs.jobs.pop();
+  for (const [index, os] of release.matrix.os.entries())
+    observed.jobs.jobs.push({
+      ...observed.jobs.jobs[0],
+      id: 100 + index,
+      name: `native-public (${os})`,
+    });
+  observed.jobs.total_count = observed.jobs.jobs.length;
+  verifyRun(observed, "stage", source, release.matrix, { stagePhase: "core" });
+  observed.jobs.jobs[2].conclusion = "skipped";
+  assert.throws(() =>
+    verifyRun(observed, "stage", source, release.matrix, {
+      stagePhase: "core",
+    }),
+  );
+});
 test("durable request intent precedes native execution and unknown outcomes forbid replay", (t) => {
   const path = join(temp(t), "stage.jsonl"),
     release = fixture();

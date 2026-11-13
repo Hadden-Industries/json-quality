@@ -18,6 +18,7 @@ import {
   effectJournal,
   readJson,
   verifyRun,
+  skippedNativePublicJobName,
   retainedRecoveries,
   releaseTransportMaximumBytes,
   packageName,
@@ -433,6 +434,7 @@ function writerInventory(entry) {
         ...(phase === "stage"
           ? [
               "native-public",
+              skippedNativePublicJobName,
               "native-public (ubuntu-26.04)",
               "native-public (windows-2025)",
             ]
@@ -441,6 +443,8 @@ function writerInventory(entry) {
   for (const job of jobs.jobs) {
     id(job.id);
     assert.ok(allowed.includes(job.name), "Unexpected writer job");
+    if (job.name === skippedNativePublicJobName)
+      assert.equal(job.conclusion, "skipped");
     assert.equal(job.run_id, run.id);
     assert.equal(job.run_attempt, run.run_attempt);
     assert.equal(job.head_sha, run.head_sha);
@@ -685,8 +689,10 @@ export function authenticatedHistoricalSettlements(history) {
     (entry) => entry.settlements?.length && entry.run.conclusion === "success",
   );
   for (const entry of settled) {
-    const native = entry.jobs.jobs.filter((job) =>
-      job.name.startsWith("native-public"),
+    const native = entry.jobs.jobs.filter(
+      (job) =>
+        job.name === skippedNativePublicJobName ||
+        job.name.startsWith("native-public"),
     );
     const stagePhase =
       entry.phase === "stage" && native.length
