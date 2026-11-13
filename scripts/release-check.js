@@ -21,7 +21,7 @@ verifyShippedLinks(pack.files, contents);
 const schema = JSON.parse(
   readFileSync(join(root, "schemas/release-manifest.schema.json")),
 );
-assert.equal(schema.properties.schemaVersion.const, 2);
+assert.deepEqual(schema.properties.schemaVersion.enum, [2, 3]);
 console.log(
   JSON.stringify({ shipmentLinks: "passed", members: pack.files.length }),
 );

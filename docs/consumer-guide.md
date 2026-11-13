@@ -1,26 +1,23 @@
 # JSON Quality consumer guide
 
 Use this guide to [read a value from its original bytes](#stream-a-source-and-read-lossless-values), [check a complete repository](#complete-repository-checks-and-trusted-adapters), or [apply a guarded repair](#explicit-transformations-and-replacements).
-The examples use the Node.js ESM API from contract cohort 6.
+The examples use JSON Quality 1.0.1 and the Node.js ESM API from contract cohort 6.
 For individual signatures and return types, see the [API reference](api.md).
 
 ## Acquisition and public exports
 
-Install a qualified package version as a development dependency and invoke its public binary.
-Replace `VERSION` below with the exact qualified release you intend to use:
+Install version 1.0.1 as a development dependency and invoke its public binary:
 
 ```sh
-npm install --save-dev --save-exact @hadden-industries/json-quality@VERSION
+npm install --save-dev --save-exact @hadden-industries/json-quality@1.0.1
 npm exec -- json-quality check
 ```
 
 No wrapper, copied repository exclusions or `.json-quality.json` is required.
 Commit the npm-generated lockfile and use `npm ci` for clean installs.
 
-These cohort-6 source examples do not establish matching registry publication or installed qualification.
-The next release uses the stable SemVer coordinate selected by [`package.json.version`](../package.json), initially under npm's `pilot` tag.
-Select that exact qualified version explicitly; an unversioned install follows `latest` and need not select the pilot.
-Promotion changes availability of the same published artifacts after acceptance; it does not rebuild them under a different version.
+An exact-version install selects this release independently of npm availability tags.
+An unversioned install follows `latest`, which can select a different version.
 
 ### Node.js runtime boundary
 

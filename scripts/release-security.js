@@ -13,9 +13,11 @@ import {
 } from "./release-contract.js";
 import { api, pages } from "./release-provider.js";
 import { securityScans } from "./security-scans.js";
+import { ubuntuRunner } from "./runner-policy.js";
 
-export function verifyCodeql(analyses, source) {
+export function verifyCodeql(analyses, source, policy) {
   assert.match(source, /^[a-f0-9]{40}$/u);
+  const linux = ubuntuRunner(policy);
   return securityScans.map(({ key, language, os, category }) => {
     const matches = analyses.filter(
       (analysis) =>
@@ -56,9 +58,9 @@ export function verifyCodeql(analyses, source) {
     );
     const environment = JSON.parse(analysis.environment);
     assert.equal(environment.language, language);
+    assert.equal(environment.os, os.startsWith("ubuntu-") ? linux : os);
     if (language === "c-cpp") {
       assert.equal(environment.key, key);
-      assert.equal(environment.os, os);
     }
     return analysis;
   });
@@ -96,7 +98,11 @@ export function qualifySecurity(release, manifestBytes) {
   const analyses = pages(
     "code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=100",
   );
-  const selected = verifyCodeql(analyses, release.source.commit);
+  const selected = verifyCodeql(
+    analyses,
+    release.source.commit,
+    release.policy,
+  );
   return {
     schemaVersion: 2,
     source: release.source.commit,

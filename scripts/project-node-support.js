@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { nodeSupport, validatePolicy } from "./node-matrix.js";
+import { ubuntuRunner } from "./runner-policy.js";
 const root = new URL("../", import.meta.url);
 
 /** Shared by projection and regression checks, including bootstrap declarations. */
@@ -24,13 +25,25 @@ export function nodeSupportProjectionPaths() {
 /** Project current declarations; npm alone writes the native lockfile. */
 export function projectNodeSupport(files, policy = nodeSupport) {
   validatePolicy(policy);
+  const linux = ubuntuRunner(policy);
   return Object.fromEntries(
     Object.entries(files).map(([path, source]) => {
       if (path === "package.json") {
         const manifest = JSON.parse(source);
         manifest.engines.node = `>=${policy.minimum}`;
         manifest.packageManager = `npm@${policy.producerNpm.version}`;
-        manifest.devEngines.packageManager.version = policy.producerNpm.range;
+        if (policy.producerNpm.range !== undefined) {
+          manifest.devEngines ??= {};
+          manifest.devEngines.packageManager = {
+            name: "npm",
+            version: policy.producerNpm.range,
+            onFail: "error",
+          };
+        } else if (manifest.devEngines?.packageManager?.name === "npm") {
+          delete manifest.devEngines.packageManager;
+          if (Object.keys(manifest.devEngines).length === 0)
+            delete manifest.devEngines;
+        }
         return [path, JSON.stringify(manifest, null, 2) + "\n"];
       }
       if (path === ".node-version") return [path, policy.reference + "\n"];
@@ -40,9 +53,15 @@ export function projectNodeSupport(files, policy = nodeSupport) {
           path,
           /^\.github\/(?:workflows\/[^/]+\.yml|actions\/[^/]+\/action\.yml)$/u,
         );
+        const runnerSource = path.startsWith(".github/workflows/")
+          ? source.replace(
+              /\bubuntu-(?:\d{2}\.\d{2}|latest|slim)(?:-[a-z0-9]+)*(?![\w.-])/gu,
+              linux,
+            )
+          : source;
         return [
           path,
-          source.replace(
+          runnerSource.replace(
             /^(\s*node-version:\s*)(\d+\.\d+\.\d+|"\d+\.\d+\.\d+"|'\d+\.\d+\.\d+')([ \t]*(?:#.*)?)$/gmu,
             (_, prefix, scalar, suffix) => {
               const quote = ["'", '"'].includes(scalar[0]) ? scalar[0] : "";
@@ -66,7 +85,7 @@ export function projectNodeSupport(files, policy = nodeSupport) {
         `Qualified LTS majors: ${policy.testedLtsMajors.join(", ")}.`,
         ...(policy.preLtsMajors.length
           ? [
-              `Advance qualification for imminent LTS: ${policy.preLtsMajors.join(", ")}.`,
+              `Advance-qualification policy allowance: ${policy.preLtsMajors.join(", ")}.`,
             ]
           : []),
         "Other engine-compatible releases receive best-effort compatibility.",

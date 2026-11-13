@@ -18,11 +18,23 @@ import {
   verifyNpmContinuation,
   verifyGithubContinuation,
   promotionRecoveryFor,
+  verifyPromotionJournal,
 } from "../scripts/promotion-handoff.js";
 import { verifyGithubPromotionState } from "../scripts/release-effects.js";
+import {
+  observeFamilyCompletion,
+  verifyFamilyScope,
+} from "../scripts/promotion-family.js";
+import { verifyScopedRestoration } from "../scripts/release-availability-contract.js";
+import { npmLabelArguments } from "../scripts/npm-availability.js";
+import { createServer } from "node:http";
+import { spawn } from "node:child_process";
 import { checkWorkflows } from "../scripts/check-workflows.js";
 import { effectJournal, sha256 } from "../scripts/release-contract.js";
-import { verifyRecoveryRecord } from "../scripts/release-recovery.js";
+import {
+  verifyRecoveryRecord,
+  reconcilePromotionLabels,
+} from "../scripts/release-recovery.js";
 import {
   readEffectHistory,
   verifyEffectHistory,
@@ -120,6 +132,571 @@ function fixture(t, npmOnly = false) {
   };
 }
 
+function familyFixture(t, operation = "promote") {
+  const f = fixture(t),
+    core = f.release.package,
+    packages = [`${core}-win32-x64`, `${core}-linux-x64`, core];
+  f.release.platformArchives = packages.slice(0, 2).map((name, index) => ({
+    package: name,
+    platform: index ? "linux-x64" : "win32-x64",
+    version: f.target,
+    archive: f.release.archive,
+  }));
+  const latest =
+    operation === "align"
+      ? f.reads.readGithubState().target
+      : f.reads.readGithubState().latest;
+  if (operation === "align") latest.prerelease = false;
+  const family = {
+    schemaVersion: 2,
+    operation,
+    operationId: "f".repeat(64),
+    subjects: packages.map((name) => ({
+      package: name,
+      prior: operation === "align" && name === core ? f.target : "1.1.0",
+      target: f.target,
+      integrity: f.release.archive.integrity,
+      selected: operation !== "align" || name !== core,
+    })),
+    github: {
+      prior: latest,
+      target: { ...f.reads.readGithubState().target, prerelease: false },
+      targetPrior: f.reads.readGithubState().target,
+      selected: operation !== "align",
+    },
+  };
+  const states = Object.fromEntries(
+    family.subjects.map((value) => [
+      value.package,
+      { latest: value.prior, pilot: value.target },
+    ]),
+  );
+  const writes = [];
+  const operations = {
+    assertCurrent() {},
+    readPackageTags: (name) => structuredClone(states[name]),
+    readGithubState: () => ({ ...f.reads.readGithubState(), latest }),
+    writePackageLatest: (name, value) => {
+      writes.push({ package: name, value });
+      if (value === null) delete states[name].latest;
+      else states[name].latest = value;
+    },
+  };
+  return { ...f, family, states, writes, operations, packages };
+}
+
+test("alignment writes only companions and stops on intervening core or earlier-native drift", (t) => {
+  const f = familyFixture(t, "align");
+  const result = applyNpmAvailability(
+    { ...f.input("npm"), family: f.family },
+    f.operations,
+  );
+  assert.equal(result.state, "completed");
+  assert.deepEqual(
+    f.writes.map((value) => value.package),
+    f.packages.slice(0, 2),
+  );
+  const drift = familyFixture(t, "align");
+  assert.throws(
+    () =>
+      applyNpmAvailability(
+        { ...drift.input("npm"), family: drift.family },
+        {
+          ...drift.operations,
+          writePackageLatest(name, value) {
+            drift.operations.writePackageLatest(name, value);
+            drift.states[drift.release.package].latest = "9.0.0";
+          },
+        },
+      ),
+    /Unexpected third|Prior latest/u,
+  );
+  assert.equal(drift.writes.length, 1);
+});
+
+test("approved family no-ops have durable readback evidence and zero mutation requests", (t) => {
+  const f = familyFixture(t, "align");
+  for (const subject of f.family.subjects) {
+    subject.prior = subject.target;
+    if (subject.selected) subject.noOpApproved = true;
+    f.states[subject.package].latest = subject.target;
+  }
+  const input = {
+    ...f.input("npm"),
+    family: f.family,
+    env: { ...f.input("npm").env, OPERATION_SHA: f.family.operationId },
+  };
+  assert.equal(applyNpmAvailability(input, f.operations).state, "completed");
+  const bytes = readFileSync(input.journal);
+  assert.equal(
+    verifyPromotionJournal(
+      "npm",
+      bytes,
+      { run: "17", attempt: "1" },
+      f.release,
+      input.env,
+      f.family,
+    )[0].operation,
+    "completion-readback",
+  );
+  assert.deepEqual(f.writes, []);
+});
+
+test("scoped stage restoration selects only originally changed defaults and explicit prior absence", (t) => {
+  const f = familyFixture(t, "align"),
+    review = {
+      npmTag: "latest",
+      priorAvailability: {
+        npmLatest: Object.fromEntries(
+          f.packages.map((name) => [name, "1.1.0"]),
+        ),
+      },
+    };
+  const records = f.packages.slice(0, 2).map((name) => ({
+    state: "intent",
+    operation: `stage:${name}`,
+    package: name,
+    version: f.release.version,
+  }));
+  const journal = Buffer.from(
+    records
+      .flatMap((record) => [
+        JSON.stringify(record),
+        JSON.stringify({
+          state: "completed",
+          intentSha256: sha256(Buffer.from(JSON.stringify(record) + "\n")),
+        }),
+      ])
+      .join("\n") + "\n",
+  );
+  const originalEffect = {
+    phase: "stage",
+    run: "17",
+    attempt: "1",
+    manifestSha256: f.env.MANIFEST_SHA,
+    journalSha256: sha256(journal),
+  };
+  const family = {
+    ...f.family,
+    operation: "scoped-restore",
+    subjects: f.family.subjects.map((subject) => ({
+      ...subject,
+      selected: subject.package !== f.release.package,
+      prior:
+        subject.package === f.release.package ? "1.1.0" : f.release.version,
+      target: "1.1.0",
+    })),
+  };
+  const decision = {
+      family,
+      originalEffect,
+      acceptedAt: "2026-11-13T02:00:00Z",
+    },
+    settlement = {
+      record: {
+        ...originalEffect,
+        disposition: "restore-labels",
+        acceptedAt: "2026-11-13T01:00:00Z",
+      },
+      observed: {
+        state: "staged-labels-settled",
+        stages: f.packages.slice(0, 2).map((name) => ({
+          package: name,
+          state: "public-provenance-verified",
+        })),
+      },
+    };
+  verifyFamilyScope(family, f.release);
+  verifyScopedRestoration(decision, f.release, settlement, journal, review);
+  const wrong = structuredClone(decision);
+  wrong.family.subjects.at(-1).selected = true;
+  assert.throws(
+    () =>
+      verifyScopedRestoration(wrong, f.release, settlement, journal, review),
+    /not changed/,
+  );
+  const substituted = structuredClone(settlement);
+  substituted.record.run = "18";
+  assert.throws(() =>
+    verifyScopedRestoration(decision, f.release, substituted, journal, review),
+  );
+  review.priorAvailability.npmLatest[f.packages[0]] = null;
+  family.subjects[0].target = null;
+  assert.throws(() => verifyFamilyScope(family, f.release), /removal/);
+  family.subjects[0].removalApproved = true;
+  verifyFamilyScope(family, f.release);
+  verifyScopedRestoration(decision, f.release, settlement, journal, review);
+});
+
+test("family classification refuses RC GitHub latest and duplicate emergency guards before any effect", (t) => {
+  const f = familyFixture(t);
+  const scoped = structuredClone(f.family);
+  scoped.operation = "scoped-restore";
+  scoped.github.target = {
+    ...scoped.github.target,
+    tag_name: "v1.1.0-rc.1",
+    prerelease: true,
+  };
+  scoped.github.targetPrior = scoped.github.target;
+  assert.throws(
+    () => verifyFamilyScope(scoped, f.release),
+    /stable classification|candidate/,
+  );
+  const emergency = structuredClone(f.family);
+  emergency.operation = "emergency-core-restore";
+  emergency.github.selected = false;
+  emergency.github.target = emergency.github.prior;
+  emergency.subjects = emergency.subjects.map((subject) =>
+    subject.package === f.release.package
+      ? subject
+      : { ...subject, selected: false, target: subject.prior },
+  );
+  emergency.github.guards = [emergency.github.prior, emergency.github.prior];
+  assert.throws(() => verifyFamilyScope(emergency, f.release), /distinct/);
+  assert.deepEqual(f.writes, []);
+});
+
+test("family recovery binds each attempted package and refuses a third value or substituted operation", (t) => {
+  const f = familyFixture(t, "align");
+  let count = 0;
+  assert.throws(
+    () =>
+      applyNpmAvailability(
+        { ...f.input("npm"), family: f.family },
+        {
+          ...f.operations,
+          writePackageLatest(name, value) {
+            f.operations.writePackageLatest(name, value);
+            if (++count === 1) throw new Error("lost acknowledgement");
+          },
+        },
+      ),
+    /lost acknowledgement/,
+  );
+  const journal = readFileSync(f.input("npm").journal),
+    records = journal.toString().trim().split("\n").map(JSON.parse);
+  const record = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    phase: "promote",
+    service: "npm",
+    operationId: f.family.operationId,
+    run: "17",
+    attempt: "1",
+    manifestSha256: f.env.MANIFEST_SHA,
+    version: f.release.version,
+    acceptedAt: new Date().toISOString(),
+    rationale: "Settle the original request with exact provider readback.",
+    journalSha256: sha256(journal),
+  };
+  verifyRecoveryRecord(record, f.release, f.env.MANIFEST_SHA, journal);
+  assert.equal(
+    reconcilePromotionLabels(
+      record,
+      records,
+      f.states,
+      f.operations.readGithubState().latest,
+    ).state,
+    "family-effects-settled",
+  );
+  assert.throws(() =>
+    reconcilePromotionLabels(
+      { ...record, operationId: "0".repeat(64) },
+      records,
+      f.states,
+      f.operations.readGithubState().latest,
+    ),
+  );
+  f.states[f.packages[1]].latest = "9.0.0";
+  assert.throws(() =>
+    reconcilePromotionLabels(
+      record,
+      records,
+      f.states,
+      f.operations.readGithubState().latest,
+    ),
+  );
+  const jobs = ["admit", "npm", "github", "complete"].map((name, index) => ({
+    id: index + 1,
+    name,
+    run_id: 17,
+    run_attempt: 1,
+    head_sha: f.env.GITHUB_SHA,
+    status: "completed",
+    conclusion: name === "npm" ? "failure" : "skipped",
+    steps:
+      name === "npm"
+        ? [
+            {
+              name: "Apply admitted release effect",
+              status: "completed",
+              conclusion: "failure",
+              started_at: "2026-11-13T00:00:00Z",
+              completed_at: "2026-11-13T00:01:00Z",
+            },
+          ]
+        : [],
+  }));
+  const history = {
+    phase: "promote",
+    service: "npm",
+    run: {
+      id: 17,
+      run_attempt: 1,
+      head_sha: f.env.GITHUB_SHA,
+      status: "completed",
+      head_branch: "main",
+      event: "workflow_dispatch",
+      repository: { full_name: "Hadden-Industries/json-quality" },
+      path: ".github/workflows/promote-release.yml",
+    },
+    jobs: { total_count: jobs.length, jobs },
+    journal,
+  };
+  assert.throws(
+    () =>
+      verifyEffectHistory([history], { run: "18", attempt: "1" }, f.release),
+    /Unknown prior effect/,
+  );
+});
+
+test("family completion shares one deadline, tolerates transport/reset and prior propagation, and never writes", (t) => {
+  const f = familyFixture(t),
+    { family } = f;
+  let elapsed = 0,
+    reads = 0;
+  const operations = {
+    ...f.operations,
+    now: () => elapsed,
+    random: () => 0,
+    sleep: (ms) => {
+      elapsed += ms;
+    },
+    readPackageTags(name, deadline) {
+      assert.equal(deadline, 300_000);
+      reads++;
+      if (reads === 1)
+        throw Object.assign(new Error("reset"), { code: "ECONNRESET" });
+      return { latest: elapsed < 270_000 ? "1.1.0" : f.target };
+    },
+    readGithubState: () => ({
+      latest: { ...family.github.target, immutable: true, draft: false },
+      target: { ...family.github.target, immutable: true, draft: false },
+    }),
+  };
+  assert.equal(observeFamilyCompletion(family, operations).state, "completed");
+  assert.ok(elapsed >= 270_000 && elapsed < 300_000);
+  assert.deepEqual(f.writes, []);
+  elapsed = 0;
+  const result = observeFamilyCompletion(family, {
+    ...operations,
+    wallNow: () => 0,
+    readPackageTags: () => {
+      throw Object.assign(new Error("rate limit"), {
+        retryable: true,
+        retryAfterMs: 360_000,
+        httpStatus: 429,
+      });
+    },
+  });
+  assert.equal(result.state, "completion-unconfirmed");
+  assert.equal(result.earliestUsefulRetryAt, "1970-01-01T00:06:00.000Z");
+  assert.equal(elapsed, 0);
+  elapsed = 0;
+  const splitFamily = {
+    ...family,
+    github: {
+      ...family.github,
+      targetPrior: { ...family.github.targetPrior, prerelease: true },
+    },
+  };
+  const split = observeFamilyCompletion(splitFamily, {
+    ...operations,
+    readPackageTags: () => ({ latest: f.target }),
+    readGithubState: () => ({
+      latest: { ...family.github.target, immutable: true, draft: false },
+      target: {
+        ...family.github.targetPrior,
+        prerelease: true,
+        immutable: true,
+        draft: false,
+      },
+    }),
+  });
+  assert.equal(
+    split.state,
+    "completion-unconfirmed",
+    "A stale target classification cannot become completed through the latest endpoint",
+  );
+  elapsed = 0;
+  const targetRateLimit = observeFamilyCompletion(family, {
+    ...operations,
+    wallNow: () => 0,
+    readPackageTags: () => ({ latest: f.target }),
+    verifyTargets(deadline) {
+      assert.equal(deadline, 300_000);
+      throw Object.assign(new Error("target rate limit"), {
+        retryable: true,
+        retryAfterMs: 360_000,
+        httpStatus: 429,
+      });
+    },
+  });
+  assert.equal(targetRateLimit.state, "completion-unconfirmed");
+  assert.equal(
+    targetRateLimit.earliestUsefulRetryAt,
+    "1970-01-01T00:06:00.000Z",
+  );
+  assert.equal(
+    observeFamilyCompletion(family, {
+      ...operations,
+      readPackageTags: () => ({ latest: f.target }),
+    }).state,
+    "completed",
+  );
+  assert.throws(
+    () =>
+      observeFamilyCompletion(family, {
+        ...operations,
+        readPackageTags: () => ({ latest: "9.0.0" }),
+      }),
+    /third/u,
+  );
+  assert.throws(
+    () =>
+      observeFamilyCompletion(family, {
+        ...operations,
+        readPackageTags: () => {
+          throw Object.assign(new Error("forbidden"), { httpStatus: 403 });
+        },
+      }),
+    /forbidden/u,
+  );
+  assert.deepEqual(f.writes, []);
+});
+
+test("native npm CLI issues one mutation when a registry loses acknowledgement", async (t) => {
+  let mutations = 0;
+  const server = createServer((request, response) => {
+    if (["PUT", "DELETE"].includes(request.method)) {
+      mutations++;
+      response.writeHead(503, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({ error: "response lost after applying label" }),
+      );
+    } else {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          name: "@hadden-industries/json-quality",
+          "dist-tags": { latest: "1.1.0" },
+          versions: { "1.2.0": { version: "1.2.0" } },
+        }),
+      );
+    }
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const root = mkdtempSync(join(tmpdir(), "json-npm-one-request-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const args = npmLabelArguments(
+    "@hadden-industries/json-quality",
+    "1.2.0",
+  ).map((value) =>
+    value.startsWith("--registry=")
+      ? `--registry=http://127.0.0.1:${server.address().port}/`
+      : value,
+  );
+  const result = await new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      [process.env.npm_execpath, ...args, "--json"],
+      {
+        cwd: root,
+        windowsHide: true,
+        timeout: 30_000,
+        env: {
+          ...process.env,
+          NPM_CONFIG_CACHE: root,
+          NPM_CONFIG_USERCONFIG: join(root, "empty.npmrc"),
+          NPM_CONFIG_FETCH_RETRIES: "2",
+        },
+      },
+    );
+    let output = "";
+    child.stdout.on("data", (data) => (output += data));
+    child.stderr.on("data", (data) => (output += data));
+    child.on("error", reject);
+    child.on("exit", (code) => resolve({ code, output }));
+  });
+  assert.notEqual(result.code, 0, result.output);
+  assert.equal(mutations, 1, result.output);
+});
+
+test("native captured-output stage rejection accepts supplied owner OTP without a terminal or automatic DELETE retries", async (t) => {
+  const stageId = "01234567-1234-4123-8123-0123456789ab";
+  let deletes = 0;
+  const server = createServer((request, response) => {
+    if (request.method === "GET") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end("{}");
+      return;
+    }
+    assert.equal(request.method, "DELETE");
+    assert.equal(request.url, `/-/stage/${stageId}`);
+    deletes++;
+    if (request.headers["npm-otp"] !== "123456") {
+      response.writeHead(401, {
+        "www-authenticate": "OTP",
+        "content-type": "application/json",
+      });
+      response.end(JSON.stringify({ error: "OTP required" }));
+    } else {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end("{}");
+    }
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const root = mkdtempSync(join(tmpdir(), "json-native-stage-otp-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const result = await new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      [
+        process.env.npm_execpath,
+        "stage",
+        "reject",
+        stageId,
+        "--fetch-retries=0",
+        `--registry=http://127.0.0.1:${server.address().port}/`,
+      ],
+      {
+        cwd: root,
+        windowsHide: true,
+        timeout: 30_000,
+        env: {
+          ...process.env,
+          NPM_CONFIG_CACHE: root,
+          NPM_CONFIG_USERCONFIG: join(root, "empty.npmrc"),
+          NPM_CONFIG_OTP: "123456",
+          NPM_CONFIG_FETCH_RETRIES: "2",
+        },
+      },
+    );
+    let output = "";
+    child.stdout.on("data", (data) => (output += data));
+    child.stderr.on("data", (data) => (output += data));
+    child.on("error", reject);
+    child.on("exit", (code) => resolve({ code, output }));
+  });
+  assert.equal(result.code, 0, result.output);
+  assert.equal(deletes, 1);
+  assert.ok(
+    result.output.includes(`Staged package ${stageId} has been rejected.`),
+  );
+});
+
 test("separate writers preserve npm-complete/GitHub-pending and make one request per service", (t) => {
   const f = fixture(t);
   const npm = applyNpmAvailability(f.input("npm"), {
@@ -147,6 +724,147 @@ test("separate writers preserve npm-complete/GitHub-pending and make one request
   );
   assert.deepEqual(names, ["npm-latest", "github-latest"]);
   assert.notEqual(f.input("npm").journal, f.input("github").journal);
+});
+
+test("family promotion writes Windows, Linux, core once and guards every earlier target", (t) => {
+  const f = fixture(t),
+    core = f.release.package;
+  const packages = [`${core}-win32-x64`, `${core}-linux-x64`, core];
+  f.release.platformArchives = packages.slice(0, 2).map((name, index) => ({
+    package: name,
+    platform: index ? "linux-x64" : "win32-x64",
+    version: f.release.version,
+    archive: f.release.archive,
+  }));
+  const family = {
+    schemaVersion: 2,
+    operation: "promote",
+    operationId: "f".repeat(64),
+    subjects: packages.map((name) => ({
+      package: name,
+      prior: "1.1.0",
+      target: f.target,
+      integrity: f.release.archive.integrity,
+      selected: true,
+    })),
+    github: {
+      prior: f.reads.readGithubState().latest,
+      target: f.reads.readGithubState().target,
+      targetPrior: f.reads.readGithubState().target,
+      selected: true,
+    },
+  };
+  const states = Object.fromEntries(
+    packages.map((name) => [name, { latest: "1.1.0", pilot: f.target }]),
+  );
+  const writes = [];
+  const input = { ...f.input("npm"), family };
+  const result = applyNpmAvailability(input, {
+    ...f.reads,
+    readPackageTags: (name) => structuredClone(states[name]),
+    writePackageLatest: (name, value) => {
+      writes.push(name);
+      states[name].latest = value;
+    },
+    // The old core-only path can run, making the missing family behavior observable.
+    writeNpmLatest: (value) => {
+      writes.push(core);
+      f.npmWrite(value);
+    },
+  });
+  assert.deepEqual(writes, packages);
+  assert.deepEqual(Object.keys(result.packages).sort(), [...packages].sort());
+  const journal = readFileSync(input.journal, "utf8")
+    .trim()
+    .split("\n")
+    .map(JSON.parse);
+  assert.deepEqual(
+    journal
+      .filter(({ state }) => state === "intent")
+      .map(({ package: name }) => name),
+    packages,
+  );
+  assert.ok(
+    journal
+      .filter(({ state }) => state === "intent")
+      .every(({ guard }) => guard.operationId === family.operationId),
+  );
+});
+
+test("an acknowledged npm write tolerates stale prior tags before sealing completion", (t) => {
+  const f = fixture(t);
+  const prior = f.reads.readNpmTags();
+  let elapsed = 0;
+  const input = f.input("npm");
+  const completed = applyNpmAvailability(input, {
+    ...f.reads,
+    readNpmTags: (deadline) => {
+      if (deadline !== undefined) {
+        assert.equal(deadline, 300_000);
+        if (elapsed < 270_000) return prior;
+      }
+      return f.reads.readNpmTags();
+    },
+    writeNpmLatest: f.npmWrite,
+    now: () => elapsed,
+    sleep: (ms) => {
+      elapsed += ms;
+      assert.ok(elapsed <= 300_000);
+    },
+  });
+  assert.equal(completed.npm.latest, f.target);
+  assert.deepEqual(f.calls, ["guard", "npm"]);
+  assert.ok(elapsed >= 270_000 && elapsed < 300_000);
+  const journal = readFileSync(input.journal, "utf8").trim().split("\n");
+  assert.deepEqual(
+    journal.map((line) => JSON.parse(line).state),
+    ["intent", "completed"],
+  );
+});
+
+test("npm readback leaves a single unknown write when the prior tag persists or a third version appears", async (t) => {
+  for (const [label, retry] of [
+    ["1.1.0", true],
+    ["1.3.0", false],
+  ]) {
+    await t.test(label, (subtest) => {
+      const f = fixture(subtest);
+      const input = f.input("npm");
+      let elapsed = 0;
+      const observations = [];
+      assert.throws(
+        () =>
+          applyNpmAvailability(input, {
+            ...f.reads,
+            readNpmTags: (deadline) => {
+              if (deadline !== undefined) {
+                assert.equal(deadline, 300_000);
+                assert.ok(elapsed < deadline);
+                observations.push(elapsed);
+                elapsed += Math.min(2_000, deadline - elapsed);
+              }
+              return f.reads.readNpmTags();
+            },
+            writeNpmLatest: () => f.npmWrite(label),
+            now: () => elapsed,
+            sleep: (ms) => {
+              elapsed += ms;
+              assert.ok(elapsed <= 300_000);
+            },
+          }),
+        /npm latest update outcome unresolved/u,
+      );
+      assert.equal(elapsed, retry ? 300_000 : 2_000);
+      if (retry) assert.ok(observations.at(-1) > 270_000);
+      else assert.deepEqual(observations, [0]);
+      assert.deepEqual(f.calls, ["guard", "npm"]);
+      const journal = readFileSync(input.journal, "utf8").trim().split("\n");
+      assert.deepEqual(
+        journal.map((line) => JSON.parse(line).state),
+        ["intent", "outcome-unknown"],
+      );
+    });
+  }
 });
 
 test("unknown npm request cannot be replayed; owner readback can continue only GitHub", (t) => {

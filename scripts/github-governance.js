@@ -41,11 +41,46 @@ function rulesetProjection(value) {
       .sort((a, b) => a.type.localeCompare(b.type)),
   };
 }
+/** Prove simple disjoint prefixes/exclusions; unfamiliar glob syntax stays conservative. */
+export function tagRulesMayOverlap(rule) {
+  const { include = [], exclude = [] } = rule.conditions?.ref_name ?? {};
+  const prefix = (pattern) =>
+    pattern === "~ALL"
+      ? "refs/tags/"
+      : pattern.startsWith("refs/tags/")
+        ? pattern.split(/[?*[\]{}]/u)[0]
+        : "refs/tags/";
+  return ["refs/tags/v*", "refs/tags/release-history-*"].some(
+    (protectedPattern) => {
+      const protectedPrefix = prefix(protectedPattern);
+      if (
+        exclude.some(
+          (pattern) =>
+            pattern === "~ALL" ||
+            pattern === protectedPattern ||
+            (/^[^?[\]{}*]+\*$/u.test(pattern) &&
+              protectedPrefix.startsWith(pattern.slice(0, -1))),
+        )
+      )
+        return false;
+      return (
+        !include.length ||
+        include.some((pattern) => {
+          const candidatePrefix = prefix(pattern);
+          return (
+            candidatePrefix.startsWith(protectedPrefix) ||
+            protectedPrefix.startsWith(candidatePrefix)
+          );
+        })
+      );
+    },
+  );
+}
 export async function inspectGovernance(read) {
   const repo = await read("");
   assert.equal(repo.full_name, governance.repository);
   assert.equal(repo.default_branch, governance.branch);
-  const summaries = await read("/rulesets?per_page=100");
+  const summaries = await read("/rulesets?per_page=100&includes_parents=true");
   assert.ok(Array.isArray(summaries) && summaries.length < 100);
   const owned = summaries.filter(
     (value) => value.name === governance.ruleset.name,
@@ -54,6 +89,39 @@ export async function inspectGovernance(read) {
   const actualRule = owned.length
     ? await read(`/rulesets/${owned[0].id}`)
     : null;
+  const managedTagRulesetIds = {};
+  const tagRulesets = [];
+  for (const rule of governance.tagRulesets) {
+    const matches = summaries.filter((value) => value.name === rule.name);
+    assert.ok(matches.length <= 1, "Ambiguous managed tag ruleset");
+    // A parent policy is independently authoritative and cannot be edited here.
+    assert.ok(
+      matches.every(
+        (value) => !value.source_type || value.source_type === "Repository",
+      ),
+      "Managed tag ruleset collides with inherited policy",
+    );
+    managedTagRulesetIds[rule.name] = matches[0]?.id ?? null;
+    tagRulesets.push(
+      matches.length
+        ? rulesetProjection(await read(`/rulesets/${matches[0].id}`))
+        : null,
+    );
+  }
+  const inheritedTagPolicies = [];
+  for (const summary of summaries.filter(
+    (value) =>
+      value.target === "tag" &&
+      !governance.tagRulesets.some((rule) => rule.name === value.name),
+  )) {
+    const rule = await read(`/rulesets/${summary.id}`);
+    if (rule.enforcement === "active" && tagRulesMayOverlap(rule))
+      inheritedTagPolicies.push({
+        id: summary.id,
+        source: summary.source,
+        policy: rulesetProjection(rule),
+      });
+  }
   const actualActions = await read("/actions/permissions");
   const actual = {
     repositorySettings: Object.fromEntries(
@@ -71,19 +139,25 @@ export async function inspectGovernance(read) {
     codeqlDefaultSetup: await read("/code-scanning/default-setup"),
     retention: await read("/actions/permissions/artifact-and-log-retention"),
     ruleset: actualRule ? rulesetProjection(actualRule) : null,
+    tagRulesets,
   };
   const expected = {
     ...governance,
     ruleset: rulesetProjection(governance.ruleset),
+    tagRulesets: governance.tagRulesets.map(rulesetProjection),
   };
   const differences = Object.keys(actual).filter(
     (key) => !includes(actual[key], expected[key]),
   );
+  // Do not claim effective owner creation when another active policy can restrict it.
+  if (inheritedTagPolicies.length) differences.push("tagPolicyOverlaps");
   return {
     status: differences.length ? "CUTOVER_REQUIRED" : "CONFIGURED",
     differences,
     actual,
     managedRulesetId: owned[0]?.id ?? null,
+    managedTagRulesetIds,
+    inheritedTagPolicies,
   };
 }
 
@@ -170,6 +244,11 @@ async function activate(read, write) {
     git("rev-parse", `${head}:.github/workflows/ci.yml`),
   );
   const before = await inspectGovernance(read);
+  assert.equal(
+    before.inheritedTagPolicies.length,
+    0,
+    "Review overlapping tag policy before activation",
+  );
   const settings = [
     ["repositorySettings", "PATCH", ""],
     ["actions", "PUT", "/actions/permissions"],
@@ -209,6 +288,28 @@ async function activate(read, write) {
       ),
     );
   }
+  if (before.differences.includes("tagRulesets"))
+    for (const rule of governance.tagRulesets) {
+      const id = before.managedTagRulesetIds[rule.name];
+      if (
+        includes(
+          before.actual.tagRulesets[governance.tagRulesets.indexOf(rule)],
+          rulesetProjection(rule),
+        )
+      )
+        continue;
+      const result = write(
+        id ? "PUT" : "POST",
+        id ? `/rulesets/${id}` : "/rulesets",
+        rule,
+      );
+      assert.ok(
+        includes(
+          rulesetProjection(await read(`/rulesets/${result.id}`)),
+          rulesetProjection(rule),
+        ),
+      );
+    }
   const after = await inspectGovernance(read);
   assert.equal(after.status, "CONFIGURED");
   return after;

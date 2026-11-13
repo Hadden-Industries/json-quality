@@ -10,7 +10,6 @@ import { createReadStream, existsSync } from "node:fs";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { join, posix } from "node:path";
-import Ajv from "ajv/dist/2020.js";
 import { npmCli } from "./qualification-process.js";
 import {
   DEFAULT_PACKAGE_VERIFICATION_LIMITS as packageCapabilities,
@@ -18,6 +17,7 @@ import {
 } from "../src/package-payload.js";
 import { nativePackages } from "../src/native-packages.js";
 import { securityScans } from "./security-scans.js";
+import { verifyDistributionInventory } from "./release-distribution.js";
 import {
   effectJournal,
   sha256,
@@ -140,14 +140,22 @@ export function safeMember(path) {
   );
   return path;
 }
-const validate = new Ajv({ allErrors: true, strict: true }).compile(
-  readJson(new URL("../schemas/release-manifest.schema.json", import.meta.url)),
-);
+// Schema admission belongs to read-only jobs; narrow writers import identities only.
+let manifestValidator;
 export function verifyManifest(release) {
+  const validate = (manifestValidator ??= new (createRequire(import.meta.url)(
+    "ajv/dist/2020.js",
+  ))({ allErrors: true, strict: true }).compile(
+    readJson(
+      new URL("../schemas/release-manifest.schema.json", import.meta.url),
+    ),
+  ));
   assert.ok(
     validate(release),
     `Invalid release manifest: ${JSON.stringify(validate.errors)}`,
   );
+  if (release.schemaVersion >= 3 || release.distribution)
+    verifyDistributionInventory(release);
   validVersion(release.version);
   assert.deepEqual(
     release.platformArchives.map((entry) => entry.platform).sort(),
@@ -256,6 +264,28 @@ export function releasePackages(release) {
       archive: release.archive,
     },
   ];
+}
+/** New publications carry one original origin per package; legacy records have one origin. */
+export function publicationOrigin(publication, subject) {
+  if (publication.origins !== undefined) {
+    assert.deepEqual(
+      Object.keys(publication.origins).sort(),
+      releasePackages(publication.release)
+        .map((value) => value.package)
+        .sort(),
+      "Incomplete package publication origins",
+    );
+    const origin = publication.origins[subject.package];
+    assert.ok(origin, "Missing package publication origin");
+    assert.equal(origin.integrity, subject.archive.integrity);
+    assert.equal(origin.package, subject.package);
+    for (const key of ["run", "attempt"])
+      assert.match(origin[key], /^[1-9]\d{0,15}$/u);
+    assert.match(origin.controller, /^[a-f0-9]{40}$/u);
+    return origin;
+  }
+  assert.ok(publication.origin, "Missing legacy publication origin");
+  return publication.origin;
 }
 export function validateFrozenMatrix(matrix, policy) {
   assert.deepEqual([...matrix.os].sort(), [...policy.platforms].sort());
@@ -513,6 +543,7 @@ export function verifyRun(
     reconciled = false,
     historical = false,
     availability = "npm-and-github",
+    stagePhase,
   } = {},
 ) {
   const { run, jobs } = provider;
@@ -534,9 +565,33 @@ export function verifyRun(
     historical &&
     phase === "promote" &&
     jobs.jobs.some((job) => job.name === "promote");
-  const names = legacyPromotion
+  let names = legacyPromotion
     ? ["admit", "promote"]
     : expectedJobs(phase, matrix);
+  if (phase === "stage" && stagePhase) {
+    assert.ok(["natives", "core"].includes(stagePhase));
+    const nativeNames = jobs.jobs
+      .filter(
+        (job) =>
+          job.name === "native-public" ||
+          job.name.startsWith("native-public ("),
+      )
+      .map((job) => job.name);
+    if (stagePhase === "core")
+      assert.deepEqual(
+        nativeNames.sort(),
+        matrix.os.map((os) => `native-public (${os})`).sort(),
+      );
+    else
+      assert.ok(
+        (nativeNames.length === 1 && nativeNames[0] === "native-public") ||
+          (nativeNames.length === 2 &&
+            matrix.os.every((os) =>
+              nativeNames.includes(`native-public (${os})`),
+            )),
+      );
+    names = ["admit", "stage", ...nativeNames];
+  }
   assert.equal(jobs.total_count, names.length, "Incomplete provider jobs");
   assert.equal(jobs.jobs.length, names.length, "Truncated provider jobs");
   assert.deepEqual(jobs.jobs.map(({ name }) => name).sort(), names.sort());
@@ -548,6 +603,12 @@ export function verifyRun(
           job.conclusion,
         ),
       );
+    else if (
+      phase === "stage" &&
+      stagePhase === "natives" &&
+      job.name.startsWith("native-public")
+    )
+      assert.equal(job.conclusion, "skipped");
     else if (
       phase === "promote" &&
       job.name === "github" &&
@@ -613,6 +674,27 @@ export function verifyDecision(bytes, digest, release, manifestSha, phase) {
   if (phase === "review") {
     releaseNpmTag(record);
     assert.equal(record.decisions.security.independent, true);
+    if (release.schemaVersion >= 3) {
+      assert.ok(
+        record.priorAvailability &&
+          Object.hasOwn(record.priorAvailability, "githubLatest"),
+        "Review requires explicit prior GitHub latest identity or absence",
+      );
+      assert.deepEqual(
+        Object.keys(record.priorAvailability.npmLatest).sort(),
+        releasePackages(release)
+          .map((subject) => subject.package)
+          .sort(),
+      );
+      for (const value of Object.values(record.priorAvailability.npmLatest))
+        assert.ok(value === null || typeof value === "string");
+      const github = record.priorAvailability.githubLatest;
+      if (github !== null) {
+        assert.ok(Number.isSafeInteger(github.id) && github.id > 0);
+        assert.match(github.tag_name, /^v\S+$/u);
+        assert.equal(typeof github.prerelease, "boolean");
+      }
+    }
   } else {
     assert.match(record.reviewSha256, /^[a-f0-9]{64}$/u);
     assert.match(String(record.registryRun), /^[1-9]\d{0,15}$/u);

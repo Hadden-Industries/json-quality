@@ -37,7 +37,7 @@ env:
 jobs:
   admit:
     if: github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read
@@ -106,7 +106,7 @@ jobs:
           retention-days: 30
   security:
     needs: admit
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read
@@ -135,25 +135,32 @@ jobs:
   qualified:
     if: always()
     needs: [admit, registry, security]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read
       actions: read
     steps:
-      - env:
-          NEEDS_JSON: ${{ toJSON(needs) }}
-        run: node --input-type=module -e 'import assert from "node:assert/strict"; const needs=JSON.parse(process.env.NEEDS_JSON); assert.deepEqual(Object.keys(needs).sort(),["admit","registry","security"]); for(const job of Object.values(needs)) assert.equal(job.result,"success");'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
       - uses: ./.github/actions/setup-producer
       - uses: ./.github/actions/download-evidence
+        if: needs.admit.result == 'success'
         timeout-minutes: 15
         with:
           artifact-id: ${{ needs.admit.outputs.artifact-id }}
           path: ${{ runner.temp }}/admitted/
+      - name: Retain defaults and original approvals after failed public proof
+        if: needs.admit.result == 'success' && (needs.registry.result != 'success' || needs.security.result != 'success')
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-public-state.js "${{ runner.temp }}/admitted"
+      - env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: node --input-type=module -e 'import assert from "node:assert/strict"; const needs=JSON.parse(process.env.NEEDS_JSON); assert.deepEqual(Object.keys(needs).sort(),["admit","registry","security"]); for(const job of Object.values(needs)) assert.equal(job.result,"success");'
       - env:
           GH_TOKEN: ${{ github.token }}
         run: npm run collect:registry-evidence -- "${{ runner.temp }}/admitted" "${{ runner.temp }}/collection"

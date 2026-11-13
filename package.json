@@ -1,17 +1,10 @@
 {
   "name": "@hadden-industries/json-quality",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Zero-config strict JSON/JSONL checking and single-document formatting for Node.js, with duplicate-key detection, numeric safety and Unicode NFC repair",
   "license": "AGPL-3.0-only",
   "type": "module",
-  "packageManager": "npm@12.2.1",
-  "devEngines": {
-    "packageManager": {
-      "name": "npm",
-      "version": ">=12.2.1 <13",
-      "onFail": "error"
-    }
-  },
+  "packageManager": "npm@12.2.2",
   "engines": {
     "node": ">=22.13.0"
   },
@@ -133,8 +126,9 @@
     "emit:release-matrix": "node scripts/release-prepare.js resolve-matrix",
     "generate:source-dependency-evidence": "node scripts/release-inventory.js",
     "verify:release-codeql": "node scripts/release-security.js",
-    "admit:release-evidence": "node scripts/release-evidence.js",
+    "admit:release-evidence": "node scripts/admit-release-evidence.js",
     "execute:release-action": "node scripts/release-command.js",
+    "reject:release-stages": "node scripts/reject-release-stages.js",
     "qualify:registry-package": "node scripts/qualify-registry.js",
     "collect:registry-evidence": "node scripts/release-registry-evidence.js",
     "pack:package-family": "node scripts/pack.js",
@@ -176,31 +170,38 @@
   },
   "dependencies": {
     "ajv": "8.20.0",
-    "prettier": "3.9.10"
+    "prettier": "3.10.1"
   },
   "optionalDependencies": {
     "@hadden-industries/json-quality-linux-x64": "file:native/prebuilt/linux-x64",
     "@hadden-industries/json-quality-win32-x64": "file:native/prebuilt/win32-x64"
   },
   "overrides": {
+    "fast-xml-parser": ">=5.12.0",
+    "ajv": {
+      "fast-uri": "4.2.3"
+    },
+    "@hadden-industries/markdown-quality": {
+      "prettier": "$prettier"
+    },
     "eslint": {
-      "minimatch": "11.0.4"
+      "minimatch": "11.0.8"
     },
     "@eslint/config-array": {
-      "minimatch": "11.0.4"
+      "minimatch": "11.0.8"
     },
     "readdir-glob": {
-      "minimatch": "11.0.4"
+      "minimatch": "11.0.8"
     },
     "archiver-utils": {
-      "glob": "14.0.3"
+      "glob": "14.0.6"
     }
   },
   "devDependencies": {
     "@actions/artifact": ">=6.3.1",
     "@eslint/js": ">=10.0.1",
     "@eslint/json": ">=2.1.1",
-    "@hadden-industries/markdown-quality": ">=3.0.0",
+    "@hadden-industries/markdown-quality": ">=3.0.1",
     "@humanwhocodes/momoa": ">=3.3.13",
     "@types/node": ">=26.6.6",
     "dependency-cruiser": ">=18.7.2",

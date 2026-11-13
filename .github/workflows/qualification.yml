@@ -27,7 +27,7 @@ permissions:
 jobs:
   producer:
     name: Reference producer
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     outputs:
       matrix: ${{ steps.policy.outputs.matrix }}
@@ -147,7 +147,7 @@ jobs:
     name: Complete runtime qualification
     if: always()
     needs: [producer, qualification]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Require the producer and every frozen matrix lane

@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Freeze the existing packer's core and platform archives as one release family. */
 import assert from "node:assert/strict";
-import { appendFileSync, readdirSync } from "node:fs";
+import { appendFileSync, readdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  acquireNativeProduction,
+  nativeSourceInputs,
+  reconcileNativeDistribution,
+} from "./release-distribution.js";
+import { provider, download } from "./release-provider.js";
 import { fileURLToPath } from "node:url";
 import {
   archiveInventory,
@@ -46,6 +53,10 @@ export async function freezeRelease(directory, matrix, version) {
   assert.equal(manifest.name, provenance.name);
   assert.equal(manifest.version, version);
   const platformArchives = [];
+  const nativeDistribution = [];
+  const inputs = nativeSourceInputs(process.cwd());
+  const dependencies = readJson("native/dependencies.json");
+  const origins = readJson("native/production-origins.json");
   for (const entry of provenance.platformPackages) {
     const path = join(directory, entry.archive),
       bytes = releaseArtifactBytes(path),
@@ -70,7 +81,7 @@ export async function freezeRelease(directory, matrix, version) {
         .map(({ path, size }) => ({ path, size }))
         .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
     );
-    platformArchives.push({
+    const subject = {
       platform: entry.platform,
       package: entry.name,
       version,
@@ -81,14 +92,40 @@ export async function freezeRelease(directory, matrix, version) {
         integrity: entry.integrity,
         files: inventory.files,
       },
-    });
+    };
+    const scratch = mkdtempSync(join(tmpdir(), "json-native-origin-"));
+    try {
+      const original = acquireNativeProduction(
+        origins.platforms[entry.platform],
+        scratch,
+        { provider, download },
+      );
+      nativeDistribution.push(
+        reconcileNativeDistribution(
+          subject,
+          inventory,
+          inputs,
+          dependencies,
+          original,
+        ),
+      );
+      save(join(directory, `native-production-${entry.platform}.json`), {
+        provider: original.provider,
+        artifact: original.artifact,
+        origin: original.origin,
+        files: original.files,
+      });
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+    platformArchives.push(subject);
   }
   const policyBytes = regularBytes(
       new URL("../assets/node-support.json", import.meta.url),
     ),
     policy = JSON.parse(policyBytes);
   const release = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     package: provenance.name,
     version,
     source: {
@@ -105,6 +142,19 @@ export async function freezeRelease(directory, matrix, version) {
       files,
     },
     platformArchives,
+    distribution: {
+      schemaVersion: 1,
+      packing: provenance.production,
+      subjects: [
+        { package: provenance.name, archiveSha256: provenance.sha256, files },
+        ...platformArchives.map((entry) => ({
+          package: entry.package,
+          archiveSha256: entry.archive.sha256,
+          files: entry.archive.files,
+        })),
+      ],
+      native: nativeDistribution,
+    },
     matrix,
     policy,
     policySha256: sha256(policyBytes),

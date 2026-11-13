@@ -29,7 +29,7 @@ import {
   signedTag,
 } from "./release-provider.js";
 import { isolatedNpmEnvironment, verifyAudit } from "./release-inventory.js";
-import { npmCommand } from "./qualification-process.js";
+import { acquisitionResources, npmCommand } from "./qualification-process.js";
 import { qualifySecurity } from "./release-security.js";
 import { acquireArchiveEvidence } from "./release-assets.js";
 import { verifyPublicMetadata } from "./qualify-registry.js";
@@ -45,24 +45,77 @@ import {
   promotionRecoveryFor,
 } from "./promotion-handoff.js";
 const githubRelease = (release) => api(`releases/tags/v${release.version}`);
+const familyTarget = (family) =>
+  family.github.target?.id || family.github.prior?.id
+    ? api(`releases/${family.github.target?.id ?? family.github.prior.id}`)
+    : null;
+import { prepareFamilyPromotion } from "./release-family-admission.js";
+import { preparePromotionWriter } from "./promotion-writer-preparation.js";
 
 export function preparePromotion(
   directory,
   scratch,
   service,
   env = process.env,
+  admitted,
 ) {
-  assert.ok(["npm", "github", "complete"].includes(service));
-  const { release, context, recovery } = refreshAdmission(
-    directory,
-    "promote",
-    env,
-    {
+  assert.ok(["admit", "npm", "github", "complete"].includes(service));
+  if (env.OPERATION_JSON && service !== "admit")
+    return preparePromotionWriter(directory, scratch, service, env);
+  const { release, context, recovery } =
+    admitted ??
+    refreshAdmission(directory, "promote", env, {
       historyRoot: scratch,
       environmentName:
         service === "github" ? "github-release" : "npm-promotion",
-    },
-  );
+    });
+  if (
+    env.OPERATION_JSON &&
+    JSON.parse(env.OPERATION_JSON).originalEffect?.phase === "stage"
+  ) {
+    const operation = JSON.parse(env.OPERATION_JSON);
+    assert.equal(operation.family.operation, "scoped-restore");
+    assert.equal(operation.sourceReleaseId, null);
+    assert.equal(
+      env.ACCEPTANCE_SHA || "",
+      "",
+      "Unpublished-stage restoration has no pilot acceptance",
+    );
+    const isolation = isolatedNpmEnvironment(scratch);
+    const tags = (packageName) =>
+      npmViewObject(
+        npmCommand(
+          [
+            "view",
+            packageName,
+            "dist-tags",
+            "--json",
+            "--registry=https://registry.npmjs.org/",
+          ],
+          { env: isolation },
+        ),
+      );
+    const currentGithubState = () => ({
+      latest: optionalApi("releases/latest"),
+      affected: null,
+      target: familyTarget(operation.family),
+      releases: (operation.family.github.guards ?? []).map((guard) =>
+        api(`releases/${guard.id}`),
+      ),
+    });
+    return prepareFamilyPromotion(
+      {
+        directory,
+        scratch,
+        release,
+        context,
+        recovery,
+        tags,
+        currentGithubState,
+      },
+      env,
+    );
+  }
   const archiveProvider = context.archive;
   assert.ok(archiveProvider);
   const archived = readJson(join(directory, "archive-outcome.json"));
@@ -70,6 +123,8 @@ export function preparePromotion(
   assert.equal(live.id, archived.release.id);
   assert.equal(live.immutable, true);
   assert.equal(live.draft, false);
+  if (env.OPERATION_JSON)
+    assert.equal(JSON.parse(env.OPERATION_JSON).sourceReleaseId, live.id);
   verifyDraftAssets(archived.assets, live.assets);
   gh([
     "release",
@@ -91,9 +146,60 @@ export function preparePromotion(
   assert.equal(acceptance.registryRun, context.registry.run);
   assert.equal(acceptance.registryAttempt, context.registry.attempt);
   assert.equal(acceptance.reviewSha256, env.REVIEW_SHA);
+  if (env.OPERATION_JSON) {
+    assert.equal(
+      service,
+      "admit",
+      "Family full validation belongs to the read-only admission job",
+    );
+    const isolation = isolatedNpmEnvironment(scratch);
+    const tags = (packageName) =>
+      npmViewObject(
+        npmCommand(
+          [
+            "view",
+            packageName,
+            "dist-tags",
+            "--json",
+            "--registry=https://registry.npmjs.org/",
+          ],
+          { env: isolation },
+        ),
+      );
+    const operation = JSON.parse(env.OPERATION_JSON);
+    const currentGithubState = () => ({
+      latest: optionalApi("releases/latest"),
+      affected: githubRelease(release),
+      target: api(`releases/${operation.family.github.target?.id ?? live.id}`),
+      releases: (operation.family.github.guards ?? []).map((guard) =>
+        api(`releases/${guard.id}`),
+      ),
+    });
+    return prepareFamilyPromotion(
+      {
+        directory,
+        scratch,
+        release,
+        context,
+        recovery,
+        tags,
+        currentGithubState,
+      },
+      env,
+    );
+  }
   const isolation = isolatedNpmEnvironment(scratch);
-  const tags = () =>
-    npmViewObject(
+  const tags = (deadline) => {
+    const options = { env: isolation };
+    if (deadline !== undefined) {
+      const remaining = Math.floor(deadline - performance.now());
+      assert.ok(remaining > 0, "npm tag readback budget exhausted");
+      options.timeout = Math.min(
+        remaining,
+        acquisitionResources().maxAcquisitionTimeMs ?? Infinity,
+      );
+    }
+    return npmViewObject(
       npmCommand(
         [
           "view",
@@ -102,9 +208,10 @@ export function preparePromotion(
           "--json",
           "--registry=https://registry.npmjs.org/",
         ],
-        { env: isolation },
+        options,
       ),
     );
+  };
   const before = tags(),
     expected = JSON.parse(env.EXPECTED_LABELS);
   assert.ok(

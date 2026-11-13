@@ -2,6 +2,14 @@ name: Promote or restore exact availability labels
 on:
   workflow_dispatch:
     inputs:
+      operation_json:
+        description: Exact owner-reviewed family promotion, alignment or restoration scope and target qualification identities
+        required: true
+        type: string
+      operation_sha:
+        description: SHA256 of exact availability operation bytes
+        required: true
+        type: string
       recovery_json:
         description: Optional owner-selected native readback reconciliation of exact original journal bytes
         required: false
@@ -24,11 +32,11 @@ on:
         type: string
       acceptance_sha:
         description: acceptance sha
-        required: true
+        required: false
         type: string
       expected_labels:
         description: expected labels (JSON with explicit prior latest and githubLatest, including null)
-        required: true
+        required: false
         type: string
       restore_version:
         description: restore version
@@ -51,6 +59,8 @@ defaults:
   run:
     shell: bash
 env:
+  OPERATION_JSON: ${{ inputs.operation_json }}
+  OPERATION_SHA: ${{ inputs.operation_sha }}
   RECOVERY_JSON: ${{ inputs.recovery_json }}
   PREVIOUS_RUN: ${{ inputs.previous_run }}
   PREVIOUS_ATTEMPT: ${{ inputs.previous_attempt }}
@@ -64,13 +74,16 @@ env:
 jobs:
   admit:
     if: github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read
       actions: read
+      security-events: read
     outputs:
       artifact-id: ${{ steps.admitted.outputs.artifact-id }}
+      artifact-digest: ${{ steps.admitted.outputs.artifact-digest }}
+      receipt-sha256: ${{ steps.admission.outputs.receipt-sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,6 +91,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup-producer
       - name: Read complete predecessor and writer history
+        id: admission
         env:
           GH_TOKEN: ${{ github.token }}
         run: npm run admit:release-evidence -- promote "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
@@ -87,17 +101,20 @@ jobs:
         with:
           name: "admitted-promote-${{ github.run_attempt }}"
           path: "${{ runner.temp }}/admitted"
-          retention-days: 1
+          retention-days: 90
   npm:
     needs: admit
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     environment: npm-promotion
     permissions:
       contents: read
       actions: read
       id-token: write
-      security-events: read
+    env:
+      ADMISSION_ARTIFACT_ID: ${{ needs.admit.outputs.artifact-id }}
+      ADMISSION_ARTIFACT_DIGEST: ${{ needs.admit.outputs.artifact-digest }}
+      ADMISSION_RECEIPT_SHA: ${{ needs.admit.outputs.receipt-sha256 }}
     outputs:
       artifact-id: ${{ steps.effect.outputs.artifact-id }}
       availability: ${{ steps.npm.outputs.availability }}
@@ -106,7 +123,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: ./.github/actions/setup-producer
+      - uses: ./.github/actions/setup-writer
       - uses: ./.github/actions/download-evidence
         timeout-minutes: 15
         with:
@@ -117,7 +134,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/release-command.js promote-npm "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
-      - uses: ./.github/actions/upload-evidence
+      - uses: ./.github/actions/upload-writer-evidence
         timeout-minutes: 5
         if: always()
         id: effect
@@ -127,15 +144,18 @@ jobs:
           retention-days: 90
 
   github:
-    needs: npm
+    needs: [admit, npm]
     if: needs.npm.result == 'success' && needs.npm.outputs.availability == 'npm-and-github'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     environment: github-release
     permissions:
       contents: write
       actions: read
-      security-events: read
+    env:
+      ADMISSION_ARTIFACT_ID: ${{ needs.admit.outputs.artifact-id }}
+      ADMISSION_ARTIFACT_DIGEST: ${{ needs.admit.outputs.artifact-digest }}
+      ADMISSION_RECEIPT_SHA: ${{ needs.admit.outputs.receipt-sha256 }}
     outputs:
       artifact-id: ${{ steps.effect.outputs.artifact-id }}
     steps:
@@ -143,7 +163,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: ./.github/actions/setup-producer
+      - uses: ./.github/actions/setup-writer
       - uses: ./.github/actions/download-evidence
         timeout-minutes: 15
         with:
@@ -154,7 +174,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NPM_CONTINUATION_ID: ${{ needs.npm.outputs.artifact-id }}
         run: node scripts/release-command.js promote-github "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
-      - uses: ./.github/actions/upload-evidence
+      - uses: ./.github/actions/upload-writer-evidence
         timeout-minutes: 5
         if: always()
         id: effect
@@ -164,14 +184,18 @@ jobs:
           retention-days: 90
 
   complete:
-    needs: [npm, github]
+    needs: [admit, npm, github]
     if: always() && needs.npm.result == 'success' && (needs.github.result == 'success' || needs.github.result == 'skipped')
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read
       actions: read
       security-events: read
+    env:
+      ADMISSION_ARTIFACT_ID: ${{ needs.admit.outputs.artifact-id }}
+      ADMISSION_ARTIFACT_DIGEST: ${{ needs.admit.outputs.artifact-digest }}
+      ADMISSION_RECEIPT_SHA: ${{ needs.admit.outputs.receipt-sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -181,7 +205,7 @@ jobs:
       - uses: ./.github/actions/download-evidence
         timeout-minutes: 15
         with:
-          artifact-id: ${{ needs.github.result == 'success' && needs.github.outputs.artifact-id || needs.npm.outputs.artifact-id }}
+          artifact-id: ${{ needs.github.outputs.artifact-id || needs.npm.outputs.artifact-id }}
           path: ${{ runner.temp }}/admitted/
       - name: Verify every service selected by the owner decision
         env:

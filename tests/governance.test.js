@@ -5,7 +5,23 @@ import {
   inspectGovernance,
   observeAcceptanceCheck,
   governance,
+  tagRulesMayOverlap,
 } from "../scripts/github-governance.js";
+test("tag policy overlap admits proven disjoint namespaces and retains uncertain or overlapping rules", () => {
+  const rule = (include, exclude = []) => ({
+    conditions: { ref_name: { include, exclude } },
+  });
+  assert.equal(tagRulesMayOverlap(rule(["refs/tags/docs-*"])), false);
+  assert.equal(
+    tagRulesMayOverlap(
+      rule(["~ALL"], ["refs/tags/v*", "refs/tags/release-history-*"]),
+    ),
+    false,
+  );
+  assert.equal(tagRulesMayOverlap(rule(["refs/tags/v1.*"])), true);
+  assert.equal(tagRulesMayOverlap(rule(["~ALL"], ["refs/tags/v*"])), true);
+  assert.equal(tagRulesMayOverlap({}), true);
+});
 import { readFileSync } from "node:fs";
 import { parse, stringify } from "yaml";
 import { checkWorkflows } from "../scripts/check-workflows.js";
@@ -484,7 +500,15 @@ test("governance drift identifies missing protection and expected native check s
       full_name: desired.repository,
       default_branch: "main",
     },
-    "/rulesets?per_page=100": [{ id: 7, name: desired.ruleset.name }],
+    "/rulesets?per_page=100&includes_parents=true": [
+      { id: 7, name: desired.ruleset.name },
+      ...(desired.tagRulesets ?? []).map((rule, index) => ({
+        id: 8 + index,
+        name: rule.name,
+        target: "tag",
+        source_type: "Repository",
+      })),
+    ],
     "/rulesets/7": desired.ruleset,
     "/actions/permissions": desired.actions,
     "/actions/permissions/selected-actions": desired.selectedActions,
@@ -493,6 +517,8 @@ test("governance drift identifies missing protection and expected native check s
     "/code-scanning/default-setup": desired.codeqlDefaultSetup,
     "/actions/permissions/artifact-and-log-retention": desired.retention,
   };
+  for (const [index, rule] of (desired.tagRulesets ?? []).entries())
+    responses[`/rulesets/${8 + index}`] = rule;
   const read = async (path) => {
     assert.ok(Object.hasOwn(responses, path), path);
     return responses[path];
@@ -502,8 +528,39 @@ test("governance drift identifies missing protection and expected native check s
     (rule) => rule.type === "required_status_checks",
   ).parameters.required_status_checks[0].integration_id = 1;
   assert.deepEqual((await inspectGovernance(read)).differences, ["ruleset"]);
-  responses["/rulesets?per_page=100"] = [];
-  assert.deepEqual((await inspectGovernance(read)).differences, ["ruleset"]);
+  responses["/rulesets?per_page=100&includes_parents=true"] = [];
+  assert.deepEqual((await inspectGovernance(read)).differences, [
+    "ruleset",
+    "tagRulesets",
+  ]);
+});
+
+test("signing refs grant owner creation without granting ref replacement or deletion", () => {
+  const rules = governance.tagRulesets;
+  assert.equal(rules?.length, 2);
+  const creation = rules.find((rule) =>
+    rule.rules.some(({ type }) => type === "creation"),
+  );
+  const preservation = rules.find((rule) =>
+    rule.rules.some(({ type }) => type === "update"),
+  );
+  for (const rule of rules) {
+    assert.equal(rule.target, "tag");
+    assert.equal(rule.enforcement, "active");
+    assert.deepEqual(rule.conditions.ref_name, {
+      include: ["refs/tags/v*", "refs/tags/release-history-*"],
+      exclude: [],
+    });
+  }
+  assert.deepEqual(creation.rules, [{ type: "creation" }]);
+  assert.deepEqual(creation.bypass_actors, [
+    { actor_type: "User", actor_id: 6131830, bypass_mode: "always" },
+  ]);
+  assert.deepEqual(preservation.bypass_actors, []);
+  assert.deepEqual(preservation.rules, [
+    { type: "update" },
+    { type: "deletion" },
+  ]);
 });
 function bootstrapFixture() {
   const workflowSha = "a".repeat(40),

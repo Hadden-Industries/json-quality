@@ -4,6 +4,7 @@ import { npmCommand } from "./qualification-process.js";
 import { runPromotionService } from "./promotion-entry.js";
 import { applyNpmAvailability } from "./promotion-service.js";
 import { fileURLToPath } from "node:url";
+import { npmLabelArguments } from "./npm-availability.js";
 
 export function runNpmPromotion(directory, scratch, env = process.env) {
   return runPromotionService(
@@ -11,16 +12,15 @@ export function runNpmPromotion(directory, scratch, env = process.env) {
     applyNpmAvailability,
     ({ release, isolation }) => ({
       writeNpmLatest: (target) =>
-        npmCommand(
-          [
-            "dist-tag",
-            "add",
-            `${release.package}@${target}`,
-            "latest",
-            "--registry=https://registry.npmjs.org/",
-          ],
-          { env: isolation, phase: "npm-latest" },
-        ),
+        npmCommand(npmLabelArguments(release.package, target), {
+          env: isolation,
+          phase: "npm-latest",
+        }),
+      writePackageLatest: (packageName, target) =>
+        npmCommand(npmLabelArguments(packageName, target), {
+          env: { ...isolation, NPM_CONFIG_FETCH_RETRIES: "0" },
+          phase: "npm-family-latest",
+        }),
     }),
     [process.execPath, fileURLToPath(import.meta.url), directory, scratch],
     env,

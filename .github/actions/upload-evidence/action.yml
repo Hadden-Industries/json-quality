@@ -13,6 +13,10 @@ inputs:
     required: true
     description: Consumer-specific retention
 outputs:
+  artifact-digest:
+    description: Native SHA256 of the original transport
+  artifact-name:
+    description: Exact original or reconciled artifact name
   artifact-id:
     description: Immutable admitted artifact ID
 runs:

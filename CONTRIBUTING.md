@@ -6,7 +6,8 @@ Report suspected vulnerabilities privately through [SECURITY.md](SECURITY.md); c
 
 ## Development setup
 
-Use the development/producer Node and npm versions in [the runtime policy](docs/node-runtime-compatibility.md).
+Use the exact producer Node and npm selections in [the runtime policy](docs/node-runtime-compatibility.md) to reproduce CI and release checks.
+Local development may use another stable Node/npm pair supported by the locked tools; the repository does not enforce a separate local npm floor.
 Edit version selections only in `assets/node-support.json`, then run `npm run sync:node-support` and `npm run check:node-support`.
 Consumer compatibility minima and producer tooling requirements are separate contracts.
 The policy's compatibility floor, maintained LTS families and explicit advance lanes are qualified independently of the reference producer.
@@ -19,6 +20,9 @@ npm run test:contracts-and-identity
 Markdown tooling is the root `@hadden-industries/markdown-quality` development dependency, installed by the same `npm ci --ignore-scripts` command.
 Follow the [Markdown tooling guide](docs/markdown-quality.md); do not add it to the product's runtime dependencies.
 Retain native npm lockfiles and inspect dependency changes before accepting them.
+The root overrides select `fast-uri` 4.2.3 for Ajv and share the current Prettier with Markdown tooling.
+Recheck schema compilation and generated validators when updating the URI resolver.
+These overrides govern this checkout; npm consumers resolve Ajv's declared dependency range using their own root manifest and lockfile.
 
 ## Changes and verification
 

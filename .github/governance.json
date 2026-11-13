@@ -51,6 +51,57 @@
       }
     ]
   },
+  "tagRulesets": [
+    {
+      "name": "Owner creates signing refs",
+      "target": "tag",
+      "enforcement": "active",
+      "bypass_actors": [
+        {
+          "actor_type": "User",
+          "actor_id": 6131830,
+          "bypass_mode": "always"
+        }
+      ],
+      "conditions": {
+        "ref_name": {
+          "include": [
+            "refs/tags/v*",
+            "refs/tags/release-history-*"
+          ],
+          "exclude": []
+        }
+      },
+      "rules": [
+        {
+          "type": "creation"
+        }
+      ]
+    },
+    {
+      "name": "Preserve signing refs",
+      "target": "tag",
+      "enforcement": "active",
+      "bypass_actors": [],
+      "conditions": {
+        "ref_name": {
+          "include": [
+            "refs/tags/v*",
+            "refs/tags/release-history-*"
+          ],
+          "exclude": []
+        }
+      },
+      "rules": [
+        {
+          "type": "update"
+        },
+        {
+          "type": "deletion"
+        }
+      ]
+    }
+  ],
   "actions": {
     "enabled": true,
     "allowed_actions": "selected",

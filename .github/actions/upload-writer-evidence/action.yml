@@ -1,0 +1,77 @@
+name: Retain narrow writer evidence
+description: Upload deterministic raw ZIP bytes with original-attempt reconciliation and no project dependency graph
+inputs:
+  name: { required: true, description: Original attempt-specific artifact name }
+  path: { required: true, description: Owned evidence directory }
+  retention-days: { required: true, description: Consumer retention }
+outputs:
+  artifact-id:
+    description: Verified native artifact ID
+    value: ${{ steps.first.outputs.artifact-id || steps.second.outputs.artifact-id || steps.third.outputs.artifact-id }}
+  artifact-digest:
+    description: Verified original transport digest
+    value: ${{ steps.first.outputs.artifact-digest || steps.second.outputs.artifact-digest || steps.third.outputs.artifact-digest }}
+runs:
+  using: composite
+  steps:
+    - id: prepare
+      shell: bash
+      env:
+        EVIDENCE_PATH: ${{ inputs.path }}
+        EVIDENCE_NAME: ${{ inputs.name }}
+      run: node scripts/writer-evidence.js prepare "$EVIDENCE_PATH" "$EVIDENCE_NAME"
+    - id: upload-one
+      continue-on-error: true
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        path: ${{ steps.prepare.outputs.path }}
+        archive: false
+        if-no-files-found: error
+        retention-days: ${{ inputs.retention-days }}
+    - id: first
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TRANSPORT: ${{ steps.prepare.outputs.transport }}
+        UPLOAD_RESULT: ${{ steps.upload-one.outcome }}
+        UPLOAD_ID: ${{ steps.upload-one.outputs.artifact-id }}
+        UPLOAD_DIGEST: ${{ steps.upload-one.outputs.artifact-digest }}
+      run: node scripts/writer-evidence.js reconcile "$TRANSPORT" 1
+    - id: upload-two
+      if: steps.first.outputs.complete == 'false'
+      continue-on-error: true
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        path: ${{ steps.first.outputs.next-path }}
+        archive: false
+        if-no-files-found: error
+        retention-days: ${{ inputs.retention-days }}
+    - id: second
+      if: steps.first.outputs.complete == 'false'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TRANSPORT: ${{ steps.prepare.outputs.transport }}
+        UPLOAD_RESULT: ${{ steps.upload-two.outcome }}
+        UPLOAD_ID: ${{ steps.upload-two.outputs.artifact-id }}
+        UPLOAD_DIGEST: ${{ steps.upload-two.outputs.artifact-digest }}
+      run: node scripts/writer-evidence.js reconcile "$TRANSPORT" 2
+    - id: upload-three
+      if: steps.second.outputs.complete == 'false'
+      continue-on-error: true
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        path: ${{ steps.second.outputs.next-path }}
+        archive: false
+        if-no-files-found: error
+        retention-days: ${{ inputs.retention-days }}
+    - id: third
+      if: steps.second.outputs.complete == 'false'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TRANSPORT: ${{ steps.prepare.outputs.transport }}
+        UPLOAD_RESULT: ${{ steps.upload-three.outcome }}
+        UPLOAD_ID: ${{ steps.upload-three.outputs.artifact-id }}
+        UPLOAD_DIGEST: ${{ steps.upload-three.outputs.artifact-digest }}
+      run: node scripts/writer-evidence.js reconcile "$TRANSPORT" 3

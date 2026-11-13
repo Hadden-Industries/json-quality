@@ -1,0 +1,50 @@
+name: Prepare signed recovery checkpoint
+on:
+  workflow_run:
+    workflows:
+      [
+        Archive a publicly qualified release,
+        Promote or restore exact availability labels,
+      ]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      operation_run:
+        {
+          description: Original completed archive or availability run,
+          required: true,
+          type: string,
+        }
+      operation_attempt:
+        { description: Exact operation attempt, required: true, type: string }
+permissions:
+  contents: read
+  actions: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  prepare:
+    if: github.repository == 'Hadden-Industries/json-quality' && (github.event_name == 'workflow_run' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-producer
+      - name: Preserve original writer history and target public qualification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPERATION_RUN: ${{ inputs.operation_run || github.event.workflow_run.id }}
+          OPERATION_ATTEMPT: ${{ inputs.operation_attempt || github.event.workflow_run.run_attempt }}
+        run: node scripts/prepare-release-history.js "$OPERATION_RUN" "$OPERATION_ATTEMPT" "${{ runner.temp }}/prepared-history" "${{ runner.temp }}/history-scratch"
+      - uses: ./.github/actions/upload-evidence
+        timeout-minutes: 5
+        if: always()
+        with:
+          name: prepared-release-history-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/prepared-history
+          retention-days: 90

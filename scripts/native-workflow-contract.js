@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { ubuntuRunner } from "./runner-policy.js";
 
 const fullCondition =
   "inputs.run_checks && inputs.verification_profile == 'full'";
@@ -66,7 +67,7 @@ export function checkNativeWorkflowContract({ producer, wrapper }) {
     producer.jobs.component.strategy.matrix.include,
     [
       { os: "windows-2025", platform: "win32-x64" },
-      { os: "ubuntu-24.04", platform: "linux-x64" },
+      { os: ubuntuRunner(), platform: "linux-x64" },
     ],
     message,
   );

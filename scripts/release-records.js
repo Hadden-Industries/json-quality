@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
+  appendFileSync,
   existsSync,
   lstatSync,
   readFileSync,
@@ -28,6 +29,36 @@ export const sha512 = (bytes) =>
   "sha512-" + createHash("sha512").update(bytes).digest("base64");
 export const jsonBytes = (value) =>
   Buffer.from(JSON.stringify(value, null, 2) + "\n");
+/** Separate durable intents from proved unsent requests without inventing an outcome. */
+export function requestedIntents(records) {
+  const result = [];
+  for (let index = 0; index < records.length; index += 2) {
+    const [intent, outcome] = records.slice(index, index + 2);
+    assert.equal(intent.state, "intent");
+    if (outcome) {
+      assert.ok(
+        ["completed", "outcome-unknown", "request-not-sent"].includes(
+          outcome.state,
+        ),
+      );
+      assert.equal(
+        outcome.intentSha256,
+        sha256(Buffer.from(JSON.stringify(intent) + "\n")),
+      );
+      if (outcome.state === "request-not-sent") {
+        assert.equal(outcome.requestStarted, false);
+        continue;
+      }
+    } else
+      assert.equal(
+        index,
+        records.length - 1,
+        "Only the final request outcome may be absent",
+      );
+    result.push(intent);
+  }
+  return result;
+}
 export function save(path, value) {
   writeFileSync(path, Buffer.isBuffer(value) ? value : jsonBytes(value), {
     flag: "wx",
@@ -109,4 +140,111 @@ export function recordNoRequest(directory, phase, env) {
     };
   if (existsSync(path)) assert.deepEqual(readJson(path), marker);
   else save(path, marker);
+}
+
+export function journalEffect(
+  path,
+  subject,
+  operation,
+  request,
+  {
+    env = process.env,
+    before = null,
+    guard,
+    verify = (value) => value,
+    preRequest,
+  } = {},
+) {
+  if (existsSync(path)) {
+    const prior = readFileSync(path, "utf8").trim();
+    const records = prior
+      ? prior.split("\n").map((line) => JSON.parse(line))
+      : [];
+    assert.equal(records.length % 2, 0, "Unresolved prior journal request");
+    for (let i = 0; i < records.length; i += 2) {
+      assert.equal(
+        records[i + 1].state,
+        "completed",
+        "Unknown request cannot be retried",
+      );
+      assert.ok(
+        records[i].operation !== operation,
+        "Request operation was already journalled",
+      );
+    }
+  }
+  const intent = {
+    ...(env.PROMOTION_SERVICE
+      ? { schemaVersion: 2, service: env.PROMOTION_SERVICE }
+      : {}),
+    state: "intent",
+    package: subject.package,
+    version: subject.version,
+    source: subject.source.commit,
+    manifestSha256: env.MANIFEST_SHA,
+    integrity: subject.archive.integrity,
+    operation,
+    run: env.GITHUB_RUN_ID,
+    attempt: env.GITHUB_RUN_ATTEMPT,
+    controller: env.GITHUB_SHA,
+    before,
+    ...(guard ? { guard } : {}),
+    requestedAt: new Date().toISOString(),
+  };
+  const line = Buffer.from(JSON.stringify(intent) + "\n");
+  appendFileSync(path, line, { flag: "a", flush: true });
+  let requestStarted = false;
+  let acknowledgement;
+  const acknowledge = () => {
+    const name = `${path}.${sha256(line)}.ack.json`;
+    acknowledgement = {
+      schemaVersion: 1,
+      state: "request-acknowledged",
+      intentSha256: sha256(line),
+      observedAt: new Date().toISOString(),
+    };
+    save(name, acknowledgement);
+  };
+  try {
+    preRequest?.();
+    requestStarted = true;
+    const result = verify(request(acknowledge));
+    const outcome = {
+      state: "completed",
+      intentSha256: sha256(line),
+      result,
+      ...(acknowledgement
+        ? {
+            requestAcknowledged: true,
+            acknowledgementSha256: sha256(jsonBytes(acknowledgement)),
+          }
+        : {}),
+      observedAt: new Date().toISOString(),
+    };
+    appendFileSync(path, JSON.stringify(outcome) + "\n", { flush: true });
+    return outcome;
+  } catch (error) {
+    appendFileSync(
+      path,
+      JSON.stringify({
+        state: requestStarted ? "outcome-unknown" : "request-not-sent",
+        requestStarted,
+        intentSha256: sha256(line),
+        nextAction: requestStarted
+          ? "Inspect native state and retained request/response; do not repeat this request."
+          : "Guard refused before the provider request; a new owner decision must bind current preimages.",
+        ...(acknowledgement || error.requestAcknowledged
+          ? {
+              requestAcknowledged: true,
+              ...(acknowledgement
+                ? { acknowledgementSha256: sha256(jsonBytes(acknowledgement)) }
+                : {}),
+              ...(error.completion ? { completion: error.completion } : {}),
+            }
+          : {}),
+      }) + "\n",
+      { flush: true },
+    );
+    throw error;
+  }
 }

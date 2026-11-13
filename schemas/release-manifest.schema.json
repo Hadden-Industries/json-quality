@@ -17,7 +17,44 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": 2
+      "enum": [
+        2,
+        3
+      ]
+    },
+    "distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "packing",
+        "subjects",
+        "native"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "packing": {
+          "type": "object"
+        },
+        "subjects": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object"
+          }
+        },
+        "native": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object"
+          }
+        }
+      }
     },
     "package": {
       "const": "@hadden-industries/json-quality"
@@ -122,11 +159,12 @@
           "minItems": 2,
           "maxItems": 2,
           "uniqueItems": true,
+          "contains": {
+            "const": "windows-2025"
+          },
           "items": {
-            "enum": [
-              "ubuntu-24.04",
-              "windows-2025"
-            ]
+            "type": "string",
+            "pattern": "^(?:ubuntu-[0-9][02468]\\.04|windows-2025)$"
           }
         },
         "node": {
@@ -196,6 +234,27 @@
       "type": "array"
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 3
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "distribution": {
+            "$ref": "#/properties/distribution"
+          }
+        },
+        "required": [
+          "distribution"
+        ]
+      }
+    }
+  ],
   "$defs": {
     "sha": {
       "type": "string",

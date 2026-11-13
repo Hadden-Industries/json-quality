@@ -18,6 +18,100 @@ import { createRequire } from "node:module";
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { native, budgets } from "../scripts/qualification-process.js";
+import { verifyOwnerTagSignature } from "../scripts/release-signing.js";
+
+test("native tag verification rejects an unapproved valid signer and retains approved rotation keys", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "json-owner-signing-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const run = (command, args) => native(command, args, { cwd: root }).trim();
+  run("git", ["init", "--quiet"]);
+  run("git", ["config", "user.name", "Signing fixture"]);
+  run("git", ["config", "user.email", "owner@example.test"]);
+  run("git", [
+    "-c",
+    "commit.gpgsign=false",
+    "commit",
+    "--allow-empty",
+    "--quiet",
+    "-m",
+    "Fixture source",
+  ]);
+  const source = run("git", ["rev-parse", "HEAD"]);
+  const keys = ["old", "new", "foreign"].map((name) => {
+    const path = join(root, name);
+    run("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", path]);
+    return {
+      principal: "owner@example.test",
+      publicKey: readFileSync(path + ".pub", "utf8")
+        .trim()
+        .split(" ")
+        .slice(0, 2)
+        .join(" "),
+      path,
+    };
+  });
+  const trust = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    keys: keys.slice(0, 2),
+  };
+  for (const [index, key] of keys.entries()) {
+    const tag = `v1.0.${index}`;
+    run("git", [
+      "-c",
+      "gpg.format=ssh",
+      "-c",
+      `user.signingkey=${key.path}`,
+      "tag",
+      "-s",
+      "-m",
+      "Fixture release",
+      tag,
+    ]);
+    const oid = run("git", ["rev-parse", `refs/tags/${tag}`]);
+    const verify = () =>
+      verifyOwnerTagSignature(tag, oid, source, { trust, cwd: root });
+    if (index < 2) assert.equal(verify().owner, "maksymshostak");
+    else assert.throws(verify);
+    assert.throws(
+      () =>
+        verifyOwnerTagSignature(tag, oid, "0".repeat(40), { trust, cwd: root }),
+      /differs from admitted/u,
+    );
+  }
+});
+
+test("owner tag admission refuses alternate and ambiguous signature formats before native verification", () => {
+  const oid = "a".repeat(40),
+    source = "b".repeat(40),
+    tag = "v1.0.0";
+  for (const signature of [
+    "-----BEGIN PGP SIGNATURE-----\nYQ==\n-----END PGP SIGNATURE-----\n",
+    "-----BEGIN SSH SIGNATURE-----\nYQ==\n-----END SSH SIGNATURE-----\n-----BEGIN PGP SIGNATURE-----\nYQ==\n-----END PGP SIGNATURE-----\n",
+    "-----BEGIN SSH SIGNATURE-----\nnot base64\n-----END SSH SIGNATURE-----\n",
+  ]) {
+    const calls = [];
+    assert.throws(
+      () =>
+        verifyOwnerTagSignature(tag, oid, source, {
+          invoke(_command, args) {
+            calls.push(args);
+            return args[0] === "cat-file" && args[1] === "-t"
+              ? "tag\n"
+              : `object ${source}\ntype commit\ntag ${tag}\ntagger Owner <owner@example.test> 1 +0000\n\nRelease\n${signature}`;
+          },
+        }),
+      /SSH|signature/,
+    );
+    assert.ok(
+      calls.every((args) => !args.includes("verify-tag")),
+      "No alternate verifier may dispatch before format admission",
+    );
+  }
+});
+import { ubuntuRunner } from "../scripts/runner-policy.js";
+import runtimePolicy from "../assets/node-support.json" with { type: "json" };
+import { workflows } from "../scripts/release-contract.js";
 import {
   MINIMAL_CLI_CASES,
   MINIMAL_CLI_COMMANDS,
@@ -256,6 +350,15 @@ test("native SemVer permits intentional zero-major and prerelease identities wit
 test("schema and semantic identities independently reject substitutions and unsafe shipment", () => {
   verifyManifest(fixture());
   verifyArchive(bytes, fixture().archive);
+  const historical = fixture();
+  const linux = ubuntuRunner(historical.policy);
+  const earlier = linux === "ubuntu-24.04" ? "ubuntu-26.04" : "ubuntu-24.04";
+  historical.matrix.os = historical.matrix.os.map((lane) =>
+    lane === linux ? earlier : lane,
+  );
+  assert.throws(() => verifyManifest(historical));
+  historical.policy.platforms = [...historical.matrix.os];
+  assert.doesNotThrow(() => verifyManifest(historical));
   const changes = [
     (r) => (r.package = "@other/tool"),
     (r) => (r.source.clean = false),
@@ -264,6 +367,10 @@ test("schema and semantic identities independently reject substitutions and unsa
       r.archive.files.push({ ...r.archive.files[0], path: "PACKAGE.JSON" }),
     (r) => (r.archive.files[0].path = "../escape"),
     (r) => r.matrix.node.splice(0, 1),
+    (r) => {
+      r.matrix.os = [linux, earlier];
+      r.policy.platforms = [...r.matrix.os];
+    },
     (r) => (r.toolchain.npm = "0.0.1"),
     (r) => (r.extra = true),
     (r) => r.platformArchives.pop(),
@@ -430,6 +537,21 @@ function effectStepFixture(conclusion, started_at = "2026-10-18T00:00:00Z") {
     conclusion,
     started_at,
     completed_at: started_at,
+  };
+}
+function recoveryProvider(phase, controller, run, attempt) {
+  return {
+    run: {
+      id: Number(run),
+      run_attempt: Number(attempt),
+      status: "completed",
+      head_sha: controller,
+      repository: { full_name: repository },
+      head_repository: { full_name: repository },
+      path: `.github/workflows/${workflows[phase]}`,
+      event: "workflow_dispatch",
+      head_branch: "main",
+    },
   };
 }
 function providerFixture() {
@@ -830,9 +952,13 @@ test("interrupted archival imports only owner-bound intent and journal without r
   );
   const commands = [];
   const readers = {
-    provider: () => ({
-      run: { status: "completed", head_sha: environment("archive").GITHUB_SHA },
-    }),
+    provider: (run, attempt) =>
+      recoveryProvider(
+        "archive",
+        environment("archive").GITHUB_SHA,
+        run,
+        attempt,
+      ),
     api: () => live,
     observeReleaseAttestation: (request) => {
       assert.equal(request.tagSha, "a".repeat(40));
@@ -1070,9 +1196,8 @@ test("owner abandonment settles only attempted old-version stages without admitt
   }));
   const reads = [],
     readers = {
-      provider: () => ({
-        run: { status: "completed", head_sha: env.GITHUB_SHA },
-      }),
+      provider: (run, attempt) =>
+        recoveryProvider("stage", env.GITHUB_SHA, run, attempt),
       npmCommand: (args) => {
         reads.push(args[1]);
         return JSON.stringify({
@@ -1187,9 +1312,8 @@ test("recovery conserves completed sibling stage IDs while admitting owner-obser
   };
   let reads = 0;
   const readers = {
-    provider: () => ({
-      run: { status: "completed", head_sha: env.GITHUB_SHA },
-    }),
+    provider: (run, attempt) =>
+      recoveryProvider("stage", env.GITHUB_SHA, run, attempt),
     npmCommand: (args) => {
       reads++;
       const subject = release.platformArchives.find(
@@ -1330,7 +1454,17 @@ test("expired effect artifacts use signed digest-bound checkpoints without forge
     return checkpointBytes;
   };
   const nativeCheckpoint = () =>
-    readHistoryCheckpoint(checkpoint, (path) => responses[path], readRaw);
+    readHistoryCheckpoint(
+      checkpoint,
+      (path) => responses[path],
+      readRaw,
+      (tag, oid, commit) => {
+        assert.deepEqual(
+          [tag, oid, commit],
+          [checkpoint.tag, checkpoint.tagSha, source],
+        );
+      },
+    );
   const observed = providerFixture();
   observed.run.id = 17;
   observed.run.run_attempt = 1;
@@ -1373,6 +1507,7 @@ test("expired effect artifacts use signed digest-bound checkpoints without forge
       { ...checkpoint, sha256: sha },
       (path) => responses[path],
       readRaw,
+      () => {},
     ),
   );
   responses[`git/tags/${checkpoint.tagSha}`].verification.verified = false;
@@ -1615,7 +1750,8 @@ test("second partial GitHub repair uses the latest owner guard while retaining t
   retainRecovery(directory, first);
   let reads = 0;
   const readers = {
-    provider: () => ({ run: { status: "completed", head_sha: source } }),
+    provider: (run, attempt) =>
+      recoveryProvider("promote", source, run, attempt),
     npmCommand: () => {
       reads++;
       return '{"latest":"1.0.0"}';
@@ -1720,7 +1856,8 @@ test("successive npm-only recoveries retain original labels and observe only the
   retainRecovery(directory, first);
   let reads = 0;
   const readers = {
-    provider: () => ({ run: { status: "completed", head_sha: source } }),
+    provider: (run, attempt) =>
+      recoveryProvider("promote", source, run, attempt),
     npmCommand: () => {
       reads++;
       return JSON.stringify({ latest: target });
@@ -2082,16 +2219,17 @@ test("signed source tags must be annotated, verified and name the original candi
   );
 });
 test("CodeQL gate uses exact-source native analyses and query inventories, including newest failures", () => {
+  const linux = ubuntuRunner();
   const analyses = [
-    ["actions", "actions", "ubuntu-24.04", "/language:actions"],
+    ["actions", "actions", linux, "/language:actions"],
     [
       "javascript-typescript",
       "javascript-typescript",
-      "ubuntu-24.04",
+      linux,
       "/language:javascript-typescript",
     ],
-    ["python", "python", "ubuntu-24.04", "/language:python"],
-    ["cpp-linux", "c-cpp", "ubuntu-24.04", "/language:c-cpp/platform:linux"],
+    ["python", "python", linux, "/language:python"],
+    ["cpp-linux", "c-cpp", linux, "/language:c-cpp/platform:linux"],
     [
       "cpp-windows",
       "c-cpp",
@@ -2112,10 +2250,32 @@ test("CodeQL gate uses exact-source native analyses and query inventories, inclu
     rules_count: 1,
   }));
   assert.equal(verifyCodeql(analyses, source).length, 5);
+  const archivedRunner =
+    linux === "ubuntu-24.04" ? "ubuntu-26.04" : "ubuntu-24.04";
+  const archivedPolicy = {
+    ...runtimePolicy,
+    platforms: runtimePolicy.platforms.map((lane) =>
+      lane === linux ? archivedRunner : lane,
+    ),
+  };
+  const archived = analyses.map((analysis) => {
+    const environment = JSON.parse(analysis.environment);
+    if (environment.os !== linux) return analysis;
+    return {
+      ...analysis,
+      environment: JSON.stringify({ ...environment, os: archivedRunner }),
+    };
+  });
+  assert.throws(() => verifyCodeql(archived, source));
+  assert.equal(verifyCodeql(archived, source, archivedPolicy).length, 5);
   for (const change of [
     (a) => a.pop(),
     (a) => (a[0].results_count = 1),
     (a) => (a[0].warning = "incomplete"),
+    (a) => {
+      const environment = JSON.parse(a[0].environment);
+      a[0].environment = JSON.stringify({ ...environment, os: archivedRunner });
+    },
     (a) => (a[0].commit_sha = "e".repeat(40)),
     (a) => (a[0].rules_count = 0),
   ]) {

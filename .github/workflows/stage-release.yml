@@ -2,6 +2,23 @@ name: Stage an approved release
 on:
   workflow_dispatch:
     inputs:
+      stage_phase:
+        description: Request natives first; dispatch core only after owner native approvals
+        type: choice
+        default: natives
+        options: [natives, core]
+      continuation_review_json:
+        description: Fresh owner review continuing the original review after explicit supersession
+        type: string
+      continuation_review_sha:
+        description: SHA256 of exact fresh continuation review bytes
+        type: string
+      native_stage_run:
+        description: Original successful native staging run (required for core)
+        type: string
+      native_stage_attempt:
+        description: Original native staging attempt (required for core)
+        type: string
       recovery_json:
         description: Optional owner-selected native readback reconciliation of exact original journal bytes
         required: false
@@ -35,6 +52,11 @@ defaults:
   run:
     shell: bash
 env:
+  CONTINUATION_REVIEW_JSON: ${{ inputs.continuation_review_json }}
+  CONTINUATION_REVIEW_SHA: ${{ inputs.continuation_review_sha }}
+  STAGE_PHASE: ${{ inputs.stage_phase || 'natives' }}
+  NATIVE_STAGE_RUN: ${{ inputs.native_stage_run }}
+  NATIVE_STAGE_ATTEMPT: ${{ inputs.native_stage_attempt }}
   RECOVERY_JSON: ${{ inputs.recovery_json }}
   QUALIFICATION_RUN: ${{ inputs.qualification_run }}
   QUALIFICATION_ATTEMPT: ${{ inputs.qualification_attempt }}
@@ -44,13 +66,15 @@ env:
 jobs:
   admit:
     if: github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read
       actions: read
     outputs:
       artifact-id: ${{ steps.admitted.outputs.artifact-id }}
+      artifact-digest: ${{ steps.admitted.outputs.artifact-digest }}
+      receipt-sha256: ${{ steps.admission.outputs.receipt-sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -58,6 +82,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup-producer
       - name: Read complete predecessor and writer history
+        id: admission
         env:
           GH_TOKEN: ${{ github.token }}
         run: npm run admit:release-evidence -- stage "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"
@@ -68,21 +93,60 @@ jobs:
           name: "admitted-stage-${{ github.run_attempt }}"
           path: "${{ runner.temp }}/admitted"
           retention-days: 1
-  stage:
+  native-public:
+    name: ${{ inputs.stage_phase == 'core' && format('native-public ({0})', matrix.os) || 'native-public' }}
+    if: inputs.stage_phase == 'core'
     needs: admit
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-2025, platform: win32-x64 }
+          - { os: ubuntu-26.04, platform: linux-x64 }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-producer
+      - uses: ./.github/actions/download-evidence
+        timeout-minutes: 15
+        with:
+          artifact-id: ${{ needs.admit.outputs.artifact-id }}
+          path: ${{ runner.temp }}/admitted/
+      - name: Verify exact public native bytes, original provenance and operation
+        run: node scripts/qualify-native-stage.js "${{ runner.temp }}/admitted" "${{ runner.temp }}/native-public"
+      - uses: ./.github/actions/upload-evidence
+        timeout-minutes: 5
+        if: always()
+        with:
+          name: native-public-${{ matrix.platform }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-public
+          retention-days: 90
+  stage:
+    needs: [admit, native-public]
+    if: always() && needs.admit.result == 'success' && ((inputs.stage_phase || 'natives') == 'natives' && needs.native-public.result == 'skipped' || inputs.stage_phase == 'core' && needs.native-public.result == 'success')
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     environment: npm-publication
     permissions:
       contents: read
       actions: read
       id-token: write
+    env:
+      ADMISSION_ARTIFACT_ID: ${{ needs.admit.outputs.artifact-id }}
+      ADMISSION_ARTIFACT_DIGEST: ${{ needs.admit.outputs.artifact-digest }}
+      ADMISSION_RECEIPT_SHA: ${{ needs.admit.outputs.receipt-sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: ./.github/actions/setup-producer
+      - uses: ./.github/actions/setup-writer
       - uses: ./.github/actions/download-evidence
         timeout-minutes: 15
         with:
@@ -91,8 +155,8 @@ jobs:
       - name: Apply admitted release effect
         env:
           GH_TOKEN: ${{ github.token }}
-        run: npm run execute:release-action -- stage "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
-      - uses: ./.github/actions/upload-evidence
+        run: node scripts/release-command.js stage "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
+      - uses: ./.github/actions/upload-writer-evidence
         timeout-minutes: 5
         if: always()
         with:

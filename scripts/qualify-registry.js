@@ -168,7 +168,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const tarball = join(output, release.archive.filename);
   const proof = join(directory, `${release.archive.filename}.provenance.json`);
   const publication = join(output, "publication.json");
-  save(publication, { release, origin: context.stage });
+  save(
+    publication,
+    context.packageOrigins
+      ? { release, origins: context.packageOrigins }
+      : { release, origin: context.stage },
+  );
   const npm = process.env.JSON_QUALITY_CONSUMER_NPM;
   assert.ok(npm);
   assert.ok(

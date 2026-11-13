@@ -122,7 +122,7 @@ After an ordinary merge, `main-qualification.yml` performs lightweight image/inp
 The proof must bind the same tree, parents, workflow, dependency selectors/locks, generated declarations, JSON policy/schema/tool/native inputs, resolved runtimes and supported platform contracts.
 Each original job retains its actual runner image and `ImageVersion` as provenance; image build numbers do not have to match other lanes or a later main observer.
 
-The platform contract requires Ubuntu 24.04 or Windows Server 2025 on x64, with the selected Node/npm matrix and pinned transport Python.
+The platform contract requires Ubuntu 26.04 or Windows Server 2025 on x64, with the selected Node/npm matrix and pinned transport Python.
 Windows 2025 tool-image variants belong to the same consumer platform; an unsupported OS/image family, changed architecture/runtime or missing image provenance remains ineligible.
 The same platform validator admits PR consumer receipts and main probes, so two matching but unsupported image families cannot establish acceptance.
 
@@ -152,7 +152,7 @@ Both the latest projection and the current attempt must become complete before o
 
 ### Check CodeQL coverage
 
-The shared scan inventory in `scripts/security-scans.js` requires five observations: Actions, JavaScript/TypeScript, Python, C/C++ on Ubuntu 24.04, and C/C++ on Windows 2025.
+The shared scan inventory in `scripts/security-scans.js` requires five observations: Actions, JavaScript/TypeScript, Python, C/C++ on Ubuntu 26.04, and C/C++ on Windows 2025.
 The native categories are `/language:c-cpp/platform:linux` and `/language:c-cpp/platform:windows`; the other categories remain `/language:LANGUAGE`.
 
 Each native scan initializes CodeQL before a clean `native/build.py` build of both executable and Node-API bindings, including generated headers and verified dependencies.

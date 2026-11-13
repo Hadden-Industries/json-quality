@@ -7,7 +7,7 @@ If an effect may already have reached npm or GitHub, start with [failure and rec
 1. [Qualify the package family](#qualification-and-owner-review) with `release-qualification.yml`.
    Retain the frozen manifest digest, signed tag and owner review.
 2. [Stage the tarballs](#stage-and-approve) with `stage-release.yml`.
-   Inspect and approve each of the three npm stages.
+   First approve the two native stages; then dispatch the core phase after both public native checks pass and approve its stage.
 3. [Verify public packages](#public-recipients-and-immutable-archival) with `release-registry.yml`.
    Review the registry evidence and record the pilot decision.
 4. [Archive the verified assets](#publish-the-immutable-github-release) with `github-release.yml`.
@@ -33,15 +33,20 @@ The local `.provenance.json` records all three byte identities; authenticated re
 
 ### Select the candidate
 
-The published `1.0.0-rc.1` uses configuration/event/native cohort 2.
-The current source candidate is selected only by [`package.json.version`](../package.json).
-The owner selected the stable SemVer coordinate in that manifest for the next release, replacing the proposed prerelease coordinate.
+The release version is **1.0.1**, selected by [`package.json.version`](../package.json).
+It is a patch release for CI, release reliability and dependency maintenance; see the [1.0.1 release notes](../CHANGELOG.md#101).
+The public CLI, library API, contract cohort and Node.js minimum remain unchanged from 1.0.0.
+
+To prepare the package family, edit that manifest, run `npm run sync:version`, then run `npm run check:version`.
+The projector updates the lockfile and both native package declarations without installing dependencies or rebuilding payloads.
+This source preparation does not establish release qualification or publication.
 
 Qualify and publish that final coordinate through the existing `pilot` route, then promote the same qualified artifacts after acceptance.
 Do not qualify an RC and relabel its metadata to produce different final-version bytes.
 Once publication consumes a version, a pilot defect requires a new version and fresh qualification; published archives cannot be replaced.
 
 Its contracts use cohort 6, events 5, configuration/source-contract 4, native protocol 5, component schema 4 and Node-API 9.
+The historical `1.0.0-rc.1` release uses configuration/event/native cohort 2.
 Zero-configuration policy resolution remains supported; preparing source does not publish it or select it in consumers.
 Matching new native artifacts and candidate qualification remain required before claiming installed or release acceptance.
 
@@ -63,12 +68,14 @@ Use the exact separately accepted version initially under the existing `pilot` a
 
 An owner may instead explicitly select `"npmTag":"latest"` in the digest-bound release review, including for a release candidate.
 This makes unpinned npm installations select that version; omission preserves `pilot`.
-The choice applies to the core and both matching platform packages and does not change the GitHub prerelease marker.
+The choice applies to all three packages.
+RCs retain GitHub prerelease status on either channel.
 
 Create the GitHub release as a draft, attach and verify every asset, then publish immutably through the existing archival workflow.
 Npm availability initially follows the reviewed tag, normally `pilot`; promotion changes availability labels without replacing locked assets or tags.
 
-GitHub's prerelease flag follows the selected SemVer coordinate, so a stable coordinate archives with `prerelease: false` but remains outside GitHub's latest selection through `--latest=false` until promotion.
+A stable pilot archives as a GitHub prerelease until promotion.
+A direct stable `latest` publication first establishes immutable custody, confirms all three npm defaults, then clears prerelease and sets GitHub latest on that same release ID.
 
 For a new npm package identity, native staging may create the public `0.0.0-stage` placeholder; owner bootstrap and 2FA still precede trusted-publisher setup.
 That bootstrap is a separate explicit effect, not a dummy package or test release silently performed by this change.
@@ -163,10 +170,15 @@ Expired qualification inputs require fresh qualification; a green historical run
 The read-only admission job does not need access to a private draft decision.
 Admission independently reads the completed native run, every job, artifact digest, expected recipient lane and previous writer attempt.
 Missing, duplicate, skipped, expired or substituted inputs stop the workflow.
-The final staging job repeats admission under `npm-publication` and is the only staging job with npm OIDC authority.
+The final staging job consumes the native admission artifact ID, digest and receipt hash under `npm-publication`; it is the only staging job with npm OIDC authority.
 
 Each exact tarball is passed to `npm stage publish` with lifecycle scripts disabled, public access, the owner-reviewed npm tag (`pilot` by default), and provenance.
-A durable request intent precedes each native request, staging the platforms before the core.
+A durable request intent precedes each one-shot native request.
+The default `stage_phase: natives` requests only the two companions.
+After owner approval, a new `stage_phase: core` dispatch supplies `native_stage_run` and `native_stage_attempt` from that original native run.
+Its read-only Windows/Linux jobs verify anonymous exact bytes, npm signatures/provenance and an actual native operation.
+Only both successful, attempt-bound proofs admit the core request.
+The resulting context retains one original producing run/attempt/controller/integrity/stage ID per package.
 Success is `staged-awaiting-owner`; it is not public availability.
 The effect artifact retains the manifest, source, evidence, native response, original journal and stage identity.
 
@@ -179,7 +191,8 @@ Never poll indefinitely for a person or automatically reject a staged item.
 The rc.3 OwlAPI publication exposed a startup failure before the publisher's error handler loaded, followed by a recovery job trying to read a draft with a read-only token.
 JSON Quality keeps these boundaries explicit:
 
-- Every release job installs the frozen producer dependencies before running release commands.
+- Read-only admission and qualification jobs install the frozen producer dependencies.
+  Privileged writers use `setup-writer` with pinned Node/npm/Python and no project dependency installation; their raw artifact ZIP upload uses native Actions transport and exact readback reconciliation.
   The workflow checker rejects missing or conditional setup, later runtime replacement, incorrect draft permissions and lost failure uploads.
   Producer npm commands, archive packing and signature verification retain the paired producer Node executable even inside consumer lanes.
   The frozen manifest records that producer's actual Node and npm versions; a partial retained identity refuses execution.
@@ -239,20 +252,30 @@ An explicitly reviewed npm `latest` release candidate remains a GitHub prereleas
 
 ## Promotion and restoration
 
-Dispatch `promote-release.yml` against the completed archival predecessor with the exact manifest/review/acceptance digests and `expected_labels`, for example:
+Dispatch `promote-release.yml` with an exact schema-2 `operation_json` and its `operation_sha`, plus the original manifest/review/acceptance digests.
+The operation binds owner, source/version/manifest, original review, current `controllerSource` and control delta, immutable `sourceReleaseId`, accepted time/rationale, qualified `targets` (version/manifest digest/release ID) and `family`.
 
-```json
-{"latest":null,"githubLatest":null}
-```
+The family uses `schemaVersion: 2` and `operation`: `promote`, `align`, `restore`, `scoped-restore` or `emergency-core-restore`.
+Every package subject supplies `package`, `selected`, exact `prior` and `target` (explicit null for absence), and the target `integrity`.
+Excluded subjects keep prior=target.
+Removal requires `removalApproved: true`; an already-current selected target requires `noOpApproved: true`.
+GitHub supplies selected, prior/target release markers (ID/tag/prerelease), the selected target's `targetPrior` classification, and excluded release `guards` where applicable.
+The operation ID is the SHA-256 of the exact decision bytes, never a caller-generated family field.
 
-Absence is explicit.
-Existing values are exact npm versions and GitHub tags such as `v0.1.0`.
-Both services are read before the effect and immediately before their own changes.
-Changed prior labels block the operation.
+Ordinary stable promotion/restoration moves Windows, Linux, core, then GitHub to one qualified stable family. Alignment requires core and GitHub already at the selected stable release and changes only the companions. For the historical 1.0.0 split, select release ID 437217191, core/GitHub 1.0.0 and companion preimages 1.0.0-rc.2.
+This implementation does not execute that public alignment.
 
-Exact-source CodeQL and the retained recipient locks receive fresh native security assessment before promotion.
-Independent promotion OIDC permits dist-tags with direct publish denied.
-A later GitHub error after npm success remains a partial outcome.
+Read-only admission verifies original public qualification, immutable assets, owner-signed tags and exact public tarballs, then refreshes exact-source CodeQL and retained-lock audits.
+The npm writer checks every preimage at each effect boundary and preserves one journaled request per changed package; the GitHub writer requires the authenticated npm continuation, rechecks all three labels, and clears prerelease/sets latest on the same immutable target ID.
+Approved no-ops retain a readback journal and issue zero requests.
+
+A scoped restore selects only labels established by the original operation and owner settlement; all excluded labels and GitHub markers remain guards.
+Unknown requests must be settled before a new operation can approve current-target no-ops.
+A GitHub-only continuation is a fresh reviewed operation with npm targets explicitly approved as no-ops.
+A later GitHub failure remains a partial outcome.
+
+The following schema-1 restoration fields describe the retained historical core-only reader.
+New operations express the emergency core-only scope through the schema-2 family and guard both companions and affected/target GitHub releases.
 
 ### Restore an earlier version
 
@@ -291,7 +314,9 @@ Request journals are append-only and flush intent before each effect.
 Active producers always block globally.
 
 Version scoping uses complete original package/version/source/manifest identities from authenticated request journals, bound to their native writer execution.
-An authenticated different-version staging or archival request does not require outcome reconciliation to admit a new version; its unknown outcome remains retained and unresolved for the original version.
+Historical archival requests keep their original scope.
+A pending stage decision survives dispatch completion: before another version advances, its original approvals must be settled by complete public qualification or explicit owner supersession.
+Unknown shared-label effects remain globally blocking.
 
 Promotion uncertainty remains global because npm and GitHub `latest` labels are shared across versions.
 Do not rerun a failed stage or assume a missing receipt means no request reached the service.
@@ -303,7 +328,9 @@ Preserve the original records and any already completed effect; never edit evide
 ### Reconcile a stage or label request
 
 The optional `recovery_json` dispatch input contains `schemaVersion: 1`, owner, exact manifest/version, originating `phase`, `run`, `attempt`, original `journalSha256`, `acceptedAt` and a specific `rationale`.
-Stage continuation names all three owner-inspected stages in `stages`, each with `package` and `stageId`; label reconciliation names `targetVersion`.
+Stage continuation names exactly the attempted stages in `stages`, each with `package` and `stageId`.
+Core-only recovery preserves the original native outcome and journal while settling the original core request.
+Family label recovery additionally selects `service` and the original `operationId`; it retains original operation bytes, receipt, qualified targets and journals.
 
 Every stage effect records its actual package identity, integrity and independent response before the next package is attempted.
 Platforms stage before core; all three owner approvals precede registry qualification.
@@ -319,7 +346,10 @@ To record that explicit abandonment while advancing a separately qualified new v
 Admission acquires and retains the old subject and journals separately, settles only observed effects, and preserves the new candidate identity.
 
 The original version cannot advance or be staged again.
-An independently authenticated different-version family does not require abandonment merely to stage a new version; this grants no approval or retry authority for its old pending stages.
+For the new staging controller, a different version cannot hide outstanding approvals.
+Explicit `supersede` settlement binds the original review and journal.
+Public members require native provenance verification; rejected members require native rejection acknowledgement and authenticated full stage-list absence retained under an owner-signed history checkpoint.
+A late retry of the old candidate requires a fresh continuation review of current defaults.
 
 #### Repair a GitHub label after npm succeeds
 
@@ -338,10 +368,11 @@ The recovery records preserve the original request journals.
 Already-observed label effects are skipped, rather than repeated.
 An unapproved unknown stage, incomplete draft, absent durable request or unobserved label effect stays blocked for an explicit owner-operated native reconciliation; this interface cannot certify absence of a remote effect.
 
-Three pre-existing recovery cases remain held for separately defined owner-approved recovery extensions: an unknown asset upload while the release is still a draft; abandonment of an unpublished partial stage family using authenticated staged/rejected-state evidence; and restoration after the original registry Actions records expire.
+An unknown asset upload while the release remains a draft still requires explicit owner-operated native reconciliation.
+Published immutable recovery, rejected-stage supersession and expired-provider target qualification use their distinct evidence contracts below.
 
-Their proposed routes are exact draft-asset readback against the original asset intent, authenticated owner stage disposition evidence, and admission of independently verified immutable provider snapshots respectively.
-These routes need explicit evidence/authority contracts before activation; a held case does not authorize forced publication, replay of an ambiguous write, or substitution of archived proof for required live provider admission.
+No recovery route authorizes forced publication or replay of an ambiguous request.
+A 404 or an apparently correct label alone never settles an original effect.
 
 `expected_labels` always describes the original pre-effect labels, including restoration.
 Reconciliation reads the original intent's `before` value instead of relabelling the already-applied npm target as its prior state.
@@ -421,6 +452,38 @@ Completed native writer continuations retain their exact owner recovery records 
 Checkpoint renewal preserves those settlements; later versions accept them only with a fresh successful complete continuation graph and matching original journal/run/attempt/manifest/version.
 Failed or incomplete continuations cannot settle historical unknown effects.
 
+### Independent completion and durable recovery
+
+`verify-release-completion.yml` accepts the original operation run/attempt with read-only credentials. It re-acquires the original admission and writer artifacts, authenticates them before label observation, verifies every selected target's signed tag/immutable release ID/assets, and polls approved prior-to-target transitions under one five-minute deadline. Provider rate-limit/reset hints and native subprocess timeouts share that budget.
+Third values, unexpected release IDs, malformed evidence and permission failures stop immediately.
+
+An original request with a lost acknowledgement reports `writer-outcome-unresolved`.
+An acknowledged complete request scope may be observed independently after a failed writer readback.
+Pending propagation reports `completion-unconfirmed`, last confirmed provider states and the earliest useful hinted retry time.
+Rerunning this observer issues zero mutations.
+A failed public matrix retains `public-qualification-incomplete` with observed defaults and original approval identities; GitHub stable classification remains held.
+
+`prepare-release-history.yml` prepares a complete schema-2 checkpoint after archive/availability completion, preserving native writer history plus `qualifiedTargetRefs` and individually bounded `release-targets/<manifest-sha256>.json` files: original public provider inventories/artifact IDs/digests/attempts, exact retained locks/signatures/security/results, manifest, signed tag and immutable assets.
+Commit the index and the complete `release-targets` directory together.
+Each descriptor binds the target identity, size and SHA-256; recovery fetches only the selected file from that exact signed commit.
+Legacy inline `qualifiedTargets` remain readable.
+Sign the exact output under a fresh `release-history-*` tag before the reported expiry deadline.
+Prepared bytes are not recovery-eligible until owner signed.
+Renewed checkpoints retain richer archive continuations.
+A writer-only schema-1 checkpoint cannot qualify an expired public target.
+
+For rejected pending stages, the separately invoked local command `node scripts/reject-release-stages.js ORIGINAL_DIRECTORY DECISION_JSON OUTPUT_HISTORY_JSON` performs explicitly selected one-shot npm rejections with the owner’s authenticated npm session and a fresh numeric `NPM_CONFIG_OTP` (six to eight digits).
+The captured-output subprocess cannot prompt; obtain the OTP locally and supply it through the environment.
+The helper neither records it nor passes it as an argument.
+`npm run reject:release-stages -- ORIGINAL_DIRECTORY DECISION_JSON OUTPUT_HISTORY_JSON` is the equivalent package command.
+The decision selects `action: reject-original-stages`, owner, original run/attempt/manifest/journal digest, exact package/stage IDs and an existing signed `historyCheckpoint`.
+It first verifies native stage identity and tarball SHA-1, flushes intent, records native acknowledgement and authenticated full stage-list absence, then prepares history containing `stageCancellations`.
+Unknown rejection results stop.
+A retained acknowledgement followed by a failed inventory read resumes only that read; it never repeats DELETE.
+The selected stages may be a pending subset of the original family.
+Sign that exact output under a fresh history tag; a supersession decision references it as `cancellationCheckpoint` and marks each rejected stage `settlement: rejected`.
+This task does not invoke rejection or change live state.
+
 ### Diagnose a failed qualification
 
 Execution budgets are shared by purpose: install/ci has twenty minutes, a Node suite thirty minutes, hosted qualification jobs two hours, bounded evidence reads two minutes, collection fifteen minutes and registry availability thirty minutes.
@@ -439,7 +502,8 @@ Do not repeatedly launch a full matrix until a failure disappears.
 
 Hosted retention follows the artifact's purpose:
 
-- Same-run admission bundles, lane receipts and producer transport without PR reuse: 1 day.
+- Same-run lane receipts and producer transport without PR reuse: 1 day.
+- Read-only release writer admission bundles: 90 days, matching the original effect journals.
 - Compact PR proof, its required producer transport, release qualification inputs and native payloads: 30 days.
 - Final effect journals and public-registry evidence bundles: 90 days.
 
@@ -499,7 +563,7 @@ The earlier release plan recorded a 1.0.0 selection on 2026-10-18.
 The accepted oversized-value plan replaces conflicting APIs and requires a complete consumer cohort.
 On 24 October, the owner selected `1.0.0-rc.1`, limited registry migration to JSON Quality, and left Markdown Quality distribution unchanged.
 
-That historical selection is superseded for the next release by the current manifest; published versions and their records retain their original identities.
+That historical selection is superseded by the version in the current manifest; published versions and their records retain their original identities.
 Consumer installation requires an exact registry version and its npm-generated lockfile; the Git-source installation promise is retired because a source commit does not identify one cross-host packed archive.
 
 Implementation verification follows its task's accepted review and testing scope, with formatting/linting before broad review and focused repair checks afterward.
@@ -507,3 +571,24 @@ Source versioning, focused checks and static reviews do not establish release qu
 
 Implementation, local assurance, source delivery, remote configuration, complete hosted qualification, public release, immutable archival, promotion and owner operational acceptance are separate reported states.
 See the [accepted implementation plan](https://github.com/Hadden-Industries/json-quality/blob/main/docs/plans/2026-10-18-release-publishing-assurance-implementation-plan.md) for the complete acceptance and recovery gates.
+
+### Resume acknowledged availability observation
+
+A writer flushes a digest-bound native acknowledgement sidecar immediately after a successful provider mutation returns, before propagation readback.
+An independent completion dispatch authenticates the original admission, native service artifacts, original job attempts and exact request journal before reading labels.
+Acknowledged complete request scopes may be observed after a failed readback with zero mutations.
+`completion-unconfirmed` retains the last confirmed state and retry hint; a later observer uses the same original operation.
+A lost response without native acknowledgement remains `writer-outcome-unresolved`; a partially issued family remains `writer-operation-incomplete`.
+If npm completed while the selected GitHub job was skipped, observation reports `npm-complete-github-pending` and never invokes GitHub writes.
+A completed observation does not rewrite the failed original job or authorize a subsequent write.
+
+Scoped restoration binds `originalEffect` to the exact phase, service, run, attempt, manifest, original journal and operation identity.
+Only selected labels that the authenticated original effect changed can be restored to their original preimages, including explicitly approved removal.
+A pre-core stage may be restored without inventing an archive; excluded package labels and release identities remain guarded.
+Unknown GitHub classification requires either observed application or an explicit owner conditional-repair decision binding the current latest and target classification; observation alone cannot create repair authority.
+
+A new checkpoint index also carries compact settled-stage summaries derived only from the qualified target’s actual native and core publication origins.
+Ordinary admission verifies the exact original journal digest and subject identities from that signed index, without downloading every historical target shard.
+Old inline checkpoints remain readable through their complete proof.
+Signed writer entries retain exact original availability-operation bytes, journals, acknowledgements and original native inventories; a scoped restore can recover that custody independently of the source’s immutable archive origin after Actions expiry.
+Large admission and audit reports stay outside the writer-history index.

@@ -33,9 +33,14 @@ import {
   sha512,
   verifyProvenance,
   releasePackages,
+  publicationOrigin,
 } from "./release-contract.js";
 import { nativePackages } from "../src/native-packages.js";
 import { gh } from "./release-provider.js";
+export {
+  reconcileNativeDistribution,
+  verifyDistributionInventory,
+} from "./release-distribution.js";
 
 export function isolatedNpmEnvironment(root, env = process.env) {
   const result = Object.fromEntries(
@@ -428,7 +433,7 @@ export async function recipientEvidence({
       verifyProvenance(
         JSON.parse(verification),
         { ...publication.release, ...subject },
-        publication.origin,
+        publicationOrigin(publication, subject),
       );
     save(join(output, `${layout}-signatures.json`), Buffer.from(verification));
   }

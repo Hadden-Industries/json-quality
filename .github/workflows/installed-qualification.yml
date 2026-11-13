@@ -11,7 +11,7 @@ permissions:
 jobs:
   producer:
     name: Installed-only / frozen package producer
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     outputs:
       matrix: ${{ steps.policy.outputs.matrix }}
@@ -138,7 +138,7 @@ jobs:
     name: Installed-only / complete package acceptance
     if: always()
     needs: [producer, installed]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Require the frozen producer and every installed lane

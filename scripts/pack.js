@@ -155,6 +155,17 @@ export function packCandidate(destination) {
     sourceCommit,
     sourceTree,
     sourceClean: true,
+    production: {
+      source: sourceCommit,
+      repository: process.env.GITHUB_REPOSITORY ?? null,
+      run: process.env.GITHUB_RUN_ID ?? null,
+      attempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
+      controller: process.env.GITHUB_SHA ?? null,
+      workflow: process.env.GITHUB_WORKFLOW_REF ?? null,
+      job: process.env.GITHUB_JOB ?? null,
+      scope:
+        "package-family packing; native production has independent origins",
+    },
     archive: archive.split(/[\\/]/u).at(-1),
     sha256: hash(bytes),
     integrity: packed.integrity,

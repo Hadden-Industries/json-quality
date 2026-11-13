@@ -22,6 +22,7 @@ import {
   provider,
   producingAttempt,
 } from "./release-provider.js";
+import { originalStageJournals } from "./release-public-state.js";
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   assert.equal(process.argv.length, 4);
@@ -36,6 +37,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const originalJournal = sha256(
     regularBytes(join(directory, effectJournal("stage", context.stage))),
   );
+  const originalStages = originalStageJournals(directory, context);
   const observed = provider(
       process.env.GITHUB_RUN_ID,
       process.env.GITHUB_RUN_ATTEMPT,
@@ -101,6 +103,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     originalSecurity,
   );
   save(join(directory, "public-security.json"), bytes);
+  context.artifacts.push(security.identity);
   context.registry = {
     run: process.env.GITHUB_RUN_ID,
     attempt: process.env.GITHUB_RUN_ATTEMPT,
@@ -113,10 +116,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     flush: true,
   });
   save(join(directory, "registry-reconciliation.json"), {
-    schemaVersion: 1,
+    schemaVersion: context.packageOrigins ? 2 : 1,
     manifestSha256: process.env.MANIFEST_SHA,
     originalStageJournalSha256: originalJournal,
     stage: context.stage,
+    ...(context.packageOrigins
+      ? { originalStages, origins: context.packageOrigins }
+      : {}),
     registry: context.registry,
     state: "publicly-qualified",
     qualification:
@@ -128,5 +134,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     ),
     originalJournal,
   );
+  assert.deepEqual(originalStageJournals(directory, context), originalStages);
   sealBundle(directory, process.env.MANIFEST_SHA);
 }
