@@ -1,7 +1,8 @@
 # JSON Quality documentation
 
 [Install JSON Quality and run your first check](../README.md#install-and-first-check) in an existing Git repository.
-These guides describe contract cohort 6.
+These guides describe JSON Quality 1.0.1 and contract cohort 6.
+Read the [1.0.1 release notes](../CHANGELOG.md#101) for dependency and release reliability changes.
 
 ## Use JSON Quality
 

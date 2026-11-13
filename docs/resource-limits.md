@@ -136,9 +136,8 @@ The former hidden one-second qualification reporting timeout and 2,048-character
 Invalid or conflicting invocation controls cannot authorize unlimited reporting, and resource-looking filenames after `--` remain literal data.
 Failed sinks are never retried; failure-report delivery cannot turn operational exit 2 into success.
 
-The unreleased version-5 event schema admits complete diagnostic messages within the selected output budget and continues to accept historical `truncated: true` failure events.
-Consumers retaining a pre-fix schema copy must refresh it before accepting extended messages and the extended resource snapshot.
-This source correction does not establish published-release availability.
+The version-5 event schema admits complete diagnostic messages within the selected output budget and continues to accept historical `truncated: true` failure events.
+Consumers using an older schema copy must refresh it before accepting extended messages and the extended resource snapshot.
 
 `maxHumanPathCodePoints` and `maxHumanPointerCodePoints` select terminal display excerpts before control-character escaping; `null` keeps the full text.
 They are presentation controls: complete machine events and all integrity decisions retain their existing meaning.

@@ -1,7 +1,7 @@
 # Markdown quality
 
 Markdown Quality formats and checks this repository's Markdown as a root development dependency.
-The root `package.json` declares `@hadden-industries/markdown-quality` as `>=3.0.0`; `package-lock.json` freezes the installed graph, including the matching native companion.
+The root `package.json` declares `@hadden-industries/markdown-quality` as `>=3.0.1`; `package-lock.json` freezes the installed graph, including the matching native companion.
 
 ## Setup and commands
 

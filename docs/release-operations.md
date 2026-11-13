@@ -33,15 +33,20 @@ The local `.provenance.json` records all three byte identities; authenticated re
 
 ### Select the candidate
 
-The published `1.0.0-rc.1` uses configuration/event/native cohort 2.
-The current source candidate is selected only by [`package.json.version`](../package.json).
-The owner selected the stable SemVer coordinate in that manifest for the next release, replacing the proposed prerelease coordinate.
+The release version is **1.0.1**, selected by [`package.json.version`](../package.json).
+It is a patch release for CI, release reliability and dependency maintenance; see the [1.0.1 release notes](../CHANGELOG.md#101).
+The public CLI, library API, contract cohort and Node.js minimum remain unchanged from 1.0.0.
+
+To prepare the package family, edit that manifest, run `npm run sync:version`, then run `npm run check:version`.
+The projector updates the lockfile and both native package declarations without installing dependencies or rebuilding payloads.
+This source preparation does not establish release qualification or publication.
 
 Qualify and publish that final coordinate through the existing `pilot` route, then promote the same qualified artifacts after acceptance.
 Do not qualify an RC and relabel its metadata to produce different final-version bytes.
 Once publication consumes a version, a pilot defect requires a new version and fresh qualification; published archives cannot be replaced.
 
 Its contracts use cohort 6, events 5, configuration/source-contract 4, native protocol 5, component schema 4 and Node-API 9.
+The historical `1.0.0-rc.1` release uses configuration/event/native cohort 2.
 Zero-configuration policy resolution remains supported; preparing source does not publish it or select it in consumers.
 Matching new native artifacts and candidate qualification remain required before claiming installed or release acceptance.
 
@@ -558,7 +563,7 @@ The earlier release plan recorded a 1.0.0 selection on 2026-10-18.
 The accepted oversized-value plan replaces conflicting APIs and requires a complete consumer cohort.
 On 24 October, the owner selected `1.0.0-rc.1`, limited registry migration to JSON Quality, and left Markdown Quality distribution unchanged.
 
-That historical selection is superseded for the next release by the current manifest; published versions and their records retain their original identities.
+That historical selection is superseded by the version in the current manifest; published versions and their records retain their original identities.
 Consumer installation requires an exact registry version and its npm-generated lockfile; the Git-source installation promise is retired because a source commit does not identify one cross-host packed archive.
 
 Implementation verification follows its task's accepted review and testing scope, with formatting/linting before broad review and focused repair checks afterward.
