@@ -111,7 +111,7 @@ test("owner tag admission refuses alternate and ambiguous signature formats befo
 });
 import { ubuntuRunner } from "../scripts/runner-policy.js";
 import runtimePolicy from "../assets/node-support.json" with { type: "json" };
-import { workflows } from "../scripts/release-contract.js";
+import { workflows, expectedJobs } from "../scripts/release-contract.js";
 import {
   MINIMAL_CLI_CASES,
   MINIMAL_CLI_COMMANDS,
@@ -133,6 +133,7 @@ import {
   verifyArchive,
   verifyDecision,
   verifyManifest,
+  validateFrozenMatrix,
   verifyProvenance,
   verifyRun,
   verifyShippedLinks,
@@ -170,6 +171,7 @@ import {
   verifySbom,
   installedInventory,
   stageSourceNativePackages,
+  installSourceProduction,
 } from "../scripts/release-inventory.js";
 import {
   verifyRecoveryRecord,
@@ -184,6 +186,7 @@ import {
 } from "../scripts/qualify-registry.js";
 import {
   verifyReport,
+  verifySecurity,
   acquireRecoveryJournal,
   admitRestoration,
   verifyBundle,
@@ -2460,6 +2463,328 @@ test("registry metadata and bounded transport reject substituted bytes, redirect
     registryBytes("https://registry.npmjs.org/a", 2, fetcher),
   );
   await assert.rejects(registryBytes("https://attacker.test/a", 100, fetcher));
+});
+
+function legacyFixture() {
+  const release = fixture();
+  release.policy = {
+    schemaVersion: 1,
+    minimums: ["22.13.0", "24.0.0", "26.0.0"],
+    reference: "24.21.0",
+    platforms: ["ubuntu-24.04", "windows-2025"],
+    producerNpm: { version: "12.2.1", range: ">=12.2.0 <13" },
+    consumerNpm: "11.21.1",
+  };
+  release.matrix = {
+    os: [...release.policy.platforms],
+    node: [
+      "22.13.0",
+      "22.23.4",
+      "24.0.0",
+      "24.21.0",
+      "24.22.1",
+      "26.0.0",
+      "26.12.1",
+    ],
+  };
+  release.toolchain = { node: "24.21.0", npm: "12.2.1" };
+  release.archive.files = release.archive.files.filter(
+    ({ path }) =>
+      ![
+        "schemas/effective-policy.schema.json",
+        "assets/default-json-quality-policy.json",
+      ].includes(path),
+  );
+  return release;
+}
+
+test("release regression: archived runtime policies retain every original floor and family", () => {
+  const release = legacyFixture();
+  const original = structuredClone(release);
+  assert.throws(() => verifyManifest(release));
+  verifyManifest(release, { historical: true });
+  const secondPolicy = legacyFixture();
+  secondPolicy.policy = structuredClone(fixture().policy);
+  secondPolicy.matrix = structuredClone(fixture().matrix);
+  secondPolicy.toolchain = structuredClone(fixture().toolchain);
+  verifyManifest(secondPolicy, { historical: true });
+  assert.throws(() => verifyManifest(secondPolicy));
+  validateFrozenMatrix(release.matrix, release.policy);
+  assert.deepEqual(release, original);
+  for (const path of [
+    "schemas/configuration.schema.json",
+    "schemas/event.schema.json",
+    "schemas/contract-cohort.json",
+  ]) {
+    const changed = structuredClone(release);
+    changed.archive.files = changed.archive.files.filter(
+      (file) => file.path !== path,
+    );
+    assert.throws(() => verifyManifest(changed, { historical: true }));
+  }
+  for (const path of [
+    "schemas/effective-policy.schema.json",
+    "assets/default-json-quality-policy.json",
+  ]) {
+    const modern = fixture();
+    modern.archive.files = modern.archive.files.filter(
+      (file) => file.path !== path,
+    );
+    assert.throws(() => verifyManifest(modern));
+    assert.throws(() => verifyManifest(modern, { historical: true }));
+  }
+  for (const missing of [
+    ...release.policy.minimums,
+    release.policy.reference,
+  ]) {
+    const changed = structuredClone(release);
+    changed.matrix.node = changed.matrix.node.filter(
+      (node) => node !== missing,
+    );
+    assert.throws(() => verifyManifest(changed, { historical: true }));
+    assert.throws(() => validateFrozenMatrix(changed.matrix, changed.policy));
+  }
+  for (const unexpected of ["22.12.0", "23.0.0", "25.0.0", "27.0.0"]) {
+    const changed = structuredClone(release);
+    changed.matrix.node.push(unexpected);
+    assert.throws(() => verifyManifest(changed, { historical: true }));
+    assert.throws(() => validateFrozenMatrix(changed.matrix, changed.policy));
+  }
+});
+
+test("release regression: original recipients keep their frozen export and CLI contract", () => {
+  const release = legacyFixture(),
+    lane = { os: "windows-2025", node: release.policy.reference },
+    report = {
+      status: "passed",
+      sourceCommit: release.source.commit,
+      archiveSha256: release.archive.sha256,
+      node: lane.node,
+      platform: "win32",
+      architecture: "x64",
+      npm: release.policy.consumerNpm,
+      nativeToolchain: { npm: release.policy.consumerNpm },
+      qualification: "public registry",
+      layout: "root",
+      publicExports: 6,
+      cliPhysicalFiles: 2,
+      packageVersion: release.version,
+      installSource: "registry",
+      nativePackage: {
+        name: release.platformArchives[1].package,
+        version: release.version,
+        integrity: release.platformArchives[1].archive.integrity,
+      },
+    };
+  assert.throws(() =>
+    verifyReport(report, release, lane, "public registry", "root"),
+  );
+  verifyReport(report, release, lane, "public registry", "root", {
+    historical: true,
+  });
+  for (const [key, value] of Object.entries({
+    sourceCommit: "f".repeat(40),
+    archiveSha256: "e".repeat(64),
+    node: "22.13.0",
+    platform: "linux",
+    npm: "12.2.2",
+    publicExports: 7,
+    cliPhysicalFiles: 1,
+    packageVersion: "9.9.9",
+    installSource: "producer-archive",
+    minimalCli: { status: "passed" },
+  }))
+    assert.throws(() =>
+      verifyReport(
+        { ...report, [key]: value },
+        release,
+        lane,
+        "public registry",
+        "root",
+        { historical: true },
+      ),
+    );
+  assert.throws(() =>
+    verifyReport(
+      {
+        ...report,
+        nativePackage: {
+          ...report.nativePackage,
+          integrity: "sha512-ZGlmZmVyZW50",
+        },
+      },
+      release,
+      lane,
+      "public registry",
+      "root",
+      { historical: true },
+    ),
+  );
+  const modern = fixture();
+  assert.throws(() =>
+    verifyReport(
+      {
+        ...report,
+        node: modern.policy.reference,
+        npm: modern.policy.consumerNpm,
+        nativeToolchain: { npm: modern.policy.consumerNpm },
+      },
+      modern,
+      { ...lane, node: modern.policy.reference },
+      "public registry",
+      "root",
+      { historical: true },
+    ),
+  );
+});
+
+test("release regression: historical provider graphs remain exact and fresh qualification requires every CodeQL job", () => {
+  const release = legacyFixture(),
+    provider = providerFixture();
+  provider.run.path = ".github/workflows/release-qualification.yml";
+  const names = expectedJobs("qualification", release.matrix);
+  provider.jobs.jobs = names
+    .filter((name) => !name.startsWith("codeql /"))
+    .map((name, index) => ({ ...provider.jobs.jobs[0], id: index + 1, name }));
+  provider.jobs.total_count = provider.jobs.jobs.length;
+  verifyRun(provider, "qualification", source, release.matrix, {
+    historical: true,
+  });
+  assert.throws(() =>
+    verifyRun(provider, "qualification", source, release.matrix),
+  );
+  const twoScans = structuredClone(provider);
+  for (const name of [
+    "codeql / Scan actions",
+    "codeql / Scan javascript-typescript",
+  ])
+    twoScans.jobs.jobs.push({
+      ...twoScans.jobs.jobs[0],
+      id: twoScans.jobs.jobs.length + 1,
+      name,
+    });
+  twoScans.jobs.total_count = twoScans.jobs.jobs.length;
+  verifyRun(twoScans, "qualification", source, release.matrix, {
+    historical: true,
+  });
+  assert.throws(() =>
+    verifyRun(twoScans, "qualification", source, release.matrix),
+  );
+  for (const mutate of [
+    (p) => p.jobs.jobs.pop(),
+    (p) => (p.jobs.jobs[1].name = "resolve"),
+    (p) => (p.jobs.jobs[1].conclusion = "skipped"),
+    (p) =>
+      p.jobs.jobs.push({ ...p.jobs.jobs[0], name: "codeql / Scan actions" }),
+  ]) {
+    const changed = structuredClone(provider);
+    mutate(changed);
+    changed.jobs.total_count = changed.jobs.jobs.length;
+    assert.throws(() =>
+      verifyRun(changed, "qualification", source, release.matrix, {
+        historical: true,
+      }),
+    );
+  }
+});
+
+test("release regression: original two-language security evidence cannot qualify a fresh release", () => {
+  const release = legacyFixture(),
+    record = {
+      schemaVersion: 1,
+      source,
+      manifestSha256: sha,
+      run: "19",
+      attempt: "2",
+      analyses: ["actions", "javascript-typescript"].map((language, index) => ({
+        id: index + 1,
+        commit_sha: source,
+        ref: "refs/heads/main",
+        category: `/language:${language}`,
+        analysis_key: "dynamic/github-code-scanning/codeql:analyze",
+        tool: { name: "CodeQL" },
+        error: "",
+        warning: "",
+        results_count: 0,
+        rules_count: 1,
+        environment: JSON.stringify({ language }),
+      })),
+      scans: [1, 2].map((analysis) => ({
+        analysis,
+        findings: 0,
+        rules: ["rule"],
+        queryPacks: [{ name: "queries" }],
+      })),
+    };
+  const check = (value, manifest = release) =>
+    verifySecurity(value, manifest, sha, "19", "2", { historical: true });
+  check(record);
+  assert.throws(() => verifySecurity(record, release, sha, "19", "2"));
+  assert.throws(() => check(record, fixture()));
+  for (const mutate of [
+    (r) => (r.source = "f".repeat(40)),
+    (r) => (r.manifestSha256 = "e".repeat(64)),
+    (r) => (r.run = "20"),
+    (r) => (r.attempt = "3"),
+    (r) => (r.schemaVersion = 2),
+    (r) => (r.analyses[0].commit_sha = "f".repeat(40)),
+    (r) => (r.analyses[0].analysis_key = "unknown"),
+    (r) => (r.analyses[0].results_count = 1),
+    (r) => (r.analyses[0].warning = "incomplete"),
+    (r) => (r.analyses[0].category = "/language:python"),
+    (r) => (r.scans[0].analysis = 9),
+    (r) => (r.scans[0].findings = 1),
+    (r) => r.scans.pop(),
+  ]) {
+    const changed = structuredClone(record);
+    mutate(changed);
+    assert.throws(() => check(changed));
+  }
+});
+
+test("release regression: source installation retains override context before production observation", async (t) => {
+  const directory = temp(t),
+    install = join(directory, "source-install"),
+    source = fileURLToPath(new URL("../", import.meta.url)),
+    npm = process.env.npm_execpath;
+  mkdirSync(install);
+  const metadata = JSON.parse(readFileSync(join(source, "package.json"))),
+    original = readFileSync(join(source, "package-lock.json")),
+    cache = native(process.execPath, [npm, "config", "get", "cache"]).trim(),
+    env = {
+      ...isolatedNpmEnvironment(directory),
+      NPM_CONFIG_CACHE: cache,
+      NPM_CONFIG_OFFLINE: "true",
+    };
+  const lock = installSourceProduction(source, install, env);
+  assert.deepEqual(lock, original);
+  assert.deepEqual(readFileSync(join(install, "package-lock.json")), original);
+  const observed = JSON.parse(readFileSync(join(install, "package.json")));
+  assert.equal(Object.hasOwn(observed, "devDependencies"), false);
+  assert.equal(Object.hasOwn(observed, "scripts"), false);
+  assert.deepEqual(observed.overrides, metadata.overrides);
+  const inventory = await installedInventory(install, npm),
+    bom = JSON.parse(
+      native(
+        process.execPath,
+        [npm, "sbom", "--omit=dev", "--sbom-format=cyclonedx"],
+        { cwd: install, env },
+      ),
+    );
+  verifySbom(bom, JSON.parse(lock), install, inventory);
+  for (const name of Object.keys(metadata.dependencies))
+    assert.ok(
+      inventory.some((node) => node.name === name),
+      `Missing production dependency ${name}`,
+    );
+  const frozen = JSON.parse(lock);
+  assert.ok(
+    inventory.some(
+      (node) =>
+        node.ref ===
+        `fast-uri@${frozen.packages["node_modules/fast-uri"].version}`,
+    ),
+  );
 });
 
 test("native source inventory conserves the selected optional platform while the lock records both platforms", async (t) => {

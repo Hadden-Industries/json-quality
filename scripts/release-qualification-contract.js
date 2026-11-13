@@ -2,7 +2,12 @@
 /** Shared read-only qualification contracts for live and retained evidence. */
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { readJson, regularBytes, sha256 } from "./release-contract.js";
+import {
+  readJson,
+  regularBytes,
+  sha256,
+  isLegacyReleaseManifest,
+} from "./release-contract.js";
 import {
   validateMinimalCli,
   frozenDefaultPolicyDigest,
@@ -10,7 +15,14 @@ import {
 import { verifyAudit } from "./release-inventory.js";
 import { securityScans } from "./security-scans.js";
 import { verifyCodeql } from "./release-security.js";
-export function verifyReport(report, release, lane, qualification, layout) {
+export function verifyReport(
+  report,
+  release,
+  lane,
+  qualification,
+  layout,
+  { historical = false } = {},
+) {
   assert.equal(report.status, "passed");
   assert.equal(report.sourceCommit, release.source.commit);
   assert.equal(report.archiveSha256, release.archive.sha256);
@@ -24,7 +36,8 @@ export function verifyReport(report, release, lane, qualification, layout) {
   assert.equal(report.nativeToolchain.npm, release.policy.consumerNpm);
   assert.equal(report.qualification, qualification);
   assert.equal(report.layout, layout);
-  assert.equal(report.publicExports, 7);
+  const legacy = historical && isLegacyReleaseManifest(release);
+  assert.equal(report.publicExports, legacy ? 6 : 7);
   assert.equal(report.cliPhysicalFiles, 2);
   assert.equal(report.packageVersion, release.version);
   assert.equal(
@@ -40,23 +53,30 @@ export function verifyReport(report, release, lane, qualification, layout) {
     version: release.version,
     integrity: expected.archive.integrity,
   });
-  validateMinimalCli(
-    report.minimalCli,
-    release.version,
-    report.installSource,
-    frozenDefaultPolicyDigest(release.archive.files),
-    {
-      name: "@hadden-industries/json-quality",
-      version: release.version,
-      integrity: release.archive.integrity,
-      sha256: release.archive.sha256,
-    },
-    {
-      name: expected.package,
-      version: release.version,
-      integrity: expected.archive.integrity,
-    },
-  );
+  if (legacy)
+    assert.equal(
+      report.minimalCli,
+      undefined,
+      "Original recipients did not attest current CLI probes",
+    );
+  else
+    validateMinimalCli(
+      report.minimalCli,
+      release.version,
+      report.installSource,
+      frozenDefaultPolicyDigest(release.archive.files),
+      {
+        name: "@hadden-industries/json-quality",
+        version: release.version,
+        integrity: release.archive.integrity,
+        sha256: release.archive.sha256,
+      },
+      {
+        name: expected.package,
+        version: release.version,
+        integrity: expected.archive.integrity,
+      },
+    );
 }
 
 export function verifyLane(
@@ -64,7 +84,7 @@ export function verifyLane(
   release,
   lane,
   qualification,
-  { read = readJson, bytes = regularBytes } = {},
+  { read = readJson, bytes = regularBytes, historical = false } = {},
 ) {
   for (const layout of ["root", "isolated"]) {
     verifyReport(
@@ -73,6 +93,7 @@ export function verifyLane(
       lane,
       qualification,
       layout,
+      { historical },
     );
     verifyAudit(read(join(directory, `${layout}-audit.json`)));
     const inventory = read(join(directory, `${layout}-inventory.json`));
@@ -100,21 +121,64 @@ export function verifyLane(
     }
   }
 }
-export function verifySecurity(record, release, manifestSha, run, attempt) {
+export function verifySecurity(
+  record,
+  release,
+  manifestSha,
+  run,
+  attempt,
+  { historical = false } = {},
+) {
   assert.equal(record.source, release.source.commit);
   assert.equal(record.manifestSha256, manifestSha);
   assert.equal(record.run, String(run));
   assert.equal(record.attempt, String(attempt));
-  assert.equal(record.schemaVersion, 2, "Obsolete security contract");
-  assert.equal(record.scans.length, securityScans.length);
+  const legacy =
+    historical &&
+    isLegacyReleaseManifest(release) &&
+    record.schemaVersion === 1;
+  assert.equal(
+    record.schemaVersion,
+    legacy ? 1 : 2,
+    "Obsolete security contract",
+  );
+  const scans = legacy ? securityScans.slice(0, 2) : securityScans;
+  assert.equal(record.scans.length, scans.length);
   assert.deepEqual(
     record.analyses.map((a) => a.category).sort(),
-    securityScans.map(({ category }) => category).sort(),
+    scans.map(({ category }) => category).sort(),
   );
-  assert.deepEqual(
-    verifyCodeql(record.analyses, release.source.commit, release.policy),
-    record.analyses,
-  );
+  if (legacy) {
+    // Preserve the original two-language scope; fresh qualification still requires every scan.
+    for (const analysis of record.analyses) {
+      assert.equal(analysis.commit_sha, release.source.commit);
+      assert.equal(analysis.ref, "refs/heads/main");
+      assert.ok(
+        [
+          "dynamic/github-code-scanning/codeql:analyze",
+          ".github/workflows/security.yml:codeql",
+          ".github/workflows/release-qualification.yml:codeql",
+          ".github/workflows/release-registry.yml:codeql",
+        ].includes(analysis.analysis_key),
+      );
+      assert.equal(analysis.tool?.name, "CodeQL");
+      assert.ok(Number.isSafeInteger(analysis.id) && analysis.id > 0);
+      assert.equal(analysis.error, "");
+      assert.equal(analysis.warning, "");
+      assert.equal(analysis.results_count, 0);
+      assert.ok(
+        Number.isSafeInteger(analysis.rules_count) && analysis.rules_count > 0,
+      );
+      assert.equal(
+        JSON.parse(analysis.environment).language,
+        analysis.category.slice("/language:".length),
+      );
+    }
+  } else
+    assert.deepEqual(
+      verifyCodeql(record.analyses, release.source.commit, release.policy),
+      record.analyses,
+    );
   assert.deepEqual(
     record.scans.map(({ analysis }) => analysis).sort((a, b) => a - b),
     record.analyses.map(({ id }) => id).sort((a, b) => a - b),

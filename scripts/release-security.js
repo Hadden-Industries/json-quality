@@ -93,8 +93,12 @@ export function verifySarif(sarif, analysis) {
     findings: 0,
   };
 }
-export function qualifySecurity(release, manifestBytes) {
-  verifyManifest(release);
+export function qualifySecurity(
+  release,
+  manifestBytes,
+  { historical = false } = {},
+) {
+  verifyManifest(release, { historical });
   const analyses = pages(
     "code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=100",
   );

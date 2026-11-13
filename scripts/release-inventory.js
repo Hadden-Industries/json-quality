@@ -467,23 +467,15 @@ export function sourceInventoryWorkspace(
   return workspace;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  assert.equal(process.argv.length, 4);
-  const [directory, output] = process.argv.slice(2).map((p) => resolve(p));
-  mkdirSync(output, { recursive: true });
-  const workspace = sourceInventoryWorkspace(output);
-  const install = join(workspace, "source-install");
-  mkdirSync(install);
+export function installSourceProduction(directory, install, environment) {
   const originalLock = regularBytes(join(directory, "package-lock.json"));
   save(join(install, "package-lock.json"), originalLock);
   const metadata = readJson(join(directory, "package.json"));
-  // A mixed development install lets npm's .dev query omit a shared prod/dev
-  // component. Qualify a clean production-only manifest against the frozen lock.
-  delete metadata.devDependencies;
+  // Native npm must resolve the frozen override graph with its original
+  // declarations, even when development packages are omitted from installation.
   delete metadata.scripts;
   save(join(install, "package.json"), metadata);
   stageSourceNativePackages(directory, install);
-  const environment = isolatedNpmEnvironment(workspace);
   npmCommand(
     ["ci", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"],
     { cwd: install, env: environment, phase: "source-production-install" },
@@ -492,6 +484,22 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     sha256(regularBytes(join(install, "package-lock.json"))),
     sha256(originalLock),
   );
+  // Observe the installed production graph without missing development edges
+  // or shared prod/dev classification hiding a production component.
+  delete metadata.devDependencies;
+  writeFileSync(join(install, "package.json"), jsonBytes(metadata));
+  return originalLock;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  assert.equal(process.argv.length, 4);
+  const [directory, output] = process.argv.slice(2).map((p) => resolve(p));
+  mkdirSync(output, { recursive: true });
+  const workspace = sourceInventoryWorkspace(output);
+  const install = join(workspace, "source-install");
+  mkdirSync(install);
+  const environment = isolatedNpmEnvironment(workspace);
+  const originalLock = installSourceProduction(directory, install, environment);
   save(
     join(output, "source-production-lock.json"),
     readFileSync(join(directory, "package-lock.json")),

@@ -90,7 +90,9 @@ export function recoverArchivedAdmission(directory, env) {
     env.MANIFEST_SHA,
   );
   assert.deepEqual(
-    verifyManifest(readJson(join(directory, "release-manifest.json"))),
+    verifyManifest(readJson(join(directory, "release-manifest.json")), {
+      historical: true,
+    }),
     verified.release,
   );
   signedTag(verified.release);
