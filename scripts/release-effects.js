@@ -3,13 +3,7 @@
  * Adapted from the AGPL-3.0-only Markdown Quality release implementation.
  */
 import assert from "node:assert/strict";
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -27,7 +21,8 @@ import {
   releasePackages,
   releaseNpmTag,
 } from "./release-contract.js";
-import { refreshAdmission, verifyBundle } from "./release-evidence.js";
+import { verifyNativeStageProofs } from "./qualify-native-stage.js";
+import { consumeWriterAdmission } from "./release-writer-admission.js";
 import {
   api,
   currentMain,
@@ -37,6 +32,9 @@ import {
   signedTag,
   sealBundle,
   pages,
+  provider,
+  download,
+  producingAttempt,
 } from "./release-provider.js";
 import { isolatedNpmEnvironment } from "./release-inventory.js";
 import { native, npmCommand } from "./qualification-process.js";
@@ -44,78 +42,9 @@ import { verifyNativeAssets } from "./release-asset-verification.js";
 import { verifyReleaseAttestation } from "./release-attestation-readiness.js";
 import { bundleReleaseAssets, verifyDraftAssets } from "./release-assets.js";
 export { verifyDraftAssets } from "./release-assets.js";
-import { recordNoRequest } from "./release-records.js";
-export { recordNoRequest };
+import { recordNoRequest, journalEffect } from "./release-records.js";
+export { recordNoRequest, journalEffect };
 
-export function journalEffect(
-  path,
-  subject,
-  operation,
-  request,
-  { env = process.env, before = null, guard, verify = (value) => value } = {},
-) {
-  if (existsSync(path)) {
-    const prior = readFileSync(path, "utf8").trim();
-    const records = prior
-      ? prior.split("\n").map((line) => JSON.parse(line))
-      : [];
-    assert.equal(records.length % 2, 0, "Unresolved prior journal request");
-    for (let i = 0; i < records.length; i += 2) {
-      assert.equal(
-        records[i + 1].state,
-        "completed",
-        "Unknown request cannot be retried",
-      );
-      assert.ok(
-        records[i].operation !== operation,
-        "Request operation was already journalled",
-      );
-    }
-  }
-  const intent = {
-    ...(env.PROMOTION_SERVICE
-      ? { schemaVersion: 2, service: env.PROMOTION_SERVICE }
-      : {}),
-    state: "intent",
-    package: subject.package,
-    version: subject.version,
-    source: subject.source.commit,
-    manifestSha256: env.MANIFEST_SHA,
-    integrity: subject.archive.integrity,
-    operation,
-    run: env.GITHUB_RUN_ID,
-    attempt: env.GITHUB_RUN_ATTEMPT,
-    controller: env.GITHUB_SHA,
-    before,
-    ...(guard ? { guard } : {}),
-    requestedAt: new Date().toISOString(),
-  };
-  const line = Buffer.from(JSON.stringify(intent) + "\n");
-  appendFileSync(path, line, { flag: "a", flush: true });
-  try {
-    const result = verify(request());
-    const outcome = {
-      state: "completed",
-      intentSha256: sha256(line),
-      result,
-      observedAt: new Date().toISOString(),
-    };
-    appendFileSync(path, JSON.stringify(outcome) + "\n", { flush: true });
-    return outcome;
-  } catch (error) {
-    appendFileSync(
-      path,
-      JSON.stringify({
-        state: "outcome-unknown",
-        intentSha256: sha256(line),
-        nextAction:
-          "Inspect native state and retained request/response; do not repeat this request.",
-      }) + "\n",
-      { flush: true },
-    );
-    throw error;
-  }
-}
 export function verifyStageResponse(response, release) {
   assert.deepEqual(Object.keys(response), [release.package]);
   const stage = response[release.package];
@@ -182,6 +111,13 @@ export function promotionPlan(
     );
   return { before: expected.latest, after: target };
 }
+function assertFrozenTag(directory, release) {
+  assert.equal(
+    signedTag(release).reference.object.sha,
+    readJson(join(directory, "signed-tag.json")).reference.object.sha,
+    "Original release tag object changed",
+  );
+}
 function writeContext(directory, context) {
   writeFileSync(join(directory, "context.json"), jsonBytes(context), {
     flush: true,
@@ -200,13 +136,136 @@ function npmEnvironment(directory) {
   return env;
 }
 export function stage(directory, scratch, env = process.env) {
-  const { release, context } = refreshAdmission(directory, "stage", env, {
-    historyRoot: scratch,
-  });
+  const { release, context } = consumeWriterAdmission(directory, "stage", env);
   const isolation = npmEnvironment(scratch);
-  const review = readJson(join(directory, "release-review.json"));
+  const review = readJson(
+    join(
+      directory,
+      context.continuationReviewSha256
+        ? "continuation-review.json"
+        : "release-review.json",
+    ),
+  );
+  const phase = env.STAGE_PHASE || "natives";
+  const verifyTag = () =>
+    assert.equal(
+      signedTag(release).reference.object.sha,
+      readJson(join(directory, "signed-tag.json")).reference.object.sha,
+      "Original release tag object changed",
+    );
+  verifyTag();
+  assert.ok(["natives", "core"].includes(phase));
+  if (phase === "core") {
+    const observed = provider(env.GITHUB_RUN_ID, env.GITHUB_RUN_ATTEMPT);
+    const reports = release.platformArchives.map((subject) => {
+      const os = release.matrix.os.find((value) =>
+        value.startsWith(
+          subject.platform === "win32-x64" ? "windows" : "ubuntu",
+        ),
+      );
+      const name = `native-public (${os})`;
+      const jobs = observed.jobs.jobs.filter((job) => job.name === name);
+      assert.equal(jobs.length, 1);
+      assert.equal(jobs[0].status, "completed");
+      assert.equal(jobs[0].conclusion, "success");
+      assert.equal(jobs[0].head_sha, env.GITHUB_SHA);
+      assert.equal(jobs[0].run_id, Number(env.GITHUB_RUN_ID));
+      assert.equal(jobs[0].run_attempt, Number(env.GITHUB_RUN_ATTEMPT));
+      const attempt = producingAttempt(observed, name);
+      const acquired = download(
+        env.GITHUB_RUN_ID,
+        attempt,
+        `native-public-${subject.platform}-${attempt}`,
+        scratch,
+      );
+      const record = readJson(join(acquired.directory, "native-public.json"));
+      assert.equal(record.attempt, String(attempt));
+      const signatures = regularBytes(
+        join(acquired.directory, "signatures.json"),
+      );
+      assert.equal(
+        sha256(Buffer.from(JSON.stringify(JSON.parse(signatures)))),
+        record.signaturesSha256,
+      );
+      save(join(directory, `native-public-${subject.platform}.json`), {
+        ...record,
+        artifact: acquired.identity,
+        providerJob: jobs[0],
+      });
+      return record;
+    });
+    verifyNativeStageProofs(release, context, reports, env);
+  }
+  const selected = releasePackages(release).filter((subject) =>
+    phase === "natives" ? subject.platform : !subject.platform,
+  );
+  if (release.schemaVersion >= 3) {
+    const latest = optionalApi("releases/latest");
+    const marker = (value) =>
+      value
+        ? {
+            id: value.id,
+            tag_name: value.tag_name,
+            prerelease: value.prerelease,
+          }
+        : null;
+    assert.deepEqual(
+      marker(latest),
+      review.priorAvailability.githubLatest,
+      "GitHub latest changed across owner approvals",
+    );
+  }
+  const stageGuards = () => {
+    currentMain(env);
+    verifyTag();
+    if (release.schemaVersion < 3) return;
+    const marker = (value) =>
+      value
+        ? {
+            id: value.id,
+            tag_name: value.tag_name,
+            prerelease: value.prerelease,
+          }
+        : null;
+    assert.deepEqual(
+      marker(optionalApi("releases/latest")),
+      review.priorAvailability.githubLatest,
+    );
+    for (const subject of releasePackages(release)) {
+      const metadata = npmViewObject(
+          npmCommand(
+            [
+              "view",
+              subject.package,
+              "--json",
+              "--registry=https://registry.npmjs.org/",
+            ],
+            { env: isolation },
+          ),
+        ),
+        tags = metadata["dist-tags"] ?? {};
+      const publicNative = phase === "core" && subject.platform;
+      if (publicNative)
+        assert.equal(
+          tags[releaseNpmTag(review)],
+          release.version,
+          "Approved native channel changed before core request",
+        );
+      const latest =
+        publicNative && releaseNpmTag(review) === "latest"
+          ? release.version
+          : review.priorAvailability.npmLatest[subject.package];
+      assert.equal(
+        tags.latest ?? null,
+        latest,
+        "Package default changed before stage request",
+      );
+    }
+  };
   // Preflight the entire family before the first privileged effect.
-  for (const subject of releasePackages(release)) {
+  for (const subject of phase === "natives"
+    ? releasePackages(release)
+    : selected) {
     const metadata = npmViewObject(
       npmCommand(
         [
@@ -223,6 +282,12 @@ export function stage(directory, scratch, env = process.env) {
       subject.package,
       "First-package bootstrap is incomplete",
     );
+    if (release.schemaVersion >= 3)
+      assert.equal(
+        metadata["dist-tags"]?.latest ?? null,
+        review.priorAvailability.npmLatest[subject.package],
+        "Npm default changed across owner approval boundary",
+      );
     assert.ok(
       !metadata.versions?.includes(release.version),
       "Version is already public",
@@ -237,24 +302,33 @@ export function stage(directory, scratch, env = process.env) {
   );
   writeFileSync(journal, "", { flag: "wx", flush: true });
   const stages = [];
-  for (const subject of releasePackages(release)) {
+  for (const subject of selected) {
     const outcome = journalEffect(
       journal,
       { ...release, ...subject },
       `stage:${subject.package}`,
       () => {
-        currentMain(env);
         const response = npmCommand(
           stagePublishArguments(directory, subject, review),
           { env: isolation, phase: "npm-stage" },
         );
         save(
-          join(directory, `stage-native-${stages.length}.json`),
+          join(
+            directory,
+            `stage-native-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}-${stages.length}.json`,
+          ),
           Buffer.from(response),
         );
         return JSON.parse(response);
       },
-      { env, verify: (value) => verifyStageResponse(value, subject) },
+      {
+        preRequest: stageGuards,
+        env,
+        guard: {
+          reviewSha256: context.continuationReviewSha256 ?? env.REVIEW_SHA,
+        },
+        verify: (value) => verifyStageResponse(value, subject),
+      },
     );
     stages.push({
       package: subject.package,
@@ -268,14 +342,41 @@ export function stage(directory, scratch, env = process.env) {
     state: "staged-awaiting-owner",
     stages,
   };
-  context.stage = {
+  const origin = {
     run: env.GITHUB_RUN_ID,
     attempt: env.GITHUB_RUN_ATTEMPT,
     controller: env.GITHUB_SHA,
+    phase,
+    reviewSha256: context.continuationReviewSha256 ?? env.REVIEW_SHA,
   };
+  context.packageOrigins ??= {};
+  for (const subject of selected)
+    context.packageOrigins[subject.package] = {
+      ...origin,
+      package: subject.package,
+      integrity: subject.archive.integrity,
+      stageId: stages.find((value) => value.package === subject.package)
+        .stageId,
+    };
+  if (phase === "natives") context.nativeStage = origin;
+  else {
+    context.stage = origin;
+    const native = readJson(join(directory, "native-stage-outcome.json"));
+    assert.equal(native.manifestSha256, env.MANIFEST_SHA);
+    assert.deepEqual(native.origin, context.nativeStage);
+    result.stages = releasePackages(release).map((subject) =>
+      [...native.result.stages, ...stages].find(
+        (value) => value.package === subject.package,
+      ),
+    );
+  }
   writeContext(directory, context);
-  save(join(directory, "stage-outcome.json"), {
-    schemaVersion: 1,
+  const outcomePath = join(
+    directory,
+    phase === "natives" ? "native-stage-outcome.json" : "stage-outcome.json",
+  );
+  save(outcomePath, {
+    schemaVersion: 2,
     manifestSha256: env.MANIFEST_SHA,
     subject: {
       package: release.package,
@@ -284,7 +385,8 @@ export function stage(directory, scratch, env = process.env) {
       integrity: release.archive.integrity,
     },
     result,
-    origin: context.stage,
+    origin,
+    origins: context.packageOrigins,
     journalSha256: sha256(regularBytes(journal)),
   });
   return { state: "completed", result };
@@ -299,6 +401,7 @@ export function stagePublishArguments(directory, subject, review) {
     `--tag=${releaseNpmTag(review)}`,
     "--provenance",
     "--json",
+    "--fetch-retries=0",
     "--registry=https://registry.npmjs.org/",
   ];
 }
@@ -418,15 +521,16 @@ function archiveAssets(directory, release, scratch, manifestSha256) {
   return bundleReleaseAssets(directory, release, scratch, manifestSha256);
 }
 export function archive(directory, scratch, env = process.env) {
-  const { release, context, recovery } = refreshAdmission(
+  const { release, context, recovery } = consumeWriterAdmission(
     directory,
     "archive",
     env,
-    {
-      historyRoot: scratch,
-    },
   );
-  signedTag(release);
+  assert.equal(
+    signedTag(release).reference.object.sha,
+    readJson(join(directory, "signed-tag.json")).reference.object.sha,
+    "Original release tag object changed",
+  );
   const acceptance = decisionAsset(release, "release-acceptance.json", scratch);
   const decision = verifyDecision(
     acceptance,
@@ -542,7 +646,6 @@ export function archive(directory, scratch, env = process.env) {
       release,
       `upload:${asset.name}`,
       () => {
-        currentMain(env);
         gh([
           "release",
           "upload",
@@ -553,7 +656,14 @@ export function archive(directory, scratch, env = process.env) {
         ]);
         return { asset: asset.name, sha256: asset.sha256 };
       },
-      { env },
+      {
+        env,
+        preRequest: () => {
+          currentMain(env);
+          verifyArchiveSettings(decision);
+          assertFrozenTag(directory, release);
+        },
+      },
     );
   }
   const observed = api(`releases/${draft.id}`);
@@ -580,9 +690,6 @@ export function archive(directory, scratch, env = process.env) {
     release,
     "archive",
     () => {
-      currentMain(env);
-      verifyArchiveSettings(decision);
-      signedTag(release);
       gh([
         "release",
         "edit",
@@ -590,7 +697,7 @@ export function archive(directory, scratch, env = process.env) {
         "--repo",
         repository,
         "--draft=false",
-        `--prerelease=${isPrerelease(release.version)}`,
+        `--prerelease=${release.schemaVersion >= 3 ? true : isPrerelease(release.version)}`,
         "--latest=false",
       ]);
       const result = githubRelease(release);
@@ -610,7 +717,14 @@ export function archive(directory, scratch, env = process.env) {
       verifyNativeAssets(release.version, readback, assets);
       return { id: result.id, immutable: true, assets };
     },
-    { env },
+    {
+      env,
+      preRequest: () => {
+        currentMain(env);
+        verifyArchiveSettings(decision);
+        assertFrozenTag(directory, release);
+      },
+    },
   );
   context.archive = {
     run: env.GITHUB_RUN_ID,
@@ -633,6 +747,14 @@ function completeSelectedAvailability(
   env,
   recovery = null,
 ) {
+  if (release.schemaVersion >= 3)
+    return completeFamilyPublication(
+      directory,
+      scratch,
+      release,
+      env,
+      recovery,
+    );
   const prerelease = isPrerelease(release.version);
   const npmTag = releaseNpmTag(
     readJson(join(directory, "release-review.json")),
@@ -684,6 +806,151 @@ function completeSelectedAvailability(
       observedAt: new Date().toISOString(),
     });
   }
+}
+
+/** Immutable custody is established before a stable direct-latest classification effect. */
+export function completeFamilyPublication(
+  directory,
+  scratch,
+  release,
+  env,
+  recovery,
+) {
+  const context = readJson(join(directory, "context.json"));
+  const review = readJson(
+      join(
+        directory,
+        context.continuationReviewSha256
+          ? "continuation-review.json"
+          : "release-review.json",
+      ),
+    ),
+    npmTag = releaseNpmTag(review);
+  const prior = review.priorAvailability.githubLatest;
+  const marker = (value) =>
+    value
+      ? { id: value.id, tag_name: value.tag_name, prerelease: value.prerelease }
+      : null;
+  const archived = readJson(join(directory, "archive-outcome.json"));
+  const readPackages = () =>
+    releasePackages(release).map((subject) => {
+      const tags = npmViewObject(
+        npmCommand(
+          [
+            "view",
+            subject.package,
+            "dist-tags",
+            "--json",
+            "--registry=https://registry.npmjs.org/",
+          ],
+          { env: isolatedNpmEnvironment(scratch) },
+        ),
+      );
+      assert.equal(
+        tags[npmTag],
+        release.version,
+        "Owner-selected package channel changed",
+      );
+      return {
+        package: subject.package,
+        integrity: subject.archive.integrity,
+        tags,
+      };
+    });
+  const packages = readPackages();
+  let live = githubRelease(release);
+  assert.equal(live.id, archived.release.id);
+  assert.equal(live.immutable, true);
+  assert.equal(live.draft, false);
+  verifyDraftAssets(archived.assets, live.assets);
+  const stableDefault = !isPrerelease(release.version) && npmTag === "latest";
+  if (stableDefault && !recovery) {
+    assert.deepEqual(marker(optionalApi("releases/latest")), prior);
+    assert.equal(live.prerelease, true);
+    const journal = join(
+      directory,
+      effectJournal("archive", {
+        run: env.GITHUB_RUN_ID,
+        attempt: env.GITHUB_RUN_ATTEMPT,
+      }),
+    );
+    journalEffect(
+      journal,
+      release,
+      "github-classification",
+      () => {
+        gh([
+          "release",
+          "edit",
+          `v${release.version}`,
+          "--repo",
+          repository,
+          "--prerelease=false",
+          "--latest=true",
+        ]);
+        live = githubRelease(release);
+        assert.equal(live.id, archived.release.id);
+        assert.equal(live.prerelease, false);
+        assert.equal(optionalApi("releases/latest")?.id, live.id);
+        return { releaseId: live.id, prerelease: false, latest: true };
+      },
+      {
+        env,
+        before: prior,
+        preRequest: () => {
+          currentMain(env);
+          readPackages();
+          assert.deepEqual(marker(optionalApi("releases/latest")), prior);
+          const current = githubRelease(release);
+          assert.equal(current.id, live.id);
+          assert.equal(current.immutable, true);
+          verifyDraftAssets(archived.assets, current.assets);
+          assertFrozenTag(directory, release);
+        },
+        guard: {
+          targetReleaseId: live.id,
+          npmTag,
+          integrities: packages.map(({ package: name, integrity }) => ({
+            package: name,
+            integrity,
+          })),
+        },
+      },
+    );
+  }
+  live = githubRelease(release);
+  assert.equal(live.id, archived.release.id);
+  assert.equal(live.immutable, true);
+  verifyDraftAssets(archived.assets, live.assets);
+  assert.equal(live.prerelease, !stableDefault);
+  if (stableDefault)
+    assert.equal(
+      optionalApi("releases/latest")?.id,
+      live.id,
+      "Classification incomplete; read-only recovery cannot acquire write authority",
+    );
+  else
+    assert.deepEqual(
+      marker(optionalApi("releases/latest")),
+      prior,
+      "GitHub latest changed during pilot/RC publication",
+    );
+  save(join(directory, "completion.json"), {
+    schemaVersion: 2,
+    manifestSha256: env.MANIFEST_SHA,
+    source: release.source.commit,
+    version: release.version,
+    npmTag,
+    packages,
+    github: live,
+    priorGithubLatest: prior,
+    state: stableDefault
+      ? "completed-stable-default"
+      : isPrerelease(release.version)
+        ? "completed-prerelease"
+        : "completed-pilot-publication",
+    observedAt: new Date().toISOString(),
+  });
 }
 /** Caller admits owner decisions, immutable targets and fresh security before this seam. */
 export function applyAvailability(
@@ -811,7 +1078,6 @@ export function runReleaseEffect(phase, directory, scratch, env = process.env) {
   );
   mkdirSync(scratch, { recursive: true });
   try {
-    verifyBundle(directory, env.MANIFEST_SHA);
     ({ stage, archive })[phase](directory, scratch, env);
   } catch (error) {
     const journal = join(

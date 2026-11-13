@@ -13,6 +13,7 @@ import { checkMinimalCliCommands } from "./consumer-cli-probe.js";
 const repository = fileURLToPath(new URL("../", import.meta.url));
 const transferBudgets = new Map([
   ["./.github/actions/upload-evidence", budgets.uploadStep],
+  ["./.github/actions/upload-writer-evidence", budgets.uploadStep],
   ["./.github/actions/download-evidence", budgets.collection],
 ]);
 
@@ -316,6 +317,19 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     ),
     "Release producer must install its frozen dependencies unconditionally",
   );
+  const writerSetup = actions.get("./.github/actions/setup-writer");
+  assert.ok(
+    writerSetup?.runs?.steps?.length > 0,
+    "Narrow writer setup is required",
+  );
+  assert.ok(
+    !writerSetup.runs.steps.some((step) =>
+      /(?:npm (?:ci|install|run install:producer)|install:producer-dependencies)/u.test(
+        step.run ?? "",
+      ),
+    ),
+    "Narrow writers cannot install the project graph",
+  );
   assert.equal(
     scripts["execute:release-action"],
     "node scripts/release-command.js",
@@ -330,12 +344,15 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     assert.equal(workflow.jobs[writer].environment, environment);
     for (const [name, job] of Object.entries(workflow.jobs)) {
       const steps = job.steps ?? [],
-        setup = steps.findIndex(
-          (step) => step.uses === "./.github/actions/setup-producer",
-        );
+        privileged =
+          name === writer || (path === "promote-release.yml" && name === "npm"),
+        requiredSetup = privileged
+          ? "./.github/actions/setup-writer"
+          : "./.github/actions/setup-producer",
+        setup = steps.findIndex((step) => step.uses === requiredSetup);
       assert.ok(
         setup >= 0 && !steps[setup].if,
-        `${path}/${name}: release dependency setup is required`,
+        `${path}/${name}: release dependency setup is required for its authority`,
       );
       assert.equal(
         job.permissions.contents,
@@ -363,7 +380,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       if (writer !== "github")
         assert.ok(
           steps[effect].run.startsWith(
-            `npm run execute:release-action -- ${writer} `,
+            `node scripts/release-command.js ${writer} `,
           ),
           `${path}: effect must use the startup-safe dispatcher`,
         );
@@ -372,11 +389,21 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           .slice(effect + 1)
           .some(
             (step) =>
-              step.uses === "./.github/actions/upload-evidence" &&
+              step.uses === "./.github/actions/upload-writer-evidence" &&
               step.if === "always()",
           ),
         `${path}/${name}: failed publisher evidence must be retained`,
       );
+      for (const [key, output] of [
+        ["ADMISSION_ARTIFACT_ID", "artifact-id"],
+        ["ADMISSION_ARTIFACT_DIGEST", "artifact-digest"],
+        ["ADMISSION_RECEIPT_SHA", "receipt-sha256"],
+      ])
+        assert.equal(
+          job.env?.[key],
+          `\${{ needs.admit.outputs.${output} }}`,
+          `${path}/${name}: writer admission identity is required`,
+        );
     }
   }
   assert.deepEqual(Object.keys(promotion.jobs).sort(), [
@@ -439,7 +466,30 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     promotion.jobs.github.if,
     "needs.npm.result == 'success' && needs.npm.outputs.availability == 'npm-and-github'",
   );
-  assert.deepEqual(promotion.jobs.complete.needs, ["npm", "github"]);
+  assert.deepEqual(promotion.jobs.complete.needs, ["admit", "npm", "github"]);
+  assert.deepEqual(promotion.jobs.github.needs, ["admit", "npm"]);
+  const staging = workflows.get("./.github/workflows/stage-release.yml");
+  assert.deepEqual(staging.on.workflow_dispatch.inputs.stage_phase.options, [
+    "natives",
+    "core",
+  ]);
+  assert.equal(
+    staging.on.workflow_dispatch.inputs.stage_phase.default,
+    "natives",
+  );
+  assert.deepEqual(staging.jobs.stage.needs, ["admit", "native-public"]);
+  assert.equal(
+    staging.jobs["native-public"].if,
+    "inputs.stage_phase == 'core'",
+  );
+  assert.equal(
+    staging.jobs["native-public"].name,
+    "${{ inputs.stage_phase == 'core' && format('native-public ({0})', matrix.os) || 'native-public' }}",
+  );
+  assert.deepEqual(staging.jobs["native-public"].permissions, {
+    contents: "read",
+    actions: "read",
+  });
   const receipt = workflows
     .get("./.github/workflows/ci.yml")
     ?.jobs.acceptance.steps.find(

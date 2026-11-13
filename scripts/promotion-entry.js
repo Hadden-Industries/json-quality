@@ -11,7 +11,7 @@ import {
   sha256,
 } from "./release-contract.js";
 import { currentMain, sealBundle } from "./release-provider.js";
-import { preparePromotion } from "./release-promotion.js";
+import { preparePromotionWriter } from "./promotion-writer-preparation.js";
 import { recordNoRequest } from "./release-effects.js";
 
 export function runPromotionService(
@@ -52,18 +52,19 @@ export function runPromotionService(
         "Long-lived npm tokens are forbidden",
       );
     }
-    const prepared = preparePromotion(directory, scratch, service, env);
+    const prepared = preparePromotionWriter(directory, scratch, service, env);
     writeFileSync(journal, "", { flag: "wx", flush: true });
     const operations = {
       assertCurrent: () => currentMain(env),
       readNpmTags: prepared.tags,
+      readPackageTags: prepared.tags,
       readGithubState: prepared.currentGithubState,
       ...mutation(prepared),
     };
     const completed = apply({ ...prepared, journal, env }, operations);
     if (service === "npm") {
       save(join(directory, "npm-continuation.json"), {
-        schemaVersion: 1,
+        schemaVersion: prepared.family ? 2 : 1,
         state: "npm-complete",
         repository,
         controller: env.GITHUB_SHA,
@@ -73,13 +74,30 @@ export function runPromotionService(
         acceptanceSha256: env.ACCEPTANCE_SHA,
         restorationSha256: env.RESTORATION_SHA || null,
         version: prepared.target,
-        targetIntegrity: prepared.auditRelease.archive.integrity,
+        targetIntegrity: prepared.family
+          ? prepared.family.subjects.find(
+              (value) => value.package === prepared.release.package,
+            ).integrity
+          : prepared.auditRelease.archive.integrity,
+        ...(prepared.family
+          ? {
+              operationId: prepared.family.operationId,
+              family: prepared.family,
+              packages: completed.packages,
+              targetIntegrities: Object.fromEntries(
+                prepared.family.subjects.map((value) => [
+                  value.package,
+                  value.integrity ?? null,
+                ]),
+              ),
+            }
+          : {}),
         availability: prepared.availability,
         priorLabels: prepared.expected,
         origin,
         journal: journalName,
         journalSha256: sha256(regularBytes(journal)),
-        npm: completed.npm,
+        npm: completed.npm ?? completed.packages?.[prepared.release.package],
         githubLatest: completed.github.latest?.tag_name ?? null,
         githubSnapshot: prepared.githubSnapshot ?? null,
       });
@@ -90,8 +108,7 @@ export function runPromotionService(
         );
     } else {
       save(join(directory, "github-continuation.json"), {
-        schemaVersion: 1,
-        state: "github-complete",
+        schemaVersion: prepared.family ? 2 : 1,
         origin,
         npmContinuationSha256: sha256(
           regularBytes(join(directory, "npm-continuation.json")),
@@ -99,6 +116,13 @@ export function runPromotionService(
         journal: journalName,
         journalSha256: sha256(regularBytes(journal)),
         ...completed,
+        ...(prepared.family
+          ? {
+              operationId: prepared.family.operationId,
+              family: prepared.family,
+            }
+          : {}),
+        state: "github-complete",
       });
     }
   } catch (error) {

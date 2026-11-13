@@ -15,10 +15,11 @@ export function runGithubPromotion(directory, scratch, env = process.env) {
         gh([
           "release",
           "edit",
-          `v${target}`,
+          typeof target === "string" ? `v${target}` : target.tag_name,
           "--repo",
           repository,
           "--latest=true",
+          "--prerelease=false",
         ]),
     }),
     [process.execPath, fileURLToPath(import.meta.url), directory, scratch],

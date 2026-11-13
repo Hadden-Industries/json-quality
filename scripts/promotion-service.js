@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
+import { applyNpmFamily, applyGithubFamily } from "./promotion-family.js";
 import {
   journalEffect,
   promotionPlan,
@@ -18,6 +19,7 @@ function sleepForReadback(ms) {
 
 /** A deliberately service-specific mutation seam; tests supply recording transports. */
 export function applyNpmAvailability(input, operations) {
+  if (input.family) return applyNpmFamily(input, operations);
   assert.ok(
     !Object.hasOwn(operations, "writeGithubLatest"),
     "npm boundary cannot accept GitHub mutation",
@@ -113,6 +115,7 @@ export function applyNpmAvailability(input, operations) {
 }
 
 export function applyGithubAvailability(input, operations) {
+  if (input.family) return applyGithubFamily(input, operations);
   assert.ok(
     !Object.hasOwn(operations, "writeNpmLatest"),
     "GitHub boundary cannot accept npm mutation",

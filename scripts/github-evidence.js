@@ -74,9 +74,12 @@ export function createRepositoryReader({
     bytesRead = 0,
     metadataBytesRead = 0,
     downloadBytesRead = 0;
-  const limit = () =>
+  let retryAt = null;
+  const limit = (retryable = false) =>
     Object.assign(new Error("GitHub evidence lookup budget exhausted"), {
       code: "LOOKUP_LIMIT_EXCEEDED",
+      retryable,
+      retryAt,
     });
   return async (
     path,
@@ -89,7 +92,7 @@ export function createRepositoryReader({
     assert.ok(!path.includes("..") && !path.includes("//"));
     for (let attempt = 0; attempt < 3; attempt++) {
       const remaining = end - now();
-      if (requests >= 64 || remaining <= 0) throw limit();
+      if (requests >= 64 || remaining <= 0) throw limit(remaining <= 0);
       requests++;
       let response, bytes;
       try {
@@ -118,7 +121,7 @@ export function createRepositoryReader({
             "Unexpected artifact storage origin",
           );
           await response.body?.cancel();
-          if (++requests > 64 || now() >= end) throw limit();
+          if (++requests > 64 || now() >= end) throw limit(now() >= end);
           // Never forward the GitHub credential to signed object-storage URLs.
           response = await fetchImpl(location, {
             redirect: "error",
@@ -134,6 +137,9 @@ export function createRepositoryReader({
               retryable:
                 [408, 500, 502, 503, 504].includes(response.status) ||
                 rateLimited(response),
+              retryAt: new Date(
+                now() + retryDelay(response, attempt, now(), random),
+              ).toISOString(),
             },
           );
         assert.ok(response.body, "Missing GitHub evidence body");
@@ -150,7 +156,12 @@ export function createRepositoryReader({
             downloadBytesRead > downloadLimit ||
             now() >= end
           )
-            throw limit();
+            throw limit(
+              size <= maximumBytes &&
+                metadataBytesRead <= artifactLimits.metadataBytes &&
+                downloadBytesRead <= downloadLimit &&
+                now() >= end,
+            );
           chunks.push(chunk);
         }
         bytes = Buffer.concat(chunks);
@@ -162,12 +173,13 @@ export function createRepositoryReader({
           await response.body.cancel().catch(() => {});
       }
       if (bytes !== undefined) {
-        if (now() >= end) throw limit();
+        if (now() >= end) throw limit(true);
         return raw
           ? bytes
           : JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
       }
       const wait = retryDelay(response, attempt, now(), random);
+      retryAt = new Date(now() + wait).toISOString();
       console.error(
         JSON.stringify({
           phase: "github-evidence-read",
@@ -181,7 +193,7 @@ export function createRepositoryReader({
           remainingMs: end - now(),
         }),
       );
-      if (wait >= end - now()) throw limit();
+      if (wait >= end - now()) throw limit(true);
       await sleep(wait);
     }
   };
@@ -200,7 +212,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         ? "application/sarif+json"
         : "application/vnd.github+json",
       budgetMs,
-      deadline: Date.now() + budgetMs - 2000,
+      deadline: Math.min(
+        Number(process.env.JSON_QUALITY_READ_DEADLINE_MS ?? Infinity),
+        Date.now() + budgetMs - 2000,
+      ),
     });
     const path = process.argv[2];
     if (process.argv[3] === "--paginate") {
@@ -239,6 +254,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
           message: error.message,
           code: error.code,
           httpStatus: error.httpStatus,
+          retryable: error.retryable,
+          retryAt: error.retryAt,
         },
       }),
     );

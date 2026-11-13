@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "owner": "maksymshostak",
+  "keys": [
+    {
+      "principal": "maksym@shostak.info",
+      "publicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGpqSjJMHCFWXzxM8jB87C66pKkTWLNi4a7scQ/KSDo/"
+    }
+  ]
+}

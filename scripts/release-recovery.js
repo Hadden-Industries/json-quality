@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Owner-selected readback reconciliation. It grants no replay of an unknown request. */
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { isDeepStrictEqual } from "node:util";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import {
   jsonBytes,
@@ -15,12 +22,24 @@ import {
   effectJournal,
   retainedRecoveries,
   releasePackages,
+  workflows,
   releaseArtifactBytes,
+  verifyProvenance,
 } from "./release-contract.js";
-import { api, gh, provider, optionalApi } from "./release-provider.js";
+import {
+  api,
+  gh,
+  provider,
+  optionalApi,
+  readHistoryRecord,
+} from "./release-provider.js";
 import { npmCommand } from "./qualification-process.js";
 import { verifyNativeAssets } from "./release-asset-verification.js";
 import { verifyReleaseAttestation } from "./release-attestation-readiness.js";
+import { isolatedNpmEnvironment } from "./release-inventory.js";
+import { verifyFamilyScope } from "./promotion-family.js";
+import { requestedIntents } from "./release-records.js";
+import { verifyStageCancellation } from "./reject-release-stages.js";
 
 export function verifyArchiveIntent(directory, record, manifestSha) {
   assert.equal(record.disposition, "complete-read-only");
@@ -85,7 +104,10 @@ export function verifyRecoveryRecord(record, release, manifestSha, journal) {
       assert.equal(intent.service, record.service);
       assert.ok(
         intent.operation === "completion-readback" ||
-          intent.operation === `${record.service}-latest`,
+          intent.operation === `${record.service}-latest` ||
+          (record.service === "npm" &&
+            intent.operation === `npm-latest:${intent.package}` &&
+            intent.guard?.family),
       );
     } else
       assert.ok(
@@ -96,7 +118,7 @@ export function verifyRecoveryRecord(record, release, manifestSha, journal) {
     assert.equal(intent.attempt, String(record.attempt));
     assert.equal(intent.manifestSha256, manifestSha);
     const subject =
-      record.phase === "stage"
+      record.phase === "stage" || intent.operation.startsWith("npm-latest:")
         ? releasePackages(release).find(
             (entry) => entry.package === intent.package,
           )
@@ -112,17 +134,26 @@ export function verifyRecoveryRecord(record, release, manifestSha, journal) {
         ? intent.operation === `stage:${subject.package}`
         : record.phase === "archive"
           ? intent.operation === "archive" ||
-            intent.operation.startsWith("upload:")
+            intent.operation.startsWith("upload:") ||
+            intent.operation === "github-classification"
           : ["npm-latest", "github-latest", "completion-readback"].includes(
               intent.operation,
-            ),
+            ) ||
+            (intent.operation === `npm-latest:${subject.package}` &&
+              record.service === "npm"),
     );
     if (outcome) {
+      if (outcome.state === "request-not-sent")
+        assert.equal(outcome.requestStarted, false);
       assert.equal(
         outcome.intentSha256,
         sha256(Buffer.from(JSON.stringify(intent) + "\n")),
       );
-      assert.ok(["completed", "outcome-unknown"].includes(outcome.state));
+      assert.ok(
+        ["completed", "outcome-unknown", "request-not-sent"].includes(
+          outcome.state,
+        ),
+      );
     } else
       assert.equal(
         i,
@@ -213,7 +244,108 @@ function npmOnlyRecoveryGuard(record, records) {
   );
   return guard;
 }
-export function reconcilePromotionLabels(record, records, tags, latest) {
+export function reconcilePromotionLabels(
+  record,
+  records,
+  tags,
+  latest,
+  targetRelease,
+) {
+  const family = records[0].guard?.family;
+  if (family) {
+    if (record.service === "github") assert.equal(family.github.selected, true);
+    assert.equal(
+      record.operationId,
+      family.operationId,
+      "Recovery must select the original family operation",
+    );
+    const marker = (value) =>
+      value
+        ? {
+            id: value.id,
+            tag_name: value.tag_name,
+            prerelease: value.prerelease,
+          }
+        : null;
+    const attempted = new Set(
+      requestedIntents(records)
+        .filter((entry) => entry.operation.startsWith("npm-latest:"))
+        .map((entry) => entry.package),
+    );
+    for (const subject of family.subjects) {
+      const expected =
+        record.service === "github" || attempted.has(subject.package)
+          ? subject.target
+          : subject.prior;
+      assert.equal(
+        tags[subject.package]?.latest ?? null,
+        expected,
+        "Family label does not settle the original attempted requests",
+      );
+    }
+    const expectedGithub =
+      record.service === "github" &&
+      records.some((entry) => entry.operation === "github-latest")
+        ? family.github.target
+        : family.github.prior;
+    let conditionalRepair = false;
+    if (
+      record.service === "github" &&
+      !isDeepStrictEqual(marker(latest), marker(expectedGithub))
+    ) {
+      assert.equal(
+        record.githubAction,
+        "repair-current-label",
+        "Unknown GitHub effect requires applied readback or explicit owner conditional repair",
+      );
+      assert.ok(
+        Object.hasOwn(record, "expectedGithubLatest") &&
+          Object.hasOwn(record, "expectedTarget"),
+      );
+      assert.deepEqual(marker(latest), record.expectedGithubLatest);
+      assert.deepEqual(marker(latest), marker(family.github.prior));
+      assert.deepEqual(marker(targetRelease), record.expectedTarget);
+      assert.equal(targetRelease.immutable, true);
+      assert.equal(targetRelease.draft, false);
+      assert.ok(
+        isDeepStrictEqual(
+          marker(targetRelease),
+          marker(family.github.targetPrior),
+        ) ||
+          isDeepStrictEqual(
+            marker(targetRelease),
+            marker(family.github.target),
+          ),
+      );
+      conditionalRepair = true;
+    } else
+      assert.deepEqual(
+        marker(latest),
+        marker(expectedGithub),
+        "GitHub identity does not settle the original operation",
+      );
+    if (record.service === "github" && !conditionalRepair) {
+      assert.deepEqual(
+        marker(targetRelease),
+        marker(family.github.target),
+        "GitHub target classification has not settled the original effect",
+      );
+      assert.equal(targetRelease.immutable, true);
+      assert.equal(targetRelease.draft, false);
+    }
+    if (latest) {
+      assert.equal(latest.immutable, true);
+      assert.equal(latest.draft, false);
+    }
+    return {
+      state: conditionalRepair
+        ? "family-conditional-repair-approved"
+        : "family-effects-settled",
+      operationId: family.operationId,
+      packages: tags,
+      github: marker(latest),
+    };
+  }
   assert.equal(
     tags.latest,
     record.targetVersion,
@@ -274,9 +406,8 @@ function reconcileOne(
     manifestSha = env.MANIFEST_SHA;
   if (record.manifestSha256 !== manifestSha) {
     assert.equal(record.phase, "stage");
-    assert.equal(
-      record.disposition,
-      "abandon-family",
+    assert.ok(
+      ["abandon-family", "supersede"].includes(record.disposition),
       "Cross-version recovery requires explicit owner abandonment",
     );
     assert.match(record.manifestSha256, /^[a-f0-9]{64}$/u);
@@ -298,7 +429,17 @@ function reconcileOne(
   );
   const records = verifyRecoveryRecord(record, release, manifestSha, journal);
   const original = observe(record.run, record.attempt);
+  assert.equal(String(original.run.id), String(record.run));
+  assert.equal(String(original.run.run_attempt), String(record.attempt));
   assert.equal(original.run.status, "completed");
+  assert.equal(original.run.repository.full_name, repository);
+  assert.equal(original.run.head_repository.full_name, repository);
+  assert.equal(
+    original.run.path,
+    `.github/workflows/${workflows[record.phase]}`,
+  );
+  assert.equal(original.run.event, "workflow_dispatch");
+  assert.equal(original.run.head_branch, "main");
   const first = records[0];
   assert.equal(original.run.head_sha, first.controller);
   let observed;
@@ -306,7 +447,7 @@ function reconcileOne(
     // Settle only attempted members. An abandoned family never supplies admission
     // for its missing members or authority to repeat any request.
     const stages = [];
-    const attempted = records.filter((entry) => entry.state === "intent");
+    const attempted = requestedIntents(records);
     assert.equal(
       new Set(attempted.map((entry) => entry.package)).size,
       attempted.length,
@@ -316,10 +457,20 @@ function reconcileOne(
       attempted.length,
       "Owner must identify exactly the attempted native stages",
     );
-    if (attempted.length !== 3)
-      assert.equal(
-        record.disposition,
-        "abandon-family",
+    const nativeOutcome = existsSync(
+      join(directory, "native-stage-outcome.json"),
+    )
+      ? readJson(join(directory, "native-stage-outcome.json"))
+      : null;
+    const coreOnly =
+      attempted.length === 1 &&
+      attempted[0].package === release.package &&
+      nativeOutcome?.schemaVersion === 2;
+    if (attempted.length !== 3 && !coreOnly)
+      assert.ok(
+        ["abandon-family", "supersede", "restore-labels"].includes(
+          record.disposition,
+        ),
         "A partial family requires explicit owner abandonment",
       );
     for (const intent of attempted) {
@@ -339,6 +490,40 @@ function reconcileOne(
           outcome.result.stageId,
           "Owner stage identity contradicts the original completed outcome",
         );
+      if (
+        ["supersede", "restore-labels"].includes(record.disposition) &&
+        selected[0].settlement === "rejected"
+      ) {
+        const history = (readers.readHistoryRecord ?? readHistoryRecord)(
+          record.cancellationCheckpoint,
+        );
+        assert.equal(history.schemaVersion, 2);
+        const matches = history.stageCancellations?.filter(
+          (item) => item.stageId === selected[0].stageId,
+        );
+        assert.equal(
+          matches?.length,
+          1,
+          "Rejection requires native proof retained under an owner-signed history checkpoint",
+        );
+        verifyStageCancellation(matches[0], {
+          run: String(record.run),
+          attempt: String(record.attempt),
+          manifestSha256: manifestSha,
+          journalSha256: record.journalSha256,
+          package: subject.package,
+          version: release.version,
+          integrity: subject.archive.integrity,
+          stageId: selected[0].stageId,
+        });
+        stages.push({
+          package: subject.package,
+          stageId: selected[0].stageId,
+          state: "rejected-confirmed",
+          proofSha256: sha256(jsonBytes(matches[0])),
+        });
+        continue;
+      }
       const metadata = npmViewObject(
         readNpm([
           "view",
@@ -366,12 +551,119 @@ function reconcileOne(
       stages.length,
     );
     observed = { stages };
+    if (["supersede", "restore-labels"].includes(record.disposition)) {
+      assert.match(record.reviewSha256, /^[a-f0-9]{64}$/u);
+      for (const [index, intent] of attempted.entries()) {
+        assert.equal(
+          intent.guard?.reviewSha256,
+          record.reviewSha256,
+          "Supersession must bind the actual original review",
+        );
+        if (stages[index].state === "rejected-confirmed") continue;
+        const subject = releasePackages(release).find(
+          (entry) => entry.package === intent.package,
+        );
+        const root = mkdtempSync(
+          join(scratch, `superseded-recipient-${index}-`),
+        );
+        try {
+          const isolation = isolatedNpmEnvironment(root);
+          save(join(root, "package.json"), {
+            private: true,
+            dependencies: { [subject.package]: release.version },
+          });
+          // Inspect either native platform without running installation scripts or loading its binary.
+          readNpm(
+            [
+              "install",
+              "--force",
+              "--ignore-scripts",
+              "--no-audit",
+              "--no-fund",
+              "--registry=https://registry.npmjs.org/",
+            ],
+            { cwd: root, env: isolation },
+          );
+          const lock = readJson(join(root, "package-lock.json"));
+          assert.equal(
+            lock.packages[`node_modules/${subject.package}`].integrity,
+            subject.archive.integrity,
+          );
+          const signatures = JSON.parse(
+            readNpm(
+              [
+                "audit",
+                "signatures",
+                "--json",
+                "--include-attestations",
+                "--ignore-scripts",
+                "--registry=https://registry.npmjs.org/",
+              ],
+              { cwd: root, env: isolation },
+            ),
+          );
+          const origin = {
+            run: intent.run,
+            attempt: intent.attempt,
+            controller: intent.controller,
+          };
+          verifyProvenance(signatures, { ...release, ...subject }, origin);
+          const proof = {
+            package: subject.package,
+            integrity: subject.archive.integrity,
+            origin,
+            signatures,
+          };
+          const bytes = jsonBytes(proof),
+            path = join(directory, `stage-settlement-${sha256(bytes)}.json`);
+          if (!existsSync(path)) save(path, bytes);
+          else assert.deepEqual(regularBytes(path), bytes);
+          stages[index] = {
+            ...stages[index],
+            origin,
+            state: "public-provenance-verified",
+            proofSha256: sha256(bytes),
+          };
+        } finally {
+          rmSync(root, { recursive: true, force: true });
+        }
+      }
+      return {
+        record,
+        observed: {
+          stages,
+          state:
+            record.disposition === "supersede"
+              ? "superseded-family-reconciled"
+              : "staged-labels-settled",
+        },
+        priorLabels: {},
+      };
+    }
     if (record.disposition === "abandon-family")
       return {
         record,
         observed: { ...observed, state: "abandoned-family-observed" },
         priorLabels: {},
       };
+    if (coreOnly) {
+      assert.equal(nativeOutcome.manifestSha256, manifestSha);
+      assert.deepEqual(
+        nativeOutcome.result.stages.map((entry) => entry.package).sort(),
+        release.platformArchives.map((entry) => entry.package).sort(),
+      );
+      for (const subject of release.platformArchives) {
+        const origin = nativeOutcome.origins[subject.package];
+        assert.equal(origin.integrity, subject.archive.integrity);
+        assert.equal(origin.run, nativeOutcome.origin.run);
+        assert.equal(origin.attempt, nativeOutcome.origin.attempt);
+        const originalJournal = regularBytes(
+          join(directory, effectJournal("stage", origin)),
+        );
+        assert.equal(sha256(originalJournal), nativeOutcome.journalSha256);
+      }
+      stages.unshift(...nativeOutcome.result.stages);
+    }
     assert.deepEqual(
       stages.map((entry) => entry.package),
       releasePackages(release).map((entry) => entry.package),
@@ -381,10 +673,25 @@ function reconcileOne(
       run: String(record.run),
       attempt: String(record.attempt),
       controller: first.controller,
+      ...(coreOnly
+        ? { phase: "core", reviewSha256: first.guard?.reviewSha256 }
+        : {}),
     };
+    if (coreOnly) {
+      context.nativeStage = nativeOutcome.origin;
+      context.packageOrigins = {
+        ...nativeOutcome.origins,
+        [release.package]: {
+          ...context.stage,
+          package: release.package,
+          integrity: release.archive.integrity,
+          stageId: stages.at(-1).stageId,
+        },
+      };
+    }
     if (!existsSync(join(directory, "stage-outcome.json")))
       save(join(directory, "stage-outcome.json"), {
-        schemaVersion: 1,
+        schemaVersion: coreOnly ? 2 : 1,
         manifestSha256: env.MANIFEST_SHA,
         subject: {
           package: release.package,
@@ -398,6 +705,7 @@ function reconcileOne(
           stages,
         },
         origin: context.stage,
+        ...(coreOnly ? { origins: context.packageOrigins } : {}),
         journalSha256: sha256(journal),
       });
     writeFileSync(join(directory, "context.json"), jsonBytes(context), {
@@ -471,18 +779,105 @@ function reconcileOne(
       assets: intent.assets,
       attestations,
     };
-  } else if (observeCurrent) {
-    const tags = npmViewObject(
-      readNpm([
-        "view",
-        release.package,
-        "dist-tags",
-        "--json",
-        "--registry=https://registry.npmjs.org/",
-      ]),
+    const classification = records.findLast(
+      (entry) =>
+        entry.state === "intent" && entry.operation === "github-classification",
     );
+    const classificationOutcome =
+      classification && records[records.indexOf(classification) + 1];
+    if (
+      classification &&
+      (!classificationOutcome ||
+        classificationOutcome.state === "outcome-unknown")
+    ) {
+      const latest = readLatest("releases/latest"),
+        marker = (value) =>
+          value
+            ? {
+                id: value.id,
+                tag_name: value.tag_name,
+                prerelease: value.prerelease,
+              }
+            : null;
+      if (live.prerelease === false && latest?.id === live.id)
+        observed.classification = {
+          state: "applied-observed",
+          latest: marker(latest),
+          releaseId: live.id,
+        };
+      else {
+        assert.equal(
+          record.githubAction,
+          "repair-current-label",
+          "Unknown classification requires applied readback or an explicit owner conditional repair",
+        );
+        assert.ok(Object.hasOwn(record, "expectedGithubLatest"));
+        assert.deepEqual(marker(latest), record.expectedGithubLatest);
+        assert.deepEqual(marker(latest), classification.before);
+        assert.equal(live.prerelease, true);
+        observed.classification = {
+          state: "conditional-repair-approved",
+          latest: marker(latest),
+          releaseId: live.id,
+          originalOutcome: "unknown",
+        };
+      }
+    }
+  } else if (observeCurrent) {
+    const family = records[0].guard?.family;
+    if (family) {
+      verifyFamilyScope(family, release);
+      assert.equal(record.operationId, family.operationId);
+      const operation = regularBytes(
+        join(
+          directory,
+          "recovery-operations",
+          family.operationId,
+          "availability-operation.json",
+        ),
+      );
+      assert.equal(
+        sha256(operation),
+        family.operationId,
+        "Original operation bytes are required to settle unknown effects",
+      );
+      assert.deepEqual(
+        { ...JSON.parse(operation).family, operationId: family.operationId },
+        family,
+      );
+      for (const intent of records.filter((entry) => entry.state === "intent"))
+        assert.deepEqual(intent.guard.family, family);
+    }
+    const readTags = (packageName) =>
+      npmViewObject(
+        readNpm([
+          "view",
+          packageName,
+          "dist-tags",
+          "--json",
+          "--registry=https://registry.npmjs.org/",
+        ]),
+      );
+    const tags = family
+      ? Object.fromEntries(
+          family.subjects.map((subject) => [
+            subject.package,
+            readTags(subject.package),
+          ]),
+        )
+      : readTags(release.package);
     const latest = readLatest("releases/latest");
-    observed = reconcilePromotionLabels(record, records, tags, latest);
+    const targetRelease =
+      family && record.service === "github"
+        ? (readers.api ?? api)(`releases/${family.github.target.id}`)
+        : undefined;
+    observed = reconcilePromotionLabels(
+      record,
+      records,
+      tags,
+      latest,
+      targetRelease,
+    );
   } else observed = { state: "retained-original" };
   const priorLabels = {};
   if (record.phase === "promote") {
@@ -493,6 +888,8 @@ function reconcileOne(
     if (record.service) {
       const intents = records.filter((entry) => entry.state === "intent");
       const original = intents[0].guard;
+      if (original.family)
+        return { record, observed, priorLabels: original.family };
       assert.equal(original.availability, record.availability);
       assert.equal(original.targetVersion, record.targetVersion);
       assert.ok(

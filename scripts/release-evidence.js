@@ -1,19 +1,14 @@
+import {
+  verifyReport,
+  verifyLane,
+  verifySecurity,
+} from "./release-qualification-contract.js";
+export { verifyReport, verifyLane, verifySecurity };
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Complete provider/report closure before a privileged job may consume a bundle. */
 import assert from "node:assert/strict";
-import {
-  validateMinimalCli,
-  frozenDefaultPolicyDigest,
-} from "./consumer-layouts.js";
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  appendFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   readJson,
   regularBytes,
@@ -34,14 +29,19 @@ import {
 } from "./release-contract.js";
 import {
   checkEnvironment,
+  api,
   currentMain,
   download,
   evidenceIndex,
   provider,
   producingAttempt,
   readEffectHistory,
+  readHistoryRecord,
+  readHistoryTarget,
+  historyTargetDescriptors,
   signedTag,
   verifyEffectHistory,
+  authenticatedHistoricalSettlements,
   sealBundle,
 } from "./release-provider.js";
 import {
@@ -50,126 +50,18 @@ import {
   retainRecovery,
   verifyArchiveIntent,
 } from "./release-recovery.js";
-import { verifyAudit } from "./release-inventory.js";
 import { native } from "./qualification-process.js";
-import { securityScans } from "./security-scans.js";
-import { verifyCodeql } from "./release-security.js";
+import { verifyOperationDecision } from "./release-availability-contract.js";
+import { retainedQualifiedTarget } from "./archived-release-evidence.js";
+import { verifyQualifiedTarget } from "./qualified-release-contract.js";
+import { admitPendingDecisions } from "./release-decision-state.js";
 
-export function verifyReport(report, release, lane, qualification, layout) {
-  assert.equal(report.status, "passed");
-  assert.equal(report.sourceCommit, release.source.commit);
-  assert.equal(report.archiveSha256, release.archive.sha256);
-  assert.equal(report.node, lane.node);
-  assert.equal(
-    report.platform,
-    lane.os.startsWith("windows") ? "win32" : "linux",
-  );
-  assert.equal(report.architecture, "x64");
-  assert.equal(report.npm, release.policy.consumerNpm);
-  assert.equal(report.nativeToolchain.npm, release.policy.consumerNpm);
-  assert.equal(report.qualification, qualification);
-  assert.equal(report.layout, layout);
-  assert.equal(report.publicExports, 7);
-  assert.equal(report.cliPhysicalFiles, 2);
-  assert.equal(report.packageVersion, release.version);
-  assert.equal(
-    report.installSource,
-    qualification === "public registry" ? "registry" : "producer-archive",
-  );
-  const platform = lane.os.startsWith("windows") ? "win32-x64" : "linux-x64",
-    expected = release.platformArchives.find(
-      (entry) => entry.platform === platform,
-    );
-  assert.deepEqual(report.nativePackage, {
-    name: expected.package,
-    version: release.version,
-    integrity: expected.archive.integrity,
-  });
-  validateMinimalCli(
-    report.minimalCli,
-    release.version,
-    report.installSource,
-    frozenDefaultPolicyDigest(release.archive.files),
-    {
-      name: "@hadden-industries/json-quality",
-      version: release.version,
-      integrity: release.archive.integrity,
-      sha256: release.archive.sha256,
-    },
-    {
-      name: expected.package,
-      version: release.version,
-      integrity: expected.archive.integrity,
-    },
-  );
-}
 function copyEvidence(from, to) {
   mkdirSync(to, { recursive: true });
   for (const entry of readdirSync(from, { withFileTypes: true })) {
     assert.ok(entry.isFile(), "Artifact includes an unexpected nested payload");
     save(join(to, entry.name), releaseArtifactBytes(join(from, entry.name)));
   }
-}
-export function verifyLane(directory, release, lane, qualification) {
-  for (const layout of ["root", "isolated"]) {
-    verifyReport(
-      readJson(join(directory, `${layout}-result.json`)),
-      release,
-      lane,
-      qualification,
-      layout,
-    );
-    verifyAudit(readJson(join(directory, `${layout}-audit.json`)));
-    const inventory = readJson(join(directory, `${layout}-inventory.json`));
-    assert.equal(inventory.layout, layout);
-    assert.equal(inventory.node, lane.node);
-    assert.equal(
-      inventory.lockSha256,
-      sha256(regularBytes(join(directory, `${layout}-lock.json`))),
-    );
-    assert.ok(readJson(join(directory, `${layout}-locations.json`)).length > 0);
-    assert.equal(
-      readJson(join(directory, `${layout}.cdx.json`)).bomFormat,
-      "CycloneDX",
-    );
-    if (
-      qualification === "public registry" &&
-      lane.node === release.policy.reference
-    ) {
-      assert.equal(inventory.signatures, true);
-      const signatures = readJson(join(directory, `${layout}-signatures.json`));
-      assert.ok(
-        !signatures.error &&
-          (!signatures.invalid || signatures.invalid.length === 0),
-      );
-    }
-  }
-}
-export function verifySecurity(record, release, manifestSha, run, attempt) {
-  assert.equal(record.source, release.source.commit);
-  assert.equal(record.manifestSha256, manifestSha);
-  assert.equal(record.run, String(run));
-  assert.equal(record.attempt, String(attempt));
-  assert.equal(record.schemaVersion, 2, "Obsolete security contract");
-  assert.equal(record.scans.length, securityScans.length);
-  assert.deepEqual(
-    record.analyses.map((a) => a.category).sort(),
-    securityScans.map(({ category }) => category).sort(),
-  );
-  assert.deepEqual(
-    verifyCodeql(record.analyses, release.source.commit, release.policy),
-    record.analyses,
-  );
-  assert.deepEqual(
-    record.scans.map(({ analysis }) => analysis).sort((a, b) => a - b),
-    record.analyses.map(({ id }) => id).sort((a, b) => a - b),
-  );
-  assert.ok(
-    record.scans.every(
-      (scan) =>
-        scan.findings === 0 && scan.rules.length && scan.queryPacks.length,
-    ),
-  );
 }
 export function verifyBundle(
   directory,
@@ -265,7 +157,15 @@ export function verifyController(release, decision, env) {
   );
 }
 /** A forward fix may finish readback only; original publication decisions stay immutable. */
-export function controllerReviewFor(decision, env, phase, recovery) {
+export function controllerReviewFor(decision, env, phase, recovery, release) {
+  if (phase === "promote" && env.OPERATION_JSON) {
+    return verifyOperationDecision(
+      Buffer.from(env.OPERATION_JSON),
+      env.OPERATION_SHA,
+      release,
+      env,
+    );
+  }
   if (phase !== "archive" || !recovery?.archive?.record.controllerReview)
     return decision;
   const { record, observed } = recovery.archive;
@@ -287,10 +187,111 @@ export function refreshAdmission(
   manualControl(env, phase);
   currentMain(env);
   const release = verifyBundle(directory, env.MANIFEST_SHA);
+  const scopedOriginal =
+    phase === "promote" &&
+    env.OPERATION_JSON &&
+    JSON.parse(env.OPERATION_JSON).family?.operation === "scoped-restore"
+      ? JSON.parse(env.OPERATION_JSON).originalEffect
+      : null;
+  const stagedRestore = scopedOriginal?.phase === "stage";
   const recoveryRoot = join(historyRoot, "recovery-readback");
   mkdirSync(recoveryRoot, { recursive: true });
-  const recovery = reconcileObserved(directory, recoveryRoot, env);
-  if (recovery) sealBundle(directory, env.MANIFEST_SHA);
+  let context = readJson(join(directory, "context.json"));
+  let retained, retainedHistory;
+  const readProvider = (providerPhase, origin) => {
+    try {
+      return provider(origin.run, origin.attempt);
+    } catch (error) {
+      if (
+        phase !== "promote" ||
+        !env.OPERATION_JSON ||
+        error.httpStatus !== 404
+      )
+        throw error;
+      if (!retained) {
+        const operation = verifyOperationDecision(
+          Buffer.from(env.OPERATION_JSON),
+          env.OPERATION_SHA,
+          release,
+          env,
+        );
+        const live = api(`releases/tags/v${release.version}`);
+        assert.equal(live.id, operation.sourceReleaseId);
+        assert.equal(live.immutable, true);
+        const expected = {
+          version: release.version,
+          manifestSha256: env.MANIFEST_SHA,
+          releaseId: live.id,
+        };
+        retainedHistory = readHistoryRecord(operation.historyCheckpoint);
+        retained = verifyQualifiedTarget(
+          retainedQualifiedTarget(operation.historyCheckpoint, expected),
+          expected,
+        );
+      }
+      const matching = retained.providers.filter(
+        (value) =>
+          (!providerPhase || value.phase === providerPhase) &&
+          String(value.provider.run.id) === origin.run &&
+          String(value.provider.run.run_attempt) === origin.attempt,
+      );
+      if (
+        !matching.length &&
+        !providerPhase &&
+        scopedOriginal?.phase === "promote" &&
+        origin.run === scopedOriginal.run &&
+        origin.attempt === scopedOriginal.attempt
+      ) {
+        const entries = retainedHistory.entries.filter(
+          (entry) =>
+            entry.phase === "promote" &&
+            entry.service === scopedOriginal.service &&
+            entry.run === origin.run &&
+            entry.attempt === origin.attempt &&
+            sha256(Buffer.from(entry.journal, "base64")) ===
+              scopedOriginal.journalSha256,
+        );
+        assert.equal(
+          entries.length,
+          1,
+          "Signed history lacks exact original promotion provider",
+        );
+        const native = entries[0].provider;
+        assert.equal(native.run.id, Number(origin.run));
+        assert.equal(native.run.run_attempt, Number(origin.attempt));
+        assert.equal(native.jobs.total_count, native.jobs.jobs.length);
+        const jobs = native.jobs.jobs.filter(
+          (job) => job.name === scopedOriginal.service,
+        );
+        assert.equal(jobs.length, 1);
+        assert.equal(jobs[0].status, "completed");
+        assert.ok(
+          ["success", "failure", "cancelled", "timed_out"].includes(
+            jobs[0].conclusion,
+          ),
+        );
+        return native;
+      }
+      assert.equal(
+        matching.length,
+        1,
+        "Signed target checkpoint lacks an original provider inventory",
+      );
+      return matching[0].provider;
+    }
+  };
+  const recovery = reconcileObserved(directory, recoveryRoot, env, {
+    provider: (run, attempt) => readProvider(null, { run, attempt }),
+  });
+  context = readJson(join(directory, "context.json"));
+  if (recovery) {
+    writeFileSync(
+      join(directory, "recovery-observations.json"),
+      JSON.stringify(recovery.entries, null, 2) + "\n",
+      { flush: true },
+    );
+    sealBundle(directory, env.MANIFEST_SHA);
+  }
   assert.ok(
     !recovery?.entries.some(
       ({ record }) =>
@@ -300,11 +301,7 @@ export function refreshAdmission(
     ),
     "An abandoned package version cannot advance; select and qualify a new version",
   );
-  const context = readJson(join(directory, "context.json"));
-  const qualified = provider(
-    context.qualification.run,
-    context.qualification.attempt,
-  );
+  const qualified = readProvider("qualification", context.qualification);
   verifyRun(qualified, "qualification", release.source.commit, release.matrix);
   retainProvider(directory, "qualification", qualified);
   const reviewBytes = regularBytes(join(directory, "release-review.json"));
@@ -315,22 +312,89 @@ export function refreshAdmission(
     env.MANIFEST_SHA,
     "review",
   );
+  let currentReview = decision;
+  if (
+    phase === "stage" &&
+    env.STAGE_PHASE === "core" &&
+    env.CONTINUATION_REVIEW_JSON
+  ) {
+    const bytes = Buffer.from(env.CONTINUATION_REVIEW_JSON);
+    currentReview = verifyDecision(
+      bytes,
+      env.CONTINUATION_REVIEW_SHA,
+      release,
+      env.MANIFEST_SHA,
+      "review",
+    );
+    assert.equal(currentReview.continuesReviewSha256, env.REVIEW_SHA);
+    assert.equal(
+      currentReview.npmTag ?? "pilot",
+      decision.npmTag ?? "pilot",
+      "A continuation cannot change the already staged channel",
+    );
+    const path = join(directory, "continuation-review.json");
+    if (existsSync(path))
+      assert.equal(sha256(regularBytes(path)), env.CONTINUATION_REVIEW_SHA);
+    else save(path, bytes);
+    context.continuationReviewSha256 = env.CONTINUATION_REVIEW_SHA;
+    writeFileSync(
+      join(directory, "context.json"),
+      Buffer.from(JSON.stringify(context, null, 2) + "\n"),
+      { flush: true },
+    );
+  } else if (context.continuationReviewSha256) {
+    currentReview = verifyDecision(
+      regularBytes(join(directory, "continuation-review.json")),
+      context.continuationReviewSha256,
+      release,
+      env.MANIFEST_SHA,
+      "review",
+    );
+    assert.equal(currentReview.continuesReviewSha256, env.REVIEW_SHA);
+  }
   verifyController(
     release,
-    controllerReviewFor(decision, env, phase, recovery),
+    controllerReviewFor(currentReview, env, phase, recovery, release),
     env,
   );
   if (phase === "promote" && env.RESTORE_VERSION)
     admitRestoration(directory, release, env);
-  signedTag(release);
-  if (phase !== "stage") {
-    const staged = provider(context.stage.run, context.stage.attempt);
+  assert.equal(
+    signedTag(release).reference.object.sha,
+    readJson(join(directory, "signed-tag.json")).reference.object.sha,
+    "Release tag object changed after original admission",
+  );
+  if (phase !== "stage" && !stagedRestore) {
+    if (context.nativeStage) {
+      const native = readProvider("stage", context.nativeStage);
+      verifyRun(
+        native,
+        "stage",
+        context.nativeStage.controller,
+        release.matrix,
+        { stagePhase: "natives" },
+      );
+      retainProvider(directory, "stage", native);
+      const outcome = readJson(join(directory, "native-stage-outcome.json"));
+      assert.deepEqual(outcome.origin, context.nativeStage);
+      assert.equal(outcome.manifestSha256, env.MANIFEST_SHA);
+      assert.equal(
+        outcome.journalSha256,
+        sha256(
+          regularBytes(
+            join(directory, effectJournal("stage", context.nativeStage)),
+          ),
+        ),
+      );
+    }
+    const staged = readProvider("stage", context.stage);
     // The staging control source can be a separately reviewed controller.
     verifyRun(staged, "stage", context.stage.controller, release.matrix, {
       reconciled:
         !!recovery?.stage &&
         String(recovery.stage.record.run) === context.stage.run &&
         String(recovery.stage.record.attempt) === context.stage.attempt,
+      stagePhase: context.stage.phase,
     });
     retainProvider(directory, "stage", staged);
     const stage = readJson(join(directory, "stage-outcome.json"));
@@ -341,6 +405,23 @@ export function refreshAdmission(
     verifyStageFamily(stage.result.stages, release);
     assert.equal(stage.result.stageId, stage.result.stages.at(-1).stageId);
     assert.deepEqual(stage.origin, context.stage);
+    if (stage.schemaVersion === 2) {
+      assert.deepEqual(stage.origins, context.packageOrigins);
+      assert.deepEqual(
+        Object.keys(stage.origins).sort(),
+        releasePackages(release)
+          .map((subject) => subject.package)
+          .sort(),
+      );
+      for (const subject of releasePackages(release)) {
+        const origin = stage.origins[subject.package];
+        assert.equal(origin.integrity, subject.archive.integrity);
+        assert.equal(origin.package, subject.package);
+        const expected = subject.platform ? context.nativeStage : context.stage;
+        for (const key of ["run", "attempt", "controller"])
+          assert.equal(origin[key], expected[key]);
+      }
+    }
     assert.equal(
       stage.journalSha256,
       sha256(
@@ -348,7 +429,7 @@ export function refreshAdmission(
       ),
     );
     if (phase !== "registry") {
-      const registry = provider(context.registry.run, context.registry.attempt);
+      const registry = readProvider("registry", context.registry);
       verifyRun(
         registry,
         "registry",
@@ -358,9 +439,9 @@ export function refreshAdmission(
       retainProvider(directory, "registry", registry);
     }
   }
-  if (phase === "promote")
+  if (phase === "promote" && !stagedRestore)
     verifyRun(
-      provider(context.archive.run, context.archive.attempt),
+      readProvider("archive", context.archive),
       "archive",
       context.archive.controller,
       release.matrix,
@@ -380,18 +461,59 @@ export function refreshAdmission(
   let history = [];
   if (checkHistory) {
     assert.ok(historyRoot);
+    const checkpoint =
+      phase === "promote" && env.OPERATION_JSON
+        ? (JSON.parse(env.OPERATION_JSON).historyCheckpoint ??
+          currentReview.historyCheckpoint)
+        : currentReview.historyCheckpoint;
     assert.ok(
-      decision.historyCheckpoint,
+      checkpoint,
       "A complete signed writer-history checkpoint, including an empty first-use baseline, is required before release effects",
     );
+    const completeCheckpoint =
+      release.schemaVersion >= 3 || env.OPERATION_JSON
+        ? readHistoryRecord(checkpoint)
+        : null;
+    const originalHistory = readEffectHistory(
+      env,
+      historyRoot,
+      checkpoint,
+      completeCheckpoint
+        ? { checkpoint: () => completeCheckpoint.entries }
+        : {},
+      release,
+    );
+    const persistentRecovery = {
+      entries: [
+        ...(recovery?.entries ?? []),
+        ...authenticatedHistoricalSettlements(originalHistory),
+      ],
+    };
+    const superseded = completeCheckpoint
+      ? admitPendingDecisions(
+          originalHistory,
+          release,
+          completeCheckpoint.qualifiedTargets ?? [],
+          persistentRecovery,
+          {
+            review: currentReview,
+            settledStages: (
+              completeCheckpoint.qualifiedTargetRefs ?? []
+            ).flatMap((ref) => ref.settledStages ?? []),
+            reviewSha256: context.continuationReviewSha256 ?? env.REVIEW_SHA,
+            resolveTarget: (version, manifestSha256) => {
+              const ref = historyTargetDescriptors(completeCheckpoint).find(
+                (target) =>
+                  target.version === version &&
+                  target.manifestSha256 === manifestSha256,
+              );
+              return ref ? readHistoryTarget(completeCheckpoint, ref) : null;
+            },
+          },
+        )
+      : new Set();
     history = verifyEffectHistory(
-      readEffectHistory(
-        env,
-        historyRoot,
-        decision.historyCheckpoint,
-        {},
-        release,
-      ),
+      originalHistory,
       { run: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT },
       release,
       recovery,
@@ -400,8 +522,17 @@ export function refreshAdmission(
       assert.ok(
         !history.some(
           (entry) =>
-            entry.intent.operation === "stage" ||
-            entry.intent.operation.startsWith("stage:"),
+            (entry.intent.operation === "stage" ||
+              entry.intent.operation.startsWith("stage:")) &&
+            !(
+              env.STAGE_PHASE === "core" &&
+              release.platformArchives.some(
+                (subject) => subject.package === entry.intent.package,
+              ) &&
+              entry.intent.run === context.nativeStage?.run &&
+              entry.intent.attempt === context.nativeStage?.attempt
+            ) &&
+            !superseded.has(`${entry.intent.run}/${entry.intent.attempt}`),
         ),
         "Version was staged already; use continuation, never re-stage",
       );
@@ -484,6 +615,32 @@ export function admitRestoration(directory, release, env) {
   sealBundle(directory, env.MANIFEST_SHA);
   return decision;
 }
+function retainRecoveryOperation(directory, originalDirectory, record) {
+  if (record.phase === "promote" && record.operationId) {
+    const operation = regularBytes(
+      join(originalDirectory, "availability-operation.json"),
+    );
+    assert.equal(sha256(operation), record.operationId);
+    const retained = join(directory, "recovery-operations", record.operationId);
+    mkdirSync(retained, { recursive: true });
+    for (const file of [
+      "availability-operation.json",
+      "writer-admission.json",
+      "npm-continuation.json",
+      "github-continuation.json",
+      "promotion-security-admit.json",
+      ...readdirSync(originalDirectory).filter((name) =>
+        /^qualified-target-.*\.json$/u.test(name),
+      ),
+    ]) {
+      if (!existsSync(join(originalDirectory, file))) continue;
+      const bytes = regularBytes(join(originalDirectory, file)),
+        path = join(retained, file);
+      if (existsSync(path)) assert.deepEqual(regularBytes(path), bytes);
+      else save(path, bytes);
+    }
+  }
+}
 /** Import only the selected original journal, preserving the archival predecessor. */
 export function acquireRecoveryJournal(
   directory,
@@ -495,16 +652,18 @@ export function acquireRecoveryJournal(
   const record = JSON.parse(env.RECOVERY_JSON);
   const name = effectJournal(record.phase, record);
   if (existsSync(join(directory, name))) {
+    const release = verifyBundle(directory, env.MANIFEST_SHA);
+    verifyRecoveryRecord(
+      record,
+      release,
+      record.manifestSha256,
+      regularBytes(join(directory, name)),
+    );
+    retainRecoveryOperation(directory, directory, record);
     if (record.phase === "archive") {
-      const release = verifyBundle(directory, env.MANIFEST_SHA);
-      verifyRecoveryRecord(
-        record,
-        release,
-        record.manifestSha256,
-        regularBytes(join(directory, name)),
-      );
       verifyArchiveIntent(directory, record, env.MANIFEST_SHA);
     }
+    sealBundle(directory, env.MANIFEST_SHA);
     return;
   }
   const acquisition = join(scratch, "recovery-acquisition");
@@ -532,7 +691,7 @@ export function acquireRecoveryJournal(
   const current = verifyBundle(directory, env.MANIFEST_SHA);
   if (record.manifestSha256 !== env.MANIFEST_SHA) {
     assert.equal(record.phase, "stage");
-    assert.equal(record.disposition, "abandon-family");
+    assert.ok(["abandon-family", "supersede"].includes(record.disposition));
     assert.notEqual(
       release.version,
       current.version,
@@ -541,6 +700,7 @@ export function acquireRecoveryJournal(
   } else assert.deepEqual(release, current);
   const journal = regularBytes(join(original.directory, name));
   verifyRecoveryRecord(record, release, record.manifestSha256, journal);
+  retainRecoveryOperation(directory, original.directory, record);
   if (record.phase === "archive") {
     verifyArchiveIntent(original.directory, record, env.MANIFEST_SHA);
     const path = join(directory, "archive-assets-intent.json"),
@@ -556,7 +716,7 @@ export function acquireRecoveryJournal(
     assert.match(item.manifestSha256, /^[a-f0-9]{64}$/u);
     if (item.manifestSha256 === env.MANIFEST_SHA) continue;
     assert.equal(item.phase, "stage");
-    assert.equal(item.disposition, "abandon-family");
+    assert.ok(["abandon-family", "supersede"].includes(item.disposition));
     const bytes = regularBytes(
       item.manifestSha256 === record.manifestSha256
         ? join(original.directory, "release-manifest.json")
@@ -580,7 +740,7 @@ export function acquireRecoveryJournal(
   })) {
     if (
       !entry.isFile() ||
-      !/^(?:stage|promote(?:-npm|-github)?)-[1-9]\d*-[1-9]\d*\.jsonl$/u.test(
+      !/^(?:stage|promote(?:-npm|-github)?)-[1-9]\d*-[1-9]\d*\.jsonl(?:\.[a-f0-9]{64}\.ack\.json)?$/u.test(
         entry.name,
       )
     )
@@ -690,73 +850,4 @@ export function assembleQualification(
     files: evidenceIndex(output),
   });
   return release;
-}
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  assert.equal(
-    process.argv.length,
-    5,
-    "Use release-evidence.js PHASE OUTPUT SCRATCH",
-  );
-  const [phase, output, scratch] = process.argv.slice(2);
-  manualControl(process.env, phase);
-  mkdirSync(scratch, { recursive: true });
-  mkdirSync(output);
-  if (phase === "stage")
-    assembleQualification(
-      process.env.QUALIFICATION_RUN,
-      process.env.QUALIFICATION_ATTEMPT,
-      output,
-      scratch,
-    );
-  else {
-    const priorPhase =
-      phase === "registry"
-        ? "stage"
-        : phase === "archive"
-          ? "registry"
-          : "archive";
-    const run = process.env.PREVIOUS_RUN,
-      attempt = process.env.PREVIOUS_ATTEMPT;
-    const artifact = download(
-      run,
-      attempt,
-      `${priorPhase === "registry" ? "public" : "effect"}-${priorPhase}-${attempt}`,
-      scratch,
-    );
-    verifyBundle(artifact.directory, process.env.MANIFEST_SHA);
-    copyTree(artifact.directory, output);
-  }
-  acquireRecoveryJournal(output, scratch, process.env);
-  const admitted = refreshAdmission(output, phase, process.env, {
-    historyRoot: scratch,
-  });
-  if (process.env.GITHUB_OUTPUT)
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      `attest-required=${phase === "archive" && !admitted.recovery?.archive}\n`,
-    );
-  if (phase !== "stage") {
-    const priorPhase =
-      phase === "registry"
-        ? "stage"
-        : phase === "archive"
-          ? "registry"
-          : "archive";
-    assert.equal(admitted.context[priorPhase].run, process.env.PREVIOUS_RUN);
-    assert.equal(
-      admitted.context[priorPhase].attempt,
-      process.env.PREVIOUS_ATTEMPT,
-    );
-  }
-}
-function copyTree(from, to) {
-  for (const entry of readdirSync(from, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      mkdirSync(join(to, entry.name));
-      copyTree(join(from, entry.name), join(to, entry.name));
-    } else {
-      assert.ok(entry.isFile());
-      copyFileSync(join(from, entry.name), join(to, entry.name), 1);
-    }
-  }
 }

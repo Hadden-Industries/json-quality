@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Thin native GitHub reader; pagination completeness is an admission requirement. */
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { native, budgets } from "./qualification-process.js";
 import { sameJobExecution } from "./github-job-execution.js";
 import { nativePackages } from "../src/native-packages.js";
+import { verifyOwnerTagSignature } from "./release-signing.js";
 import {
   repository,
   regularBytes,
   save,
+  jsonBytes,
   sha256,
   workflows,
   effectJournal,
@@ -31,7 +33,16 @@ export function gh(args, options = {}, invoke = native) {
     timeout = budgets.collection;
   return invoke("gh", args, { timeout, ...options });
 }
-export const api = (path, args = []) => {
+export const api = (path, args = [], { deadline } = {}) => {
+  const remaining =
+    deadline === undefined
+      ? budgets.read
+      : Math.floor(deadline - performance.now());
+  if (remaining <= 0)
+    throw Object.assign(
+      new Error("GitHub completion observation deadline exhausted"),
+      { code: "ETIMEDOUT" },
+    );
   try {
     return JSON.parse(
       native(
@@ -44,7 +55,18 @@ export const api = (path, args = []) => {
             ? ["--sarif"]
             : []),
         ],
-        { timeout: budgets.read, phase: "github-evidence-read" },
+        {
+          timeout: Math.min(budgets.read, remaining),
+          phase: "github-evidence-read",
+          env: {
+            ...process.env,
+            ...(deadline === undefined
+              ? {}
+              : {
+                  JSON_QUALITY_READ_DEADLINE_MS: String(Date.now() + remaining),
+                }),
+          },
+        },
       ),
     );
   } catch (error) {
@@ -60,9 +82,9 @@ export const api = (path, args = []) => {
     throw error;
   }
 };
-export function optionalApi(path) {
+export function optionalApi(path, options) {
   try {
-    return api(path);
+    return api(path, [], options);
   } catch (error) {
     if (error.httpStatus === 404) return null;
     let response;
@@ -120,6 +142,17 @@ export function producingAttempt(
   cache = new Map(),
 ) {
   return originalJobAttempt(observed, name, read, cache);
+}
+/** Failed writers still have an original execution and retained unknown-effect evidence. */
+export function effectAttempt(
+  observed,
+  name,
+  read = provider,
+  cache = new Map(),
+) {
+  return originalJobAttempt(observed, name, read, cache, {
+    requireSuccess: false,
+  });
 }
 function originalJobAttempt(
   observed,
@@ -315,12 +348,18 @@ export function verifyTag(reference, annotation, release) {
   assert.equal(annotation.verification?.verified, true);
   assert.equal(annotation.verification.reason, "valid");
 }
-export function signedTag(release) {
-  const reference = api(`git/ref/tags/v${release.version}`);
+export function signedTag(release, { deadline } = {}) {
+  const reference = api(`git/ref/tags/v${release.version}`, [], { deadline });
   assert.equal(reference.object.type, "tag");
   assert.match(reference.object.sha, /^[a-f0-9]{40}$/u);
-  const annotation = api(`git/tags/${reference.object.sha}`);
+  const annotation = api(`git/tags/${reference.object.sha}`, [], { deadline });
   verifyTag(reference, annotation, release);
+  verifyOwnerTagSignature(
+    `v${release.version}`,
+    annotation.sha,
+    release.source.commit,
+    { deadline },
+  );
   return { reference, annotation };
 }
 export function decisionAsset(release, name, directory) {
@@ -388,7 +427,17 @@ function writerInventory(entry) {
       : [null];
   const allowed = services[0]
     ? ["admit", "npm", "github", "complete"]
-    : ["admit", phase];
+    : [
+        "admit",
+        phase,
+        ...(phase === "stage"
+          ? [
+              "native-public",
+              "native-public (ubuntu-26.04)",
+              "native-public (windows-2025)",
+            ]
+          : []),
+      ];
   for (const job of jobs.jobs) {
     id(job.id);
     assert.ok(allowed.includes(job.name), "Unexpected writer job");
@@ -467,6 +516,9 @@ function restoreHistory(entry, record) {
     assert.equal(entry.journal.toString("base64"), record.journal);
   }
   if (record.noEffect) entry.noEffect = record.noEffect;
+  if (record.acknowledgements) entry.acknowledgements = record.acknowledgements;
+  if (record.operationEvidence)
+    entry.operationEvidence = record.operationEvidence;
   if (record.settlements) entry.settlements = record.settlements;
   return entry;
 }
@@ -547,7 +599,9 @@ function admitHistorySubject(entry, retainedRecord) {
       assert.equal(entry.phase, "archive");
       assert.equal(intent.package, packageName);
       assert.ok(
-        intent.operation === "archive" || /^upload:.+$/u.test(intent.operation),
+        intent.operation === "archive" ||
+          /^upload:.+$/u.test(intent.operation) ||
+          intent.operation === "github-classification",
       );
     }
     validVersion(intent.version);
@@ -568,7 +622,13 @@ function admitHistorySubject(entry, retainedRecord) {
     else subject = identity;
     const outcome = records[index * 2 + 1];
     if (outcome) {
-      assert.ok(["completed", "outcome-unknown"].includes(outcome.state));
+      if (outcome.state === "request-not-sent")
+        assert.equal(outcome.requestStarted, false);
+      assert.ok(
+        ["completed", "outcome-unknown", "request-not-sent"].includes(
+          outcome.state,
+        ),
+      );
       assert.equal(
         outcome.intentSha256,
         sha256(Buffer.from(JSON.stringify(intent) + "\n")),
@@ -577,6 +637,9 @@ function admitHistorySubject(entry, retainedRecord) {
   }
   historySubjects.set(entry, {
     ...subject,
+    sharedAvailability: intents.some(
+      (intent) => intent.operation === "github-classification",
+    ),
     journalSha256: sha256(entry.journal),
     identity: structuredClone({
       run: entry.run,
@@ -613,7 +676,64 @@ function otherVersionHistory(entry, subject) {
     admitted.journalSha256,
     "Admitted historical journal changed",
   );
-  return admitted.version !== subject.version;
+  return admitted.version !== subject.version && !admitted.sharedAvailability;
+}
+
+/** Successful authenticated controllers retain settlements across later dispatches. */
+export function authenticatedHistoricalSettlements(history) {
+  const settled = history.filter(
+    (entry) => entry.settlements?.length && entry.run.conclusion === "success",
+  );
+  for (const entry of settled) {
+    const native = entry.jobs.jobs.filter((job) =>
+      job.name.startsWith("native-public"),
+    );
+    const stagePhase =
+      entry.phase === "stage" && native.length
+        ? native.every((job) => job.conclusion === "skipped")
+          ? "natives"
+          : "core"
+        : undefined;
+    const os = native.flatMap(
+      (job) => /^native-public \(([^)]+)\)$/u.exec(job.name)?.[1] ?? [],
+    );
+    verifyRun(
+      entry,
+      entry.phase,
+      entry.run.head_sha,
+      { os },
+      {
+        historical: true,
+        availability: entry.availability ?? "npm-and-github",
+        stagePhase,
+      },
+    );
+  }
+  return settled.flatMap((entry) =>
+    entry.settlements.map((record) => {
+      if (record.disposition === "supersede") {
+        assert.equal(record.schemaVersion, 1);
+        assert.equal(record.owner, "maksymshostak");
+        assert.equal(record.phase, "stage");
+        id(record.run);
+        id(record.attempt);
+        validVersion(record.version);
+        for (const key of ["journalSha256", "manifestSha256", "reviewSha256"])
+          assert.match(record[key], /^[a-f0-9]{64}$/u);
+        assert.ok(
+          Number.isFinite(Date.parse(record.acceptedAt)) &&
+            record.rationale?.trim().length >= 20,
+        );
+      }
+      return {
+        record,
+        observed:
+          record.disposition === "supersede"
+            ? { state: "superseded-family-reconciled" }
+            : undefined,
+      };
+    }),
+  );
 }
 
 export function verifyEffectHistory(
@@ -635,25 +755,9 @@ export function verifyEffectHistory(
     return !otherVersionHistory(entry, subject);
   });
   const evidence = [];
-  const settled = history.filter(
-    (entry) => entry.settlements?.length && entry.run.conclusion === "success",
-  );
-  for (const entry of settled)
-    verifyRun(
-      entry,
-      entry.phase,
-      entry.run.head_sha,
-      {},
-      {
-        historical: true,
-        availability: entry.availability ?? "npm-and-github",
-      },
-    );
   const reconciliations = [
     ...(recovery?.entries ?? []),
-    ...settled.flatMap((entry) =>
-      entry.settlements.map((record) => ({ record })),
-    ),
+    ...authenticatedHistoricalSettlements(history),
   ];
   for (const entry of scoped) {
     if (!writerEffect(entry)) continue;
@@ -695,6 +799,8 @@ export function verifyEffectHistory(
     );
     for (let index = 0; index < records.length; index += 2) {
       const [intent, outcome] = records.slice(index, index + 2);
+      if (outcome?.state === "request-not-sent")
+        assert.equal(outcome.requestStarted, false);
       assert.equal(intent.state, "intent");
       const observedRecovery = reconciliations.some(
         ({ record }) =>
@@ -703,7 +809,7 @@ export function verifyEffectHistory(
           record.journalSha256 === sha256(entry.journal),
       );
       assert.ok(
-        outcome?.state === "completed" ||
+        ["completed", "request-not-sent"].includes(outcome?.state) ||
           ((!outcome || outcome.state === "outcome-unknown") &&
             observedRecovery),
         "Unknown prior effect outcome",
@@ -716,7 +822,10 @@ export function verifyEffectHistory(
         assert.equal(intent.schemaVersion, 2);
         assert.ok(
           intent.operation === "completion-readback" ||
-            intent.operation === `${entry.service}-latest`,
+            intent.operation === `${entry.service}-latest` ||
+            (entry.service === "npm" &&
+              intent.operation === `npm-latest:${intent.package}` &&
+              intent.guard?.family?.operationId === intent.guard?.operationId),
         );
       }
       for (const { record } of reconciliations.filter(
@@ -745,13 +854,75 @@ export function verifyEffectHistory(
         ].includes(intent.package) &&
         intent.version === subject.version
       )
-        evidence.push({ intent, outcome });
+        if (outcome?.state !== "request-not-sent")
+          evidence.push({ intent, outcome });
     }
   }
   return evidence;
 }
 /** Inspect every prior attempt of all writers, not merely the latest successful run. */
-export function readHistoryCheckpoint(
+const historyTargetReaders = new WeakMap();
+export function historyTargetDescriptors(record) {
+  return [
+    ...(record.qualifiedTargets ?? []).map((target) => ({
+      version: target.version,
+      manifestSha256: target.manifestSha256,
+      releaseId: target.release.id,
+    })),
+    ...(record.qualifiedTargetRefs ?? []),
+  ];
+}
+/** Resolve only a selected digest-derived file under the already verified signed commit. */
+export function readHistoryTarget(record, expected) {
+  const source = historyTargetReaders.get(record);
+  assert.ok(
+    source,
+    "Target qualification requires an authenticated signed history reader",
+  );
+  assert.deepEqual(
+    historyTargetDescriptors(record),
+    source.descriptors,
+    "Authenticated target index changed",
+  );
+  const inline = record.qualifiedTargets?.find(
+    (target) =>
+      target.version === expected.version &&
+      target.manifestSha256 === expected.manifestSha256 &&
+      target.release.id === expected.releaseId,
+  );
+  if (inline) {
+    assert.equal(
+      sha256(Buffer.from(JSON.stringify(inline))),
+      source.inlineDigests.get(inline.manifestSha256),
+      "Authenticated inline target changed",
+    );
+    return inline;
+  }
+  const refs = record.qualifiedTargetRefs?.filter(
+    (target) =>
+      target.version === expected.version &&
+      target.manifestSha256 === expected.manifestSha256 &&
+      target.releaseId === expected.releaseId,
+  );
+  assert.equal(
+    refs?.length,
+    1,
+    "Complete signed target public qualification is required after provider expiry",
+  );
+  const ref = refs[0],
+    bytes = source.readBytes(
+      `contents/release-targets/${ref.manifestSha256}.json?ref=${source.commit}`,
+    );
+  assert.ok(Buffer.isBuffer(bytes) && bytes.length <= 20000000);
+  assert.equal(bytes.length, ref.size);
+  assert.equal(sha256(bytes), ref.sha256);
+  const target = JSON.parse(bytes);
+  assert.equal(target.version, expected.version);
+  assert.equal(target.manifestSha256, expected.manifestSha256);
+  assert.equal(target.release.id, expected.releaseId);
+  return target;
+}
+export function readHistoryRecord(
   checkpoint,
   read = api,
   readBytes = (path) =>
@@ -764,6 +935,7 @@ export function readHistoryCheckpoint(
       ],
       { encoding: null, maxBuffer: 20000000 },
     ),
+  verifySignature = verifyOwnerTagSignature,
 ) {
   assert.match(checkpoint.tag, /^release-history-[a-zA-Z0-9._-]{1,100}$/u);
   assert.match(checkpoint.tagSha, /^[a-f0-9]{40}$/u);
@@ -779,6 +951,7 @@ export function readHistoryCheckpoint(
   assert.equal(tag.verification.reason, "valid");
   assert.equal(tag.object.type, "commit");
   assert.match(tag.object.sha, /^[a-f0-9]{40}$/u);
+  verifySignature(checkpoint.tag, tag.sha, tag.object.sha);
   const bytes = readBytes(
     `contents/release-history.json?ref=${tag.object.sha}`,
   );
@@ -790,7 +963,82 @@ export function readHistoryCheckpoint(
   assert.ok(Array.isArray(record.entries) && record.entries.length <= 10000);
   const keys = record.entries.map((entry) => effectJournal(entry.phase, entry));
   assert.equal(new Set(keys).size, keys.length, "Ambiguous retained history");
-  return record.entries;
+  if (record.qualifiedTargets !== undefined) {
+    assert.equal(
+      record.schemaVersion,
+      2,
+      "Legacy history cannot acquire target qualification scope",
+    );
+    assert.ok(
+      Array.isArray(record.qualifiedTargets) &&
+        record.qualifiedTargets.length <= 100,
+    );
+  }
+  if (record.qualifiedTargetRefs !== undefined) {
+    assert.equal(record.schemaVersion, 2);
+    assert.ok(
+      Array.isArray(record.qualifiedTargetRefs) &&
+        record.qualifiedTargetRefs.length <= 10000,
+    );
+    for (const ref of record.qualifiedTargetRefs) {
+      validVersion(ref.version);
+      assert.match(ref.manifestSha256, /^[a-f0-9]{64}$/u);
+      assert.match(ref.sha256, /^[a-f0-9]{64}$/u);
+      assert.ok(Number.isSafeInteger(ref.releaseId) && ref.releaseId > 0);
+      assert.ok(
+        Number.isSafeInteger(ref.size) && ref.size > 0 && ref.size <= 20000000,
+      );
+      assert.ok(
+        !Object.hasOwn(ref, "path") && !Object.hasOwn(ref, "url"),
+        "Signed target paths are derived only from the manifest digest",
+      );
+      if (ref.settledStages !== undefined) {
+        assert.ok(
+          Array.isArray(ref.settledStages) && ref.settledStages.length <= 10,
+        );
+        for (const stage of ref.settledStages) {
+          id(stage.run);
+          id(stage.attempt);
+          assert.match(stage.controller, /^[a-f0-9]{40}$/u);
+          assert.match(stage.journalSha256, /^[a-f0-9]{64}$/u);
+          assert.ok(
+            Array.isArray(stage.subjects) &&
+              stage.subjects.length > 0 &&
+              stage.subjects.length <= 3,
+          );
+          for (const subject of stage.subjects) {
+            assert.equal(subject.version, ref.version);
+            assert.equal(subject.manifestSha256, ref.manifestSha256);
+            assert.match(subject.source, /^[a-f0-9]{40}$/u);
+            assert.match(subject.integrity, /^sha512-[A-Za-z0-9+/]+={0,2}$/u);
+          }
+        }
+      }
+    }
+  }
+  const descriptors = historyTargetDescriptors(record);
+  for (const key of ["version", "manifestSha256", "releaseId"])
+    assert.equal(
+      new Set(descriptors.map((target) => target[key])).size,
+      descriptors.length,
+      `Ambiguous qualified target ${key}`,
+    );
+  historyTargetReaders.set(record, {
+    commit: tag.object.sha,
+    readBytes,
+    descriptors: structuredClone(descriptors),
+    inlineDigests: new Map(
+      (record.qualifiedTargets ?? []).map((target) => [
+        target.manifestSha256,
+        sha256(Buffer.from(JSON.stringify(target))),
+      ]),
+    ),
+  });
+  return record;
+}
+/** Preserve the historical writer-only return contract. */
+export function readHistoryCheckpoint(...args) {
+  return readHistoryRecord(...args).entries;
 }
 export function readEffectHistory(
   env,
@@ -943,12 +1191,42 @@ export function readEffectHistory(
               }),
             );
             if (existsSync(journal)) entry.journal = regularBytes(journal);
+            const journalName = effectJournal(phase, {
+              run: run.id,
+              attempt,
+              ...(service ? { service } : {}),
+            });
+            const acknowledgements = Object.fromEntries(
+              readdirSync(directory)
+                .filter(
+                  (name) =>
+                    name.startsWith(journalName + ".") &&
+                    /^[a-f0-9]{64}\.ack\.json$/u.test(
+                      name.slice(journalName.length + 1),
+                    ),
+                )
+                .map((name) => [
+                  name,
+                  regularBytes(join(directory, name)).toString("base64"),
+                ]),
+            );
+            if (Object.keys(acknowledgements).length)
+              entry.acknowledgements = acknowledgements;
             const marker = join(
               directory,
               `no-effect-${phase}${service ? `-${service}` : ""}-${run.id}-${attempt}.json`,
             );
             if (existsSync(marker)) entry.noEffect = readJson(marker);
             entry.settlements = retainedRecoveries(directory);
+            if (
+              service &&
+              existsSync(join(directory, "availability-operation.json"))
+            )
+              entry.operationEvidence = {
+                "availability-operation.json": regularBytes(
+                  join(directory, "availability-operation.json"),
+                ).toString("base64"),
+              };
             if (service && existsSync(join(directory, "npm-continuation.json")))
               entry.availability = readJson(
                 join(directory, "npm-continuation.json"),
@@ -1021,21 +1299,9 @@ export function readEffectHistory(
   return history;
 }
 /** Read-only export before expiration; only an owner-admitted signed tag is reusable. */
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  assert.equal(process.argv[2], "history");
-  assert.ok(
-    [5, 6].includes(process.argv.length),
-    "Use release-provider.js history OUTPUT SCRATCH [PRIOR_CHECKPOINT_JSON]",
-  );
-  const [output, scratch, priorCheckpoint] = process.argv.slice(3);
-  mkdirSync(scratch, { recursive: true });
-  const history = readEffectHistory(
-    {},
-    scratch,
-    priorCheckpoint ? readJson(priorCheckpoint) : undefined,
-  );
-  // Keep unknown and incomplete records verbatim. Export never declares them resolved.
-  save(output, {
+/** Export original writer bytes and inventories without inferring settlement from labels. */
+export function exportHistoryRecord(history, qualifiedTargets = []) {
+  return {
     schemaVersion: 2,
     repository,
     entries: history.map((entry) => ({
@@ -1047,9 +1313,64 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       controller: entry.run.head_sha,
       provider: { run: entry.run, jobs: entry.jobs },
       ...(entry.journal ? { journal: entry.journal.toString("base64") } : {}),
+      ...(entry.acknowledgements
+        ? { acknowledgements: entry.acknowledgements }
+        : {}),
       ...(entry.noEffect ? { noEffect: entry.noEffect } : {}),
       ...(entry.settlements?.length ? { settlements: entry.settlements } : {}),
+      ...(entry.operationEvidence
+        ? { operationEvidence: entry.operationEvidence }
+        : {}),
     })),
+    ...(qualifiedTargets.length ? { qualifiedTargets } : {}),
+  };
+}
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  assert.equal(process.argv[2], "history");
+  assert.ok(
+    [5, 6].includes(process.argv.length),
+    "Use release-provider.js history OUTPUT SCRATCH [PRIOR_CHECKPOINT_JSON]",
+  );
+  const [output, scratch, priorCheckpoint] = process.argv.slice(3);
+  mkdirSync(scratch, { recursive: true });
+  const previous = priorCheckpoint
+    ? readHistoryRecord(readJson(priorCheckpoint))
+    : null;
+  const history = readEffectHistory(
+    {},
+    scratch,
+    priorCheckpoint ? readJson(priorCheckpoint) : undefined,
+    previous ? { checkpoint: () => previous.entries } : {},
+  );
+  // Keep unknown and incomplete records verbatim. Export never declares them resolved.
+  const refs = [];
+  if (previous) {
+    const parent = join(dirname(output), "release-targets");
+    mkdirSync(parent, { recursive: true });
+    for (const expected of historyTargetDescriptors(previous)) {
+      const target = readHistoryTarget(previous, expected),
+        bytes = jsonBytes(target);
+      const path = join(parent, `${expected.manifestSha256}.json`);
+      if (existsSync(path)) assert.deepEqual(regularBytes(path), bytes);
+      else save(path, bytes);
+      refs.push({
+        version: target.version,
+        manifestSha256: target.manifestSha256,
+        releaseId: target.release.id,
+        size: bytes.length,
+        sha256: sha256(bytes),
+        ...(expected.settledStages
+          ? { settledStages: expected.settledStages }
+          : {}),
+      });
+    }
+  }
+  save(output, {
+    ...exportHistoryRecord(history),
+    ...(previous?.stageCancellations
+      ? { stageCancellations: previous.stageCancellations }
+      : {}),
+    ...(refs.length ? { qualifiedTargetRefs: refs } : {}),
   });
 }
 export function recordProvider(directory, name, value) {

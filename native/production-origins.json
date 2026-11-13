@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "repository": "Hadden-Industries/json-quality",
+  "platforms": {
+    "win32-x64": {
+      "run": "42313255657",
+      "attempt": "1",
+      "controller": "2d7b147347efe1b0f0db7b8ce1213799465f4009",
+      "workflow": ".github/workflows/native.yml",
+      "job": "native / Native / win32-x64",
+      "jobId": 128219596528,
+      "artifactId": 13550026869,
+      "artifactName": "native-win32-x64-2d7b147347efe1b0f0db7b8ce1213799465f4009-build-only-1",
+      "artifactDigest": "sha256:945dd07c8500ffc3d775156f9d46b63cc162904888212dab783c8edf7ae6e980"
+    },
+    "linux-x64": {
+      "run": "42313255657",
+      "attempt": "1",
+      "controller": "2d7b147347efe1b0f0db7b8ce1213799465f4009",
+      "workflow": ".github/workflows/native.yml",
+      "job": "native / Native / linux-x64",
+      "jobId": 128219596274,
+      "artifactId": 13549526923,
+      "artifactName": "native-linux-x64-2d7b147347efe1b0f0db7b8ce1213799465f4009-build-only-1",
+      "artifactDigest": "sha256:a2383ed06de204cb1005b8087c3cee97b219b8bd5d134f485cee59475816a137"
+    }
+  }
+}
