@@ -65,7 +65,7 @@ An unverified `file:` installation is not a substitute for those public admissio
 ## How compatibility is qualified
 
 CI uses the exact compatibility floor, pinned patches and producer reference from the version policy.
-It qualifies the same immutable producer archive on Windows 2025 and Ubuntu 24.04, recording the selected Node/npm identities.
+It qualifies the same immutable producer archive on Windows 2025 and Ubuntu 26.04, recording the selected Node/npm identities.
 The reference lane owns producer packing, lint, format, policy-drift and JSON dogfood checks.
 Consumer lanes exercise real installed CLI/API/plugin/schema behavior, preservation, failure paths and native installation verification.
 

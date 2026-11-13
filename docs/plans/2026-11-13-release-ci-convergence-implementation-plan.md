@@ -319,3 +319,18 @@ Metadata can be restored to a qualified prior target.
 Defective published bytes require a new version.
 Reopen the affected decision if native producer identity cannot be recovered, an old schema cannot express the intended restore scope, npm trust is missing for a companion, or measured savings require dropping a mandatory verifier.
 Historical releases and their evidence retain their original meaning.
+
+## Implementation acceptance boundaries
+
+The implementation uses the existing checkout on `dev/ci`, beginning at `69d206dc6cfe708636856ab6495d0c614602fd9d`.
+The owner subsequently selected dependency-guided targeted tests in place of the full-repository profile, a GPT-6 Astra Extra High subagent for the final code review, a Codex Security diff scan, and signed detailed per-file commits with fewer than 50 files per change set.
+The exact accepted plan bytes remain retained in the HISEW requirement snapshot.
+
+Delivered boundaries include explicit owner SSH trust and tag-rule declarations; authenticated packed native production linkage; two-dispatch native/core staging; family availability decisions and separate writers; independent read-only completion; durable failed-public-proof reporting; and complete signed-history recovery checkpoints, including native rejection certificates for owner-invoked supersession.
+The release runbook documents their inputs and authority boundaries.
+Historical single-origin 1.0.0 evidence remains a frozen fixture with its original Ubuntu 24.04 lanes.
+
+Local acceptance exercises real npm packing, native npm one-shot mutation behavior against a loopback service, original signed-tag cryptography, normal staging/promotion/completion entry points with project packages absent, native proof refusals, channel classification and read-only independent recovery.
+Architecture admission checks native module dependencies and shipped membership.
+Hosted platform qualification, live tag-rule activation, npm trust/2FA inspection, public 1.0.0 alignment, rejection, signing/publication of recovery checkpoints and new release publication remain separate owner operations.
+No local test establishes those live states.
