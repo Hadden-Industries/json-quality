@@ -578,6 +578,13 @@ test("observer still reports a genuine evidence lookup failure as FULL_REQUIRED"
       await readFile(environment.GITHUB_STEP_SUMMARY, "utf8"),
       /Evidence lookup unavailable/u,
     );
+    const summary = await readFile(environment.GITHUB_STEP_SUMMARY, "utf8");
+    assert.ok(
+      summary.includes(
+        "gh workflow run main-qualification.yml --ref main -f verification_profile=full",
+      ),
+    );
+    assert.match(summary, /installed-only run cannot satisfy FULL_REQUIRED/u);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

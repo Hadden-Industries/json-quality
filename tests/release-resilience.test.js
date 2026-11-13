@@ -34,11 +34,25 @@ import {
   applyAvailability,
   stagePublishArguments,
   verifyNpmOnlyGithubState,
+  journalEffect,
 } from "../scripts/release-effects.js";
 import {
   reconcilePromotionLabels,
   verifyRecoveryRecord,
 } from "../scripts/release-recovery.js";
+import {
+  prepareWriterEvidence,
+  reconcileWriterEvidence,
+} from "../scripts/writer-evidence.js";
+import {
+  verifyStageCancellation,
+  rejectReleaseStages,
+} from "../scripts/reject-release-stages.js";
+import { createHash } from "node:crypto";
+import {
+  reportPublicQualification,
+  originalStageJournals,
+} from "../scripts/release-public-state.js";
 
 function temporary(t) {
   const root = mkdtempSync(join(tmpdir(), "json-quality-release-resilience-"));
@@ -58,6 +72,331 @@ function release() {
     })),
   };
 }
+
+test("raw writer transport adopts an unknown upload only after exact native readback", async (t) => {
+  const root = temporary(t),
+    source = join(root, "source");
+  mkdirSync(source);
+  writeFileSync(
+    join(source, "original.jsonl"),
+    '{"state":"outcome-unknown"}\n',
+  );
+  const env = {
+    ...process.env,
+    RUNNER_TEMP: root,
+    GITHUB_OUTPUT: join(root, "output"),
+    GITHUB_RUN_ID: "17",
+    GITHUB_SHA: "a".repeat(40),
+    GITHUB_REPOSITORY_ID: "11",
+    UPLOAD_RESULT: "failure",
+  };
+  const record = prepareWriterEvidence(source, "effect-stage-1", env);
+  const transport = join(record.path, "..", "transport.json");
+  let reads = 0;
+  const artifact = {
+    id: 90,
+    name: record.name,
+    digest: record.digest,
+    size_in_bytes: record.size,
+    expired: false,
+    workflow_run: { id: 17, repository_id: 11, head_sha: env.GITHUB_SHA },
+  };
+  const adopted = await reconcileWriterEvidence(transport, 1, env, {
+    sleep: async () => {},
+    read: async () => ({
+      total_count: ++reads < 2 ? 0 : 1,
+      artifacts: reads < 2 ? [] : [artifact],
+    }),
+  });
+  assert.equal(adopted.id, 90);
+  assert.equal(reads, 2);
+  await assert.rejects(() =>
+    reconcileWriterEvidence(transport, 1, env, {
+      read: async () => ({
+        total_count: 1,
+        artifacts: [{ ...artifact, digest: "sha256:" + "0".repeat(64) }],
+      }),
+    }),
+  );
+  const fallback = await reconcileWriterEvidence(transport, 1, env, {
+    sleep: async () => {},
+    read: async () => ({ total_count: 0, artifacts: [] }),
+  });
+  assert.equal(fallback, null);
+  assert.ok(existsSync(record.path + "-recovery-2"));
+});
+
+test("rejection settlement requires original request binding, native acknowledgement and full authenticated absence", () => {
+  const expected = {
+    run: "17",
+    attempt: "1",
+    journalSha256: "a".repeat(64),
+    package: "@hadden-industries/json-quality-win32-x64",
+    version: "1.1.0",
+    integrity: "sha512-Ynl0ZXM=",
+  };
+  const stageId = "01234567-1234-4123-8123-0123456789ab";
+  const proof = {
+    schemaVersion: 1,
+    ...expected,
+    stageId,
+    acknowledgement: `Staged package ${stageId} has been rejected.\n`,
+    authenticatedAs: "MaksymShostak",
+    inventory: [],
+    observedAt: "2026-11-13T00:00:00Z",
+  };
+  assert.equal(verifyStageCancellation(proof, expected), proof);
+  for (const change of [
+    { acknowledgement: "404 Not Found" },
+    { authenticatedAs: "" },
+    { inventory: [{ id: stageId }] },
+    { run: "18" },
+  ])
+    assert.throws(() =>
+      verifyStageCancellation({ ...proof, ...change }, expected),
+    );
+});
+
+test("owner rejection handles a pending subset and a 30MB archive, then resumes acknowledged readback without another DELETE", (t) => {
+  const root = temporary(t),
+    golden = JSON.parse(
+      readFileSync(
+        new URL("./fixtures/release/qualified-1.0.0.json", import.meta.url),
+      ),
+    ),
+    release = JSON.parse(Buffer.from(golden.manifest, "base64"));
+  const selected = release.platformArchives[1],
+    payload = Buffer.alloc(30_368_399);
+  selected.archive = {
+    ...selected.archive,
+    size: payload.length,
+    sha256: sha256(payload),
+    integrity: sha512(payload),
+  };
+  writeFileSync(join(root, selected.archive.filename), payload);
+  writeFileSync(join(root, "release-manifest.json"), JSON.stringify(release));
+  const ids = [
+      "01234567-1234-4123-8123-0123456789ab",
+      "01234567-1234-4123-8123-0123456789ac",
+    ],
+    manifestSha256 = sha256(readFileSync(join(root, "release-manifest.json")));
+  const journal = Buffer.from(
+    release.platformArchives
+      .flatMap((subject, index) => {
+        const intent = {
+          state: "intent",
+          package: subject.package,
+          version: release.version,
+          manifestSha256,
+          integrity: subject.archive.integrity,
+        };
+        return [
+          JSON.stringify(intent),
+          JSON.stringify({
+            state: "completed",
+            intentSha256: sha256(Buffer.from(JSON.stringify(intent) + "\n")),
+            result: { stageId: ids[index] },
+          }),
+        ];
+      })
+      .join("\n") + "\n",
+  );
+  writeFileSync(join(root, "stage-17-1.jsonl"), journal);
+  const decision = {
+    owner: "maksymshostak",
+    action: "reject-original-stages",
+    run: "17",
+    attempt: "1",
+    manifestSha256,
+    journalSha256: sha256(journal),
+    stages: [{ package: selected.package, stageId: ids[1] }],
+    historyCheckpoint: {},
+  };
+  const output = join(root, "release-history.json"),
+    calls = [];
+  let listFails = true;
+  const invoke = (args, options) => {
+    calls.push(args.slice(0, 2));
+    if (args[0] === "--version") return "12.2.2\n";
+    if (args[0] === "whoami") return "MaksymShostak\n";
+    if (args[1] === "view")
+      return JSON.stringify({
+        id: ids[1],
+        packageName: selected.package,
+        version: release.version,
+        shasum: createHash("sha1").update(payload).digest("hex"),
+      });
+    if (args[1] === "reject") {
+      assert.equal(options.env.NPM_CONFIG_OTP, "123456");
+      assert.ok(args.includes("--fetch-retries=0"));
+      return `Staged package ${ids[1]} has been rejected.\n`;
+    }
+    if (listFails) throw new Error("Readback unavailable");
+    return "[]";
+  };
+  const history = () => ({
+    schemaVersion: 2,
+    repository: "Hadden-Industries/json-quality",
+    entries: [],
+  });
+  assert.throws(
+    () =>
+      rejectReleaseStages(root, decision, output, invoke, history, {
+        NPM_CONFIG_OTP: "123456",
+      }),
+    /Readback unavailable/,
+  );
+  listFails = false;
+  const result = rejectReleaseStages(
+    root,
+    decision,
+    output,
+    invoke,
+    history,
+    {},
+  );
+  assert.equal(result.state, "awaiting-owner-signature");
+  assert.equal(calls.filter((args) => args[1] === "reject").length, 1);
+  assert.equal(calls.filter((args) => args[1] === "view").length, 1);
+  const retained = JSON.parse(readFileSync(output));
+  assert.equal(retained.stageCancellations.length, 1);
+  assert.equal(retained.stageCancellations[0].stageId, ids[1]);
+  assert.ok(
+    !readFileSync(output + ".jsonl", "utf8").includes('123456"'),
+    "OTP must not enter retained evidence",
+  );
+});
+
+test("failed public qualification reports changed defaults and both staging origins without writes", (t) => {
+  const root = temporary(t),
+    golden = JSON.parse(
+      readFileSync(
+        new URL("./fixtures/release/qualified-1.0.0.json", import.meta.url),
+      ),
+    );
+  const manifest = Buffer.from(golden.manifest, "base64"),
+    release = JSON.parse(manifest);
+  const origins = {
+    nativeStage: { run: "17", attempt: "1", controller: "a".repeat(40) },
+    stage: { run: "18", attempt: "1", controller: "b".repeat(40) },
+  };
+  writeFileSync(join(root, "release-manifest.json"), manifest);
+  writeFileSync(join(root, "context.json"), JSON.stringify(origins));
+  writeFileSync(join(root, "stage-17-1.jsonl"), "native original\n");
+  writeFileSync(join(root, "stage-18-1.jsonl"), "core original\n");
+  writeFileSync(
+    join(root, "stage-outcome.json"),
+    JSON.stringify({
+      manifestSha256: sha256(manifest),
+      result: {
+        stages: releasePackages(release).map((subject, index) => ({
+          package: subject.package,
+          stageId: `original-${index}`,
+        })),
+      },
+    }),
+  );
+  const result = reportPublicQualification(
+    root,
+    {
+      MANIFEST_SHA: sha256(manifest),
+      GITHUB_RUN_ID: "19",
+      GITHUB_RUN_ATTEMPT: "1",
+      NEEDS_JSON: JSON.stringify({
+        admit: { result: "success" },
+        registry: { result: "failure" },
+        security: { result: "success" },
+      }),
+    },
+    {
+      npmCommand: (args) =>
+        JSON.stringify({
+          latest: args[1] === release.package ? "0.9.0" : release.version,
+        }),
+      optionalApi: () => null,
+    },
+  );
+  assert.equal(result.state, "public-qualification-incomplete");
+  assert.equal(
+    result.observed.filter((entry) => entry.defaultIdentifiesCandidate).length,
+    2,
+  );
+  assert.equal(
+    result.githubClassification,
+    "held-awaiting-successful-public-qualification",
+  );
+  assert.equal(result.originalStages.length, 2);
+  assert.deepEqual(result.originalStages, originalStageJournals(root, origins));
+  let reads = 0;
+  const partial = reportPublicQualification(
+    root,
+    {
+      MANIFEST_SHA: sha256(manifest),
+      GITHUB_RUN_ID: "20",
+      GITHUB_RUN_ATTEMPT: "1",
+      NEEDS_JSON: JSON.stringify({ registry: { result: "failure" } }),
+    },
+    {
+      npmCommand: () => {
+        if (++reads === 2)
+          throw Object.assign(new Error("provider unavailable"), {
+            code: "ECONNRESET",
+          });
+        return JSON.stringify({ latest: release.version });
+      },
+      optionalApi: () => {
+        throw Object.assign(new Error("provider unavailable"), {
+          httpStatus: 503,
+        });
+      },
+    },
+  );
+  assert.equal(partial.observed[0].state, "observed");
+  assert.equal(partial.observed[1].state, "unavailable");
+  assert.equal(partial.observed[2].state, "observed");
+  assert.equal(partial.githubLatest.state, "unavailable");
+  assert.ok(
+    existsSync(join(root, "public-qualification-incomplete-20-1.json")),
+  );
+});
+
+test("a durable pre-request guard refusal proves that no provider effect was attempted", (t) => {
+  const root = temporary(t),
+    path = join(root, "promote-npm-17-1.jsonl");
+  let requests = 0;
+  assert.throws(
+    () =>
+      journalEffect(
+        path,
+        release(),
+        "npm-latest",
+        () => {
+          requests++;
+        },
+        {
+          env: {
+            GITHUB_RUN_ID: "17",
+            GITHUB_RUN_ATTEMPT: "1",
+            GITHUB_SHA: "a".repeat(40),
+            MANIFEST_SHA: "b".repeat(64),
+            PROMOTION_SERVICE: "npm",
+          },
+          preRequest: () => {
+            throw new Error("Guard changed before request");
+          },
+        },
+      ),
+    /Guard changed/,
+  );
+  const lines = readFileSync(path, "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(requests, 0);
+  assert.equal(lines[1].state, "request-not-sent");
+  assert.equal(lines[1].requestStarted, false);
+  assert.equal(
+    lines[1].intentSha256,
+    sha256(Buffer.from(JSON.stringify(lines[0]) + "\n")),
+  );
+});
 
 test("GitHub binary operations inherit maintained transfer profiles and writes are never retried", () => {
   const calls = [];
@@ -316,7 +655,7 @@ test("release contracts reject missing setup, wrong draft authority and lost fai
         path,
         (doc) => {
           doc.jobs[writer].steps = doc.jobs[writer].steps.filter(
-            (step) => step.uses !== "./.github/actions/setup-producer",
+            (step) => step.uses !== "./.github/actions/setup-writer",
           );
         },
         /dependency setup/u,
@@ -325,7 +664,7 @@ test("release contracts reject missing setup, wrong draft authority and lost fai
         path,
         (doc) => {
           doc.jobs[writer].steps.find(
-            (step) => step.uses === "./.github/actions/setup-producer",
+            (step) => step.uses === "./.github/actions/setup-writer",
           ).if = "false";
         },
         /dependency setup/u,
@@ -359,7 +698,7 @@ test("release contracts reject missing setup, wrong draft authority and lost fai
         path,
         (doc) => {
           doc.jobs[writer].steps.find(
-            (step) => step.uses === "./.github/actions/upload-evidence",
+            (step) => step.uses === "./.github/actions/upload-writer-evidence",
           ).if = "success()";
         },
         /failed publisher evidence/u,

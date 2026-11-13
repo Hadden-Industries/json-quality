@@ -1,9 +1,386 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import {
+  verifyQualifiedTarget,
+  qualifiedStageSummaries,
+} from "../scripts/qualified-release-contract.js";
+import { materializeQualifiedTarget } from "../scripts/qualified-release-checkpoint.js";
+import {
+  retainedQualifiedTarget,
+  restoreOriginalPromotion,
+} from "../scripts/archived-release-evidence.js";
+import { admitPendingDecisions } from "../scripts/release-decision-state.js";
+import { native } from "../scripts/qualification-process.js";
+import { verifyOwnerTagSignature } from "../scripts/release-signing.js";
+
+const qualifiedLegacy = JSON.parse(
+  readFileSync(
+    new URL("./fixtures/release/qualified-1.0.0.json", import.meta.url),
+  ),
+);
+const qualifiedLegacyTarget = {
+  version: "1.0.0",
+  releaseId: 437217191,
+  manifestSha256:
+    "e5e3bb460a4c697535a2f2646bbd97b96d7d9bdb1fdfc00454207b51f9570728",
+};
+
+test("actual single-origin 1.0.0 public qualification survives provider removal only through complete signed history", (t) => {
+  const checked = verifyQualifiedTarget(qualifiedLegacy, qualifiedLegacyTarget);
+  assert.equal(checked.context.stage.run, "42321261095");
+  assert.equal(checked.context.registry.run, "42322378128");
+  assert.equal(qualifiedLegacy.qualification.artifacts.length, 9);
+  const root = mkdtempSync(join(tmpdir(), "json-qualified-history-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  materializeQualifiedTarget(qualifiedLegacy, qualifiedLegacyTarget, root);
+  const gitRoot = join(root, "public-tag.git");
+  native("git", ["init", "--bare", "--quiet", gitRoot]);
+  const oid = native(
+    "git",
+    ["--git-dir", gitRoot, "hash-object", "-w", "-t", "tag", "--stdin"],
+    { input: Buffer.from(qualifiedLegacy.tagObject, "base64") },
+  ).trim();
+  assert.equal(oid, "dc3f8a57038f9dd30dfd15ac64c4977b70806709");
+  verifyOwnerTagSignature("v1.0.0", oid, checked.release.source.commit, {
+    cwd: gitRoot,
+  });
+  const body = {
+    schemaVersion: 2,
+    repository: "Hadden-Industries/json-quality",
+    entries: [],
+    qualifiedTargets: [qualifiedLegacy],
+  };
+  let bytes = Buffer.from(JSON.stringify(body)),
+    signed = true,
+    cryptoChecks = 0;
+  const checkpoint = {
+    tag: "release-history-fixture",
+    tagSha: "c".repeat(40),
+    sha256: sha256(bytes),
+  };
+  const readers = {
+    read: (path) =>
+      path.includes("git/ref/")
+        ? {
+            ref: `refs/tags/${checkpoint.tag}`,
+            object: { type: "tag", sha: checkpoint.tagSha },
+          }
+        : {
+            sha: checkpoint.tagSha,
+            tag: checkpoint.tag,
+            object: { type: "commit", sha: "d".repeat(40) },
+            verification: {
+              verified: signed,
+              reason: signed ? "valid" : "unsigned",
+            },
+          },
+    bytes: () => bytes,
+    // Native Git cryptography is exercised independently by the real signing-key fixture.
+    verifySignature: (tag, oid, commit) => {
+      assert.deepEqual(
+        [tag, oid, commit],
+        [checkpoint.tag, checkpoint.tagSha, "d".repeat(40)],
+      );
+      cryptoChecks++;
+    },
+  };
+  assert.equal(
+    retainedQualifiedTarget(checkpoint, qualifiedLegacyTarget, readers).version,
+    "1.0.0",
+  );
+  assert.equal(cryptoChecks, 1);
+  signed = false;
+  assert.throws(() =>
+    retainedQualifiedTarget(checkpoint, qualifiedLegacyTarget, readers),
+  );
+  signed = true;
+  bytes = Buffer.from(JSON.stringify({ ...body, qualifiedTargets: [] }));
+  assert.throws(() =>
+    retainedQualifiedTarget(checkpoint, qualifiedLegacyTarget, readers),
+  );
+  checkpoint.sha256 = sha256(bytes);
+  assert.throws(
+    () => retainedQualifiedTarget(checkpoint, qualifiedLegacyTarget, readers),
+    /Complete signed target public qualification/u,
+  );
+  for (const mutate of [
+    (record) =>
+      record.qualification.files.splice(
+        record.qualification.files.findIndex(
+          (file) => file.name === "public-security.json",
+        ),
+        1,
+      ),
+    (record) =>
+      record.qualification.files.splice(
+        record.qualification.files.findIndex((file) =>
+          file.name.endsWith("root-locations.json"),
+        ),
+        1,
+      ),
+    (record) =>
+      record.qualification.files.splice(
+        record.qualification.files.findIndex((file) =>
+          file.name.endsWith("root-lock.json"),
+        ),
+        1,
+      ),
+    (record) => (record.qualification.artifacts[0].attempt = 2),
+    (record) =>
+      (record.qualification.artifacts[0].digest = "sha256:" + "0".repeat(64)),
+    (record) =>
+      (record.qualification.providers[0].provider.jobs.jobs[1].conclusion =
+        "skipped"),
+    (record) =>
+      (record.qualification.files[0].bytes = Buffer.from(
+        "substituted snapshot",
+      ).toString("base64")),
+  ]) {
+    const copy = structuredClone(qualifiedLegacy);
+    mutate(copy);
+    assert.throws(() => verifyQualifiedTarget(copy, qualifiedLegacyTarget));
+  }
+});
+
+test("a different version cannot hide outstanding approvals and a superseded release needs fresh owner review", () => {
+  const journal = Buffer.from(
+    '{"state":"intent","package":"@hadden-industries/json-quality-win32-x64","version":"1.1.0","manifestSha256":"' +
+      "a".repeat(64) +
+      '","run":"17","attempt":"1"}\n',
+  );
+  const history = [
+    { phase: "stage", run: { id: 17, run_attempt: 1 }, journal },
+  ];
+  const release = { version: "1.2.0" };
+  assert.throws(
+    () => admitPendingDecisions(history, release, [], null),
+    /outstanding native approvals/u,
+  );
+  const record = {
+    phase: "stage",
+    disposition: "supersede",
+    run: "17",
+    attempt: "1",
+    journalSha256: sha256(journal),
+    reviewSha256: "b".repeat(64),
+    acceptedAt: "2026-11-13T00:00:00Z",
+  };
+  const recovery = {
+    entries: [{ record, observed: { state: "superseded-family-reconciled" } }],
+  };
+  assert.equal(admitPendingDecisions(history, release, [], recovery).size, 0);
+  assert.throws(
+    () =>
+      admitPendingDecisions(history, { version: "1.1.0" }, [], recovery, {
+        review: { acceptedAt: "2026-11-12T23:00:00Z" },
+        reviewSha256: "b".repeat(64),
+      }),
+    /fresh owner review/u,
+  );
+  assert.deepEqual(
+    [
+      ...admitPendingDecisions(history, { version: "1.1.0" }, [], recovery, {
+        review: { acceptedAt: "2026-11-13T01:00:00Z" },
+        reviewSha256: "c".repeat(64),
+      }),
+    ],
+    ["17/1"],
+  );
+});
+
+test("a reconciled original failed stage retains complete qualification after provider expiry", () => {
+  const target = structuredClone(qualifiedLegacy);
+  const setFile = (name, value) => {
+    const bytes = Buffer.from(JSON.stringify(value));
+    target.qualification.files = target.qualification.files.filter(
+      (file) => file.name !== name,
+    );
+    target.qualification.files.push({
+      name,
+      size: bytes.length,
+      sha256: sha256(bytes),
+      bytes: bytes.toString("base64"),
+    });
+  };
+  const stage = target.qualification.providers.find(
+    (item) => item.phase === "stage",
+  );
+  stage.provider.run.conclusion = "failure";
+  stage.provider.jobs.jobs.find((job) => job.name === "stage").conclusion =
+    "failure";
+  const name = effectJournal("stage", stage.origin);
+  const originalJournal = Buffer.from(
+    target.qualification.files.find((file) => file.name === name).bytes,
+    "base64",
+  );
+  const lines = originalJournal.toString().trim().split("\n").map(JSON.parse);
+  lines[lines.length - 1] = {
+    state: "outcome-unknown",
+    intentSha256: lines.at(-1).intentSha256,
+  };
+  const journal = Buffer.from(
+    lines.map((line) => JSON.stringify(line)).join("\n") + "\n",
+  );
+  const journalFile = target.qualification.files.find(
+    (file) => file.name === name,
+  );
+  Object.assign(journalFile, {
+    bytes: journal.toString("base64"),
+    size: journal.length,
+    sha256: sha256(journal),
+  });
+  const intents = journal
+    .toString()
+    .trim()
+    .split("\n")
+    .map(JSON.parse)
+    .filter((entry) => entry.state === "intent");
+  const decision = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    phase: "stage",
+    ...stage.origin,
+    version: target.version,
+    manifestSha256: target.manifestSha256,
+    journalSha256: sha256(journal),
+    stages: intents.map((intent, index) => ({
+      package: intent.package,
+      stageId: `retained-stage-${index}`,
+    })),
+  };
+  setFile("recovery-records.json", [decision]);
+  setFile("recovery-observations.json", [
+    {
+      record: decision,
+      observed: {
+        stages: intents.map((intent, index) => ({
+          package: intent.package,
+          version: target.version,
+          integrity: intent.integrity,
+          stageId: `retained-stage-${index}`,
+        })),
+      },
+    },
+  ]);
+  verifyQualifiedTarget(target, qualifiedLegacyTarget);
+  const bytes = Buffer.from(
+    JSON.stringify({
+      schemaVersion: 2,
+      repository,
+      entries: [],
+      qualifiedTargets: [target],
+    }),
+  );
+  const checkpoint = {
+    tag: "release-history-failed-stage",
+    tagSha: "c".repeat(40),
+    sha256: sha256(bytes),
+  };
+  const restored = retainedQualifiedTarget(checkpoint, qualifiedLegacyTarget, {
+    read: (path) =>
+      path.includes("git/ref/")
+        ? {
+            ref: `refs/tags/${checkpoint.tag}`,
+            object: { type: "tag", sha: checkpoint.tagSha },
+          }
+        : {
+            sha: checkpoint.tagSha,
+            tag: checkpoint.tag,
+            object: { type: "commit", sha: "d".repeat(40) },
+            verification: { verified: true, reason: "valid" },
+          },
+    bytes: () => bytes,
+    verifySignature: () => {},
+  });
+  assert.equal(restored.version, "1.0.0");
+  const summaries = qualifiedStageSummaries(target);
+  setFile("stage-19-1.jsonl", { state: "foreign retained writer" });
+  assert.deepEqual(
+    qualifiedStageSummaries(target),
+    summaries,
+    "Carried historical journals must not acquire settlement scope",
+  );
+  assert.equal(
+    admitPendingDecisions(
+      [{ ...stage.provider, phase: "stage", journal }],
+      { version: "1.1.0" },
+      [],
+      null,
+      {
+        settledStages: summaries,
+        resolveTarget: () => {
+          throw new Error("An unrelated target shard must not be fetched");
+        },
+      },
+    ).size,
+    0,
+  );
+  assert.equal(
+    admitPendingDecisions(
+      [{ ...stage.provider, phase: "stage", journal }],
+      { version: "1.1.0" },
+      [target],
+      null,
+    ).size,
+    0,
+  );
+  target.qualification.files = target.qualification.files.filter(
+    (file) => file.name !== "recovery-observations.json",
+  );
+  assert.throws(
+    () => verifyQualifiedTarget(target, qualifiedLegacyTarget),
+    /retained native settlement/,
+  );
+});
+
+test("signed original promotion custody restores exact operation and journal while keeping archive origin independent", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "json-original-operation-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const bytes = Buffer.from(
+      // eslint-disable-next-line json-quality/no-json-stringify-identity -- Exact original operation bytes are the signed digest subject.
+      JSON.stringify({
+        manifestSha256: "a".repeat(64),
+        family: { operation: "promote" },
+      }),
+    ),
+    journal = Buffer.from('{"state":"intent"}\n');
+  const original = {
+    phase: "promote",
+    service: "npm",
+    run: "17",
+    attempt: "1",
+    operationId: sha256(bytes),
+    journalSha256: sha256(journal),
+    manifestSha256: "a".repeat(64),
+  };
+  const history = {
+    entries: [
+      {
+        ...original,
+        journal: journal.toString("base64"),
+        operationEvidence: {
+          "availability-operation.json": bytes.toString("base64"),
+        },
+      },
+    ],
+  };
+  restoreOriginalPromotion(root, history, original);
+  assert.deepEqual(
+    readFileSync(join(root, "availability-operation.json")),
+    bytes,
+  );
+  assert.deepEqual(readFileSync(join(root, "promote-npm-17-1.jsonl")), journal);
+  assert.throws(() =>
+    restoreOriginalPromotion(root, history, {
+      ...original,
+      operationId: "0".repeat(64),
+    }),
+  );
+});
 import {
   effectJournal,
   repository,
@@ -13,7 +390,141 @@ import {
 import {
   readEffectHistory,
   verifyEffectHistory,
+  readHistoryRecord,
+  readHistoryTarget,
+  authenticatedHistoricalSettlements,
 } from "../scripts/release-provider.js";
+
+test("signed history resolves one bounded target file lazily from its exact signed commit", () => {
+  const targetBytes = Buffer.from(JSON.stringify(qualifiedLegacy)),
+    refs = Array.from({ length: 6 }, (_, index) => ({
+      version: index ? `1.0.${index}` : "1.0.0",
+      manifestSha256: index
+        ? String(index).repeat(64)
+        : qualifiedLegacyTarget.manifestSha256,
+      releaseId: index ? 437217191 + index : 437217191,
+      size: targetBytes.length,
+      sha256: sha256(targetBytes),
+    }));
+  assert.ok(refs.reduce((total, ref) => total + ref.size, 0) > 20000000);
+  let indexBytes = Buffer.from(
+    JSON.stringify({
+      schemaVersion: 2,
+      repository,
+      entries: [],
+      qualifiedTargetRefs: refs,
+    }),
+  );
+  const checkpoint = {
+      tag: "release-history-shards",
+      tagSha: "c".repeat(40),
+      sha256: sha256(indexBytes),
+    },
+    calls = [];
+  let payload = targetBytes;
+  const read = (path) =>
+    path.includes("git/ref/")
+      ? {
+          ref: `refs/tags/${checkpoint.tag}`,
+          object: { type: "tag", sha: checkpoint.tagSha },
+        }
+      : {
+          sha: checkpoint.tagSha,
+          tag: checkpoint.tag,
+          object: { type: "commit", sha: "d".repeat(40) },
+          verification: { verified: true, reason: "valid" },
+        };
+  const bytes = (path) => {
+    calls.push(path);
+    return path.startsWith("contents/release-history.json?")
+      ? indexBytes
+      : payload;
+  };
+  const history = readHistoryRecord(checkpoint, read, bytes, () => {});
+  assert.equal(calls.length, 1);
+  assert.ok(indexBytes.length < 4000);
+  const target = readHistoryTarget(history, qualifiedLegacyTarget);
+  verifyQualifiedTarget(target, qualifiedLegacyTarget);
+  assert.equal(calls.length, 2);
+  assert.equal(
+    calls[1],
+    `contents/release-targets/${qualifiedLegacyTarget.manifestSha256}.json?ref=${"d".repeat(40)}`,
+  );
+  payload = Buffer.from("substituted");
+  assert.throws(() => readHistoryTarget(history, qualifiedLegacyTarget));
+  payload = targetBytes;
+  assert.throws(() =>
+    readHistoryTarget(history, { ...qualifiedLegacyTarget, releaseId: 99 }),
+  );
+  history.qualifiedTargetRefs[0].sha256 = "0".repeat(64);
+  assert.throws(
+    () => readHistoryTarget(history, qualifiedLegacyTarget),
+    /index changed/,
+  );
+  refs[0].path = "../../untrusted.json";
+  indexBytes = Buffer.from(
+    JSON.stringify({
+      schemaVersion: 2,
+      repository,
+      entries: [],
+      qualifiedTargetRefs: refs,
+    }),
+  );
+  checkpoint.sha256 = sha256(indexBytes);
+  assert.throws(
+    () => readHistoryRecord(checkpoint, read, bytes, () => {}),
+    /paths are derived/,
+  );
+});
+
+test("authenticated supersession survives the next native stage graph and fresh dispatch", () => {
+  const staged = inventory("stage", 1),
+    native = {
+      ...staged.jobs.jobs[0],
+      id: 999,
+      name: "native-public",
+      conclusion: "skipped",
+    };
+  staged.jobs.jobs.push(native);
+  staged.jobs.total_count++;
+  const journal = Buffer.from(
+    JSON.stringify({
+      state: "intent",
+      package: subject.package,
+      version: "1.1.0",
+      manifestSha256: "a".repeat(64),
+      run: "16",
+      attempt: "1",
+    }) + "\n",
+  );
+  const record = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    phase: "stage",
+    disposition: "supersede",
+    version: "1.1.0",
+    manifestSha256: "a".repeat(64),
+    run: "16",
+    attempt: "1",
+    journalSha256: sha256(journal),
+    reviewSha256: "b".repeat(64),
+    acceptedAt: "2026-11-13T00:00:00Z",
+    rationale: "Supersede the exact reconciled original stages.",
+  };
+  const settlements = authenticatedHistoricalSettlements([
+    { ...staged, phase: "stage", settlements: [record] },
+  ]);
+  assert.equal(settlements[0].observed.state, "superseded-family-reconciled");
+  assert.equal(
+    admitPendingDecisions(
+      [{ phase: "stage", run: { id: 16, run_attempt: 1 }, journal }],
+      { version: "1.2.0" },
+      [],
+      { entries: settlements },
+    ).size,
+    0,
+  );
+});
 
 const source = "a".repeat(40);
 const effect = "Apply admitted release effect";

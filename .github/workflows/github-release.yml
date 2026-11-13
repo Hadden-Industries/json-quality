@@ -51,6 +51,8 @@ jobs:
       actions: read
     outputs:
       artifact-id: ${{ steps.admitted.outputs.artifact-id }}
+      artifact-digest: ${{ steps.admitted.outputs.artifact-digest }}
+      receipt-sha256: ${{ steps.admission.outputs.receipt-sha256 }}
       attest-required: ${{ steps.admission.outputs.attest-required }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -80,12 +82,16 @@ jobs:
       actions: read
       attestations: write
       id-token: write
+    env:
+      ADMISSION_ARTIFACT_ID: ${{ needs.admit.outputs.artifact-id }}
+      ADMISSION_ARTIFACT_DIGEST: ${{ needs.admit.outputs.artifact-digest }}
+      ADMISSION_RECEIPT_SHA: ${{ needs.admit.outputs.receipt-sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: ./.github/actions/setup-producer
+      - uses: ./.github/actions/setup-writer
       - uses: ./.github/actions/download-evidence
         timeout-minutes: 15
         with:
@@ -102,8 +108,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           JSON_QUALITY_BUILD_ATTESTATION: ${{ steps.attest.outputs.bundle-path }}
-        run: npm run execute:release-action -- archive "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
-      - uses: ./.github/actions/upload-evidence
+        run: node scripts/release-command.js archive "${{ runner.temp }}/admitted" "${{ runner.temp }}/effect-scratch"
+      - uses: ./.github/actions/upload-writer-evidence
         timeout-minutes: 5
         if: always()
         with:

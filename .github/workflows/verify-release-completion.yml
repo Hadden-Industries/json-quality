@@ -1,0 +1,42 @@
+name: Observe original release operation completion
+on:
+  workflow_dispatch:
+    inputs:
+      operation_run:
+        description: Original family availability run; this observer issues no provider mutations
+        required: true
+        type: string
+      operation_attempt:
+        description: Exact original operation attempt, retaining original producing job attempts
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  observe:
+    if: github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main' && github.actor == 'MaksymShostak'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-writer
+      - name: Re-admit original artifacts and observe the exact approved transition
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPLETION_RUN: ${{ inputs.operation_run }}
+          COMPLETION_ATTEMPT: ${{ inputs.operation_attempt }}
+        run: node scripts/complete-promotion.js "${{ runner.temp }}/original-operation" "${{ runner.temp }}/completion-scratch"
+      - uses: ./.github/actions/upload-writer-evidence
+        timeout-minutes: 5
+        if: always()
+        with:
+          name: completion-observation-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/original-operation
+          retention-days: 90
