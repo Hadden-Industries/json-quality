@@ -177,6 +177,7 @@
     "@hadden-industries/json-quality-win32-x64": "file:native/prebuilt/win32-x64"
   },
   "overrides": {
+    "fast-xml-parser": ">=5.12.0",
     "ajv": {
       "fast-uri": "4.2.3"
     },
