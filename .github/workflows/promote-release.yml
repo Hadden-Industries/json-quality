@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       operation_json:
-        description: Exact owner-reviewed family promotion, alignment or restoration scope and target qualification identities
+        description: Exact owner-reviewed family promotion, alignment, restoration or pilot retirement scope and qualification identities
         required: true
         type: string
       operation_sha:

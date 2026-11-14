@@ -39,6 +39,7 @@ const transport = `
       const command=args.slice(1);
       if(command[0]==="--version") return ok("12.2.2");
       if(command[0]==="view") {
+        if(state.failAfterNpmWrites && state.mutations.filter(value=>value.service==="npm").length===state.failAfterNpmWrites) throw new Error("Readback unavailable after acknowledged request");
         const name=command[1];
         if(!Object.hasOwn(state.npm,name)) throw new Error("Unexpected npm package: "+name);
         const value=command[2]==="dist-tags"?state.npm[name]:{name,versions:[],"dist-tags":state.npm[name]};
@@ -57,7 +58,7 @@ const transport = `
         const remove=command[1]==="rm", spec=command[2], split=spec.lastIndexOf("@");
         const name=remove?spec:spec.slice(0,split), target=remove?null:spec.slice(split+1);
         state.mutations.push({service:"npm",package:name,target});
-        if(remove) delete state.npm[name].latest; else state.npm[name].latest=target;
+        if(remove) delete state.npm[name][command[3]]; else state.npm[name][command[3]]=target;
         return ok("updated");
       }
       throw new Error("Unexpected npm command: "+JSON.stringify(command));

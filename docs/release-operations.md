@@ -259,8 +259,8 @@ An explicitly reviewed npm `latest` release candidate remains a GitHub prereleas
 Dispatch `promote-release.yml` with an exact schema-2 `operation_json` and its `operation_sha`, plus the original manifest/review/acceptance digests.
 The operation binds owner, source/version/manifest, original review, current `controllerSource` and control delta, immutable `sourceReleaseId`, accepted time/rationale, qualified `targets` (version/manifest digest/release ID) and `family`.
 
-The family uses `schemaVersion: 2` and `operation`: `promote`, `align`, `restore`, `scoped-restore` or `emergency-core-restore`.
-Every package subject supplies `package`, `selected`, exact `prior` and `target` (explicit null for absence), and the target `integrity`.
+The family uses `schemaVersion: 2` and `operation`: `promote`, `align`, `restore`, `scoped-restore`, `emergency-core-restore` or `retire-pilot`.
+Every package subject supplies `package`, `selected`, exact `prior` and `target` (explicit null for absence), and the target `integrity` when the target is present.
 Excluded subjects keep prior=target.
 Removal requires `removalApproved: true`; an already-current selected target requires `noOpApproved: true`.
 GitHub supplies selected, prior/target release markers (ID/tag/prerelease), the selected target's `targetPrior` classification, and excluded release `guards` where applicable.
@@ -277,6 +277,47 @@ A scoped restore selects only labels established by the original operation and o
 Unknown requests must be settled before a new operation can approve current-target no-ops.
 A GitHub-only continuation is a fresh reviewed operation with npm targets explicitly approved as no-ops.
 A later GitHub failure remains a partial outcome.
+
+### Retire the pilot channel after stable acceptance
+
+`latest` identifies the accepted stable family; `pilot` identifies an active evaluation candidate and is absent between candidates.
+Npm tags are independent pointers: publishing or promoting `latest` does not remove an older `pilot`.
+After stable publication and acceptance, run this explicit operation as part of release closeout; no background trigger or new version is required.
+
+Use the same manually dispatched `promote-release.yml`, current `main` controller, shared release-mutation concurrency group, read-only admission and `npm-promotion` OIDC environment.
+Keep direct publishing denied and native npm trusted-publisher dist-tag management enabled.
+The operation grants no GitHub writer; archival credentials cannot remove npm tags.
+
+In the existing schema-2 decision, set `family.operation` to `retire-pilot`, `stableVersion` to the current accepted stable version and `retiredVersion` to the pilot version being retired.
+The retired version must be stable SemVer no newer than `stableVersion`; a later candidate requires its own decision.
+Select all three fixed packages with each observed pilot `prior`, `target: null` and `removalApproved: true`.
+For an already absent pilot, use `prior: null` and `noOpApproved: true` as well.
+Omit target integrity for an absent target.
+Set `family.github.selected: false` and identical `prior`/`target` markers for the immutable current stable GitHub release.
+
+`targets` contains exactly the current stable version, manifest digest and release ID, matching the decision's source release and GitHub marker.
+That target retains ordinary public qualification, exact tarball checks and fresh security admission.
+`retiredTarget` supplies the retired version's manifest digest, immutable release ID and reviewed boolean `prerelease` classification.
+For an older target, include that release's exact ID/tag/prerelease marker in `family.github.guards`; preserve that marker through every request and completion read.
+For an older retired version, supply the complete owner-signed `historyCheckpoint`; its original public qualification, signed source tag and live immutable assets are verified without rerunning retired code.
+When retiring the same version just promoted, `retiredTarget` uses the current stable target's identity plus `prerelease: false` and reuses its qualification.
+
+For the 1.0.1 closeout, guard `latest: 1.0.1` on all three packages and retire only observed `pilot: 1.0.0` aliases.
+Before each request, all pilot preimages, all stable latest tags and the GitHub identity are checked again.
+The existing native-first writer issues one `npm dist-tag rm PACKAGE pilot` request per changed alias with fetch retries disabled.
+Journals name the actual channel as `npm-pilot:PACKAGE`; unrelated tags, published versions, signed tags and immutable release assets are retained.
+Read-only completion verifies pilot absence and unchanged stable defaults.
+
+Npm provides no version-conditional tag removal or atomic family mutation.
+The workflow serializes its own release writers; an unrelated owner command can still race a guarded request.
+Unexpected drift stops dependent writes.
+Keep original journals and acknowledgements: an unknown request requires native readback reconciliation, while acknowledged requests resume observation without replay.
+If only a prefix was attempted and acknowledged, the independent observer records `acknowledgedPrefix.state: attempted-prefix-confirmed` after readback while the overall state remains `writer-operation-incomplete`.
+After a partial operation is settled, a fresh reviewed remaining-scope decision marks already absent pilots as approved no-ops.
+Bind its `originalEffect` to the exact original npm promotion run, attempt, manifest, operation ID and journal digest, and supply matching `recovery_json` and `previous_run`/`previous_attempt` inputs.
+If that native effect artifact expires, admission recovers its original operation, journal and acknowledgements from the complete signed `historyCheckpoint`; a checkpoint with only version proof cannot supply missing original custody.
+Pilot evidence cannot authorize restoration of `latest`.
+Retain the completed operation through the signed release-history checkpoint procedure before its Actions artifacts expire.
 
 The following schema-1 restoration fields describe the retained historical core-only reader.
 New operations express the emergency core-only scope through the schema-2 family and guard both companions and affected/target GitHub releases.
@@ -414,8 +455,8 @@ Before activating this source, read current rulesets/action policy, default Code
 The concrete new environment is `github-release`, restricted to exactly `main`, with protection/reviewer policy chosen consistently with the existing release environments.
 
 Read back that environment and confirm `promote-release.yml`/`npm-promotion` still permits only the intended npm dist-tag path; keep direct publication forbidden.
-Do not broaden the promotion scope to native package tags.
-No environment, publisher, workflow run, package or live label is changed by the local implementation task.
+The approved dist-tag family is `@hadden-industries/json-quality`, `@hadden-industries/json-quality-linux-x64` and `@hadden-industries/json-quality-win32-x64`; verify each binding for the guarded pilot retirement and existing family availability operations.
+Direct publication remains forbidden on these promotion bindings.
 
 Hosted extraction, process observation on both runner platforms, publisher/settings readback and live mutation behavior remain separate activation/release checks after source publication is authorized.
 

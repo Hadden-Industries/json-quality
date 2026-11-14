@@ -4,23 +4,26 @@ import { npmCommand } from "./qualification-process.js";
 import { runPromotionService } from "./promotion-entry.js";
 import { applyNpmAvailability } from "./promotion-service.js";
 import { fileURLToPath } from "node:url";
-import { npmLabelArguments } from "./npm-availability.js";
+import { npmLabelArguments, npmFamilyLabel } from "./npm-availability.js";
 
 export function runNpmPromotion(directory, scratch, env = process.env) {
   return runPromotionService(
     "npm",
     applyNpmAvailability,
-    ({ release, isolation }) => ({
+    ({ release, family, isolation }) => ({
       writeNpmLatest: (target) =>
         npmCommand(npmLabelArguments(release.package, target), {
           env: isolation,
           phase: "npm-latest",
         }),
-      writePackageLatest: (packageName, target) =>
-        npmCommand(npmLabelArguments(packageName, target), {
-          env: { ...isolation, NPM_CONFIG_FETCH_RETRIES: "0" },
-          phase: "npm-family-latest",
-        }),
+      writePackageLabel: (packageName, target) =>
+        npmCommand(
+          npmLabelArguments(packageName, target, npmFamilyLabel(family)),
+          {
+            env: { ...isolation, NPM_CONFIG_FETCH_RETRIES: "0" },
+            phase: "npm-family-label",
+          },
+        ),
     }),
     [process.execPath, fileURLToPath(import.meta.url), directory, scratch],
     env,

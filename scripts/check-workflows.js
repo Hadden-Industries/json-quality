@@ -510,6 +510,11 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
   );
   let callers = 0;
   for (const [path, workflow] of workflows) {
+    for (const name of workflow.on?.workflow_run?.workflows ?? [])
+      assert.ok(
+        [...workflows.values()].some((producer) => producer.name === name),
+        `${path}: workflow_run selects an unknown workflow name ${name}`,
+      );
     for (const job of Object.values(workflow.jobs ?? {})) {
       pinned(path, job.uses);
       if (job.uses?.startsWith("./.github/workflows/")) {

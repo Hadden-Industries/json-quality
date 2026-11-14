@@ -29,7 +29,11 @@ const legacy = JSON.parse(
   ),
 );
 const repository = "Hadden-Industries/json-quality";
-export function writerWorld(t, phase, { npmTag, schema3 = false } = {}) {
+export function writerWorld(
+  t,
+  phase,
+  { npmTag, schema3 = false, pilotRetirement = false } = {},
+) {
   const root = mkdtempSync(join(tmpdir(), "json-writer-entry-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const directory = join(root, "admitted"),
@@ -285,6 +289,21 @@ export function writerWorld(t, phase, { npmTag, schema3 = false } = {}) {
         selected: true,
       },
     };
+    if (pilotRetirement) {
+      target.prerelease = false;
+      family.operation = "retire-pilot";
+      family.stableVersion = release.version;
+      family.retiredVersion = release.version;
+      family.github = { selected: false, prior: target, target };
+      for (const subject of family.subjects) {
+        subject.prior = release.version;
+        subject.target = null;
+        subject.removalApproved = true;
+        delete subject.integrity;
+        state.npm[subject.package].latest = release.version;
+      }
+      state.github.latest = target;
+    }
     const operation = {
       schemaVersion: 2,
       phase: "availability",
@@ -307,6 +326,8 @@ export function writerWorld(t, phase, { npmTag, schema3 = false } = {}) {
       ],
       family,
     };
+    if (pilotRetirement)
+      operation.retiredTarget = { ...operation.targets[0], prerelease: false };
     env.OPERATION_JSON = JSON.stringify(operation);
     env.OPERATION_SHA = sha256(Buffer.from(env.OPERATION_JSON));
     verifyOperationDecision(
@@ -329,7 +350,7 @@ export function writerWorld(t, phase, { npmTag, schema3 = false } = {}) {
           tagSha: legacy.tag.reference.object.sha,
         },
       ],
-      availability: "npm-and-github",
+      availability: pilotRetirement ? "npm-only" : "npm-and-github",
       security: {},
     };
   }

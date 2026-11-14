@@ -16,6 +16,7 @@ import {
 import { admitPendingDecisions } from "../scripts/release-decision-state.js";
 import { native } from "../scripts/qualification-process.js";
 import { verifyOwnerTagSignature } from "../scripts/release-signing.js";
+import { verifyRetiredPilotTarget } from "../scripts/release-availability-contract.js";
 
 const qualifiedLegacy = JSON.parse(
   readFileSync(
@@ -144,6 +145,70 @@ test("actual single-origin 1.0.0 public qualification survives provider removal 
     mutate(copy);
     assert.throws(() => verifyQualifiedTarget(copy, qualifiedLegacyTarget));
   }
+});
+
+test("pilot retirement binds the original qualified historical release without rerunning its code", () => {
+  const decision = {
+    family: {
+      operation: "retire-pilot",
+      stableVersion: "1.0.1",
+      retiredVersion: "1.0.0",
+    },
+    retiredTarget: { ...qualifiedLegacyTarget, prerelease: false },
+  };
+  const live = {
+    ...structuredClone(qualifiedLegacy.release),
+    prerelease: false,
+    draft: false,
+  };
+  assert.equal(
+    verifyRetiredPilotTarget(decision, qualifiedLegacy, live).release.version,
+    "1.0.0",
+  );
+  const pilotDecision = structuredClone(decision);
+  pilotDecision.retiredTarget.prerelease = true;
+  assert.equal(
+    verifyRetiredPilotTarget(pilotDecision, qualifiedLegacy, {
+      ...live,
+      prerelease: true,
+    }).release.version,
+    "1.0.0",
+  );
+  for (const change of [
+    (value) => {
+      value.id++;
+    },
+    (value) => {
+      value.prerelease = true;
+    },
+    (value) => {
+      value.immutable = false;
+    },
+    (value) => {
+      value.assets[0].digest = "sha256:" + "0".repeat(64);
+    },
+  ]) {
+    const substituted = structuredClone(live);
+    change(substituted);
+    assert.throws(() =>
+      verifyRetiredPilotTarget(decision, qualifiedLegacy, substituted),
+    );
+  }
+  const missing = structuredClone(qualifiedLegacy);
+  missing.qualification.files = missing.qualification.files.filter(
+    (file) => file.name !== "public-security.json",
+  );
+  assert.throws(() => verifyRetiredPilotTarget(decision, missing, live));
+  assert.throws(() =>
+    verifyRetiredPilotTarget(
+      {
+        ...decision,
+        retiredTarget: { ...qualifiedLegacyTarget, releaseId: 42 },
+      },
+      qualifiedLegacy,
+      live,
+    ),
+  );
 });
 
 test("a different version cannot hide outstanding approvals and a superseded release needs fresh owner review", () => {

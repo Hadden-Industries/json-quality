@@ -25,8 +25,12 @@ import {
   observeFamilyCompletion,
   verifyFamilyScope,
 } from "../scripts/promotion-family.js";
-import { verifyScopedRestoration } from "../scripts/release-availability-contract.js";
+import {
+  verifyScopedRestoration,
+  verifyOperationDecision,
+} from "../scripts/release-availability-contract.js";
 import { npmLabelArguments } from "../scripts/npm-availability.js";
+import { inspectAcknowledgedService } from "../scripts/promotion-pending.js";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { checkWorkflows } from "../scripts/check-workflows.js";
@@ -176,7 +180,7 @@ function familyFixture(t, operation = "promote") {
     assertCurrent() {},
     readPackageTags: (name) => structuredClone(states[name]),
     readGithubState: () => ({ ...f.reads.readGithubState(), latest }),
-    writePackageLatest: (name, value) => {
+    writePackageLabel: (name, value) => {
       writes.push({ package: name, value });
       if (value === null) delete states[name].latest;
       else states[name].latest = value;
@@ -184,6 +188,523 @@ function familyFixture(t, operation = "promote") {
   };
   return { ...f, family, states, writes, operations, packages };
 }
+
+function pilotRetirementFixture(t) {
+  const f = familyFixture(t);
+  const stable = {
+    ...f.reads.readGithubState().target,
+    prerelease: false,
+  };
+  f.family.operation = "retire-pilot";
+  f.family.stableVersion = "1.2.0";
+  f.family.retiredVersion = "1.1.0";
+  f.family.github = {
+    selected: false,
+    prior: stable,
+    target: stable,
+    guards: [f.reads.readGithubState().latest],
+  };
+  for (const subject of f.family.subjects) {
+    subject.prior = "1.1.0";
+    subject.target = null;
+    subject.removalApproved = true;
+    delete subject.integrity;
+    f.states[subject.package] = {
+      latest: "1.2.0",
+      pilot: "1.1.0",
+      canary: "1.3.0-beta.1",
+    };
+  }
+  f.operations.readGithubState = () => ({
+    latest: structuredClone(stable),
+    affected: structuredClone(stable),
+    target: structuredClone(stable),
+    releases: [f.reads.readGithubState().latest],
+  });
+  // Only the registry transport is replaced; real scope, guards and journals run.
+  f.operations.writePackageLabel = (name, target) => {
+    assert.equal(target, null);
+    f.writes.push({ package: name, tag: "pilot" });
+    delete f.states[name].pilot;
+  };
+  return f;
+}
+
+test("pilot retirement removes the three retired aliases and preserves stable availability", (t) => {
+  const f = pilotRetirementFixture(t);
+  const input = { ...f.input("npm"), family: f.family };
+  const protectedGithub = f.operations.readGithubState();
+  assert.ok(Object.values(f.states).every((tags) => tags.pilot === "1.1.0"));
+  const result = applyNpmAvailability(input, f.operations);
+  assert.equal(result.state, "completed");
+  assert.deepEqual(f.writes, [
+    { package: "@hadden-industries/json-quality-win32-x64", tag: "pilot" },
+    { package: "@hadden-industries/json-quality-linux-x64", tag: "pilot" },
+    { package: "@hadden-industries/json-quality", tag: "pilot" },
+  ]);
+  for (const tags of Object.values(result.packages)) {
+    assert.equal(Object.hasOwn(tags, "pilot"), false);
+    assert.equal(tags.latest, "1.2.0");
+    assert.equal(tags.canary, "1.3.0-beta.1");
+  }
+  assert.deepEqual(result.github, protectedGithub);
+  const records = readFileSync(input.journal, "utf8")
+    .trim()
+    .split("\n")
+    .map(JSON.parse);
+  assert.equal(records.length, 6);
+  assert.deepEqual(
+    records
+      .filter(({ state }) => state === "intent")
+      .map(({ operation }) => operation),
+    [
+      "npm-pilot:@hadden-industries/json-quality-win32-x64",
+      "npm-pilot:@hadden-industries/json-quality-linux-x64",
+      "npm-pilot:@hadden-industries/json-quality",
+    ],
+  );
+});
+
+test("pilot retirement requires explicit absence and protects stable and newer candidates", (t) => {
+  for (const change of [
+    (f) => delete f.family.subjects[0].removalApproved,
+    (f) => {
+      f.family.operation = ["retire-pilot"];
+    },
+    (f) => {
+      f.family.subjects[0].integrity = f.release.archive.integrity;
+    },
+    (f) => {
+      f.family.subjects[2].integrity = f.release.archive.integrity;
+    },
+    (f) => {
+      f.family.retiredVersion = "1.3.0";
+    },
+    (f) => {
+      f.states[f.packages[1]].pilot = "1.3.0";
+    },
+    (f) => {
+      f.states[f.packages[1]].latest = "1.3.0";
+    },
+  ]) {
+    const f = pilotRetirementFixture(t);
+    change(f);
+    assert.throws(() =>
+      applyNpmAvailability(
+        { ...f.input("npm"), family: f.family },
+        f.operations,
+      ),
+    );
+    assert.deepEqual(f.writes, []);
+  }
+  assert.deepEqual(
+    npmLabelArguments("@hadden-industries/json-quality", null, "pilot"),
+    [
+      "dist-tag",
+      "rm",
+      "@hadden-industries/json-quality",
+      "pilot",
+      "--fetch-retries=0",
+      "--registry=https://registry.npmjs.org/",
+    ],
+  );
+  assert.throws(() =>
+    npmLabelArguments("@hadden-industries/json-quality", "1.2.0", "pilot"),
+  );
+  assert.throws(() =>
+    npmLabelArguments("@hadden-industries/json-quality", null, "canary"),
+  );
+});
+
+test("already absent pilots are explicit no-ops and intervening drift stops later requests", (t) => {
+  const absent = pilotRetirementFixture(t);
+  for (const subject of absent.family.subjects) {
+    subject.prior = null;
+    subject.noOpApproved = true;
+    delete absent.states[subject.package].pilot;
+  }
+  const input = { ...absent.input("npm"), family: absent.family };
+  applyNpmAvailability(input, absent.operations);
+  assert.deepEqual(absent.writes, []);
+  assert.equal(
+    JSON.parse(readFileSync(input.journal, "utf8").split("\n")[0]).operation,
+    "completion-readback",
+  );
+  for (const tag of ["latest", "pilot"]) {
+    const f = pilotRetirementFixture(t);
+    assert.throws(() =>
+      applyNpmAvailability(
+        { ...f.input("npm"), family: f.family },
+        {
+          ...f.operations,
+          writePackageLabel(name, value) {
+            f.operations.writePackageLabel(name, value);
+            f.states[f.packages[1]][tag] = "1.3.0";
+          },
+        },
+      ),
+    );
+    assert.equal(f.writes.length, 1);
+    assert.equal(f.states[f.packages[2]].pilot, "1.1.0");
+  }
+});
+
+test("pilot continuation authenticates absence while latest remains stable", (t) => {
+  const f = pilotRetirementFixture(t);
+  const input = { ...f.input("npm"), family: f.family };
+  const completed = applyNpmAvailability(input, f.operations);
+  const journal = readFileSync(input.journal);
+  const completedRecords = journal
+    .toString()
+    .trim()
+    .split("\n")
+    .map(JSON.parse);
+  const laterOnly = Buffer.from(
+    completedRecords
+      .slice(2, 4)
+      .map((record) => JSON.stringify(record))
+      .join("\n") + "\n",
+  );
+  assert.throws(
+    () =>
+      verifyPromotionJournal(
+        "npm",
+        laterOnly,
+        { service: "npm", run: "17", attempt: "1" },
+        f.release,
+        { ...f.env, OPERATION_SHA: f.family.operationId },
+        f.family,
+        { allowPartial: true },
+      ),
+    /prefix/,
+  );
+  const origin = { service: "npm", run: "17", attempt: "1" };
+  const env = { ...f.env, OPERATION_SHA: f.family.operationId };
+  const record = {
+    schemaVersion: 2,
+    state: "npm-complete",
+    repository: "Hadden-Industries/json-quality",
+    controller: env.GITHUB_SHA,
+    source: f.release.source.commit,
+    manifestSha256: env.MANIFEST_SHA,
+    reviewSha256: env.REVIEW_SHA,
+    acceptanceSha256: env.ACCEPTANCE_SHA,
+    restorationSha256: null,
+    version: null,
+    targetIntegrity: null,
+    targetIntegrities: Object.fromEntries(
+      f.packages.map((name) => [name, null]),
+    ),
+    availability: "npm-only",
+    priorLabels: f.family,
+    family: f.family,
+    operationId: f.family.operationId,
+    origin,
+    journal: effectJournal("promote", origin),
+    journalSha256: sha256(journal),
+    npm: completed.packages[f.release.package],
+    packages: completed.packages,
+  };
+  verifyNpmContinuation(record, journal, env, f.release, null, f.family);
+  assert.equal(
+    inspectAcknowledgedService(f.root, "npm", origin, f.release, f.family, env)
+      .state,
+    "acknowledged",
+  );
+  const substituted = structuredClone(record);
+  substituted.packages[f.packages[1]].pilot = "1.1.0";
+  assert.throws(() =>
+    verifyNpmContinuation(substituted, journal, env, f.release, null, f.family),
+  );
+  const drift = structuredClone(record);
+  drift.packages[f.packages[1]].latest = "1.3.0";
+  assert.throws(() =>
+    verifyNpmContinuation(drift, journal, env, f.release, null, f.family),
+  );
+});
+
+test("partial pilot retirement settles the original request and continues only a fresh remaining scope", (t) => {
+  const f = pilotRetirementFixture(t);
+  const input = { ...f.input("npm"), family: f.family };
+  assert.throws(
+    () =>
+      applyNpmAvailability(input, {
+        ...f.operations,
+        writePackageLabel(name, target) {
+          f.operations.writePackageLabel(name, target);
+          throw new Error("lost response");
+        },
+      }),
+    /lost response/,
+  );
+  const journal = readFileSync(input.journal);
+  const records = journal.toString().trim().split("\n").map(JSON.parse);
+  const origin = { service: "npm", run: "17", attempt: "1" };
+  const env = { ...f.env, OPERATION_SHA: f.family.operationId };
+  assert.equal(
+    inspectAcknowledgedService(f.root, "npm", origin, f.release, f.family, env)
+      .state,
+    "writer-outcome-unresolved",
+  );
+  assert.throws(() => applyNpmAvailability(input, f.operations));
+  assert.equal(f.writes.length, 1);
+  const record = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    phase: "promote",
+    ...origin,
+    operationId: f.family.operationId,
+    manifestSha256: env.MANIFEST_SHA,
+    version: f.release.version,
+    journalSha256: sha256(journal),
+    acceptedAt: new Date().toISOString(),
+    rationale:
+      "Independently settle the exact pilot removal before continuing.",
+  };
+  verifyRecoveryRecord(record, f.release, env.MANIFEST_SHA, journal);
+  const github = f.operations.readGithubState().latest;
+  assert.equal(
+    reconcilePromotionLabels(record, records, f.states, github).state,
+    "family-effects-settled",
+  );
+  f.states[f.packages[0]].latest = "1.3.0";
+  assert.throws(() =>
+    reconcilePromotionLabels(record, records, f.states, github),
+  );
+  f.states[f.packages[0]].latest = "1.2.0";
+  const remaining = structuredClone(f.family);
+  remaining.operationId = "0".repeat(64);
+  remaining.subjects[0].prior = null;
+  remaining.subjects[0].noOpApproved = true;
+  applyNpmAvailability(
+    { ...input, family: remaining, journal: join(f.root, "remaining.jsonl") },
+    f.operations,
+  );
+  assert.equal(f.writes.length, 3);
+  verifyPromotionJournal(
+    "npm",
+    readFileSync(join(f.root, "remaining.jsonl")),
+    { service: "npm", run: "17", attempt: "1" },
+    f.release,
+    { ...f.env, OPERATION_SHA: remaining.operationId },
+    remaining,
+  );
+  assert.deepEqual(readFileSync(input.journal), journal);
+  assert.ok(
+    Object.values(f.states).every(
+      (tags) => !Object.hasOwn(tags, "pilot") && tags.latest === "1.2.0",
+    ),
+  );
+});
+
+test("pilot admission requires the current stable proof and a bound retired qualification", (t) => {
+  const f = pilotRetirementFixture(t);
+  const family = structuredClone(f.family);
+  delete family.operationId;
+  const stable = {
+    version: "1.2.0",
+    releaseId: family.github.prior.id,
+    manifestSha256: f.env.MANIFEST_SHA,
+  };
+  const decision = {
+    schemaVersion: 2,
+    phase: "availability",
+    owner: "maksymshostak",
+    source: f.release.source.commit,
+    version: f.release.version,
+    manifestSha256: f.env.MANIFEST_SHA,
+    originalReviewSha256: f.env.REVIEW_SHA,
+    controllerSource: f.env.GITHUB_SHA,
+    sourceReleaseId: stable.releaseId,
+    acceptedAt: new Date().toISOString(),
+    rationale:
+      "Retire only the authenticated older pilot after stable qualification.",
+    family,
+    targets: [stable],
+    retiredTarget: {
+      version: "1.1.0",
+      releaseId: 1,
+      manifestSha256: "a".repeat(64),
+      prerelease: false,
+    },
+    historyCheckpoint: {
+      tag: "release-history-fixture",
+      tagSha: "b".repeat(40),
+      sha256: "c".repeat(64),
+    },
+  };
+  const verify = (value) => {
+    const bytes = Buffer.from(JSON.stringify(value));
+    return verifyOperationDecision(bytes, sha256(bytes), f.release, f.env);
+  };
+  verify(decision);
+  for (const change of [
+    (value) => delete value.retiredTarget,
+    (value) => {
+      value.family.operation = ["retire-pilot"];
+    },
+    (value) => delete value.historyCheckpoint,
+    (value) => {
+      value.retiredTarget.version = "1.0.0";
+    },
+    (value) => {
+      value.targets[0].version = "1.1.0";
+    },
+    (value) => {
+      value.targets[0].manifestSha256 = "0".repeat(64);
+    },
+    (value) => {
+      value.targets[0].releaseId = 42;
+    },
+  ]) {
+    const altered = structuredClone(decision);
+    change(altered);
+    assert.throws(() => verify(altered));
+  }
+});
+
+test("acknowledged pilot retirement resumes observation without replay and retains channel-specific history", (t) => {
+  const f = pilotRetirementFixture(t);
+  const input = { ...f.input("npm"), family: f.family };
+  let elapsed = 0;
+  assert.throws(
+    () =>
+      applyNpmAvailability(input, {
+        ...f.operations,
+        now: () => elapsed,
+        sleep: (delay) => {
+          elapsed += delay;
+        },
+        readPackageTags(name, deadline) {
+          if (f.writes.length === 3 && deadline !== undefined)
+            throw Object.assign(new Error("temporary registry read failure"), {
+              code: "EAI_AGAIN",
+              retryable: true,
+            });
+          return f.operations.readPackageTags(name);
+        },
+      }),
+    /awaits confirmed readback/,
+  );
+  assert.equal(f.writes.length, 3);
+  const journal = readFileSync(input.journal);
+  const records = journal.toString().trim().split("\n").map(JSON.parse);
+  assert.equal(records.at(-1).requestAcknowledged, true);
+  const env = { ...f.env, OPERATION_SHA: f.family.operationId };
+  const origin = { run: "17", attempt: "1", service: "npm" };
+  assert.equal(
+    inspectAcknowledgedService(f.root, "npm", origin, f.release, f.family, env)
+      .state,
+    "acknowledged",
+  );
+  assert.equal(
+    observeFamilyCompletion(f.family, f.operations, { npmOnly: true }).state,
+    "completed",
+  );
+  assert.equal(f.writes.length, 3);
+  const recovery = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    phase: "promote",
+    ...origin,
+    operationId: f.family.operationId,
+    manifestSha256: env.MANIFEST_SHA,
+    version: f.release.version,
+    journalSha256: sha256(journal),
+    acceptedAt: new Date().toISOString(),
+    rationale:
+      "Confirm every acknowledged pilot removal from independent registry observations.",
+  };
+  verifyRecoveryRecord(recovery, f.release, env.MANIFEST_SHA, journal);
+  const observed = reconcilePromotionLabels(
+    recovery,
+    records,
+    f.states,
+    f.operations.readGithubState().latest,
+  );
+  const history = [
+    {
+      phase: "promote",
+      service: "npm",
+      run: {
+        id: 17,
+        run_attempt: 1,
+        head_sha: env.GITHUB_SHA,
+        path: ".github/workflows/promote-release.yml",
+        repository: { full_name: "Hadden-Industries/json-quality" },
+        event: "workflow_dispatch",
+        head_branch: "main",
+        status: "completed",
+      },
+      jobs: {
+        total_count: 1,
+        jobs: [
+          {
+            id: 1,
+            name: "npm",
+            run_id: 17,
+            run_attempt: 1,
+            head_sha: env.GITHUB_SHA,
+            status: "completed",
+            conclusion: "failure",
+            steps: [
+              {
+                name: "Apply admitted release effect",
+                status: "completed",
+                started_at: "2026-11-14T00:00:00Z",
+                completed_at: "2026-11-14T00:01:00Z",
+                conclusion: "failure",
+              },
+            ],
+          },
+        ],
+      },
+      journal,
+    },
+  ];
+  const current = { run: "18", attempt: "1" };
+  assert.equal(
+    verifyEffectHistory(history, current, f.release, {
+      entries: [{ record: recovery, observed }],
+    }).length,
+    3,
+  );
+  const wrongChannel = journal
+    .toString()
+    .replaceAll("npm-pilot:", "npm-latest:");
+  assert.throws(() =>
+    verifyEffectHistory(
+      [{ ...history[0], journal: Buffer.from(wrongChannel) }],
+      current,
+      f.release,
+    ),
+  );
+  const originalEffect = {
+    phase: "promote",
+    ...origin,
+    operationId: recovery.operationId,
+    manifestSha256: recovery.manifestSha256,
+    journalSha256: recovery.journalSha256,
+  };
+  assert.throws(
+    () =>
+      verifyScopedRestoration(
+        {
+          family: { ...f.family, operation: "scoped-restore" },
+          originalEffect,
+          acceptedAt: recovery.acceptedAt,
+        },
+        f.release,
+        {
+          record: { ...originalEffect, acceptedAt: recovery.acceptedAt },
+          observed,
+        },
+        journal,
+      ),
+    /not changed/,
+  );
+  assert.deepEqual(readFileSync(input.journal), journal);
+});
 
 test("alignment writes only companions and stops on intervening core or earlier-native drift", (t) => {
   const f = familyFixture(t, "align");
@@ -203,8 +724,8 @@ test("alignment writes only companions and stops on intervening core or earlier-
         { ...drift.input("npm"), family: drift.family },
         {
           ...drift.operations,
-          writePackageLatest(name, value) {
-            drift.operations.writePackageLatest(name, value);
+          writePackageLabel(name, value) {
+            drift.operations.writePackageLabel(name, value);
             drift.states[drift.release.package].latest = "9.0.0";
           },
         },
@@ -365,8 +886,8 @@ test("family recovery binds each attempted package and refuses a third value or 
         { ...f.input("npm"), family: f.family },
         {
           ...f.operations,
-          writePackageLatest(name, value) {
-            f.operations.writePackageLatest(name, value);
+          writePackageLabel(name, value) {
+            f.operations.writePackageLabel(name, value);
             if (++count === 1) throw new Error("lost acknowledgement");
           },
         },
@@ -762,7 +1283,7 @@ test("family promotion writes Windows, Linux, core once and guards every earlier
   const result = applyNpmAvailability(input, {
     ...f.reads,
     readPackageTags: (name) => structuredClone(states[name]),
-    writePackageLatest: (name, value) => {
+    writePackageLabel: (name, value) => {
       writes.push(name);
       states[name].latest = value;
     },
@@ -1344,6 +1865,8 @@ test("workflow validation rejects privilege recombination, wrong dispatchers and
   const path = ".github/workflows/promote-release.yml";
   const original = readFileSync(path, "utf8");
   for (const change of [
+    (value) =>
+      value.replace(/^name: .+$/mu, "name: Missing checkpoint subscription"),
     (value) =>
       value.replace(
         "environment: npm-promotion\n    permissions:\n      contents: read",

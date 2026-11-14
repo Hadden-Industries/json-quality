@@ -38,6 +38,7 @@ import { verifyNativeAssets } from "./release-asset-verification.js";
 import { verifyReleaseAttestation } from "./release-attestation-readiness.js";
 import { isolatedNpmEnvironment } from "./release-inventory.js";
 import { verifyFamilyScope } from "./promotion-family.js";
+import { npmFamilyLabel, npmLabelOperation } from "./npm-availability.js";
 import { requestedIntents } from "./release-records.js";
 import { verifyStageCancellation } from "./reject-release-stages.js";
 
@@ -106,8 +107,9 @@ export function verifyRecoveryRecord(record, release, manifestSha, journal) {
         intent.operation === "completion-readback" ||
           intent.operation === `${record.service}-latest` ||
           (record.service === "npm" &&
-            intent.operation === `npm-latest:${intent.package}` &&
-            intent.guard?.family),
+            intent.guard?.family &&
+            intent.operation ===
+              npmLabelOperation(intent.guard.family, intent.package)),
       );
     } else
       assert.ok(
@@ -118,7 +120,8 @@ export function verifyRecoveryRecord(record, release, manifestSha, journal) {
     assert.equal(intent.attempt, String(record.attempt));
     assert.equal(intent.manifestSha256, manifestSha);
     const subject =
-      record.phase === "stage" || intent.operation.startsWith("npm-latest:")
+      record.phase === "stage" ||
+      (record.service === "npm" && intent.guard?.family)
         ? releasePackages(release).find(
             (entry) => entry.package === intent.package,
           )
@@ -139,8 +142,10 @@ export function verifyRecoveryRecord(record, release, manifestSha, journal) {
           : ["npm-latest", "github-latest", "completion-readback"].includes(
               intent.operation,
             ) ||
-            (intent.operation === `npm-latest:${subject.package}` &&
-              record.service === "npm"),
+            (record.service === "npm" &&
+              intent.guard?.family &&
+              intent.operation ===
+                npmLabelOperation(intent.guard.family, subject.package)),
     );
     if (outcome) {
       if (outcome.state === "request-not-sent")
@@ -269,7 +274,10 @@ export function reconcilePromotionLabels(
         : null;
     const attempted = new Set(
       requestedIntents(records)
-        .filter((entry) => entry.operation.startsWith("npm-latest:"))
+        .filter(
+          (entry) =>
+            entry.operation === npmLabelOperation(family, entry.package),
+        )
         .map((entry) => entry.package),
     );
     for (const subject of family.subjects) {
@@ -278,10 +286,16 @@ export function reconcilePromotionLabels(
           ? subject.target
           : subject.prior;
       assert.equal(
-        tags[subject.package]?.latest ?? null,
+        tags[subject.package]?.[npmFamilyLabel(family)] ?? null,
         expected,
         "Family label does not settle the original attempted requests",
       );
+      if (family.operation === "retire-pilot")
+        assert.equal(
+          tags[subject.package]?.latest,
+          family.stableVersion,
+          "Stable latest changed during pilot retirement recovery",
+        );
     }
     const expectedGithub =
       record.service === "github" &&

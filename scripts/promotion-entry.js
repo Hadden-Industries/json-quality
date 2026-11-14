@@ -75,9 +75,9 @@ export function runPromotionService(
         restorationSha256: env.RESTORATION_SHA || null,
         version: prepared.target,
         targetIntegrity: prepared.family
-          ? prepared.family.subjects.find(
+          ? (prepared.family.subjects.find(
               (value) => value.package === prepared.release.package,
-            ).integrity
+            ).integrity ?? null)
           : prepared.auditRelease.archive.integrity,
         ...(prepared.family
           ? {

@@ -24,6 +24,7 @@ import {
 import { acquireArchiveEvidence } from "./release-assets.js";
 import { verifyQualifiedTarget } from "./qualified-release-contract.js";
 import { sealBundle } from "./release-records.js";
+import { originalAvailabilityEffect } from "./release-availability-contract.js";
 
 export function recoverArchivedAdmission(directory, env) {
   assert.equal(sha256(Buffer.from(env.OPERATION_JSON)), env.OPERATION_SHA);
@@ -124,15 +125,16 @@ export function recoverArchivedAdmission(directory, env) {
     verified.context.archive,
     "Checkpoint must retain original archive continuation before Actions expiry",
   );
-  if (
-    operation.family?.operation === "scoped-restore" &&
-    operation.originalEffect?.phase === "promote"
-  ) {
-    const original = operation.originalEffect;
+  const original = originalAvailabilityEffect(operation);
+  if (original?.phase === "promote") {
     assert.equal(original.run, env.PREVIOUS_RUN);
     assert.equal(original.attempt, env.PREVIOUS_ATTEMPT);
-    const history = readHistoryRecord(operation.historyCheckpoint);
-    restoreOriginalPromotion(directory, history, original);
+    if (operation.family.operation === "scoped-restore") {
+      const history = readHistoryRecord(operation.historyCheckpoint);
+      restoreOriginalPromotion(directory, history, original);
+    }
+    // Retirement imports its original service custody into a separate recovery
+    // namespace through acquireRecoveryJournal, preserving archival metadata.
   } else {
     assert.equal(verified.context.archive.run, env.PREVIOUS_RUN);
     assert.equal(verified.context.archive.attempt, env.PREVIOUS_ATTEMPT);

@@ -37,6 +37,7 @@ import { qualifySecurity } from "./release-security.js";
 import {
   verifyOperationDecision,
   verifyScopedRestoration,
+  verifyRetiredPilotTarget,
 } from "./release-availability-contract.js";
 import { readPackReport } from "./pack.js";
 import { collectQualifiedTarget } from "./qualified-release-checkpoint.js";
@@ -375,6 +376,40 @@ export function prepareFamilyPromotion(
       registry: archivedContext.registry,
       security,
     });
+  }
+  if (family.operation === "retire-pilot") {
+    const target = decision.retiredTarget;
+    // Removing old availability needs original accepted qualification, not a
+    // fresh execution of the retired code. The current stable target above
+    // still receives every ordinary current security and recipient check.
+    const retained =
+      target.version === family.stableVersion
+        ? readJson(join(directory, `qualified-target-${target.version}.json`))
+        : retainedQualifiedTarget(decision.historyCheckpoint, target);
+    const live = api(`releases/tags/v${target.version}`);
+    const checked = verifyRetiredPilotTarget(decision, retained, live);
+    const tagSha = signedTag(checked.release).reference.object.sha;
+    assert.equal(tagSha, retained.tag.reference.object.sha);
+    if (target.version !== family.stableVersion) {
+      const path = join(directory, `qualified-target-${target.version}.json`);
+      // A reconciled remaining-scope dispatch retains the original proof unchanged.
+      if (existsSync(path)) assert.deepEqual(readJson(path), retained);
+      else save(path, retained);
+      targets.push({
+        qualification: "historical-retirement",
+        tagSha,
+        release: checked.release,
+        releaseId: live.id,
+        assets: live.assets.map(({ name, digest, size }) => ({
+          name,
+          digest,
+          size,
+        })),
+        manifestSha256: target.manifestSha256,
+        registry: checked.context.registry,
+        security: null,
+      });
+    }
   }
   for (const subject of family.subjects.filter(
     (value) => value.selected && value.target !== null,
