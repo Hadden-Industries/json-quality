@@ -2,6 +2,7 @@
 /** Exact family scopes and one-shot effects. Completion observation has no mutations. */
 import assert from "node:assert/strict";
 import { isDeepStrictEqual } from "node:util";
+import { createRequire } from "node:module";
 import { journalEffect } from "./release-records.js";
 import {
   releasePackages,
@@ -9,6 +10,8 @@ import {
   validVersion,
 } from "./release-contract.js";
 import { retryDelay, transientReadError } from "./github-evidence.js";
+import { npmCli } from "./qualification-process.js";
+import { npmFamilyLabel, npmLabelOperation } from "./npm-availability.js";
 
 const sleep = (ms) =>
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -16,20 +19,12 @@ const marker = (value) =>
   value
     ? { id: value.id, tag_name: value.tag_name, prerelease: value.prerelease }
     : null;
-const tagValue = (tags) => tags.latest ?? null;
+const familyLabelValue = (family, tags) => tags[npmFamilyLabel(family)] ?? null;
 
 /** Every package, including excluded packages, has an explicit reviewed preimage. */
 export function verifyFamilyScope(family, release) {
   assert.equal(family.schemaVersion, 2);
-  assert.ok(
-    [
-      "promote",
-      "align",
-      "restore",
-      "scoped-restore",
-      "emergency-core-restore",
-    ].includes(family.operation),
-  );
+  npmFamilyLabel(family);
   assert.match(family.operationId, /^[a-f0-9]{64}$/u);
   assert.deepEqual(
     family.subjects.map((value) => value.package).sort(),
@@ -163,6 +158,44 @@ export function verifyFamilyScope(family, release) {
         .every((subject) => subject.selected && subject.target === core.target),
     );
   }
+  if (family.operation === "retire-pilot") {
+    assert.equal(family.stableVersion, release.version);
+    assert.equal(isPrerelease(family.stableVersion), false);
+    validVersion(family.retiredVersion);
+    assert.equal(isPrerelease(family.retiredVersion), false);
+    // A stable release must not retire a later candidate, even if its owner
+    // accidentally supplies that candidate as the reviewed preimage.
+    assert.ok(
+      createRequire(npmCli())("semver").lte(
+        family.retiredVersion,
+        family.stableVersion,
+      ),
+      "A newer pilot cannot be retired by this stable release",
+    );
+    assert.equal(
+      github.selected,
+      false,
+      "Pilot retirement has no GitHub write authority",
+    );
+    assert.equal(github.prior?.tag_name, `v${family.stableVersion}`);
+    assert.equal(github.prior.prerelease, false);
+    for (const subject of family.subjects) {
+      assert.equal(subject.selected, true);
+      assert.equal(
+        subject.target,
+        null,
+        "Pilot retirement requires an absent target",
+      );
+      assert.equal(
+        subject.integrity ?? null,
+        null,
+        "An absent pilot target has no integrity",
+      );
+      assert.ok(
+        subject.prior === null || subject.prior === family.retiredVersion,
+      );
+    }
+  }
   if (family.operation === "emergency-core-restore") {
     assert.equal(github.selected, false);
     assert.deepEqual(
@@ -248,10 +281,16 @@ export function guardFamily(
   for (const subject of family.subjects) {
     const tags = operations.readPackageTags(subject.package);
     assert.equal(
-      tagValue(tags),
+      familyLabelValue(family, tags),
       completed.has(subject.package) ? subject.target : subject.prior,
-      `Prior latest label changed: ${subject.package}`,
+      `Prior ${npmFamilyLabel(family)} label changed: ${subject.package}`,
     );
+    if (family.operation === "retire-pilot")
+      assert.equal(
+        tags.latest,
+        family.stableVersion,
+        "Stable latest changed during pilot retirement",
+      );
     packages[subject.package] = tags;
   }
   return {
@@ -348,10 +387,16 @@ export function observeFamilyCompletion(
       !observe(
         (limit) => operations.readPackageTags(subject.package, limit),
         (tags) => {
-          const value = tagValue(tags);
+          if (family.operation === "retire-pilot")
+            assert.equal(
+              tags.latest,
+              family.stableVersion,
+              "Stable latest changed during pilot retirement",
+            );
+          const value = familyLabelValue(family, tags);
           assert.ok(
             value === subject.target || value === subject.prior,
-            `Unexpected third latest value: ${subject.package}`,
+            `Unexpected third ${npmFamilyLabel(family)} value: ${subject.package}`,
           );
           return value === subject.target;
         },
@@ -416,9 +461,9 @@ export function applyNpmFamily(input, operations) {
     journalEffect(
       journal,
       { ...release, ...candidate },
-      `npm-latest:${subject.package}`,
+      npmLabelOperation(family, subject.package),
       (acknowledge) => {
-        operations.writePackageLatest(subject.package, subject.target);
+        operations.writePackageLabel(subject.package, subject.target);
         acknowledge();
         const partial = {
           ...family,
@@ -483,7 +528,7 @@ export function applyNpmFamily(input, operations) {
 export function applyGithubFamily(input, operations) {
   const { family, release, env, journal, continuation } = input;
   assert.equal(env.PROMOTION_SERVICE, "github");
-  assert.ok(!operations.writePackageLatest && !operations.writeNpmLatest);
+  assert.ok(!operations.writePackageLabel && !operations.writeNpmLatest);
   verifyFamilyScope(family, release);
   assert.equal(
     family.github.selected,
@@ -497,7 +542,7 @@ export function applyGithubFamily(input, operations) {
   );
   for (const subject of family.subjects)
     assert.equal(
-      tagValue(operations.readPackageTags(subject.package)),
+      familyLabelValue(family, operations.readPackageTags(subject.package)),
       subject.target,
     );
   const before = verifyGithubGuards(family, operations.readGithubState());
@@ -530,7 +575,10 @@ export function applyGithubFamily(input, operations) {
       preRequest: () => {
         for (const subject of family.subjects)
           assert.equal(
-            tagValue(operations.readPackageTags(subject.package)),
+            familyLabelValue(
+              family,
+              operations.readPackageTags(subject.package),
+            ),
             subject.target,
           );
         verifyGithubGuards(family, operations.readGithubState());

@@ -11,6 +11,8 @@ import {
   releasePackages,
 } from "./release-contract.js";
 import { api, provider, producingAttempt } from "./release-provider.js";
+import { npmFamilyLabel, npmLabelOperation } from "./npm-availability.js";
+import { verifyFamilyScope, familyOrder } from "./promotion-family.js";
 
 export function verifyNpmContinuation(
   record,
@@ -38,7 +40,9 @@ export function verifyNpmContinuation(
   assert.equal(record.origin.service, "npm");
   assert.equal(record.journal, effectJournal("promote", record.origin));
   assert.equal(record.journalSha256, sha256(journal));
-  assert.equal(record.npm.latest ?? null, target);
+  const label =
+    record.schemaVersion === 2 ? npmFamilyLabel(record.family) : "latest";
+  assert.equal(record.npm[label] ?? null, target);
   if (record.schemaVersion === 2 && target === null)
     assert.equal(record.targetIntegrity ?? null, null);
   else assert.equal(typeof record.targetIntegrity, "string");
@@ -54,15 +58,21 @@ export function verifyNpmContinuation(
     assert.equal(record.operationId, env.OPERATION_SHA);
     assert.deepEqual(record.family, expected);
     assert.equal(record.family.operationId, record.operationId);
+    assert.deepEqual(record.npm, record.packages[release.package]);
     assert.deepEqual(
       Object.keys(record.packages).sort(),
       record.family.subjects.map((subject) => subject.package).sort(),
     );
     for (const subject of record.family.subjects) {
       assert.equal(
-        record.packages[subject.package].latest ?? null,
+        record.packages[subject.package][label] ?? null,
         subject.target,
       );
+      if (record.family.operation === "retire-pilot")
+        assert.equal(
+          record.packages[subject.package].latest,
+          record.family.stableVersion,
+        );
       assert.equal(
         record.targetIntegrities[subject.package],
         subject.integrity ?? null,
@@ -91,6 +101,7 @@ export function verifyPromotionJournal(
   const lines = raw ? raw.split("\n").map((line) => JSON.parse(line)) : [];
   const family = expectedFamily ?? lines[0]?.guard?.family;
   if (family) {
+    verifyFamilyScope(family, release);
     assert.equal(family.operationId, env.OPERATION_SHA);
     assert.ok(lines.length <= 6 && (allowPartial || lines.length % 2 === 0));
     const changes =
@@ -109,6 +120,21 @@ export function verifyPromotionJournal(
       );
     if (!changes && lines.length)
       assert.equal(lines[0].operation, "completion-readback");
+    if (service === "npm" && family.operation === "retire-pilot" && changes) {
+      const planned = familyOrder(family, release)
+        .filter(
+          (subject) => subject.selected && subject.prior !== subject.target,
+        )
+        .map((subject) => npmLabelOperation(family, subject.package));
+      const actual = lines
+        .filter((_, index) => index % 2 === 0)
+        .map((line) => line.operation);
+      assert.deepEqual(
+        actual,
+        planned.slice(0, actual.length),
+        "Retirement journal must be an ordered native-first prefix",
+      );
+    }
     assert.equal(
       new Set(
         lines
@@ -125,7 +151,7 @@ export function verifyPromotionJournal(
                 (subject) =>
                   subject.selected && subject.prior !== subject.target,
               )
-              .map((subject) => `npm-latest:${subject.package}`)
+              .map((subject) => npmLabelOperation(family, subject.package))
           : ["github-latest", "completion-readback"];
       if (!expected.length) expected.push("completion-readback");
       for (const intent of lines.filter((_, index) => index % 2 === 0))
@@ -142,7 +168,7 @@ export function verifyPromotionJournal(
                 (subject) =>
                   subject.selected && subject.prior !== subject.target,
               )
-              .map((subject) => `npm-latest:${subject.package}`)
+              .map((subject) => npmLabelOperation(family, subject.package))
           : ["completion-readback"]
         ).sort(),
       );
@@ -178,7 +204,7 @@ export function verifyPromotionJournal(
       [`${service}-latest`, "completion-readback"].includes(intent.operation) ||
         (service === "npm" &&
           family &&
-          intent.operation === `npm-latest:${intent.package}`),
+          intent.operation === npmLabelOperation(family, intent.package)),
     );
     assert.equal(intent.run, origin.run);
     assert.equal(intent.attempt, origin.attempt);

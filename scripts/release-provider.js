@@ -8,6 +8,7 @@ import { native, budgets } from "./qualification-process.js";
 import { sameJobExecution } from "./github-job-execution.js";
 import { nativePackages } from "../src/native-packages.js";
 import { verifyOwnerTagSignature } from "./release-signing.js";
+import { npmLabelOperation } from "./npm-availability.js";
 import {
   repository,
   regularBytes,
@@ -830,7 +831,9 @@ export function verifyEffectHistory(
           intent.operation === "completion-readback" ||
             intent.operation === `${entry.service}-latest` ||
             (entry.service === "npm" &&
-              intent.operation === `npm-latest:${intent.package}` &&
+              intent.guard?.family &&
+              intent.operation ===
+                npmLabelOperation(intent.guard.family, intent.package) &&
               intent.guard?.family?.operationId === intent.guard?.operationId),
         );
       }

@@ -17,6 +17,7 @@ import { sha256 } from "../scripts/release-contract.js";
 import { runReleaseCommand } from "../scripts/release-command.js";
 import { writerWorld } from "./release-entry-fixture.mjs";
 import { prepareWriterAdmission } from "../scripts/release-writer-admission.js";
+import { verifyOperationDecision } from "../scripts/release-availability-contract.js";
 import { mkdirSync } from "node:fs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -240,6 +241,182 @@ test("independent completion confirms acknowledged GitHub propagation without an
     "completed",
   );
   assert.equal(world.state().mutations.length, 4);
+});
+
+test("native pilot writer and completion preserve stable labels without a GitHub effect", (t) => {
+  const world = writerWorld(t, "promote", { pilotRetirement: true });
+  world.retainNativeArtifact(50, "admitted-promote-1");
+  const written = world.run("promote-npm");
+  assert.equal(written.status, 0, written.stderr);
+  world.retainNativeArtifact(60, "effect-promote-npm-1");
+  world.update((state) => {
+    for (const job of state.routes[
+      "actions/runs/17/attempts/1/jobs?per_page=100"
+    ].jobs.filter((value) => value.name !== "admit"))
+      Object.assign(job, {
+        status: "completed",
+        conclusion: job.name === "npm" ? "success" : "skipped",
+        completed_at: "2026-11-13T00:03:00Z",
+      });
+  });
+  const completed = world.run("complete", {
+    NPM_CONTINUATION_ID: "60",
+    NPM_RESULT: "success",
+    GITHUB_RESULT: "skipped",
+    ACTIONS_ID_TOKEN_REQUEST_URL: "",
+    ACTIONS_ID_TOKEN_REQUEST_TOKEN: "",
+  });
+  assert.equal(completed.status, 0, completed.stderr);
+  const independent = world.independent();
+  assert.equal(independent.status, 0, independent.stderr);
+  assert.equal(world.state().mutations.length, 3);
+  assert.ok(
+    world
+      .state()
+      .mutations.every(
+        (request) => request.service === "npm" && request.target === null,
+      ),
+  );
+  assert.ok(
+    Object.values(world.state().npm).every(
+      (tags) =>
+        tags.latest === world.release.version && !Object.hasOwn(tags, "pilot"),
+    ),
+  );
+});
+
+test("native pilot admission and writer reject stale core or companion integrity before requests", (t) => {
+  for (const index of [0, 2]) {
+    const world = writerWorld(t, "promote", { pilotRetirement: true });
+    const operation = JSON.parse(world.env.OPERATION_JSON);
+    operation.family.subjects[index].integrity =
+      world.release.archive.integrity;
+    world.env.OPERATION_JSON = JSON.stringify(operation);
+    world.env.OPERATION_SHA = sha256(Buffer.from(world.env.OPERATION_JSON));
+    assert.throws(
+      () =>
+        verifyOperationDecision(
+          Buffer.from(world.env.OPERATION_JSON),
+          world.env.OPERATION_SHA,
+          world.release,
+          world.env,
+        ),
+      /absent pilot target/,
+    );
+    // Independently exercise the real writer's scope guard even if its admitted
+    // transport contained this malformed family. No mutation capability is used.
+    world.prepared.family = {
+      ...operation.family,
+      operationId: world.env.OPERATION_SHA,
+    };
+    writeFileSync(
+      join(world.directory, "availability-operation.json"),
+      world.env.OPERATION_JSON,
+    );
+    const receipt = prepareWriterAdmission(
+      world.directory,
+      "promote",
+      {
+        release: world.release,
+        context: JSON.parse(
+          readFileSync(join(world.directory, "context.json")),
+        ),
+      },
+      world.env,
+      world.prepared,
+    );
+    world.env.ADMISSION_RECEIPT_SHA = receipt.sha256;
+    world.retainNativeArtifact(50, "admitted-promote-1");
+    const result = world.run("promote-npm");
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /absent pilot target/);
+    assert.deepEqual(world.state().mutations, []);
+  }
+});
+
+test("independent pilot observer confirms an acknowledged prefix and preserves unattempted aliases", async (t) => {
+  for (const [count, acknowledged] of [
+    [1, true],
+    [2, true],
+    [1, false],
+  ])
+    await t.test(
+      `${count} removal(s), acknowledgement ${acknowledged}`,
+      (subtest) => {
+        const world = writerWorld(subtest, "promote", {
+          pilotRetirement: true,
+        });
+        world.retainNativeArtifact(50, "admitted-promote-1");
+        world.update((state) => {
+          state.failAfterNpmWrites = count;
+        });
+        const written = world.run("promote-npm");
+        assert.notEqual(written.status, 0);
+        const path = join(world.directory, "promote-npm-17-1.jsonl");
+        const lines = readFileSync(path, "utf8")
+          .trim()
+          .split("\n")
+          .map(JSON.parse);
+        assert.equal(lines.at(-1).state, "outcome-unknown");
+        assert.equal(lines.at(-1).requestAcknowledged, true);
+        if (!acknowledged) {
+          const intent = lines.at(-2);
+          rmSync(
+            `${path}.${sha256(Buffer.from(JSON.stringify(intent) + "\n"))}.ack.json`,
+          );
+        }
+        const attempted = new Set(
+          lines
+            .filter((line) => line.state === "intent")
+            .map((line) => line.package),
+        );
+        world.update((state) => {
+          delete state.failAfterNpmWrites;
+          state.calls = [];
+          for (const job of state.routes[
+            "actions/runs/17/attempts/1/jobs?per_page=100"
+          ].jobs.filter((value) => value.name !== "admit"))
+            Object.assign(job, {
+              status: "completed",
+              conclusion: job.name === "npm" ? "failure" : "skipped",
+              completed_at: "2026-11-13T00:03:00Z",
+            });
+        });
+        world.retainNativeArtifact(60, "effect-promote-npm-1");
+        const observed = world.independent();
+        assert.notEqual(observed.status, 0);
+        const receipt = JSON.parse(
+          readFileSync(join(observed.output, "promotion-completion-18-1.json")),
+        );
+        assert.equal(
+          receipt.state,
+          acknowledged
+            ? "writer-operation-incomplete"
+            : "writer-outcome-unresolved",
+        );
+        assert.equal(
+          receipt.acknowledgedPrefix?.state,
+          acknowledged ? "attempted-prefix-confirmed" : undefined,
+          observed.stderr,
+        );
+        assert.equal(
+          world.state().calls.some((call) => call.args.includes("dist-tags")),
+          acknowledged,
+        );
+        assert.equal(world.state().mutations.length, count);
+        for (const [name, tags] of Object.entries(world.state().npm)) {
+          assert.equal(tags.latest, world.release.version);
+          assert.equal(
+            tags.pilot ?? null,
+            attempted.has(name) ? null : world.release.version,
+          );
+        }
+        assert.deepEqual(
+          readFileSync(join(observed.output, "promote-npm-17-1.jsonl")),
+          readFileSync(path),
+        );
+      },
+    );
 });
 
 test("an acknowledged partial npm family stays incomplete without propagation reads", (t) => {

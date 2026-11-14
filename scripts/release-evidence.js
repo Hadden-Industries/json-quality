@@ -52,8 +52,14 @@ import {
   verifyArchiveIntent,
 } from "./release-recovery.js";
 import { native } from "./qualification-process.js";
-import { verifyOperationDecision } from "./release-availability-contract.js";
-import { retainedQualifiedTarget } from "./archived-release-evidence.js";
+import {
+  verifyOperationDecision,
+  originalAvailabilityEffect,
+} from "./release-availability-contract.js";
+import {
+  retainedQualifiedTarget,
+  restoreOriginalPromotion,
+} from "./archived-release-evidence.js";
 import { verifyQualifiedTarget } from "./qualified-release-contract.js";
 import { admitPendingDecisions } from "./release-decision-state.js";
 
@@ -188,13 +194,11 @@ export function refreshAdmission(
   manualControl(env, phase);
   currentMain(env);
   const release = verifyBundle(directory, env.MANIFEST_SHA);
-  const scopedOriginal =
-    phase === "promote" &&
-    env.OPERATION_JSON &&
-    JSON.parse(env.OPERATION_JSON).family?.operation === "scoped-restore"
-      ? JSON.parse(env.OPERATION_JSON).originalEffect
+  const originalEffect =
+    phase === "promote" && env.OPERATION_JSON
+      ? originalAvailabilityEffect(JSON.parse(env.OPERATION_JSON))
       : null;
-  const stagedRestore = scopedOriginal?.phase === "stage";
+  const stagedRestore = originalEffect?.phase === "stage";
   const recoveryRoot = join(historyRoot, "recovery-readback");
   mkdirSync(recoveryRoot, { recursive: true });
   let context = readJson(join(directory, "context.json"));
@@ -239,18 +243,18 @@ export function refreshAdmission(
       if (
         !matching.length &&
         !providerPhase &&
-        scopedOriginal?.phase === "promote" &&
-        origin.run === scopedOriginal.run &&
-        origin.attempt === scopedOriginal.attempt
+        originalEffect?.phase === "promote" &&
+        origin.run === originalEffect.run &&
+        origin.attempt === originalEffect.attempt
       ) {
         const entries = retainedHistory.entries.filter(
           (entry) =>
             entry.phase === "promote" &&
-            entry.service === scopedOriginal.service &&
+            entry.service === originalEffect.service &&
             entry.run === origin.run &&
             entry.attempt === origin.attempt &&
             sha256(Buffer.from(entry.journal, "base64")) ===
-              scopedOriginal.journalSha256,
+              originalEffect.journalSha256,
         );
         assert.equal(
           entries.length,
@@ -262,7 +266,7 @@ export function refreshAdmission(
         assert.equal(native.run.run_attempt, Number(origin.attempt));
         assert.equal(native.jobs.total_count, native.jobs.jobs.length);
         const jobs = native.jobs.jobs.filter(
-          (job) => job.name === scopedOriginal.service,
+          (job) => job.name === originalEffect.service,
         );
         assert.equal(jobs.length, 1);
         assert.equal(jobs[0].status, "completed");
@@ -643,11 +647,48 @@ export function acquireRecoveryJournal(
   scratch,
   env,
   acquire = download,
+  readHistory = readHistoryRecord,
 ) {
   if (!env.RECOVERY_JSON) return;
   const record = JSON.parse(env.RECOVERY_JSON);
   const name = effectJournal(record.phase, record);
-  if (existsSync(join(directory, name))) {
+  const retirement =
+    env.OPERATION_JSON &&
+    JSON.parse(env.OPERATION_JSON).family?.operation === "retire-pilot"
+      ? verifyOperationDecision(
+          Buffer.from(env.OPERATION_JSON),
+          env.OPERATION_SHA,
+          verifyBundle(directory, env.MANIFEST_SHA),
+          env,
+        )
+      : null;
+  if (retirement) {
+    const effect = originalAvailabilityEffect(retirement);
+    assert.ok(
+      effect,
+      "Retirement recovery requires an explicit original effect",
+    );
+    for (const key of [
+      "phase",
+      "service",
+      "run",
+      "attempt",
+      "journalSha256",
+      "manifestSha256",
+      "operationId",
+    ])
+      assert.deepEqual(
+        record[key],
+        effect[key],
+        "Recovery differs from the reviewed original effect",
+      );
+  }
+  const operationPath = join(directory, "availability-operation.json");
+  const completeCustody =
+    !retirement ||
+    (existsSync(operationPath) &&
+      sha256(regularBytes(operationPath)) === record.operationId);
+  if (existsSync(join(directory, name)) && completeCustody) {
     const release = verifyBundle(directory, env.MANIFEST_SHA);
     verifyRecoveryRecord(
       record,
@@ -655,6 +696,7 @@ export function acquireRecoveryJournal(
       record.manifestSha256,
       regularBytes(join(directory, name)),
     );
+    verifyRetirementOriginal(retirement, directory, release, env);
     retainRecoveryOperation(directory, directory, record);
     if (record.phase === "archive") {
       verifyArchiveIntent(directory, record, env.MANIFEST_SHA);
@@ -664,12 +706,37 @@ export function acquireRecoveryJournal(
   }
   const acquisition = join(scratch, "recovery-acquisition");
   mkdirSync(acquisition, { recursive: true });
-  const original = acquire(
-    record.run,
-    record.attempt,
-    `effect-${record.phase}${record.service ? `-${record.service}` : ""}-${record.attempt}`,
-    acquisition,
-  );
+  let original,
+    fromHistory = false;
+  try {
+    original = acquire(
+      record.run,
+      record.attempt,
+      `effect-${record.phase}${record.service ? `-${record.service}` : ""}-${record.attempt}`,
+      acquisition,
+    );
+  } catch (error) {
+    if (
+      !retirement ||
+      !(
+        error.httpStatus === 404 ||
+        /Expired native artifact|Missing or ambiguous native artifact/u.test(
+          error.message,
+        )
+      )
+    )
+      throw error;
+    const effect = originalAvailabilityEffect(retirement);
+    const retained = join(acquisition, "retained-promotion");
+    mkdirSync(retained);
+    restoreOriginalPromotion(
+      retained,
+      readHistory(retirement.historyCheckpoint),
+      effect,
+    );
+    original = { directory: retained };
+    fromHistory = true;
+  }
   assert.match(record.manifestSha256, /^[a-f0-9]{64}$/u);
   if (record.phase === "archive") {
     assert.match(record.artifactSha256, /^[a-f0-9]{64}$/u);
@@ -679,12 +746,14 @@ export function acquireRecoveryJournal(
       "Recovery artifact differs from owner-selected native transport",
     );
   }
-  const release = verifyBundle(
-    original.directory,
-    record.manifestSha256,
-    record.phase === "archive" ? record : null,
-  );
   const current = verifyBundle(directory, env.MANIFEST_SHA);
+  const release = fromHistory
+    ? current
+    : verifyBundle(
+        original.directory,
+        record.manifestSha256,
+        record.phase === "archive" ? record : null,
+      );
   if (record.manifestSha256 !== env.MANIFEST_SHA) {
     assert.equal(record.phase, "stage");
     assert.ok(["abandon-family", "supersede"].includes(record.disposition));
@@ -696,6 +765,7 @@ export function acquireRecoveryJournal(
   } else assert.deepEqual(release, current);
   const journal = regularBytes(join(original.directory, name));
   verifyRecoveryRecord(record, release, record.manifestSha256, journal);
+  verifyRetirementOriginal(retirement, original.directory, release, env);
   retainRecoveryOperation(directory, original.directory, record);
   if (record.phase === "archive") {
     verifyArchiveIntent(original.directory, record, env.MANIFEST_SHA);
@@ -750,6 +820,26 @@ export function acquireRecoveryJournal(
   if (!existsSync(join(directory, name))) save(join(directory, name), journal);
   for (const item of retained) retainRecovery(directory, item);
   sealBundle(directory, env.MANIFEST_SHA);
+}
+
+/** Both native and retained transports must select an original retirement decision. */
+function verifyRetirementOriginal(decision, directory, release, env) {
+  if (!decision) return;
+  const bytes = regularBytes(join(directory, "availability-operation.json"));
+  const original = verifyOperationDecision(
+    bytes,
+    decision.originalEffect.operationId,
+    release,
+    {
+      ...env,
+      GITHUB_SHA: JSON.parse(bytes).controllerSource,
+    },
+  );
+  assert.equal(
+    original.family.operation,
+    "retire-pilot",
+    "Retirement recovery cannot select another kind of effect",
+  );
 }
 export function assembleQualification(
   run,

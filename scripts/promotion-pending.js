@@ -12,6 +12,7 @@ import {
 } from "./release-contract.js";
 import { api, provider, effectAttempt } from "./release-provider.js";
 import { verifyPromotionJournal } from "./promotion-handoff.js";
+import { npmLabelOperation } from "./npm-availability.js";
 
 const marker = (value) =>
   value ? [value.id, value.tag_name, value.prerelease] : null;
@@ -20,7 +21,7 @@ export function plannedServiceRequests(family, service) {
   if (service === "npm")
     return family.subjects
       .filter((subject) => subject.selected && subject.prior !== subject.target)
-      .map((subject) => `npm-latest:${subject.package}`);
+      .map((subject) => npmLabelOperation(family, subject.package));
   return isDeepStrictEqual(
     marker(family.github.prior),
     marker(family.github.target),
@@ -33,7 +34,7 @@ export function plannedServiceRequests(family, service) {
     : ["github-latest"];
 }
 
-/** Pure file validation is separated from native artifact/job authentication for focused proof. */
+/** Return authenticated request names and state; uncertainty grants no observation or write continuation. */
 export function inspectAcknowledgedService(
   directory,
   service,
@@ -44,7 +45,8 @@ export function inspectAcknowledgedService(
 ) {
   const name = effectJournal("promote", origin),
     path = join(directory, name);
-  if (!existsSync(path)) return "writer-outcome-unresolved";
+  if (!existsSync(path))
+    return { state: "writer-outcome-unresolved", requests: [] };
   let acknowledged = true;
   const planned = plannedServiceRequests(family, service);
   const lines = verifyPromotionJournal(
@@ -94,10 +96,14 @@ export function inspectAcknowledgedService(
     ),
     "Journal differs from planned native requests",
   );
-  if (!acknowledged) return "writer-outcome-unresolved";
-  if (planned.some((operation) => !operations.includes(operation)))
-    return "writer-operation-incomplete";
-  return "acknowledged";
+  return {
+    state: !acknowledged
+      ? "writer-outcome-unresolved"
+      : planned.some((operation) => !operations.includes(operation))
+        ? "writer-operation-incomplete"
+        : "acknowledged",
+    requests: operations.filter((operation) => planned.includes(operation)),
+  };
 }
 
 export function admitAcknowledgedService(directory, service, admitted, env) {
@@ -107,7 +113,7 @@ export function admitAcknowledgedService(directory, service, admitted, env) {
   const attempt = effectAttempt(observed, service);
   const id =
     env[service === "npm" ? "NPM_CONTINUATION_ID" : "GITHUB_CONTINUATION_ID"];
-  if (!id) return "writer-outcome-unresolved";
+  if (!id) return { state: "writer-outcome-unresolved", requests: [] };
   const artifact = api(`actions/artifacts/${id}`);
   assert.equal(artifact.id, Number(id));
   assert.equal(artifact.expired, false);

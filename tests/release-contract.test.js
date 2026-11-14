@@ -197,6 +197,7 @@ import {
 import { DEFAULT_PACKAGE_VERIFICATION_LIMITS } from "../src/package-payload.js";
 import { nativePackages } from "../src/native-packages.js";
 import { nodeMatrixFixture } from "./node-matrix-fixture.js";
+import { verifyOperationDecision } from "../scripts/release-availability-contract.js";
 
 const source = "a".repeat(40),
   sha = "b".repeat(64);
@@ -1326,6 +1327,238 @@ test("read-only archive completion emits no-request without claiming an original
   assert.throws(() => recordNoRequest(directory, "archive", env), /conflicts/u);
   assert.equal(readFileSync(journal, "utf8"), "original unknown intent\n");
 });
+test("expired partial pilot custody uses the exact reviewed signed-history effect without replay", async (t) => {
+  for (const scenario of [
+    "clean archive",
+    "carried journal without operation",
+    "available ordinary promotion",
+  ])
+    await t.test(scenario, (subtest) => {
+      const root = temp(subtest),
+        directory = join(root, "admitted");
+      const { release, digest } = bundleFixture(directory, "1.2.0");
+      const env = {
+        ...environment("promote"),
+        MANIFEST_SHA: digest,
+        REVIEW_SHA: sha,
+        PROMOTION_SERVICE: "npm",
+      };
+      const marker = { id: 10, tag_name: "v1.2.0", prerelease: false };
+      const family = {
+        schemaVersion: 2,
+        operation: "retire-pilot",
+        stableVersion: "1.2.0",
+        retiredVersion: "1.2.0",
+        subjects: [...release.platformArchives, release].map((subject) => ({
+          package: subject.package,
+          selected: true,
+          prior: "1.2.0",
+          target: null,
+          removalApproved: true,
+        })),
+        github: { selected: false, prior: marker, target: marker },
+      };
+      const target = {
+        version: release.version,
+        manifestSha256: digest,
+        releaseId: marker.id,
+      };
+      const operation = {
+        schemaVersion: 2,
+        phase: "availability",
+        owner: "maksymshostak",
+        source: release.source.commit,
+        version: release.version,
+        manifestSha256: digest,
+        originalReviewSha256: sha,
+        controllerSource: env.GITHUB_SHA,
+        sourceReleaseId: marker.id,
+        acceptedAt: new Date().toISOString(),
+        rationale:
+          "Retire the exact accepted pilot family without changing stable defaults.",
+        family,
+        targets: [target],
+        retiredTarget: { ...target, prerelease: false },
+        historyCheckpoint: {
+          tag: "release-history-fixture",
+          tagSha: "c".repeat(40),
+          sha256: "d".repeat(64),
+        },
+      };
+      const originalDecision = structuredClone(operation);
+      if (scenario === "available ordinary promotion") {
+        originalDecision.family = {
+          ...family,
+          operation: "promote",
+          subjects: family.subjects.map((subject) => ({
+            ...subject,
+            prior: "1.1.0",
+            target: "1.2.0",
+            integrity: release.archive.integrity,
+          })),
+          github: {
+            selected: true,
+            prior: { id: 9, tag_name: "v1.1.0", prerelease: false },
+            target: marker,
+            targetPrior: marker,
+          },
+        };
+      }
+      const operationBytes = jsonBytes(originalDecision),
+        operationId = sha256(operationBytes);
+      verifyOperationDecision(operationBytes, operationId, release, env);
+      const originalDirectory = join(root, "original-custody");
+      mkdirSync(originalDirectory);
+      const original = {
+        phase: "promote",
+        service: "npm",
+        run: env.GITHUB_RUN_ID,
+        attempt: env.GITHUB_RUN_ATTEMPT,
+        operationId,
+        manifestSha256: digest,
+      };
+      const name = effectJournal("promote", original);
+      const subject = release.platformArchives[0];
+      assert.throws(
+        () =>
+          journalEffect(
+            join(originalDirectory, name),
+            { ...release, ...subject },
+            `npm-${scenario === "available ordinary promotion" ? "latest" : "pilot"}:${subject.package}`,
+            (acknowledge) => {
+              acknowledge();
+              throw new Error("lost response");
+            },
+            {
+              env,
+              guard: {
+                operationId,
+                family: { ...originalDecision.family, operationId },
+              },
+            },
+          ),
+        /lost response/,
+      );
+      const journal = readFileSync(join(originalDirectory, name));
+      const intentSha = sha256(
+        Buffer.from(journal.toString().split("\n")[0] + "\n"),
+      );
+      const acknowledgementName = `${name}.${intentSha}.ack.json`;
+      const acknowledgement = readFileSync(
+        join(originalDirectory, acknowledgementName),
+      );
+      original.journalSha256 = sha256(journal);
+      const recovery = {
+        ...original,
+        schemaVersion: 1,
+        owner: "maksymshostak",
+        version: release.version,
+        acceptedAt: new Date().toISOString(),
+        rationale:
+          "Settle original pilot removal by independent native readback before continuing.",
+      };
+      const remaining = structuredClone(operation);
+      remaining.originalEffect = original;
+      remaining.family.subjects[0].prior = null;
+      remaining.family.subjects[0].noOpApproved = true;
+      env.OPERATION_JSON = JSON.stringify(remaining);
+      env.OPERATION_SHA = sha256(Buffer.from(env.OPERATION_JSON));
+      env.RECOVERY_JSON = JSON.stringify(recovery);
+      const history = {
+        entries: [
+          {
+            ...original,
+            journal: journal.toString("base64"),
+            operationEvidence: {
+              "availability-operation.json": operationBytes.toString("base64"),
+            },
+            acknowledgements: {
+              [acknowledgementName]: acknowledgement.toString("base64"),
+            },
+          },
+        ],
+      };
+      if (scenario !== "clean archive") {
+        writeFileSync(join(directory, name), journal);
+        if (scenario === "available ordinary promotion")
+          writeFileSync(
+            join(directory, "availability-operation.json"),
+            operationBytes,
+          );
+        sealBundle(directory, digest);
+      }
+      let reads = 0;
+      const acquireOriginal = () =>
+        acquireRecoveryJournal(
+          directory,
+          root,
+          env,
+          () => {
+            throw Object.assign(new Error("expired native artifact"), {
+              httpStatus: 404,
+            });
+          },
+          (checkpoint) => {
+            // Only the authenticated history transport is substituted; native signature/index
+            // admission has independent real-crypto and digest-binding regressions.
+            assert.deepEqual(checkpoint, operation.historyCheckpoint);
+            reads++;
+            return history;
+          },
+        );
+      if (scenario === "available ordinary promotion") {
+        assert.throws(acquireOriginal, /retire-pilot/);
+        return;
+      }
+      acquireOriginal();
+      assert.equal(reads, 1);
+      assert.deepEqual(readFileSync(join(directory, name)), journal);
+      assert.deepEqual(
+        readFileSync(join(directory, acknowledgementName)),
+        acknowledgement,
+      );
+      assert.deepEqual(
+        readFileSync(
+          join(
+            directory,
+            "recovery-operations",
+            operationId,
+            "availability-operation.json",
+          ),
+        ),
+        operationBytes,
+      );
+      assert.deepEqual(verifyBundle(directory, digest), release);
+      const rejected = join(root, "rejected");
+      bundleFixture(rejected, "1.2.0");
+      assert.throws(
+        () =>
+          acquireRecoveryJournal(
+            rejected,
+            join(root, "rejected-work"),
+            {
+              ...env,
+              RECOVERY_JSON: JSON.stringify({
+                ...recovery,
+                operationId: "0".repeat(64),
+              }),
+            },
+            () => {
+              throw Object.assign(new Error("expired native artifact"), {
+                httpStatus: 404,
+              });
+            },
+            () => {
+              throw new Error(
+                "Mismatched effects must refuse before history lookup",
+              );
+            },
+          ),
+        /differs from the reviewed/,
+      );
+    });
+});
+
 test("promotion admission acquires original unknown journal independently of its archival predecessor", (t) => {
   const root = temp(t),
     directory = join(root, "admitted"),

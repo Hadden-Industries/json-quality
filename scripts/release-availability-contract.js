@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { sha256, requestedIntents } from "./release-records.js";
 import { verifyFamilyScope } from "./promotion-family.js";
+import { verifyQualifiedTarget } from "./qualified-release-contract.js";
 
 /** A current control review supplements immutable publication decisions. */
 export function verifyOperationDecision(bytes, digest, release, env) {
@@ -71,7 +72,95 @@ export function verifyOperationDecision(bytes, digest, release, env) {
     assert.match(target.manifestSha256, /^[a-f0-9]{64}$/u);
     assert.ok(Number.isSafeInteger(target.releaseId) && target.releaseId > 0);
   }
+  if (family.operation === "retire-pilot") {
+    assert.equal(
+      decision.targets.length,
+      1,
+      "Pilot retirement needs the current stable qualification",
+    );
+    const stable = decision.targets[0];
+    assert.equal(stable.version, family.stableVersion);
+    assert.equal(stable.manifestSha256, env.MANIFEST_SHA);
+    assert.equal(stable.releaseId, decision.sourceReleaseId);
+    assert.equal(stable.releaseId, family.github.prior.id);
+    const retired = decision.retiredTarget;
+    assert.equal(retired?.version, family.retiredVersion);
+    assert.match(retired.manifestSha256, /^[a-f0-9]{64}$/u);
+    assert.ok(Number.isSafeInteger(retired.releaseId) && retired.releaseId > 0);
+    assert.equal(typeof retired.prerelease, "boolean");
+    if (family.retiredVersion === family.stableVersion) {
+      const { prerelease, ...identity } = retired;
+      assert.deepEqual(identity, stable);
+      assert.equal(prerelease, false);
+    } else {
+      assert.ok(
+        decision.historyCheckpoint,
+        "Older retired qualification requires signed history",
+      );
+      const guard = family.github.guards?.find(
+        (value) => value.id === retired.releaseId,
+      );
+      assert.deepEqual(
+        guard && {
+          id: guard.id,
+          tag_name: guard.tag_name,
+          prerelease: guard.prerelease,
+        },
+        {
+          id: retired.releaseId,
+          tag_name: `v${retired.version}`,
+          prerelease: retired.prerelease,
+        },
+        "Retired release classification must remain guarded",
+      );
+    }
+    if (decision.originalEffect) {
+      const effect = decision.originalEffect;
+      assert.equal(effect.phase, "promote");
+      assert.equal(effect.service, "npm");
+      for (const key of ["run", "attempt"])
+        assert.match(effect[key], /^[1-9]\d{0,15}$/u);
+      assert.equal(effect.manifestSha256, env.MANIFEST_SHA);
+      for (const key of ["journalSha256", "operationId"])
+        assert.match(effect[key], /^[a-f0-9]{64}$/u);
+    }
+  }
   return { ...decision, family };
+}
+
+/** Only these operations can select custody of an earlier original writer. */
+export function originalAvailabilityEffect(decision) {
+  return ["scoped-restore", "retire-pilot"].includes(
+    decision?.family?.operation,
+  )
+    ? (decision.originalEffect ?? null)
+    : null;
+}
+
+/** The caller authenticates signed history; this binds its qualified target to the live immutable release. */
+export function verifyRetiredPilotTarget(decision, record, live) {
+  assert.equal(decision.family.operation, "retire-pilot");
+  assert.equal(decision.retiredTarget.version, decision.family.retiredVersion);
+  const checked = verifyQualifiedTarget(record, decision.retiredTarget);
+  const marker = ({ id, tag_name, immutable }) => ({
+    id,
+    tag_name,
+    immutable,
+  });
+  // Original compact checkpoints retain identity/assets, not mutable classification.
+  assert.equal(live.prerelease, decision.retiredTarget.prerelease);
+  assert.equal(live.draft, false);
+  assert.deepEqual(marker(live), marker(record.release));
+  const assets = (release) =>
+    release.assets
+      .map(({ name, digest, size }) => ({ name, digest, size }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  assert.deepEqual(
+    assets(live),
+    assets(record.release),
+    "Retired release asset identity changed",
+  );
+  return checked;
 }
 
 /** A scoped undo may select only effects established by the exact original journal and settlement. */

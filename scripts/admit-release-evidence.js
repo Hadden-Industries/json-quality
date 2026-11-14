@@ -12,6 +12,7 @@ import {
   verifyNativeStageEvidence,
 } from "./release-contract.js";
 import { download, provider } from "./release-provider.js";
+import { originalAvailabilityEffect } from "./release-availability-contract.js";
 import {
   assembleQualification,
   verifyBundle,
@@ -74,10 +75,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       phase === "promote" && process.env.OPERATION_JSON
         ? JSON.parse(process.env.OPERATION_JSON)
         : null;
-    const original =
-      operation?.family?.operation === "scoped-restore"
-        ? operation.originalEffect
-        : null;
+    const original = originalAvailabilityEffect(operation);
     const priorPhase = original
       ? original.phase
       : phase === "registry"

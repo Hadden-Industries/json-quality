@@ -20,6 +20,7 @@ import {
   sealBundle,
 } from "./release-provider.js";
 import { observeFamilyCompletion } from "./promotion-family.js";
+import { npmLabelOperation } from "./npm-availability.js";
 import {
   verifyCompletedLabels,
   verifyNpmOnlyGithubState,
@@ -161,11 +162,13 @@ export function completePromotion(
       admitted.family.github.selected && env.GITHUB_RESULT === "skipped";
     const github =
       !admitted.family.github.selected || githubPending
-        ? "acknowledged"
+        ? { state: "acknowledged", requests: [] }
         : admitAcknowledgedService(directory, "github", admitted, env);
-    const state = [npm, github].includes("writer-outcome-unresolved")
+    const state = [npm.state, github.state].includes(
+      "writer-outcome-unresolved",
+    )
       ? "writer-outcome-unresolved"
-      : [npm, github].includes("writer-operation-incomplete")
+      : [npm.state, github.state].includes("writer-operation-incomplete")
         ? "writer-operation-incomplete"
         : null;
     if (state) {
@@ -179,6 +182,40 @@ export function completePromotion(
         nextAction:
           "Reconcile original intent/outcome evidence; observation authorizes zero requests",
       };
+      if (
+        state === "writer-operation-incomplete" &&
+        admitted.family.operation === "retire-pilot" &&
+        npm.state === "writer-operation-incomplete" &&
+        npm.requests.length
+      ) {
+        const observation = promotionObservation(admitted, scratch);
+        // Authenticate the entire attempted prefix before reading it. Unattempted
+        // labels remain guarded preimages and require a fresh owner decision.
+        const prefix = {
+          ...admitted.family,
+          subjects: admitted.family.subjects.map((subject) =>
+            npm.requests.includes(
+              npmLabelOperation(admitted.family, subject.package),
+            )
+              ? subject
+              : { ...subject, target: subject.prior },
+          ),
+        };
+        result.acknowledgedPrefix = observeFamilyCompletion(
+          prefix,
+          {
+            readPackageTags: observation.tags,
+            readGithubState: observation.currentGithubState,
+            verifyTargets: (deadline) =>
+              verifyPromotionTargets(admitted.targets, deadline),
+          },
+          { npmOnly: true },
+        );
+        if (result.acknowledgedPrefix.state === "completed")
+          result.acknowledgedPrefix.state = "attempted-prefix-confirmed";
+        result.nextAction =
+          "Settle the original attempted effects; a fresh owner decision must bind remaining pilot aliases";
+      }
       save(destination, result);
       sealBundle(directory, env.MANIFEST_SHA);
       return result;
@@ -193,32 +230,13 @@ export function completePromotion(
   prepared ??= preparePromotionWriter(directory, scratch, "complete", env);
   let completed;
   if (prepared.family) {
-    const verifyTargets = (deadline) => {
-      for (const target of prepared.targets) {
-        assert.equal(
-          signedTag(target.release, { deadline }).reference.object.sha,
-          target.tagSha,
-          "Qualified target tag object changed",
-        );
-        const live = api(`releases/${target.releaseId}`, [], { deadline });
-        assert.equal(live.id, target.releaseId);
-        assert.equal(live.tag_name, `v${target.release.version}`);
-        assert.equal(live.immutable, true);
-        assert.equal(live.draft, false);
-        assert.deepEqual(
-          live.assets
-            .map(({ name, digest, size }) => ({ name, digest, size }))
-            .sort((a, b) => a.name.localeCompare(b.name)),
-          [...target.assets].sort((a, b) => a.name.localeCompare(b.name)),
-        );
-      }
-    };
     completed = observeFamilyCompletion(
       prepared.family,
       {
         readPackageTags: prepared.tags,
         readGithubState: prepared.currentGithubState,
-        verifyTargets,
+        verifyTargets: (deadline) =>
+          verifyPromotionTargets(prepared.targets, deadline),
       },
       { npmOnly },
     );
@@ -264,6 +282,28 @@ export function completePromotion(
   save(destination, result);
   sealBundle(directory, env.MANIFEST_SHA);
   return result;
+}
+
+/** Both full and prefix observers recheck the same admitted immutable identities. */
+function verifyPromotionTargets(targets, deadline) {
+  for (const target of targets) {
+    assert.equal(
+      signedTag(target.release, { deadline }).reference.object.sha,
+      target.tagSha,
+      "Qualified target tag object changed",
+    );
+    const live = api(`releases/${target.releaseId}`, [], { deadline });
+    assert.equal(live.id, target.releaseId);
+    assert.equal(live.tag_name, `v${target.release.version}`);
+    assert.equal(live.immutable, true);
+    assert.equal(live.draft, false);
+    assert.deepEqual(
+      live.assets
+        .map(({ name, digest, size }) => ({ name, digest, size }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+      [...target.assets].sort((a, b) => a.name.localeCompare(b.name)),
+    );
+  }
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   assert.equal(process.argv.length, 4);
