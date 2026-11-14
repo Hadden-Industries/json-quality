@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "originalOperation": {
+    "run": "43550162672",
+    "attempt": "1"
+  },
+  "originalWriter": "npm",
+  "originalConclusion": "success",
+  "publicationVerification": "public-qualification-and-original-operation-verified",
+  "recoveryEligibility": "awaiting-owner-signature",
+  "note": "Unknown writer effects remain unknown. Sign the entire prepared directory in one commit under a fresh release-history tag only after reviewing readiness.",
+  "writerHistory": "retained-original-outcomes",
+  "signatureDueBy": "2026-12-13T19:47:28Z",
+  "sha256": "7ff88e489e8ba3040f1dab495ee5a6461878d2039b49471ef4cbdbfebe5c3a0f",
+  "targetVersions": [
+    "1.0.0",
+    "1.0.0-rc.1",
+    "1.0.0-rc.2",
+    "1.0.1"
+  ],
+  "state": "prepared"
+}
