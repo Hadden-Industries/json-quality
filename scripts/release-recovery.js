@@ -5,6 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   mkdtempSync,
   rmSync,
   writeFileSync,
@@ -24,6 +25,7 @@ import {
   releasePackages,
   workflows,
   releaseArtifactBytes,
+  releaseTransportMaximumBytes,
   verifyProvenance,
 } from "./release-contract.js";
 import {
@@ -32,12 +34,17 @@ import {
   provider,
   optionalApi,
   readHistoryRecord,
+  writerEffect,
 } from "./release-provider.js";
 import { npmCommand } from "./qualification-process.js";
 import { verifyNativeAssets } from "./release-asset-verification.js";
 import { verifyReleaseAttestation } from "./release-attestation-readiness.js";
 import { isolatedNpmEnvironment } from "./release-inventory.js";
-import { verifyFamilyScope } from "./promotion-family.js";
+import { verifyFamilyScope, guardFamily } from "./promotion-family.js";
+import {
+  verifyRejectedPilotRequest,
+  verifyRejectedPilotDecisionBinding,
+} from "./rejected-pilot-request.js";
 import { npmFamilyLabel, npmLabelOperation } from "./npm-availability.js";
 import { requestedIntents } from "./release-records.js";
 import { verifyStageCancellation } from "./reject-release-stages.js";
@@ -76,6 +83,10 @@ export function verifyRecoveryRecord(record, release, manifestSha, journal) {
   assert.equal(record.manifestSha256, manifestSha);
   assert.equal(record.version, release.version);
   assert.ok(["stage", "archive", "promote"].includes(record.phase));
+  if (record.disposition === "confirm-rejected-pilot") {
+    assert.equal(record.phase, "promote");
+    assert.equal(record.service, "npm");
+  }
   if (record.service) {
     assert.equal(record.phase, "promote");
     assert.ok(["npm", "github"].includes(record.service));
@@ -193,6 +204,8 @@ export function reconcileObserved(
   const explicit = env.RECOVERY_JSON ? JSON.parse(env.RECOVERY_JSON) : null;
   if (explicit)
     assert.ok(["stage", "archive", "promote"].includes(explicit.phase));
+  if (explicit?.disposition === "confirm-rejected-pilot")
+    verifyRejectedPilotDecisionBinding(explicit, env);
   const result = { entries: [] };
   const records = retainedRecoveries(directory);
   if (
@@ -888,13 +901,65 @@ function reconcileOne(
       family && record.service === "github"
         ? (readers.api ?? api)(`releases/${family.github.target.id}`)
         : undefined;
-    observed = reconcilePromotionLabels(
-      record,
-      records,
-      tags,
-      latest,
-      targetRelease,
-    );
+    if (record.disposition === "confirm-rejected-pilot") {
+      const effect = writerEffect({
+        ...original,
+        phase: "promote",
+        service: "npm",
+      });
+      assert.ok(effect, "Original native writer effect is required");
+      const log = (
+        readers.rejectionLogs ??
+        ((jobId) =>
+          gh(
+            [
+              "api",
+              `/repos/${repository}/actions/jobs/${jobId}/logs`,
+              "--allow-escape-sequences",
+            ],
+            { encoding: null, maxBuffer: releaseTransportMaximumBytes },
+          ))
+      )(effect.job.id);
+      const name = effectJournal("promote", record);
+      const rejection = verifyRejectedPilotRequest(
+        record,
+        records,
+        release,
+        original,
+        effect,
+        log,
+        readdirSync(directory).filter(
+          (file) => file.startsWith(name + ".") && file.endsWith(".ack.json"),
+        ),
+      );
+      const readApi = readers.api ?? api;
+      const state = {
+        latest,
+        releases: (family.github.guards ?? []).map((guard) =>
+          readApi(`releases/${guard.id}`),
+        ),
+      };
+      for (const value of [latest, ...state.releases]) {
+        assert.equal(value.immutable, true);
+        assert.equal(value.draft, false);
+      }
+      const guarded = guardFamily(family, {
+        readPackageTags: (name) => tags[name],
+        readGithubState: () => state,
+      });
+      observed = {
+        ...rejection,
+        packages: guarded.packages,
+        github: guarded.github,
+      };
+    } else
+      observed = reconcilePromotionLabels(
+        record,
+        records,
+        tags,
+        latest,
+        targetRelease,
+      );
   } else observed = { state: "retained-original" };
   const priorLabels = {};
   if (record.phase === "promote") {

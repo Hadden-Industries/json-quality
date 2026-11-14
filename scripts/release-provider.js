@@ -453,7 +453,7 @@ function writerInventory(entry) {
   }
   return { phase, services };
 }
-function writerEffect(entry) {
+export function writerEffect(entry) {
   const { phase, services } = writerInventory(entry);
   assert.ok(
     services.includes(entry.service ?? null),
