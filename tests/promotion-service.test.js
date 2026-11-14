@@ -464,11 +464,11 @@ test("successful native history reuses a retained rejection settlement without a
     },
     settlements: [value.record],
   };
-  const bytes = JSON.stringify(value.record);
+  const before = structuredClone(value.record);
   const retained = authenticatedHistoricalSettlements([entry]);
   assert.equal(retained.length, 1);
   assert.deepEqual(retained[0].record, value.record);
-  assert.equal(JSON.stringify(value.record), bytes);
+  assert.deepEqual(value.record, before);
   entry.run.conclusion = "failure";
   assert.deepEqual(authenticatedHistoricalSettlements([entry]), []);
 });
