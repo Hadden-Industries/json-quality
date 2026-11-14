@@ -30,6 +30,11 @@ import {
   verifyOperationDecision,
 } from "../scripts/release-availability-contract.js";
 import { npmLabelArguments } from "../scripts/npm-availability.js";
+import {
+  rejectionLogEvents,
+  verifyRejectedPilotRequest,
+  verifyRejectedPilotDecisionBinding,
+} from "../scripts/rejected-pilot-request.js";
 import { inspectAcknowledgedService } from "../scripts/promotion-pending.js";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
@@ -38,10 +43,12 @@ import { effectJournal, sha256 } from "../scripts/release-contract.js";
 import {
   verifyRecoveryRecord,
   reconcilePromotionLabels,
+  reconcileObserved,
 } from "../scripts/release-recovery.js";
 import {
   readEffectHistory,
   verifyEffectHistory,
+  authenticatedHistoricalSettlements,
 } from "../scripts/release-provider.js";
 
 function fixture(t, npmOnly = false) {
@@ -229,6 +236,333 @@ function pilotRetirementFixture(t) {
   };
   return f;
 }
+
+function rejectedPilotFixture(t) {
+  const f = pilotRetirementFixture(t);
+  const input = { ...f.input("npm"), family: f.family };
+  f.operations.writePackageLabel = () => {
+    throw new Error("native HTTP 401");
+  };
+  assert.throws(
+    () => applyNpmAvailability(input, f.operations),
+    /native HTTP 401/u,
+  );
+  const journal = readFileSync(input.journal);
+  const records = journal.toString().trim().split("\n").map(JSON.parse);
+  const at = Date.parse(records[0].requestedAt);
+  const step = {
+    name: "Apply admitted release effect",
+    number: 7,
+    status: "completed",
+    conclusion: "failure",
+    started_at: new Date(at).toISOString(),
+    completed_at: new Date(at + 1000).toISOString(),
+  };
+  const job = {
+    id: 91,
+    name: "npm",
+    run_id: 17,
+    head_sha: f.env.GITHUB_SHA,
+    status: "completed",
+    conclusion: "failure",
+    completed_at: step.completed_at,
+  };
+  const original = {
+    run: {
+      id: 17,
+      run_attempt: 1,
+      status: "completed",
+      repository: { full_name: "Hadden-Industries/json-quality" },
+      head_repository: { full_name: "Hadden-Industries/json-quality" },
+    },
+  };
+  const record = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    phase: "promote",
+    service: "npm",
+    run: "17",
+    attempt: "1",
+    disposition: "confirm-rejected-pilot",
+    operationId: f.family.operationId,
+    journalSha256: sha256(journal),
+    acceptedAt: new Date(at + 2000).toISOString(),
+    nativeRejection: { status: 401, jobId: 91, stepNumber: 7 },
+  };
+  const payloads = [
+    {
+      phase: "npm-family-label",
+      state: "started",
+      run: "17",
+      attempt: "1",
+      source: f.env.GITHUB_SHA,
+    },
+    {
+      phase: "npm-family-label",
+      state: "failed",
+      exit: 1,
+      signal: null,
+      timeout: false,
+    },
+    {
+      phase: "npm-family-label",
+      stdout: "",
+      stderr: `npm error code E401\nnpm error 401 Unauthorized - DELETE https://registry.npmjs.org/-/package/${records[0].package.replace("/", "%2f")}/dist-tags/pilot\n`,
+    },
+  ];
+  const events = payloads.map((event, index) => ({
+    at: new Date(at + index).toISOString(),
+    event,
+  }));
+  return {
+    f: { release: f.release, states: f.states, writes: f.writes },
+    input,
+    journal,
+    records,
+    original,
+    effect: { job, step },
+    record,
+    events,
+    acknowledgements: [],
+  };
+}
+
+function sealRejectionLog(value) {
+  value.log = Buffer.from(
+    value.events
+      .map((entry) => `${entry.at} ${JSON.stringify(entry.event)}`)
+      .join("\n") + "\n",
+  );
+  value.record.nativeRejection.logSha256 = sha256(value.log);
+  value.record.nativeRejection.events = rejectionLogEvents(
+    value.log,
+    value.effect.step,
+  );
+  return value;
+}
+
+function verifyRejection(value) {
+  return verifyRejectedPilotRequest(
+    value.record,
+    value.records,
+    value.f.release,
+    value.original,
+    value.effect,
+    value.log,
+    value.acknowledgements,
+  );
+}
+
+test("new rejection settlement requires its fresh retirement decision to name the exact original effect", (t) => {
+  const value = rejectedPilotFixture(t);
+  const record = {
+    ...value.record,
+    version: "1.2.0",
+    manifestSha256: value.f.release.source.commit.padEnd(64, "a"),
+  };
+  const originalEffect = Object.fromEntries(
+    [
+      "phase",
+      "service",
+      "run",
+      "attempt",
+      "manifestSha256",
+      "journalSha256",
+      "operationId",
+    ].map((key) => [key, record[key]]),
+  );
+  const decision = {
+    schemaVersion: 2,
+    phase: "availability",
+    owner: "maksymshostak",
+    version: record.version,
+    manifestSha256: record.manifestSha256,
+    family: { operation: "retire-pilot", stableVersion: record.version },
+    originalEffect,
+  };
+  const environment = (decision) => {
+    const bytes = JSON.stringify(decision);
+    return {
+      RECOVERY_JSON: JSON.stringify(record),
+      OPERATION_JSON: bytes,
+      OPERATION_SHA: sha256(Buffer.from(bytes)),
+    };
+  };
+  verifyRejectedPilotDecisionBinding(record, environment(decision));
+  const mutations = [
+    (value) => {
+      delete value.originalEffect;
+    },
+    (value) => {
+      value.family.operation = "promote";
+    },
+    (value) => {
+      value.originalEffect.attempt = "2";
+    },
+    (value) => {
+      value.originalEffect.journalSha256 = "0".repeat(64);
+    },
+    (value) => {
+      value.originalEffect.operationId = "0".repeat(64);
+    },
+  ];
+  for (const mutate of mutations) {
+    const changed = structuredClone(decision);
+    mutate(changed);
+    // Exercise the public admission entry before it can read any recovery input.
+    assert.throws(
+      () =>
+        reconcileObserved(
+          value.input.journal,
+          value.input.journal,
+          environment(changed),
+        ),
+      /retirement decision/u,
+    );
+  }
+  assert.throws(
+    () =>
+      reconcileObserved(value.input.journal, value.input.journal, {
+        RECOVERY_JSON: JSON.stringify(record),
+      }),
+    /fresh retirement decision/u,
+  );
+  const stale = environment(decision);
+  stale.OPERATION_SHA = "0".repeat(64);
+  assert.throws(() => verifyRejectedPilotDecisionBinding(record, stale));
+});
+
+test("successful native history reuses a retained rejection settlement without another fresh decision", (t) => {
+  const value = sealRejectionLog(rejectedPilotFixture(t));
+  const run = {
+    id: 18,
+    run_attempt: 1,
+    head_sha: value.effect.job.head_sha,
+    repository: { full_name: "Hadden-Industries/json-quality" },
+    path: ".github/workflows/promote-release.yml",
+    event: "workflow_dispatch",
+    head_branch: "main",
+    status: "completed",
+    conclusion: "success",
+  };
+  const entry = {
+    phase: "promote",
+    service: "npm",
+    availability: "npm-only",
+    run,
+    jobs: {
+      total_count: 4,
+      jobs: ["admit", "npm", "github", "complete"].map((name, index) => ({
+        id: index + 1,
+        name,
+        run_id: run.id,
+        run_attempt: run.run_attempt,
+        head_sha: run.head_sha,
+        status: "completed",
+        conclusion: name === "github" ? "skipped" : "success",
+      })),
+    },
+    settlements: [value.record],
+  };
+  const before = structuredClone(value.record);
+  const retained = authenticatedHistoricalSettlements([entry]);
+  assert.equal(retained.length, 1);
+  assert.deepEqual(retained[0].record, value.record);
+  assert.deepEqual(value.record, before);
+  entry.run.conclusion = "failure";
+  assert.deepEqual(authenticatedHistoricalSettlements([entry]), []);
+});
+
+test("a native 401 can settle one unacknowledged pilot request without rewriting or replaying it", (t) => {
+  const value = sealRejectionLog(rejectedPilotFixture(t));
+  assert.equal(verifyRejection(value).state, "family-request-rejected");
+  assert.deepEqual(readFileSync(value.input.journal), value.journal);
+  assert.equal(value.records[1].state, "outcome-unknown");
+  assert.deepEqual(value.f.writes, []);
+  assert.ok(
+    Object.values(value.f.states).every(
+      (tags) => tags.pilot === "1.1.0" && tags.latest === "1.2.0",
+    ),
+  );
+});
+
+test("rejected-pilot settlement refuses unrelated failures, mixed effects and conflicting native evidence", (t) => {
+  const baseline = rejectedPilotFixture(t);
+  const cases = [
+    (value) => {
+      value.record.nativeRejection.status = 403;
+    },
+    (value) => {
+      value.record.nativeRejection.jobId = 92;
+    },
+    (value) => {
+      value.effect.job.head_sha = "e".repeat(40);
+    },
+    (value) => {
+      value.effect.step.conclusion = "success";
+    },
+    (value) => {
+      value.effect.step.name = "Other step";
+    },
+    (value) => {
+      value.original.run.run_attempt = 2;
+    },
+    (value) => {
+      value.records[1].requestAcknowledged = true;
+    },
+    (value) => {
+      value.acknowledgements.push("original.ack.json");
+    },
+    (value) => {
+      value.records.push(...structuredClone(value.records));
+    },
+    (value) => {
+      value.records[0].package = value.f.release.package;
+    },
+    (value) => {
+      value.events[0].event.source = "e".repeat(40);
+    },
+    (value) => {
+      value.events[1].event.timeout = true;
+    },
+    (value) => {
+      value.events[2].event.stderr = value.events[2].event.stderr.replace(
+        "DELETE",
+        "PUT",
+      );
+    },
+    (value) => {
+      value.events[2].event.stderr = value.events[2].event.stderr.replace(
+        "/pilot",
+        "/latest",
+      );
+    },
+    (value) => {
+      value.events[2].event.stderr = value.events[2].event.stderr.replace(
+        "registry.npmjs.org",
+        "example.com",
+      );
+    },
+    (value) => {
+      value.events[2].event.stderr = "npm error code ETIMEDOUT\n";
+    },
+    (value) => {
+      value.events.push(structuredClone(value.events[1]));
+    },
+    (value) => {
+      value.record.acceptedAt = value.effect.step.started_at;
+    },
+  ];
+  for (const mutate of cases) {
+    const value = structuredClone(baseline);
+    mutate(value);
+    sealRejectionLog(value);
+    assert.throws(() => verifyRejection(value));
+  }
+  const changed = sealRejectionLog(structuredClone(baseline));
+  changed.record.nativeRejection.logSha256 = "0".repeat(64);
+  assert.throws(() => verifyRejection(changed));
+});
 
 test("pilot retirement removes the three retired aliases and preserves stable availability", (t) => {
   const f = pilotRetirementFixture(t);

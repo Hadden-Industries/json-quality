@@ -319,6 +319,16 @@ If that native effect artifact expires, admission recovers its original operatio
 Pilot evidence cannot authorize restoration of `latest`.
 Retain the completed operation through the signed release-history checkpoint procedure before its Actions artifacts expire.
 
+If the first pilot-removal command receives a definitive native HTTP 401, its original journal still retains `outcome-unknown`.
+Do not rerun that operation or rewrite it as a request that was never sent.
+After correcting the narrowly scoped publisher binding, a fresh owner-reviewed operation may bind that original effect and a `RECOVERY_JSON` disposition of `confirm-rejected-pilot`.
+The recovery selects the original manifest/version, npm run/attempt, journal digest and operation ID, plus `nativeRejection` containing status 401, exact native job ID, writer step number, full job-log SHA-256 and its three exact timestamped `npm-family-label` diagnostics.
+Read-only admission authenticates the completed failed native execution, fetches and compares its job log, and requires one rejected DELETE for the exact package's pilot tag with no acknowledgement.
+All original pilot preimages, stable latest values and reviewed GitHub markers must remain unchanged.
+A timeout, generic failure, different HTTP request, conflicting acknowledgement or changed label cannot use this settlement.
+The original journal remains unchanged; the separate owner-bound rejection diagnostics travel with the successful continuation and signed writer history.
+Only the fresh operation authorizes new one-shot requests.
+
 The following schema-1 restoration fields describe the retained historical core-only reader.
 New operations express the emergency core-only scope through the schema-2 family and guard both companions and affected/target GitHub releases.
 
