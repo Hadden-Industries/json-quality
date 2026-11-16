@@ -12,6 +12,11 @@ import { budgets } from "./qualification-budgets.js";
 import { validateConsumers } from "./consumer-layouts.js";
 import { securityScans } from "./security-scans.js";
 import { validatePerformance } from "./performance-contract.js";
+import {
+  ubuntuRunner,
+  verifyMatrixRunner,
+  windowsRunner,
+} from "./runner-policy.js";
 
 export const repository = "Hadden-Industries/json-quality";
 export const workflow = ".github/workflows/ci.yml";
@@ -125,6 +130,17 @@ function inventory(value, run, matrix, complete = true, registering = false) {
       "success",
       `${job.name} did not execute successfully`,
     );
+    const policy = { platforms: matrix.os };
+    const expectedRunner =
+      matrix.os.find((label) =>
+        job.name.startsWith(`Product / Qualify ${label} /`),
+      ) ??
+      (/(?:Scan cpp-windows|Native \/ win32-x64)$/u.test(job.name)
+        ? windowsRunner(policy)
+        : /(?:Scan cpp-linux|Native \/ linux-x64)$/u.test(job.name)
+          ? ubuntuRunner(policy)
+          : undefined);
+    verifyMatrixRunner(job, expectedRunner, Boolean(run.run_number));
   }
   return value.jobs;
 }
@@ -193,6 +209,7 @@ export async function verifyProducingAttempt(job, attempt, run, read) {
     sameJobExecution(first, job),
     "Claimed producer differs from latest authenticated execution",
   );
+  assert.deepEqual(first.labels, job.labels, "Original runner labels changed");
   if (attempt > 1) {
     const previous = await read(
       `/actions/runs/${run.id}/attempts/${attempt - 1}/jobs?per_page=100`,
@@ -238,6 +255,11 @@ async function originalExecution(job, run, read) {
     if (sameJobExecution(original, job)) {
       assert.equal(original.status, "completed");
       assert.equal(original.conclusion, "success");
+      assert.deepEqual(
+        original.labels,
+        job.labels,
+        "Original runner labels changed",
+      );
       return {
         runAttempt: attempt,
         job: Object.fromEntries(

@@ -23,6 +23,7 @@ import {
 } from "./release-contract.js";
 import { verifyNativeStageProofs } from "./qualify-native-stage.js";
 import { consumeWriterAdmission } from "./release-writer-admission.js";
+import { verifyMatrixRunner } from "./runner-policy.js";
 import {
   admittedStageOrigins,
   requireHostedStageInventory,
@@ -175,6 +176,7 @@ export function stage(directory, scratch, env = process.env) {
       assert.equal(jobs[0].head_sha, env.GITHUB_SHA);
       assert.equal(jobs[0].run_id, Number(env.GITHUB_RUN_ID));
       assert.equal(jobs[0].run_attempt, Number(env.GITHUB_RUN_ATTEMPT));
+      verifyMatrixRunner(jobs[0], os, Boolean(observed.run.workflow_id));
       const attempt = producingAttempt(observed, name);
       const acquired = download(
         env.GITHUB_RUN_ID,

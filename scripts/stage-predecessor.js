@@ -103,25 +103,16 @@ export function observeStagePredecessor(
   checkpoint,
   observe = provider,
 ) {
-  const live = readIfAvailable(() => observe(expected.run, expected.attempt));
-  if (!checkpoint) {
-    assert.ok(live, "Original stage provider attempt is unavailable");
-    return live;
-  }
-  // Only select retained evidence for this attempt. An unrelated signed reference
-  // cannot authorize replacing native provider data.
-  const retained = checkpoint.stagePredecessors?.some(
-    (ref) => ref.run === expected.run && ref.attempt === expected.attempt,
+  if (
+    !checkpoint?.stagePredecessors?.some(
+      (ref) => ref.run === expected.run && ref.attempt === expected.attempt,
+    )
   )
-    ? selectHistoryStage(checkpoint, expected)
-    : null;
-  if (live && retained) matchesStageProvider(live, retained.provider);
-  if (live) return live;
-  assert.ok(
-    retained,
-    "Original stage provider needs a complete signed predecessor",
-  );
-  return retained.provider;
+    return observe(expected.run, expected.attempt);
+  const retained = selectHistoryStage(checkpoint, expected);
+  const live = readIfAvailable(() => observe(expected.run, expected.attempt));
+  if (live) matchesStageProvider(live, retained.provider);
+  return live ?? retained.provider;
 }
 
 export function acquireStagePredecessor(

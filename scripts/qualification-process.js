@@ -80,10 +80,10 @@ export function native(
     const error = new Error(`Native phase ${phase} failed`, {
       cause: result.error,
     });
-    Object.assign(error, {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      facts,
+    error.facts = facts;
+    Object.defineProperties(error, {
+      stdout: { value: result.stdout, enumerable: logFailureOutput },
+      stderr: { value: result.stderr, enumerable: logFailureOutput },
     });
     // JSON encoding prevents service output from becoming workflow commands.
     if (logFailureOutput)

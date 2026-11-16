@@ -111,8 +111,8 @@ function retainedAttempts(entries, phase, number, workflowId) {
       ),
     );
     if (observed.has(run.run_attempt))
-      assert.deepEqual(observed.get(run.run_attempt), run);
-    else observed.set(run.run_attempt, run);
+      assert.deepEqual(observed.get(run.run_attempt), record.provider);
+    else observed.set(run.run_attempt, record.provider);
   }
   return observed;
 }
@@ -127,6 +127,7 @@ export function verifyWriterReservations(
 ) {
   const policy = baseline.workflows[phase];
   const byNumber = new Map();
+  const deleted = new Set();
   for (const run of runs) {
     assert.equal(run.workflow_id, policy.id);
     assert.ok(Number.isSafeInteger(run.run_number) && run.run_number > 0);
@@ -163,6 +164,7 @@ export function verifyWriterReservations(
       "Missing legacy writer requires a signed final inventory",
     );
     const [{ run, observedAt }] = terminal;
+    deleted.add(run.id);
     assert.equal(run.workflow_id, policy.id);
     assert.equal(run.run_number, number);
     assert.ok(
@@ -171,7 +173,7 @@ export function verifyWriterReservations(
     );
     const attempts = retainedAttempts(retained, phase, number, policy.id);
     for (let attempt = 1; attempt <= run.run_attempt; attempt++) {
-      const original = attempts.get(attempt);
+      const original = attempts.get(attempt)?.run;
       assert.ok(
         original && original.id === id && original.head_sha === run.head_sha,
         "Signed inventory omits a legacy writer attempt",
@@ -194,15 +196,17 @@ export function verifyWriterReservations(
       phase,
       reservation.number,
       policy.id,
-    ).get(reservation.attempt);
+    ).get(reservation.attempt)?.run;
     assert.ok(
       original,
       "Reserved writer is missing from the signed attempt inventory",
     );
+    deleted.add(original.id);
     if (
       original.head_branch === "main" &&
       original.event === "workflow_dispatch"
     )
       assert.equal(original.head_sha, reservation.controller);
   }
+  return deleted;
 }

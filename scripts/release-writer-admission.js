@@ -27,13 +27,13 @@ import {
   requireHostedStageInventory,
 } from "./release-stage-inventory.js";
 
-function hostedReservation(phase, env, read, observed) {
+function hostedReservation(phase, env, observed, reservations) {
   return requireCurrentReservation(
     phase,
     env,
     observed,
     releaseDecisionDigest(phase, env),
-    readWriterReservations(phase, read),
+    reservations,
   );
 }
 
@@ -71,7 +71,12 @@ export function prepareWriterAdmission(
       `actions/runs/${env.GITHUB_RUN_ID}/attempts/${env.GITHUB_RUN_ATTEMPT}`,
     );
     writeGuards = {
-      reservation: hostedReservation(phase, env, api, run),
+      reservation: hostedReservation(
+        phase,
+        env,
+        run,
+        readWriterReservations(phase, api),
+      ),
       stageInventorySha256: env.STAGE_INVENTORY_SHA,
     };
   }
@@ -189,10 +194,18 @@ export function consumeWriterAdmission(directory, phase, env, readers = {}) {
       record.writeGuards?.stageInventorySha256,
       env.STAGE_INVENTORY_SHA,
     );
-    assert.deepEqual(
-      record.writeGuards.reservation,
-      hostedReservation(phase, env, read, observed.run),
-    );
+    const reservations = readWriterReservations(phase, read);
+    const current = hostedReservation(phase, env, observed.run, reservations);
+    const admitted =
+      record.origin.attempt === env.GITHUB_RUN_ATTEMPT
+        ? current
+        : hostedReservation(
+            phase,
+            { ...env, GITHUB_RUN_ATTEMPT: record.origin.attempt },
+            observe(record.origin.run, record.origin.attempt).run,
+            reservations,
+          );
+    assert.deepEqual(record.writeGuards.reservation, admitted);
     requireHostedStageInventory(
       phase,
       env,

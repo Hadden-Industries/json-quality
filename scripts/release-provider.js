@@ -677,6 +677,38 @@ export function writerEffect(entry) {
   );
   return { job, step };
 }
+
+/** A complete job list alone cannot account for both original promotion writers. */
+export function verifyDeletedWriterRoles(phase, runId, retained) {
+  const rows = retained.filter(
+    (record) => record.phase === phase && String(record.run) === String(runId),
+  );
+  const attempts = new Map(
+    rows.map(({ provider }) => [provider.run.run_attempt, provider]),
+  );
+  for (const observed of attempts.values()) {
+    const { services } = writerInventory({ ...observed, phase });
+    for (const service of services) {
+      if (!writerEffect({ ...observed, phase, service: service ?? undefined }))
+        continue;
+      const origin = originalJobAttempt(
+        observed,
+        service ?? phase,
+        () => assert.fail("Signed inventory omits an original writer attempt"),
+        attempts,
+        { requireSuccess: false, maximumAttempts: 100 },
+      );
+      assert.ok(
+        rows.some(
+          (record) =>
+            Number(record.attempt) === origin &&
+            record.service === (service ?? undefined),
+        ),
+        "Signed inventory omits an original writer role",
+      );
+    }
+  }
+}
 // Serialized version claims never authorize omission. Bind derived subjects to
 // the original bytes and exact live entry admitted by this native collector.
 const historySubjects = new WeakMap();
@@ -698,6 +730,8 @@ function restoreHistory(entry, record) {
     entry.operationEvidence = record.operationEvidence;
   if (record.settlements) entry.settlements = record.settlements;
   if (record.writerReceipt) entry.writerReceipt = record.writerReceipt;
+  if (record.originalAttempt !== undefined)
+    entry.originalAttempt = record.originalAttempt;
   return entry;
 }
 
@@ -940,7 +974,33 @@ export function verifyEffectHistory(
     ...authenticatedHistoricalSettlements(history),
   ];
   for (const entry of scoped) {
-    if (!writerEffect(entry)) continue;
+    const effect = writerEffect(entry);
+    if (!effect) continue;
+    if (entry.originalAttempt !== undefined) {
+      assert.ok(
+        Number.isSafeInteger(entry.originalAttempt) &&
+          entry.originalAttempt > 0 &&
+          entry.originalAttempt < entry.run.run_attempt,
+      );
+      const originals = history.filter(
+        (record) =>
+          record.phase === entry.phase &&
+          record.service === entry.service &&
+          record.run.id === entry.run.id &&
+          record.run.run_attempt === entry.originalAttempt,
+      );
+      assert.equal(originals.length, 1, "Missing original retained writer");
+      const [original] = originals;
+      assert.equal(original.originalAttempt, undefined);
+      const originalEffect = writerEffect(original);
+      assert.ok(
+        originalEffect && sameJobExecution(originalEffect.job, effect.job),
+        "Retained writer execution differs from its claimed origin",
+      );
+      assert.deepEqual(originalEffect.step, effect.step);
+      assert.ok(!entry.journal && !entry.noEffect && !entry.writerReceipt);
+      continue;
+    }
     if (entry.noEffect) {
       assert.equal(entry.noEffect.schemaVersion, 1);
       assert.equal(entry.noEffect.state, "no-request");
@@ -1127,19 +1187,35 @@ export function readHistoryStagePart(record, part) {
   return bytes;
 }
 
-export function carryHistoryStages(previous, output) {
-  const stages = previous?.stagePredecessors ?? [];
-  if (!stages.length) return {};
-  mkdirSync(join(output, "release-stage-parts"), { recursive: true });
-  for (const part of new Map(
-    stages.flatMap((ref) => ref.parts.map((part) => [part.sha256, part])),
-  ).values()) {
-    const path = join(output, stagePartPath(part.sha256));
-    if (existsSync(path)) assert.equal(sha256(regularBytes(path)), part.sha256);
-    else
-      writeFileSync(path, readHistoryStagePart(previous, part), { flag: "wx" });
+export function carryHistoryStages(previous, output, selected) {
+  const stages = new Map();
+  for (const history of [previous, selected]) {
+    for (const ref of history?.stagePredecessors ?? []) {
+      const key = `${ref.run}/${ref.attempt}`;
+      if (stages.has(key)) {
+        assert.deepEqual(
+          stages.get(key),
+          ref,
+          "Conflicting signed stage predecessors",
+        );
+        continue;
+      }
+      stages.set(key, ref);
+      mkdirSync(join(output, "release-stage-parts"), { recursive: true });
+      for (const part of ref.parts) {
+        const path = join(output, stagePartPath(part.sha256));
+        if (existsSync(path))
+          assert.equal(sha256(regularBytes(path)), part.sha256);
+        else
+          writeFileSync(path, readHistoryStagePart(history, part), {
+            flag: "wx",
+          });
+      }
+    }
   }
-  return { schemaVersion: 3, stagePredecessors: stages };
+  return stages.size
+    ? { schemaVersion: 3, stagePredecessors: [...stages.values()] }
+    : {};
 }
 
 export function selectHistoryStage(record, expected) {
@@ -1185,6 +1261,7 @@ export function mergeStageWriterHistory(previous, stage) {
       "settlements",
       "availability",
       "writerReceipt",
+      "originalAttempt",
     ])
       if (record[field] !== undefined)
         assert.deepEqual(
@@ -1385,14 +1462,17 @@ export function readEffectHistory(
       `actions/workflows/${workflows[phase]}/runs?per_page=100`,
       "workflow_runs",
     );
-    if (protectedWriter)
-      verifyWriterReservations(
+    if (protectedWriter) {
+      const deleted = verifyWriterReservations(
         phase,
         runs,
         retained ?? [],
         [...closures.values()],
         readWriterReservations(phase, api),
       );
+      for (const runId of deleted)
+        verifyDeletedWriterRoles(phase, runId, retained ?? []);
+    }
     for (const run of runs) {
       const observedAt = new Date().toISOString();
       if (
@@ -1452,6 +1532,8 @@ export function readEffectHistory(
                   original?.step,
                   "Retained writer effect observation changed",
                 );
+                entry.originalAttempt = origin;
+                history.push(entry);
                 continue;
               }
             }
@@ -1668,6 +1750,9 @@ export function exportHistoryRecord(history, qualifiedTargets = []) {
       attempt: String(entry.run.run_attempt),
       controller: entry.run.head_sha,
       provider: { run: entry.run, jobs: entry.jobs },
+      ...(entry.originalAttempt !== undefined
+        ? { originalAttempt: entry.originalAttempt }
+        : {}),
       ...(entry.writerReceipt ? { writerReceipt: entry.writerReceipt } : {}),
       ...(entry.journal ? { journal: entry.journal.toString("base64") } : {}),
       ...(entry.acknowledgements

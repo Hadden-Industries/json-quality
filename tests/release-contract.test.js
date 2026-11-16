@@ -2738,15 +2738,17 @@ test("CodeQL gate uses exact-source native analyses and query inventories, inclu
   const archivedPolicy = {
     ...runtimePolicy,
     platforms: runtimePolicy.platforms.map((lane) =>
-      lane === linux ? archivedRunner : lane,
+      lane === linux ? archivedRunner : "windows-2025-vs2026",
     ),
   };
   const archived = analyses.map((analysis) => {
     const environment = JSON.parse(analysis.environment);
-    if (environment.os !== linux) return analysis;
     return {
       ...analysis,
-      environment: JSON.stringify({ ...environment, os: archivedRunner }),
+      environment: JSON.stringify({
+        ...environment,
+        os: environment.os === linux ? archivedRunner : "windows-2025-vs2026",
+      }),
     };
   });
   assert.throws(() => verifyCodeql(archived, source));

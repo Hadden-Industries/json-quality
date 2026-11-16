@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,8 +22,15 @@ import {
 } from "../scripts/release-stage-payload.js";
 import { pilotDeleteRefusal } from "../scripts/rejected-pilot-request.js";
 import { verifyMatrixRunner } from "../scripts/runner-policy.js";
-import { readHistoryRecord } from "../scripts/release-provider.js";
-import { acquireStagePredecessor } from "../scripts/stage-predecessor.js";
+import {
+  carryHistoryStages,
+  readHistoryRecord,
+  verifyDeletedWriterRoles,
+} from "../scripts/release-provider.js";
+import {
+  acquireStagePredecessor,
+  observeStagePredecessor,
+} from "../scripts/stage-predecessor.js";
 
 const controller = "a".repeat(40);
 const digest = "b".repeat(64);
@@ -136,6 +144,76 @@ test("a deleted reserved writer requires complete signed original observations",
       },
     ]),
   );
+});
+
+test("a deleted promotion needs every original effect and permits a retained rerun", () => {
+  const run = {
+    id: 999,
+    run_attempt: 1,
+    head_sha: controller,
+    repository: { full_name: repository },
+    path: ".github/workflows/promote-release.yml",
+    head_branch: "main",
+    event: "workflow_dispatch",
+    status: "completed",
+  };
+  const step = {
+    name: "Apply admitted release effect",
+    status: "completed",
+    conclusion: "success",
+    started_at: "2026-11-16T09:00:00Z",
+    completed_at: "2026-11-16T09:01:00Z",
+  };
+  const jobs = ["npm", "github"].map((name, index) => ({
+    ...step,
+    id: index + 1,
+    runner_id: index + 2,
+    name,
+    run_id: run.id,
+    run_attempt: 1,
+    head_sha: controller,
+    steps: [step],
+  }));
+  const provider = { run, jobs: { total_count: 2, jobs } };
+  const row = (service, provider) => ({
+    phase: "promote",
+    run: String(run.id),
+    attempt: String(provider.run.run_attempt),
+    service,
+    provider,
+  });
+  const npm = row("npm", provider);
+  const github = row("github", provider);
+  const rerun = row("npm", {
+    run: { ...run, run_attempt: 2 },
+    jobs: {
+      total_count: 2,
+      jobs: jobs.map((job) => ({ ...job, run_attempt: 2 })),
+    },
+  });
+  assert.throws(
+    () => verifyDeletedWriterRoles("promote", run.id, [npm, rerun]),
+    /omits an original writer role/u,
+  );
+  verifyDeletedWriterRoles("promote", run.id, [npm, github, rerun]);
+});
+
+test("an uncaught native failure keeps opted-out diagnostics out of stderr", () => {
+  const module = new URL("../scripts/qualification-process.js", import.meta.url)
+    .href;
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "--eval",
+      `import { native } from ${JSON.stringify(module)};
+     native(process.execPath, ["--eval", "process.stderr.write('private-child-output'); process.exitCode=1"], { logFailureOutput: false });`,
+    ],
+    { encoding: "utf8", windowsHide: true },
+  );
+  assert.equal(result.status, 1, result.error?.message);
+  assert.match(result.stderr, /Native phase native failed/u);
+  assert.doesNotMatch(result.stderr, /private-child-output/u);
 });
 
 test("pending npm observations cover exact family, effect identity, freshness and ownership", () => {
@@ -293,41 +371,59 @@ test("expired native and core staging inputs use only the exact signed predecess
       },
     };
   });
-  const index = Buffer.from(
-    JSON.stringify({
-      schemaVersion: 3,
-      repository,
-      entries: [],
-      stagePredecessors: stages,
-    }),
-  );
   const tag = "release-history-fixture";
   const tagSha = "c".repeat(40);
-  const checkpoint = { tag, tagSha, sha256: sha256(index) };
-  const record = readHistoryRecord(
-    checkpoint,
-    (path) =>
-      path.startsWith("git/ref/")
-        ? { ref: `refs/tags/${tag}`, object: { sha: tagSha, type: "tag" } }
-        : {
-            sha: tagSha,
-            tag,
-            object: { sha: controller, type: "commit" },
-            verification: { verified: true, reason: "valid" },
-          },
-    (path) => {
-      if (path === `contents/release-history.json?ref=${controller}`)
-        return index;
-      assert.equal(path, `contents/${stagePartPath(hash)}?ref=${controller}`);
-      return bytes;
-    },
-    () => {},
-  );
+  const signed = (stagePredecessors) => {
+    const index = Buffer.from(
+      JSON.stringify({
+        schemaVersion: 3,
+        repository,
+        entries: [],
+        stagePredecessors,
+      }),
+    );
+    const checkpoint = { tag, tagSha, sha256: sha256(index) };
+    const record = readHistoryRecord(
+      checkpoint,
+      (path) =>
+        path.startsWith("git/ref/")
+          ? { ref: `refs/tags/${tag}`, object: { sha: tagSha, type: "tag" } }
+          : {
+              sha: tagSha,
+              tag,
+              object: { sha: controller, type: "commit" },
+              verification: { verified: true, reason: "valid" },
+            },
+      (path) => {
+        if (path === `contents/release-history.json?ref=${controller}`)
+          return index;
+        assert.equal(path, `contents/${stagePartPath(hash)}?ref=${controller}`);
+        return bytes;
+      },
+      () => {},
+    );
+    return { checkpoint, record };
+  };
+  const { checkpoint, record } = signed(stages);
   const missing = () => {
     throw Object.assign(new Error("Native evidence missing"), {
       httpStatus: 404,
     });
   };
+  const nativeOnly = signed([stages[0]]).record;
+  const coreOnly = signed([stages[1]]).record;
+  const { stagePredecessors } = carryHistoryStages(coreOnly, root, nativeOnly);
+  assert.deepEqual(stagePredecessors, [stages[1], stages[0]]);
+  assert.deepEqual(readFileSync(join(root, stagePartPath(hash))), bytes);
+  assert.throws(
+    () =>
+      observeStagePredecessor(
+        { run: stages[1].run, attempt: stages[1].attempt },
+        nativeOnly,
+        missing,
+      ),
+    { httpStatus: 404 },
+  );
   let extracted = 0;
   const options = {
     history: () => record,

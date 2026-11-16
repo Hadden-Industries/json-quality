@@ -99,6 +99,24 @@ test("all current Node declarations share the projector inventory and policy", (
   assert.ok(rollback[workflow].includes(previous));
   assert.notEqual(rollback[workflow], files[workflow]);
   assert.deepEqual(projectNodeSupport(rollback), files);
+  const windows = nodeSupport.platforms.find((lane) =>
+    lane.startsWith("windows-"),
+  );
+  const previousWindows =
+    windows === "windows-2025" ? "windows-2025-vs2026" : "windows-2025";
+  const projectedWindows = projectNodeSupport(files, {
+    ...nodeSupport,
+    platforms: nodeSupport.platforms.map((lane) =>
+      lane === windows ? previousWindows : lane,
+    ),
+  });
+  for (const path of [
+    workflow,
+    ".github/workflows/stage-release.yml",
+    ".github/workflows/security.yml",
+  ])
+    assert.ok(projectedWindows[path].includes(previousWindows));
+  assert.deepEqual(projectNodeSupport(projectedWindows), files);
   const source = files[".github/workflows/ci.yml"];
   for (const stale of ["ubuntu-24.04-arm", "ubuntu-slim"]) {
     const altered = source.replace(`runs-on: ${linux}`, `runs-on: ${stale}`);

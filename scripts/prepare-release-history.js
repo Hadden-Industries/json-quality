@@ -117,7 +117,7 @@ export function prepareReleaseHistory(
     );
     const base = {
       ...exportHistoryRecord(history),
-      ...carryHistoryStages(stageHistory ?? previous, output),
+      ...carryHistoryStages(previous, output, stageHistory),
       ...(previous?.stageCancellations
         ? { stageCancellations: previous.stageCancellations }
         : {}),

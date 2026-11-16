@@ -458,6 +458,7 @@ import {
   readHistoryRecord,
   readHistoryTarget,
   authenticatedHistoricalSettlements,
+  exportHistoryRecord,
 } from "../scripts/release-provider.js";
 
 test("signed history resolves one bounded target file lazily from its exact signed commit", () => {
@@ -1154,6 +1155,13 @@ for (const phase of ["stage", "archive", "promote"]) {
     ];
     const f = setup(t, phase, attempts);
     const history = readEffectHistory(current, f.root, undefined, f.readers);
+    const replay = exportHistoryRecord(history).entries.filter(
+      (entry) => entry.attempt === "3",
+    );
+    assert.equal(replay.length, phase === "promote" ? 2 : 1);
+    assert.ok(
+      replay.every((entry) => entry.originalAttempt === 2 && !entry.journal),
+    );
     const writes = history.filter((entry) => entry.journal);
     assert.deepEqual(
       writes.map((entry) => entry.run.run_attempt),

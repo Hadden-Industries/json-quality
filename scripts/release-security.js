@@ -13,11 +13,12 @@ import {
 } from "./release-contract.js";
 import { api, pages } from "./release-provider.js";
 import { securityScans } from "./security-scans.js";
-import { ubuntuRunner } from "./runner-policy.js";
+import { ubuntuRunner, windowsRunner } from "./runner-policy.js";
 
 export function verifyCodeql(analyses, source, policy) {
   assert.match(source, /^[a-f0-9]{40}$/u);
   const linux = ubuntuRunner(policy);
+  const windows = windowsRunner(policy);
   return securityScans.map(({ key, language, os, category }) => {
     const matches = analyses.filter(
       (analysis) =>
@@ -58,7 +59,7 @@ export function verifyCodeql(analyses, source, policy) {
     );
     const environment = JSON.parse(analysis.environment);
     assert.equal(environment.language, language);
-    assert.equal(environment.os, os.startsWith("ubuntu-") ? linux : os);
+    assert.equal(environment.os, os.startsWith("windows-") ? windows : linux);
     if (language === "c-cpp") {
       assert.equal(environment.key, key);
     }
