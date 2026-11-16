@@ -66,7 +66,7 @@ npm exec -- json-quality check --root .
 ```
 
 For NFC repair, use `normalize` in place of `format` and always name the files.
-Omitting filenames from a filesystem `format` selects **all eligible writable files**.
+Omitting both `--` and filenames from a filesystem `format` (for example, `format --write --root .`) selects **all eligible writable files**; a trailing `--` with no filenames is rejected.
 Each write rechecks its inputs.
 If a batch fails partway, inspect the confirmed writes and any path reported as uncertain.
 A successful repair can leave findings for the other operation.
