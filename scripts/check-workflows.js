@@ -342,6 +342,14 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
   ]) {
     const workflow = workflows.get(`./.github/workflows/${path}`);
     assert.equal(workflow.jobs[writer].environment, environment);
+    for (const key of ["json", "sha"]) {
+      const input = `stage_inventory_${key}`;
+      assert.equal(
+        workflow.env?.[`STAGE_INVENTORY_${key.toUpperCase()}`],
+        `\${{ inputs.${input} }}`,
+      );
+      assert.equal(workflow.on.workflow_dispatch.inputs[input].required, true);
+    }
     for (const [name, job] of Object.entries(workflow.jobs)) {
       const steps = job.steps ?? [],
         privileged =
@@ -350,6 +358,13 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           ? "./.github/actions/setup-writer"
           : "./.github/actions/setup-producer",
         setup = steps.findIndex((step) => step.uses === requiredSetup);
+      if (name === "admit" || privileged)
+        assert.equal(
+          steps.find((step) => step.uses?.startsWith("actions/checkout@"))
+            ?.with?.["fetch-depth"],
+          0,
+          `${path}/${name}: signed release admission requires Git history`,
+        );
       assert.ok(
         setup >= 0 && !steps[setup].if,
         `${path}/${name}: release dependency setup is required for its authority`,
@@ -469,6 +484,15 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
   assert.deepEqual(promotion.jobs.complete.needs, ["admit", "npm", "github"]);
   assert.deepEqual(promotion.jobs.github.needs, ["admit", "npm"]);
   const staging = workflows.get("./.github/workflows/stage-release.yml");
+  assert.equal(
+    workflows
+      .get("./.github/workflows/release-registry.yml")
+      .jobs.admit.steps.find((step) =>
+        step.uses?.startsWith("actions/checkout@"),
+      )?.with?.["fetch-depth"],
+    0,
+    "Registry stage recovery requires Git history",
+  );
   assert.deepEqual(staging.on.workflow_dispatch.inputs.stage_phase.options, [
     "natives",
     "core",

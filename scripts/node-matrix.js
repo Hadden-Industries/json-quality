@@ -91,7 +91,8 @@ export function validatePolicy(policy) {
   assert.ok(
     policy.platforms.every(
       (platform) =>
-        typeof platform === "string" && /^[a-z]+-[a-z0-9.]+$/u.test(platform),
+        typeof platform === "string" &&
+        /^(?:[a-z]+-[a-z0-9.]+|windows-20\d{2}-vs20\d{2})$/u.test(platform),
     ),
   );
   return policy;

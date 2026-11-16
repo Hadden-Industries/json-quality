@@ -2,6 +2,10 @@ name: Qualify the approved public registry version
 on:
   workflow_dispatch:
     inputs:
+      stage_checkpoint_json:
+        description: Owner-selected signed history reference for an unavailable original stage
+        required: false
+        type: string
       recovery_json:
         description: Optional owner-selected native readback reconciliation of exact original journal bytes
         required: false
@@ -29,6 +33,7 @@ defaults:
   run:
     shell: bash
 env:
+  STAGE_CHECKPOINT_JSON: ${{ inputs.stage_checkpoint_json }}
   RECOVERY_JSON: ${{ inputs.recovery_json }}
   PREVIOUS_RUN: ${{ inputs.previous_run }}
   PREVIOUS_ATTEMPT: ${{ inputs.previous_attempt }}

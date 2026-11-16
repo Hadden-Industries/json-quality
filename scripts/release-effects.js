@@ -24,6 +24,10 @@ import {
 import { verifyNativeStageProofs } from "./qualify-native-stage.js";
 import { consumeWriterAdmission } from "./release-writer-admission.js";
 import {
+  admittedStageOrigins,
+  requireHostedStageInventory,
+} from "./release-stage-inventory.js";
+import {
   api,
   currentMain,
   decisionAsset,
@@ -217,6 +221,11 @@ export function stage(directory, scratch, env = process.env) {
   }
   const stageGuards = () => {
     currentMain(env);
+    requireHostedStageInventory(
+      "stage",
+      env,
+      admittedStageOrigins("stage", env, context),
+    );
     verifyTag();
     if (release.schemaVersion < 3) return;
     const marker = (value) =>
@@ -660,6 +669,7 @@ export function archive(directory, scratch, env = process.env) {
         env,
         preRequest: () => {
           currentMain(env);
+          requireHostedStageInventory("archive", env);
           verifyArchiveSettings(decision);
           assertFrozenTag(directory, release);
         },
@@ -721,6 +731,7 @@ export function archive(directory, scratch, env = process.env) {
       env,
       preRequest: () => {
         currentMain(env);
+        requireHostedStageInventory("archive", env);
         verifyArchiveSettings(decision);
         assertFrozenTag(directory, release);
       },
@@ -899,6 +910,7 @@ export function completeFamilyPublication(
         before: prior,
         preRequest: () => {
           currentMain(env);
+          requireHostedStageInventory("archive", env);
           readPackages();
           assert.deepEqual(marker(optionalApi("releases/latest")), prior);
           const current = githubRelease(release);

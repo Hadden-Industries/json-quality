@@ -15,6 +15,7 @@ import { createRepositoryReader } from "./github-evidence.js";
 import { budgets, native } from "./qualification-process.js";
 import { artifactLimits } from "./artifact-policy.js";
 import { save, readJson, sha256 } from "./release-records.js";
+import { writerArtifactEvent } from "./writer-artifact-receipt.js";
 
 const publish = (values, env) => {
   for (const [key, value] of Object.entries(values)) {
@@ -157,6 +158,25 @@ export async function reconcileWriterEvidence(
       },
       env,
     );
+    if (env.GITHUB_ACTIONS === "true")
+      console.log(
+        JSON.stringify({
+          phase: writerArtifactEvent,
+          schemaVersion: 1,
+          repositoryId: record.repositoryId,
+          headRepositoryId: found.workflow_run.head_repository_id,
+          workflow: env.GITHUB_WORKFLOW_REF,
+          controller: record.controller,
+          run: record.run,
+          attempt: Number(env.GITHUB_RUN_ATTEMPT),
+          job: env.GITHUB_JOB,
+          step: attempt,
+          id: found.id,
+          name,
+          digest: record.digest,
+          size: record.size,
+        }),
+      );
     return found;
   }
   assert.ok(

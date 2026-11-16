@@ -153,6 +153,7 @@ export function journalEffect(
     guard,
     verify = (value) => value,
     preRequest,
+    diagnoseRefusal,
   } = {},
 ) {
   if (existsSync(path)) {
@@ -224,12 +225,17 @@ export function journalEffect(
     appendFileSync(path, JSON.stringify(outcome) + "\n", { flush: true });
     return outcome;
   } catch (error) {
+    const refusal =
+      requestStarted && !acknowledgement && !error.requestAcknowledged
+        ? diagnoseRefusal?.(error)
+        : null;
     appendFileSync(
       path,
       JSON.stringify({
         state: requestStarted ? "outcome-unknown" : "request-not-sent",
         requestStarted,
         intentSha256: sha256(line),
+        ...(refusal ? { refusal } : {}),
         nextAction: requestStarted
           ? "Inspect native state and retained request/response; do not repeat this request."
           : "Guard refused before the provider request; a new owner decision must bind current preimages.",

@@ -21,6 +21,7 @@ import {
 } from "../scripts/release-contract.js";
 import { prepareWriterAdmission } from "../scripts/release-writer-admission.js";
 import { verifyOperationDecision } from "../scripts/release-availability-contract.js";
+import writerBaseline from "../assets/release-writer-baseline.json" with { type: "json" };
 
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const legacy = JSON.parse(
@@ -222,14 +223,18 @@ export function writerWorld(
   const runRecord = {
     id: 17,
     run_attempt: 1,
-    repository: { full_name: repository },
-    head_repository: { full_name: repository },
+    repository: { id: 11, full_name: repository },
+    head_repository: { id: 11, full_name: repository },
     head_branch: "main",
     head_sha: controller,
     event: "workflow_dispatch",
     path: `.github/workflows/${phase === "stage" ? "stage-release" : "promote-release"}.yml`,
     status: "in_progress",
     conclusion: null,
+    ...(phase === "promote" && {
+      workflow_id: writerBaseline.workflows.promote.id,
+      run_number: writerBaseline.workflows.promote.runs.length + 1,
+    }),
   };
   const artifact = (id, name, digest = "sha256:" + "c".repeat(64)) => ({
     id,
@@ -430,10 +435,64 @@ export function writerWorld(
       inventory.total_count++;
       current.binary ??= {};
       current.binary[`actions/artifacts/${id}/zip`] = bytes.toString("base64");
+      const writer = /^effect-promote-(npm|github)-1$/u.exec(name);
+      if (writer) {
+        const provider = current.routes[
+          `actions/runs/${env.GITHUB_RUN_ID}/attempts/1/jobs?per_page=100`
+        ].jobs.find((job) => job.name === writer[1]);
+        provider.steps.push({
+          name: "Run ./.github/actions/upload-writer-evidence",
+          status: "completed",
+          conclusion: "success",
+          started_at: "2026-11-13T00:01:01Z",
+          completed_at: "2026-11-13T00:01:02Z",
+        });
+        const receipt = {
+          phase: "release-writer-artifact",
+          schemaVersion: 1,
+          repositoryId: 11,
+          headRepositoryId: 11,
+          workflow: env.GITHUB_WORKFLOW_REF,
+          controller,
+          run: Number(env.GITHUB_RUN_ID),
+          attempt: 1,
+          job: writer[1],
+          step: 1,
+          id,
+          name,
+          digest: identity.digest,
+          size: identity.size_in_bytes,
+        };
+        current.binary[`actions/jobs/${provider.id}/logs`] = Buffer.from(
+          [
+            "##[start-action display=Reconcile writer evidence upload 1;id=__self_3.first]",
+            JSON.stringify(receipt),
+            "##[end-action id=__self_3.first;outcome=success;conclusion=success;duration_ms=100]",
+          ]
+            .map((line) => `2026-11-13T00:01:01.1Z ${line}\n`)
+            .join(""),
+        ).toString("base64");
+      }
       writeFileSync(env.RELEASE_PROVIDER_FIXTURE, JSON.stringify(current));
       return identity;
     },
     independent: (extra = {}) => {
+      const current = JSON.parse(readFileSync(env.RELEASE_PROVIDER_FIXTURE));
+      const observed = current.routes[`actions/runs/${run}/attempts/1`];
+      const jobs =
+        current.routes[`actions/runs/${run}/attempts/1/jobs?per_page=100`].jobs;
+      observed.status = "completed";
+      observed.conclusion = jobs.some((job) => job.conclusion === "failure")
+        ? "failure"
+        : "success";
+      current.routes[`actions/runs/${run}`] = observed;
+      const completion = jobs.find((job) => job.name === "complete");
+      if (completion.status !== "completed") {
+        completion.status = "completed";
+        completion.conclusion = "skipped";
+        completion.completed_at = "2026-11-13T00:03:00Z";
+      }
+      writeFileSync(env.RELEASE_PROVIDER_FIXTURE, JSON.stringify(current));
       const output = mkdtempSync(join(root, "observer-")),
         work = mkdtempSync(join(root, "observer-work-"));
       const result = spawnSync(

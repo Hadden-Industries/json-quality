@@ -163,6 +163,41 @@ Original tarball/source qualification and publisher provenance retain their orig
 
 ## Stage and approve
 
+### Reserve the write and capture pending npm stages
+
+After the writer inventory cutover, reserve each stage, archive, and promotion attempt with an owner-signed annotated tag named `release-history-intent-PHASE-RUN_NUMBER-ATTEMPT-DECISION_SHA256`.
+Use `stage`, `archive`, or `promote` for the phase.
+The signed tag points to the exact controller commit on protected `main`.
+For a new dispatch use the next workflow run number and attempt 1.
+For an authorized rerun use that run's number and next attempt.
+A retained job on a partial rerun preserves its original identity.
+For staging use the effective review digest, including the continuation review when selected.
+For archival use the acceptance digest and for promotion use the operation digest, or the existing restoration or acceptance digest on the corresponding older decision path.
+Read back the signed tag under the existing owner-only tag procedure before dispatch.
+Read-only observers and checkpoint preparation need no new reservation.
+
+Before activating reservations, compare the checked-in writer run IDs and workflow IDs with all visible Actions attempts, protected environment deployments, and signed retained history.
+Reconcile in-flight and rerunnable older-controller writers.
+A deleted legacy run requires its signed terminal inventory collected after the native rerun window.
+A reservation consumed on another ref cannot authorize a write and must still be reconciled.
+
+Capture pending npm stages from the owner's authenticated local npm session and supply the exact normalized file bytes and their SHA-256 as `stage_inventory_json` and `stage_inventory_sha`.
+Use a new output path outside the checkout.
+
+```text
+npm exec -- node scripts/release-stage-inventory.js capture-stage-inventory PHASE MANIFEST_SHA256 DECISION_SHA256 OUTPUT.json
+```
+
+The capture checks the core and both native packages through the native npm CLI.
+The dispatch receives normalized pending identities and response digests.
+The owner's npm credentials, private native output, and raw stage identifiers remain in the owner environment.
+An unrelated pending stage blocks all three write paths, including immutable archival, direct GitHub latest classification, restoration and pilot retirement.
+Resolve it through the existing npm approval or rejection procedure.
+A core continuation can account for an attributable earlier native only through its exact authenticated origin.
+The snapshot must be at most one hour old and must follow any other stage-capable writer.
+If a workflow approval outlasts the observation, repeat the capture against the same approved decision and submit it with a fresh authorized dispatch.
+Use the original journals to reconcile any request already made.
+
 Dispatch `stage-release.yml` with `qualification_run`, `qualification_attempt`, `manifest_sha`, `review_sha`, and the exact decision text in `review_json`.
 Start staging within 30 days of qualification, while the producer archive, recipient reports and security evidence remain available.
 Expired qualification inputs require fresh qualification; a green historical run cannot replace their bytes.
@@ -471,6 +506,27 @@ Direct publication remains forbidden on these promotion bindings.
 Hosted extraction, process observation on both runner platforms, publisher/settings readback and live mutation behavior remain separate activation/release checks after source publication is authorized.
 
 ### Retain and renew signed writer history
+
+Current writer artifacts are selected by the exact original job's verified upload receipt.
+The receipt names the final immutable artifact ID and digest, including a reconciled recovery upload when present.
+Native artifact mirrors and later namesakes supply no custody.
+The signed history exporter retains the original receipt for later consumption if the job log expires.
+
+For selected interrupted releases, capture an original native or core predecessor while its authenticated upload and complete provider evidence remain available.
+Supply an approved cumulative Git storage budget in bytes and use private local scratch and a new local output directory before disclosure review.
+The optional final argument selects a previous signed checkpoint with additional retained history.
+
+```text
+npm exec -- node scripts/prepare-release-history.js stage RUN ATTEMPT OUTPUT SCRATCH BUDGET_BYTES [PREVIOUS_CHECKPOINT_JSON]
+```
+
+The output includes an unsigned schema-3 `release-history.json` and content-addressed `release-stage-parts`.
+Confirm every member is cleared for permanent public retention and the complete unique retained size fits the approved budget before signing or publishing anything.
+Sign the index and all referenced sidecars together under the existing owner-controlled checkpoint procedure.
+Supply the compact signed reference as `stage_checkpoint_json` to core staging, registry qualification, or archival when recovering an unavailable original stage.
+Select a checkpoint that accounts for both origins when both are unavailable.
+The same release decision, package bytes, original requests, exact provider attempts and existing qualification gates remain required.
+Private or oversized payloads still require an approved custody location before they can use durable recovery.
 
 Every release-effect admission requires an owner-admitted signed history baseline, including an explicitly empty first baseline.
 Before the 90-day Actions retention window expires, export complete writer history with `node scripts/release-provider.js history OUTPUT SCRATCH [PRIOR_CHECKPOINT_JSON]`.

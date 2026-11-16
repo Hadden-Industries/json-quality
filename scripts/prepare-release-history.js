@@ -12,9 +12,12 @@ import {
   readEffectHistory,
   readHistoryRecord,
   exportHistoryRecord,
+  carryHistoryStages,
+  mergeStageWriterHistory,
 } from "./release-provider.js";
 import { collectQualifiedTarget } from "./qualified-release-checkpoint.js";
 import { writeQualifiedTargetBundle } from "./release-history-targets.js";
+import { selectedStageCheckpoint } from "./stage-predecessor.js";
 
 export function prepareReleaseHistory(
   run,
@@ -84,14 +87,37 @@ export function prepareReleaseHistory(
       : null;
     const checkpoint = operation?.historyCheckpoint ?? review.historyCheckpoint;
     const previous = checkpoint ? readHistoryRecord(checkpoint) : null;
+    const stageSelection = selectedStageCheckpoint(directory, {});
+    const stageHistory = stageSelection
+      ? readHistoryRecord(stageSelection)
+      : null;
     const history = readEffectHistory(
       {},
       scratch,
       checkpoint,
-      previous ? { checkpoint: () => previous.entries } : {},
+      previous
+        ? {
+            checkpoint: () =>
+              stageHistory
+                ? mergeStageWriterHistory(previous, stageHistory)
+                : previous.entries,
+            writerRunClosures: [
+              ...new Map(
+                [
+                  ...(stageHistory?.writerRunClosures ?? []),
+                  ...(previous.writerRunClosures ?? []),
+                ].map((closure) => [
+                  `${closure.phase}/${closure.run.id}`,
+                  closure,
+                ]),
+              ).values(),
+            ],
+          }
+        : {},
     );
     const base = {
       ...exportHistoryRecord(history),
+      ...carryHistoryStages(stageHistory ?? previous, output),
       ...(previous?.stageCancellations
         ? { stageCancellations: previous.stageCancellations }
         : {}),
@@ -169,7 +195,14 @@ export function prepareReleaseHistory(
     return readiness;
   }
 }
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] === fileURLToPath(import.meta.url) &&
+  process.argv[2] === "stage"
+) {
+  assert.ok(process.argv.length === 8 || process.argv.length === 9);
+  const { prepareStageHistory } = await import("./prepare-stage-history.js");
+  prepareStageHistory(...process.argv.slice(3));
+} else if (process.argv[1] === fileURLToPath(import.meta.url)) {
   assert.equal(process.argv.length, 6);
   const result = prepareReleaseHistory(...process.argv.slice(2));
   if (result.state !== "prepared") process.exitCode = 1;

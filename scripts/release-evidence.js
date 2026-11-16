@@ -30,6 +30,7 @@ import {
 } from "./release-contract.js";
 import {
   checkEnvironment,
+  artifactUnavailable,
   api,
   currentMain,
   download,
@@ -38,6 +39,7 @@ import {
   producingAttempt,
   readEffectHistory,
   readHistoryRecord,
+  mergeStageWriterHistory,
   readHistoryTarget,
   historyTargetDescriptors,
   signedTag,
@@ -62,6 +64,10 @@ import {
 } from "./archived-release-evidence.js";
 import { verifyQualifiedTarget } from "./qualified-release-contract.js";
 import { admitPendingDecisions } from "./release-decision-state.js";
+import {
+  observeStagePredecessor,
+  selectedStageCheckpoint,
+} from "./stage-predecessor.js";
 
 function copyEvidence(from, to) {
   mkdirSync(to, { recursive: true });
@@ -202,9 +208,37 @@ export function refreshAdmission(
   const recoveryRoot = join(historyRoot, "recovery-readback");
   mkdirSync(recoveryRoot, { recursive: true });
   let context = readJson(join(directory, "context.json"));
+  const stageSelection = selectedStageCheckpoint(directory, env);
+  const stageHistory = stageSelection
+    ? readHistoryRecord(stageSelection)
+    : null;
+  if (stageHistory)
+    assert.ok(
+      stageHistory.stagePredecessors?.some(
+        (ref) =>
+          ref.manifestSha256 === env.MANIFEST_SHA &&
+          ref.reviewSha256 === env.REVIEW_SHA &&
+          [context.nativeStage, context.stage].some(
+            (origin) =>
+              origin?.run === ref.run && origin.attempt === ref.attempt,
+          ),
+      ),
+      "Stage checkpoint must retain an original predecessor for the current release",
+    );
   let retained, retainedHistory;
   const readProvider = (providerPhase, origin) => {
     try {
+      if (providerPhase === "stage" && stageHistory)
+        return observeStagePredecessor(
+          {
+            run: origin.run,
+            attempt: origin.attempt,
+            controller: origin.controller,
+            manifestSha256: env.MANIFEST_SHA,
+            reviewSha256: env.REVIEW_SHA,
+          },
+          stageHistory,
+        );
       return provider(origin.run, origin.attempt);
     } catch (error) {
       if (
@@ -471,7 +505,7 @@ export function refreshAdmission(
       "A complete signed writer-history checkpoint, including an empty first-use baseline, is required before release effects",
     );
     const completeCheckpoint =
-      release.schemaVersion >= 3 || env.OPERATION_JSON
+      release.schemaVersion >= 3 || env.OPERATION_JSON || stageHistory
         ? readHistoryRecord(checkpoint)
         : null;
     const originalHistory = readEffectHistory(
@@ -479,7 +513,23 @@ export function refreshAdmission(
       historyRoot,
       checkpoint,
       completeCheckpoint
-        ? { checkpoint: () => completeCheckpoint.entries }
+        ? {
+            checkpoint: () =>
+              stageHistory
+                ? mergeStageWriterHistory(completeCheckpoint, stageHistory)
+                : completeCheckpoint.entries,
+            writerRunClosures: [
+              ...new Map(
+                [
+                  ...(stageHistory?.writerRunClosures ?? []),
+                  ...(completeCheckpoint.writerRunClosures ?? []),
+                ].map((closure) => [
+                  `${closure.phase}/${closure.run.id}`,
+                  closure,
+                ]),
+              ).values(),
+            ],
+          }
         : {},
       release,
     );
@@ -538,6 +588,14 @@ export function refreshAdmission(
       );
   }
   currentMain(env);
+  if (stageSelection) {
+    const path = join(directory, "stage-recovery-checkpoint.json");
+    if (existsSync(path))
+      writeFileSync(path, JSON.stringify(stageSelection) + "\n", {
+        flush: true,
+      });
+    else save(path, stageSelection);
+  }
   sealBundle(directory, env.MANIFEST_SHA);
   return { release, context, history, recovery };
 }
@@ -716,16 +774,7 @@ export function acquireRecoveryJournal(
       acquisition,
     );
   } catch (error) {
-    if (
-      !retirement ||
-      !(
-        error.httpStatus === 404 ||
-        /Expired native artifact|Missing or ambiguous native artifact/u.test(
-          error.message,
-        )
-      )
-    )
-      throw error;
+    if (!retirement || !artifactUnavailable(error)) throw error;
     const effect = originalAvailabilityEffect(retirement);
     const retained = join(acquisition, "retained-promotion");
     mkdirSync(retained);

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { nodeSupport, validatePolicy } from "./node-matrix.js";
-import { ubuntuRunner } from "./runner-policy.js";
+import { ubuntuRunner, windowsRunner } from "./runner-policy.js";
 const root = new URL("../", import.meta.url);
 
 /** Shared by projection and regression checks, including bootstrap declarations. */
@@ -26,6 +26,7 @@ export function nodeSupportProjectionPaths() {
 export function projectNodeSupport(files, policy = nodeSupport) {
   validatePolicy(policy);
   const linux = ubuntuRunner(policy);
+  const windows = windowsRunner(policy);
   return Object.fromEntries(
     Object.entries(files).map(([path, source]) => {
       if (path === "package.json") {
@@ -54,10 +55,15 @@ export function projectNodeSupport(files, policy = nodeSupport) {
           /^\.github\/(?:workflows\/[^/]+\.yml|actions\/[^/]+\/action\.yml)$/u,
         );
         const runnerSource = path.startsWith(".github/workflows/")
-          ? source.replace(
-              /\bubuntu-(?:\d{2}\.\d{2}|latest|slim)(?:-[a-z0-9]+)*(?![\w.-])/gu,
-              linux,
-            )
+          ? source
+              .replace(
+                /\bubuntu-(?:\d{2}\.\d{2}|latest|slim)(?:-[a-z0-9]+)*(?![\w.-])/gu,
+                linux,
+              )
+              .replace(
+                /\bwindows-(?:20\d{2}(?:-vs20\d{2})?|latest)(?![\w.-])/gu,
+                windows,
+              )
           : source;
         return [
           path,

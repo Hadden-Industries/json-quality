@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { budgets } from "./qualification-process.js";
 import nodeSupport from "../assets/node-support.json" with { type: "json" };
-import { ubuntuRunnerPattern } from "./runner-policy.js";
+import { ubuntuRunnerPattern, windowsRunnerPattern } from "./runner-policy.js";
 export const pythonVersion = readFileSync(
   new URL("../.python-version", import.meta.url),
   "utf8",
@@ -16,7 +16,7 @@ export const pythonVersion = readFileSync(
 // Build numbers and Windows tool-image variants remain execution provenance.
 export function assertHostedPlatform(host, lane) {
   const ubuntu = ubuntuRunnerPattern.exec(lane);
-  const windows = lane === "windows-2025";
+  const windows = windowsRunnerPattern.exec(lane);
   assert.ok(ubuntu || windows, "Unsupported hosted platform");
   assert.equal(
     host?.os,
@@ -29,7 +29,9 @@ export function assertHostedPlatform(host, lane) {
     typeof host.image === "string" &&
       host.image.length <= 80 &&
       (windows
-        ? /^win25(?:-[a-zA-Z0-9]+)*$/u.test(host.image)
+        ? new RegExp(`^win${windows[1]}(?:-[a-zA-Z0-9]+)*$`, "u").test(
+            host.image,
+          )
         : host.image === `ubuntu${ubuntu[1]}`),
     "Hosted image family differs from the qualified platform",
   );

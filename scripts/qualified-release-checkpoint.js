@@ -16,6 +16,7 @@ import { verifyQualifiedTarget } from "./qualified-release-contract.js";
 import { verifyLane, verifySecurity } from "./release-evidence.js";
 import {
   api,
+  artifactUnavailable,
   provider,
   producingAttempt,
   download,
@@ -24,6 +25,10 @@ import {
   readHistoryRecord,
   readHistoryTarget,
 } from "./release-provider.js";
+import {
+  observeStagePredecessor,
+  selectedStageCheckpoint,
+} from "./stage-predecessor.js";
 
 /** Refresh native identities and compare original provider bytes with archived public evidence. */
 export function collectQualifiedTarget(
@@ -34,16 +39,7 @@ export function collectQualifiedTarget(
   try {
     return collectOriginalQualifiedTarget(directory, scratch);
   } catch (error) {
-    if (
-      !checkpoint ||
-      !(
-        error.httpStatus === 404 ||
-        /^(?:Expired native artifact|Missing or ambiguous native artifact)$/u.test(
-          error.message,
-        )
-      )
-    )
-      throw error;
+    if (!checkpoint || !artifactUnavailable(error)) throw error;
     const release = verifyManifest(
         readJson(join(directory, "release-manifest.json")),
         { historical: true },
@@ -158,6 +154,16 @@ function collectOriginalQualifiedTarget(directory, scratch) {
   const providers = [
     { phase: "registry", origin: context.registry, provider: observed },
   ];
+  const stageCheckpoint = selectedStageCheckpoint(directory, {});
+  const stageHistory = stageCheckpoint
+    ? readHistoryRecord(stageCheckpoint)
+    : null;
+  const reviewSha256 = sha256(
+    regularBytes(join(directory, "release-review.json")),
+  );
+  const manifestSha256 = sha256(
+    regularBytes(join(directory, "release-manifest.json")),
+  );
   for (const attempt of new Set(artifacts.map((artifact) => artifact.attempt)))
     if (attempt !== Number(context.registry.attempt))
       providers.push({
@@ -174,7 +180,19 @@ function collectOriginalQualifiedTarget(directory, scratch) {
     providers.push({
       phase,
       origin,
-      provider: provider(origin.run, origin.attempt),
+      provider:
+        phase === "stage" && stageHistory
+          ? observeStagePredecessor(
+              {
+                run: origin.run,
+                attempt: origin.attempt,
+                controller: origin.controller,
+                manifestSha256,
+                reviewSha256,
+              },
+              stageHistory,
+            )
+          : provider(origin.run, origin.attempt),
     });
   }
   const record = captureQualifiedTarget(directory, {

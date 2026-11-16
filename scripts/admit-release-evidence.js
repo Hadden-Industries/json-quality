@@ -11,7 +11,16 @@ import {
   verifyRun,
   verifyNativeStageEvidence,
 } from "./release-contract.js";
-import { download, provider } from "./release-provider.js";
+import {
+  artifactUnavailable,
+  download,
+  readHistoryRecord,
+} from "./release-provider.js";
+import {
+  acquireStagePredecessor,
+  observeStagePredecessor,
+  selectedStageCheckpoint,
+} from "./stage-predecessor.js";
 import { originalAvailabilityEffect } from "./release-availability-contract.js";
 import {
   assembleQualification,
@@ -38,11 +47,20 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       process.env.GITHUB_RUN_ID,
       "Core requires a new dispatch",
     );
-    const prior = download(
-      process.env.NATIVE_STAGE_RUN,
-      process.env.NATIVE_STAGE_ATTEMPT,
-      `effect-stage-${process.env.NATIVE_STAGE_ATTEMPT}`,
+    const expected = {
+      run: process.env.NATIVE_STAGE_RUN,
+      attempt: process.env.NATIVE_STAGE_ATTEMPT,
+      stagePhase: "natives",
+      manifestSha256: process.env.MANIFEST_SHA,
+      reviewSha256: process.env.REVIEW_SHA,
+    };
+    const selected = selectedStageCheckpoint(output, process.env);
+    const history = selected ? readHistoryRecord(selected) : null;
+    const prior = acquireStagePredecessor(
+      expected,
       scratch,
+      selected,
+      history ? { history: () => history } : {},
     );
     const release = verifyBundle(prior.directory, process.env.MANIFEST_SHA);
     copyTree(prior.directory, output);
@@ -57,7 +75,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       (name) => regularBytes(join(output, name)),
     );
     verifyRun(
-      provider(context.nativeStage.run, context.nativeStage.attempt),
+      observeStagePredecessor(expected, history),
       "stage",
       context.nativeStage.controller,
       readJson(join(output, "release-manifest.json")).matrix,
@@ -102,22 +120,30 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
     let artifact;
     try {
-      artifact = download(
-        run,
-        attempt,
-        `${priorPhase === "registry" ? "public" : "effect"}-${priorPhase}${original?.service ? `-${original.service}` : ""}-${attempt}`,
-        scratch,
-      );
+      artifact =
+        phase === "registry"
+          ? acquireStagePredecessor(
+              {
+                run,
+                attempt,
+                stagePhase: "core",
+                manifestSha256: process.env.MANIFEST_SHA,
+                reviewSha256: process.env.REVIEW_SHA,
+              },
+              scratch,
+              selectedStageCheckpoint(output, process.env),
+            )
+          : download(
+              run,
+              attempt,
+              `${priorPhase === "registry" ? "public" : "effect"}-${priorPhase}${original?.service ? `-${original.service}` : ""}-${attempt}`,
+              scratch,
+            );
     } catch (error) {
       if (
         phase !== "promote" ||
         !process.env.OPERATION_JSON ||
-        !(
-          error.httpStatus === 404 ||
-          /Expired native artifact|Missing or ambiguous native artifact/u.test(
-            error.message,
-          )
-        )
+        !artifactUnavailable(error)
       )
         throw error;
       const { recoverArchivedAdmission } =

@@ -19,6 +19,11 @@ import { nativePackages } from "../src/native-packages.js";
 import { securityScans } from "./security-scans.js";
 import { verifyDistributionInventory } from "./release-distribution.js";
 import {
+  verifyMatrixRunner,
+  ubuntuRunner,
+  windowsRunner,
+} from "./runner-policy.js";
+import {
   effectJournal,
   sha256,
   sha512,
@@ -766,6 +771,19 @@ export function verifyRun(
   assert.deepEqual(jobs.jobs.map(({ name }) => name).sort(), names.sort());
   for (const job of jobs.jobs) {
     assert.equal(job.status, "completed");
+    if (matrix?.os?.length) {
+      const label = job.name
+        .split(/[\s(),/]+/u)
+        .find((token) => matrix.os.includes(token));
+      const expected =
+        label ??
+        (job.name.endsWith("Scan cpp-windows")
+          ? windowsRunner({ platforms: matrix.os })
+          : job.name.endsWith("Scan cpp-linux")
+            ? ubuntuRunner({ platforms: matrix.os })
+            : undefined);
+      verifyMatrixRunner(job, expected, Boolean(run.run_number && !historical));
+    }
     if (completedNativeStage && job.name === "stage")
       assert.equal(job.conclusion, "failure");
     else if (reconciled && job.name === phase)

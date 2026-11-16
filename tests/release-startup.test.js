@@ -148,6 +148,12 @@ test("ordinary family writers and read-only completion run without project packa
     ).state,
     "completed",
   );
+  world.update((state) => {
+    const { artifacts } =
+      state.routes["actions/runs/17/artifacts?per_page=100"];
+    artifacts[1] = { ...artifacts[1], id: 160 };
+    artifacts[2] = { ...artifacts[2], id: 161 };
+  });
   const independent = world.independent();
   assert.equal(independent.status, 0, independent.stderr);
   assert.equal(

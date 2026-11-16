@@ -491,7 +491,12 @@ export function applyNpmFamily(input, operations) {
         };
       },
       {
-        preRequest: () => guardFamily(family, operations, completed),
+        preRequest: () => {
+          operations.assertStageInventory?.();
+          guardFamily(family, operations, completed);
+        },
+        diagnoseRefusal: (error) =>
+          operations.diagnosePackageRefusal?.(error, subject.package),
         env,
         before,
         guard: {
@@ -573,6 +578,7 @@ export function applyGithubFamily(input, operations) {
     },
     {
       preRequest: () => {
+        if (!noOp) operations.assertStageInventory?.();
         for (const subject of family.subjects)
           assert.equal(
             familyLabelValue(
