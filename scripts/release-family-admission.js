@@ -190,7 +190,13 @@ export function prepareFamilyPromotion(
       "--format",
       "json",
     ]);
-    for (const file of ["release-manifest.json", "release-assets.json"]) {
+    const standaloneProof = [
+      "release-manifest.json",
+      "release-assets.json",
+      "release-review.json",
+      "release-acceptance.json",
+    ];
+    for (const file of standaloneProof) {
       gh([
         "release",
         "download",
@@ -228,7 +234,7 @@ export function prepareFamilyPromotion(
     ).filter(
       (name) =>
         (name.endsWith(".json") || name.endsWith(".jsonl")) &&
-        !["release-manifest.json", "release-assets.json"].includes(name),
+        !standaloneProof.includes(name),
     );
     acquireArchiveEvidence(root, candidate, live.assets, proofNames);
     const archivedContext = readJson(join(root, "context.json"));
@@ -345,7 +351,7 @@ export function prepareFamilyPromotion(
       );
     }
     const security = {
-      codeql: qualifySecurity(candidate, manifest, { historical: true }),
+      codeql: qualifySecurity(root, { historical: true }),
       recipient: audits,
     };
     const checkpoint =
@@ -488,10 +494,7 @@ export function prepareFamilyPromotion(
   };
   guardFamily(family, operations);
   const security = {
-    source: qualifySecurity(
-      release,
-      regularBytes(join(directory, "release-manifest.json")),
-    ),
+    source: qualifySecurity(directory),
     targets,
     checkedAt: new Date().toISOString(),
   };

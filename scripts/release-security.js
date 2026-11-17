@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import { verifyBuildEvidence } from "./release-promotion-evidence.js";
 import {
-  readJson,
   regularBytes,
   save,
   sha256,
@@ -178,11 +177,21 @@ export function verifySarif(sarif, analysis) {
     findings: 0,
   };
 }
+/** Read the manifest and original build proof from one required frozen bundle. */
 export function qualifySecurity(
-  release,
-  manifestBytes,
-  { historical = false, directory } = {},
+  directory,
+  {
+    historical = false,
+    list = pages,
+    sarif = (id) =>
+      api(`code-scanning/analyses/${id}`, [
+        "-H",
+        "Accept: application/sarif+json",
+      ]),
+  } = {},
 ) {
+  const manifestBytes = regularBytes(join(directory, "release-manifest.json"));
+  const release = JSON.parse(manifestBytes);
   verifyManifest(release, { historical });
   const original = release.promotion
     ? verifyBuildEvidence(release, directory)
@@ -196,7 +205,7 @@ export function qualifySecurity(
   const ref = original
     ? `refs/pull/${original.pullRequest}/merge`
     : "refs/heads/main";
-  const analyses = pages(
+  const analyses = list(
     `code-scanning/analyses?ref=${encodeURIComponent(ref)}&tool_name=CodeQL&per_page=100`,
   );
   const selected = verifyCodeql(
@@ -214,13 +223,7 @@ export function qualifySecurity(
     checkedAt: new Date().toISOString(),
     analyses: selected,
     scans: selected.map((analysis) =>
-      verifySarif(
-        api(`code-scanning/analyses/${analysis.id}`, [
-          "-H",
-          "Accept: application/sarif+json",
-        ]),
-        analysis,
-      ),
+      verifySarif(sarif(analysis.id), analysis),
     ),
   };
   if (original) {
@@ -238,11 +241,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   assert.equal(process.argv.length, 4);
   const [directory, output] = process.argv.slice(2);
   mkdirSync(output, { recursive: true });
-  const bytes = regularBytes(join(directory, "release-manifest.json"));
-  save(
-    join(output, "security.json"),
-    qualifySecurity(readJson(join(directory, "release-manifest.json")), bytes, {
-      directory,
-    }),
-  );
+  save(join(output, "security.json"), qualifySecurity(directory));
 }
