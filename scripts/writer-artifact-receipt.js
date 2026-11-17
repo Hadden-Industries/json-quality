@@ -79,7 +79,7 @@ export function readWriterArtifactReceipt(log, run, job, expectedName) {
     if (!(at >= start && at < end)) continue;
     const message = record[2];
     const begin =
-      /^##\[start-action display=(?:Run )?Reconcile writer evidence upload ([123]);id=(__self_\d+\.(?:first|second|third))\]$/u.exec(
+      /^##\[start-action display=(?:Run )?Reconcile writer evidence upload ([123]);id=((?:__self_\d+|effect)\.(?:first|second|third))\]$/u.exec(
         message,
       );
     if (begin) {
