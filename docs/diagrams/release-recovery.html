@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reconcile before continuing a release | JSON Quality</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #ffffff;
+        color: #1d2733;
+        font:
+          1rem/1.6 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 960px;
+        margin: auto;
+        min-width: 0;
+      }
+      h1 {
+        font-size: 1.5rem;
+        line-height: 1.3;
+      }
+      figure {
+        margin: 0;
+      }
+      .diagram-container {
+        width: 100%;
+        overflow-x: auto;
+      }
+      svg {
+        display: block;
+        width: 100%;
+        min-width: 960px;
+      }
+      figcaption {
+        margin-top: 16px;
+      }
+      @media print {
+        svg {
+          min-width: 0;
+        }
+        .diagram-container {
+          overflow: visible;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Reconcile before continuing a release</h1>
+      <figure>
+        <div
+          class="diagram-container"
+          role="region"
+          aria-label="Scrollable diagram"
+          tabindex="0"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 960 944"
+            role="img"
+            aria-labelledby="release-recovery-title release-recovery-desc"
+          >
+            <title id="release-recovery-title">
+              Reconcile before continuing a release
+            </title>
+            <desc id="release-recovery-desc">
+              After a possible remote effect, stop and inspect the original
+              append-only request journal and native provider state. Missing
+              journals, truncated history or an unknown outcome block another
+              effect. Preserve evidence until the owner settles the original
+              operation. A settled result alone does not authorize a retry: the
+              owner must reconcile it and explicitly approve a continuation
+              bound to the original identities. Observe acknowledged effects
+              instead of repeating them; execute only authorized remaining
+              operations.
+            </desc>
+            <defs>
+              <marker
+                id="release-recovery-arrow"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+              >
+                <path d="M 0 0 L 8 4 L 0 8 Z" fill="#465568" />
+              </marker>
+            </defs>
+            <rect width="960" height="944" fill="#ffffff" />
+            <text
+              x="40"
+              y="48"
+              text-anchor="start"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="30"
+              fill="#1d2733"
+            >
+              <tspan x="40" dy="0">Reconcile before continuing a release</tspan>
+            </text>
+            <path
+              data-edge="true"
+              d="M 288 164 V 208"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#release-recovery-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 288 292 V 340"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#release-recovery-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 448 400 H 664 Q 672 400 672 408 V 504"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#release-recovery-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 288 460 V 504"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#release-recovery-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 288 588 V 632"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#release-recovery-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 288 716 V 760"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#release-recovery-arrow)"
+            />
+            <g data-label="true">
+              <rect x="498.0" y="360" width="104" height="30" fill="#ffffff" />
+              <text
+                x="550"
+                y="382"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="18"
+                fill="#465568"
+              >
+                <tspan x="550" dy="0">UNKNOWN</tspan>
+              </text>
+            </g>
+            <g data-label="true">
+              <rect x="292.0" y="468" width="104" height="30" fill="#ffffff" />
+              <text
+                x="344"
+                y="490"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="18"
+                fill="#465568"
+              >
+                <tspan x="344" dy="0">SETTLED</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="128"
+                y="92"
+                width="320"
+                height="72"
+                rx="24"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="288.0"
+                y="136.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="288.0" dy="0">Stop the failed writer</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="128"
+                y="208"
+                width="320"
+                height="84"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="288.0"
+                y="243.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="288.0" dy="0">Read original journal</tspan>
+                <tspan x="288.0" dy="30">and provider state</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <path
+                d="M 288.0 340 L 448 400.0 L 288.0 460 L 128 400.0 Z"
+                fill="#ffffff"
+                stroke="#0755a6"
+                stroke-width="3"
+              />
+              <text
+                x="288.0"
+                y="393.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="288.0" dy="0">Original effect</tspan>
+                <tspan x="288.0" dy="30">is settled?</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="544"
+                y="504"
+                width="320"
+                height="84"
+                rx="24"
+                fill="#ffffff"
+                stroke="#0755a6"
+                stroke-width="3"
+              />
+              <text
+                x="704.0"
+                y="539.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="704.0" dy="0">Remain blocked;</tspan>
+                <tspan x="704.0" dy="30">preserve evidence</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="128"
+                y="504"
+                width="320"
+                height="84"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="288.0"
+                y="539.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="288.0" dy="0">Owner reconciles</tspan>
+                <tspan x="288.0" dy="30">the original outcome</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="128"
+                y="632"
+                width="320"
+                height="84"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="288.0"
+                y="667.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="288.0" dy="0">Owner approves</tspan>
+                <tspan x="288.0" dy="30">remaining continuation</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="128"
+                y="760"
+                width="320"
+                height="84"
+                rx="24"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="288.0"
+                y="795.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="288.0" dy="0">Observe completed work;</tspan>
+                <tspan x="288.0" dy="30">run remaining effects</tspan>
+              </text>
+            </g>
+            <text
+              x="480"
+              y="904"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="480" dy="0">
+                Missing receipts and 404 responses do not prove no effect
+                occurred.
+              </tspan>
+            </text>
+          </svg>
+        </div>
+        <figcaption>
+          After a possible remote effect, stop and inspect the original
+          append-only request journal and native provider state. Missing
+          journals, truncated history or an unknown outcome block another
+          effect. Preserve evidence until the owner settles the original
+          operation. A settled result alone does not authorize a retry: the
+          owner must reconcile it and explicitly approve a continuation bound to
+          the original identities. Observe acknowledged effects instead of
+          repeating them; execute only authorized remaining operations.
+        </figcaption>
+      </figure>
+    </main>
+  </body>
+</html>

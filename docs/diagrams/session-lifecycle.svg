@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 960 720"
+            role="img"
+            aria-labelledby="session-lifecycle-title session-lifecycle-desc"
+          >
+            <title id="session-lifecycle-title">
+              Read values within their session
+            </title>
+            <desc id="session-lifecycle-desc">
+              Open a source session, consume its streamed check and require a
+              successful terminal result before selecting and reading a value.
+              Await close in finally. Source and value references expire with
+              their owning session. Materialization is optional: release a lease
+              after use; transfer moves an independently admitted object to the
+              caller without extending borrowed references.
+            </desc>
+            <defs>
+              <marker
+                id="session-lifecycle-arrow"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+              >
+                <path d="M 0 0 L 8 4 L 0 8 Z" fill="#465568" />
+              </marker>
+            </defs>
+            <rect width="960" height="720" fill="#ffffff" />
+            <text
+              x="40"
+              y="48"
+              text-anchor="start"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="30"
+              fill="#1d2733"
+            >
+              <tspan x="40" dy="0">Read values within their session</tspan>
+            </text>
+            <path
+              d="M 240 176 V 576 M 720 176 V 576"
+              stroke="#465568"
+              stroke-width="2"
+              stroke-dasharray="6 5"
+            />
+            <path
+              data-edge="true"
+              d="M 240 224 H 720"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#session-lifecycle-arrow)"
+            />
+            <text
+              x="480"
+              y="208"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="480" dy="0">Open the source session</tspan>
+            </text>
+            <path
+              data-edge="true"
+              d="M 240 300 H 720"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#session-lifecycle-arrow)"
+            />
+            <text
+              x="480"
+              y="284"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="480" dy="0">Check streamed source bytes</tspan>
+            </text>
+            <path
+              data-edge="true"
+              d="M 720 376 H 240"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              stroke-dasharray="6 5"
+              marker-end="url(#session-lifecycle-arrow)"
+            />
+            <text
+              x="480"
+              y="360"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="480" dy="0">Successful terminal result</tspan>
+            </text>
+            <path
+              data-edge="true"
+              d="M 240 452 H 720"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#session-lifecycle-arrow)"
+            />
+            <text
+              x="480"
+              y="436"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="480" dy="0">Select a value and read parts</tspan>
+            </text>
+            <path
+              data-edge="true"
+              d="M 240 528 H 720"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#session-lifecycle-arrow)"
+            />
+            <text
+              x="480"
+              y="512"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="480" dy="0">Await session.close()</tspan>
+            </text>
+            <g data-node="true">
+              <rect
+                x="96"
+                y="104"
+                width="288"
+                height="72"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="240.0"
+                y="148.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="240.0" dy="0">Caller</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="576"
+                y="104"
+                width="288"
+                height="72"
+                rx="6"
+                fill="#ffffff"
+                stroke="#0755a6"
+                stroke-width="3"
+              />
+              <text
+                x="720.0"
+                y="148.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="720.0" dy="0">Session</tspan>
+              </text>
+            </g>
+            <text
+              x="480"
+              y="620"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="480" dy="0">
+                Source and value references belong to this session.
+              </tspan>
+            </text>
+            <text
+              x="480"
+              y="656"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="480" dy="0">
+                Closing ends borrowed access; transfer has separate ownership.
+              </tspan>
+            </text>
+          </svg>

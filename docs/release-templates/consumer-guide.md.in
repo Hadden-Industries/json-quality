@@ -73,6 +73,14 @@ Omitting the matching optional dependency fails explicitly.
 
 ## Stream a source and read lossless values
 
+[![Session sequence from opening through a successful source check, value access and awaited closure.](diagrams/session-lifecycle.svg)](diagrams/session-lifecycle.svg)
+
+Open a session, consume the source check to completion and require a successful terminal result before selecting and reading a value.
+Source and value references belong to that session; closing it ends borrowed access.
+Always await closure in `finally`.
+Materialization is optional: [release leases or transfer independently admitted objects](#borrow-or-transfer-a-materialized-value) without extending borrowed references.
+Open the diagram for a full-size view.
+
 The input contains the number `1.00`.
 Read it as a `number-lexeme` to get all four bytes back.
 Run the example as an ES module in a project with the package installed.
@@ -160,7 +168,8 @@ try {
     if (event.type === "execution-terminal") terminal = event;
   }
   if (!terminal) throw new Error("Repository check did not complete.");
-  if (!terminal.contractSatisfied) throw new Error("Repository contract refused.");
+  if (!terminal.contractSatisfied)
+    throw new Error("Repository contract refused.");
 } finally {
   await session.close();
 }
@@ -254,6 +263,14 @@ Ordinary source checking does not inherit these materializing-operation defaults
 Existing semantic hashing/canonicalization protocols must not be replaced by formatting.
 
 ### Preview and apply a repository rewrite
+
+[![Guarded rewrite flow with refusal before writes and confirmed or uncertain partial completion after writes begin.](diagrams/guarded-rewrite.svg)](diagrams/guarded-rewrite.svg)
+
+Preflight the complete selection before writing, then stage, recheck, replace and verify each file.
+Preflight refusal changes nothing.
+A later failure stops the batch and reports confirmed writes and any uncertain path; confirmed writes are not rolled back.
+The policy is replaced last.
+Open the diagram for a full-size view.
 
 For repository effects, consume `session.check()` to completion, then iterate `session.rewrite("format", { files })` or `session.rewrite("normalize", { files })`.
 Normalize preview uses `session.rewrite("normalize", { files, dryRun: true })` and completes the same no-write batch preflight.

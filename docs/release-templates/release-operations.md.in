@@ -4,6 +4,14 @@ Release owners use five manually dispatched workflows to qualify and publish the
 For a first release, complete [publisher and environment setup](#before-first-use).
 If an effect may already have reached npm or GitHub, start with [failure and recovery](#failure-recovery-and-evidence) before dispatching anything else.
 
+[![Release handoffs between automation and the owner, including separate npm approvals for native packages and core.](diagrams/release-handoffs.svg)](diagrams/release-handoffs.svg)
+
+Reuse qualified archives, then have the owner review identities, sign the tag and choose the npm channel.
+Stage and approve both native packages before public native checks permit core staging and its separate approval.
+Verify the public family, archive the immutable release and confirm availability against the reviewed channel decision.
+Direct `latest` publication does not require a later pilot-to-latest promotion.
+Open the diagram for a full-size view.
+
 1. [Qualify the package family](#qualification-and-owner-review) with `release-qualification.yml`.
    Retain the frozen manifest digest, signed tag and owner review.
 2. [Stage the tarballs](#stage-and-approve) with `stage-release.yml`.
@@ -400,7 +408,12 @@ Removing a first release's `latest` is a distinct owner decision; the normal res
 For an explicitly approved npm-only restoration, the restoration decision adds these fields to the usual target version/integrity/manifest and evidence bindings:
 
 ```json
-{"availability":"npm-only","expectedGithubLatest":null,"affectedPrerelease":true,"targetPrerelease":true}
+{
+  "availability": "npm-only",
+  "expectedGithubLatest": null,
+  "affectedPrerelease": true,
+  "targetPrerelease": true
+}
 ```
 
 This mode changes the core package's npm default; its exact optional dependencies select the target's matching native family.
@@ -417,6 +430,13 @@ Published npm versions cannot be replaced.
 Immutable assets and tags are retained; corrections use a new identity.
 
 ## Failure, recovery and evidence
+
+[![Recovery decision: inspect original journals and provider state; unknown effects remain blocked until owner reconciliation.](diagrams/release-recovery.svg)](diagrams/release-recovery.svg)
+
+Stop after a possible remote effect and inspect the original journal and native provider state.
+Missing or truncated evidence and unknown outcomes block another effect; a missing receipt or 404 response does not prove that nothing happened.
+Once the owner settles and reconciles the original operation, an explicit continuation authorizes only remaining effects and observes completed work without repeating it.
+Open the diagram for a full-size view.
 
 All mutating workflows share `json-quality-release-mutation` with cancellation disabled.
 Native run history still inspects every attempt of every writer; concurrency alone is not an effect ledger.
@@ -566,7 +586,13 @@ The representative retained-target rehearsal fits lazy plaintext sidecars; no co
 The current digest-bound `release-review.json` must explicitly admit the reference:
 
 ```json
-{"historyCheckpoint":{"tag":"release-history-20261018","tagSha":"<exact annotated-tag SHA>","sha256":"<release-history.json SHA256>"}}
+{
+  "historyCheckpoint": {
+    "tag": "release-history-20261018",
+    "tagSha": "<exact annotated-tag SHA>",
+    "sha256": "<release-history.json SHA256>"
+  }
+}
 ```
 
 Admission verifies the signed tag and exact file bytes, enumerates every available native writer/run/attempt/job, and retains checkpoint-only original attempts after provider expiry.

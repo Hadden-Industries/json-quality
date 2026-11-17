@@ -155,6 +155,13 @@ The [rule reference](docs/rules/no-json-stringify-identity.md) shows a reported 
 ## Guides and development
 
 Use the [documentation index](docs/README.md) to find references and operator runbooks.
+
+For visual explanations, see:
+
+- [Session lifetimes](https://github.com/Hadden-Industries/json-quality/blob/v1.0.2/docs/consumer-guide.md#stream-a-source-and-read-lossless-values)
+- [Guarded rewrites](https://github.com/Hadden-Industries/json-quality/blob/v1.0.2/docs/consumer-guide.md#preview-and-apply-a-repository-rewrite)
+- [CI trust boundaries](https://github.com/Hadden-Industries/json-quality/blob/v1.0.2/docs/ci-trust.md#policy-and-source-boundaries)
+
 See [contributing](CONTRIBUTING.md) for development setup and PR qualification, [CI runs](https://github.com/Hadden-Industries/json-quality/actions/workflows/ci.yml) for candidate results, the [changelog](CHANGELOG.md) for release changes, and the [security policy](SECURITY.md) for private vulnerability reporting.
 
 JSON Quality is licensed under [AGPL-3.0-only](LICENSE).

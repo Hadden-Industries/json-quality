@@ -19,6 +19,13 @@ The scope is explicitly `immutable-git-json`: checkout/HEAD cleanliness is not a
 
 ### Policy and source boundaries
 
+[![Trusted producer and policy govern checking; candidate Git blobs enter as data and cannot select policy.](diagrams/trusted-ci.svg)](diagrams/trusted-ci.svg)
+
+The trusted producer and local schemas admit policy from the selected trusted commit, or defaults after verified absence.
+Candidate blobs cross the boundary as data only; candidate policy cannot govern checking and candidate code is not executed.
+Read the final `execution-terminal` for the complete `immutable-git-json` verdict, which makes no application-domain claim.
+Open the diagram for a full-size view.
+
 The producer's installed component and local schemas own admission.
 A bounded native/Ajv bootstrap reads a present trusted `.json-quality.json` from its Git blob, verifies exact bytes and transfers the resolved frozen policy charge into the main core.
 Verified absence has its own immutable Git origin and still owns the resolved-policy reservation.
