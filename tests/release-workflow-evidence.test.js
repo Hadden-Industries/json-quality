@@ -94,6 +94,14 @@ test("a reconciled writer upload must come from its original composite reconcili
   assert.throws(() =>
     read([lines[0], JSON.stringify({ ...receipt, attempt: 3 }), lines[2]]),
   );
+  const named = lines.map((line) => line.replaceAll("__self_3", "effect"));
+  assert.deepEqual(read(named), receipt);
+  assert.throws(() => read(named.slice(1)), /outside/u);
+  assert.throws(() => read([...named, ...named]), /unique/u);
+  assert.throws(
+    () => read(lines.map((line) => line.replaceAll("__self_3", "unrelated"))),
+    /outside/u,
+  );
 });
 
 test("a deleted reserved writer requires complete signed original observations", () => {
