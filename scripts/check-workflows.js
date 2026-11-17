@@ -244,7 +244,12 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         );
       });
       assert.ok(
-        gates.length === 1 && !job.if && !job["continue-on-error"],
+        gates.length === 1 &&
+          (!Object.hasOwn(job, "if") ||
+            (path === "./.github/workflows/release-qualification.yml" &&
+              job.if ===
+                "inputs.force-fresh && needs.resolve.outputs.reused == 'false'")) &&
+          !job["continue-on-error"],
         `${path}: package qualification requires one blocking source gate`,
       );
     }
@@ -366,7 +371,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           `${path}/${name}: signed release admission requires Git history`,
         );
       assert.ok(
-        setup >= 0 && !steps[setup].if,
+        setup >= 0 && !Object.hasOwn(steps[setup], "if"),
         `${path}/${name}: release dependency setup is required for its authority`,
       );
       assert.equal(
@@ -549,7 +554,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         );
         inputs(path, job.with, called.on.workflow_call?.inputs);
       }
-      for (const step of job.steps ?? []) {
+      for (const [index, step] of (job.steps ?? []).entries()) {
         if (step.run) scriptReferences(path, step.run);
         pinned(path, step.uses);
         checkoutRevision(path, step);
@@ -563,6 +568,31 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         const action = actions.get(step.uses);
         assert.ok(action, `${path}: unresolved local action ${step.uses}`);
         inputs(path, step.with, action.inputs);
+        if (step.uses === "./.github/actions/upload-evidence") {
+          const preceding = job.steps.slice(0, index);
+          const setup = preceding.findLastIndex(
+            (prior) =>
+              (prior.uses === "./.github/actions/setup-producer" ||
+                (path === "./.github/workflows/json-quality.yml" &&
+                  prior["working-directory"] === "producer" &&
+                  prior.run === "npm run install:producer-dependencies")) &&
+              (!Object.hasOwn(prior, "if") ||
+                (typeof prior.if === "string" &&
+                  !["false", "${{ false }}"].includes(prior.if) &&
+                  prior.if === step.if)),
+          );
+          // Consumer runtime selection is safe: the native uploader retains the
+          // producer executable pair instead of invoking the replacement PATH Node.
+          assert.ok(
+            setup >= 0 &&
+              !preceding
+                .slice(setup + 1)
+                .some(
+                  (prior) => prior.uses === "./.github/actions/setup-writer",
+                ),
+            `${path}: SDK upload requires prior frozen producer dependencies on the same path`,
+          );
+        }
         if (transferBudgets.has(step.uses)) {
           callers++;
           assert.equal(

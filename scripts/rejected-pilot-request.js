@@ -30,7 +30,7 @@ export function pilotDeleteRefusal(error, packageName) {
   return {
     method: "DELETE",
     status: 401,
-    endpoint: `https://registry.npmjs.org/-/package/${packageName.replace("/", "%2f")}/dist-tags/pilot`,
+    endpoint: `https://registry.npmjs.org/-/package/${packageName.replaceAll("/", "%2f")}/dist-tags/pilot`,
     exit: error.facts.exit,
   };
 }
@@ -209,7 +209,7 @@ export function verifyRejectedPilotRequest(
     assert.deepEqual(outcome.refusal, {
       method: "DELETE",
       status: 401,
-      endpoint: `https://registry.npmjs.org/-/package/${intent.package.replace("/", "%2f")}/dist-tags/pilot`,
+      endpoint: `https://registry.npmjs.org/-/package/${intent.package.replaceAll("/", "%2f")}/dist-tags/pilot`,
       exit: failed.exit,
     });
   } else {

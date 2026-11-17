@@ -7,29 +7,14 @@ import { jsonBytes, sha256, readJson } from "./release-records.js";
 import {
   historyTargetDescriptors,
   readHistoryTarget,
+  originalHistoryTargetBytes,
 } from "./release-provider.js";
+import { verifyStableAssets } from "./release-asset-identity.js";
 import {
   verifyQualifiedTarget,
   qualifiedStageSummaries,
 } from "./qualified-release-contract.js";
 
-const richness = (record) => {
-  const context = JSON.parse(
-    Buffer.from(
-      record.qualification.files.find((file) => file.name === "context.json")
-        .bytes,
-      "base64",
-    ),
-  );
-  return (
-    Number(!!context.archive) * 2 +
-    Number(
-      record.qualification.files.some(
-        (file) => file.name === "archive-outcome.json",
-      ),
-    )
-  );
-};
 export function writeQualifiedTargetBundle(output, previous, additions = []) {
   mkdirSync(join(output, "release-targets"), { recursive: true });
   const refs = [];
@@ -47,14 +32,16 @@ export function writeQualifiedTargetBundle(output, previous, additions = []) {
       assert.equal(prior.releaseId, record.release.id);
       const original = readJson(path);
       assert.equal(original.source, record.source);
-      assert.deepEqual(original.release.assets, record.release.assets);
+      verifyStableAssets(original.release.assets, record.release.assets);
       assert.equal(
         original.tag.reference.object.sha,
         record.tag.reference.object.sha,
       );
-      if (richness(record) < richness(original)) return;
+      // New observations cannot replace the already authenticated subject.
+      // Additional writer settlements belong in the history entry model.
+      return;
     }
-    const bytes = jsonBytes(record);
+    const bytes = originalHistoryTargetBytes(record) ?? jsonBytes(record);
     assert.ok(
       bytes.length <= 20000000,
       "Target checkpoint exceeds its individual authenticated reader bound",

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Signed history retains public qualification independently of writer settlements. */
 import assert from "node:assert/strict";
+import { verifyStableAssets } from "./release-asset-identity.js";
+import { releaseCommit } from "./release-promotion-evidence.js";
 import { mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
@@ -71,11 +73,7 @@ export function collectQualifiedTarget(
       manifestSha256,
       releaseId: live.id,
     });
-    const assets = (values) =>
-      values
-        .map(({ name, digest, size }) => ({ name, digest, size }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-    assert.deepEqual(assets(record.release.assets), assets(live.assets));
+    verifyStableAssets(record.release.assets, live.assets);
     for (const [name, bytes] of checked.files)
       if (name.startsWith("public-"))
         assert.deepEqual(regularBytes(join(directory, name)), bytes);
@@ -223,7 +221,7 @@ export function captureQualifiedTarget(
   assert.equal(liveRelease.immutable, true);
   assert.equal(liveRelease.draft, false);
   assert.equal(liveRelease.tag_name, `v${release.version}`);
-  assert.equal(tag.annotation.object.sha, release.source.commit);
+  assert.equal(tag.annotation.object.sha, releaseCommit(release));
   const files = readdirSync(directory, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())
     .map((entry) => ({
@@ -235,7 +233,7 @@ export function captureQualifiedTarget(
     .filter(
       ({ name }) =>
         (name.startsWith("public-") && name.endsWith(".json")) ||
-        /^(?:context|release-manifest|release-review|release-acceptance|signed-tag|recovery-records|recovery-observations|stage-outcome|native-stage-outcome|registry-reconciliation|archive-outcome|archive-assets-intent|public-security|qualification-provider)\.json$/u.test(
+        /^(?:context|release-manifest|build-manifest|build-qualification|build-package-lock|release-review|release-acceptance|signed-tag|recovery-records|recovery-observations|stage-outcome|native-stage-outcome|registry-reconciliation|archive-outcome|archive-assets-intent|public-security|qualification-provider)\.json$/u.test(
           name,
         ) ||
         /^(?:stage|archive|promote(?:-npm|-github)?)-[1-9]\d*-[1-9]\d*\.jsonl(?:\.[a-f0-9]{64}\.ack\.json)?$/u.test(
@@ -262,7 +260,8 @@ export function captureQualifiedTarget(
       id: liveRelease.id,
       tag_name: liveRelease.tag_name,
       immutable: true,
-      assets: liveRelease.assets.map(({ name, digest, size }) => ({
+      assets: liveRelease.assets.map(({ id, name, digest, size }) => ({
+        id,
         name,
         digest,
         size,

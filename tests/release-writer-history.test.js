@@ -17,6 +17,8 @@ import { admitPendingDecisions } from "../scripts/release-decision-state.js";
 import { native } from "../scripts/qualification-process.js";
 import { verifyOwnerTagSignature } from "../scripts/release-signing.js";
 import { verifyRetiredPilotTarget } from "../scripts/release-availability-contract.js";
+import { writeQualifiedTargetBundle } from "../scripts/release-history-targets.js";
+import { temporaryDirectory } from "./temporary-directory.js";
 
 const qualifiedLegacy = JSON.parse(
   readFileSync(
@@ -29,6 +31,40 @@ const qualifiedLegacyTarget = {
   manifestSha256:
     "e5e3bb460a4c697535a2f2646bbd97b96d7d9bdb1fdfc00454207b51f9570728",
 };
+
+test("target renewal preserves the established subject across mutable asset observations and repeated exports", (t) => {
+  const output = temporaryDirectory(t, "json-history-renewal-");
+  const original = structuredClone(qualifiedLegacy);
+  original.release.assets.forEach((asset, index) => {
+    asset.id = index + 1;
+    asset.download_count = 1;
+  });
+  const newer = structuredClone(original);
+  newer.release.assets.reverse().forEach((asset) => {
+    asset.download_count = 500;
+  });
+  const first = writeQualifiedTargetBundle(output, null, [original]);
+  const before = readFileSync(
+    join(output, "release-targets", `${original.manifestSha256}.json`),
+  );
+  for (let generation = 0; generation < 2; generation++) {
+    assert.deepEqual(
+      writeQualifiedTargetBundle(output, null, [original, newer]),
+      first,
+    );
+    assert.deepEqual(
+      readFileSync(
+        join(output, "release-targets", `${original.manifestSha256}.json`),
+      ),
+      before,
+    );
+  }
+  newer.release.assets[0].id++;
+  assert.throws(
+    () => writeQualifiedTargetBundle(output, null, [original, newer]),
+    /asset/u,
+  );
+});
 
 test("actual single-origin 1.0.0 public qualification survives provider removal only through complete signed history", (t) => {
   const checked = verifyQualifiedTarget(qualifiedLegacy, qualifiedLegacyTarget);

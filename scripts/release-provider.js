@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { native, budgets } from "./qualification-process.js";
+import { releaseCommit } from "./release-promotion-evidence.js";
 import { sameJobExecution } from "./github-job-execution.js";
 import { nativePackages } from "../src/native-packages.js";
 import { verifyOwnerTagSignature } from "./release-signing.js";
@@ -493,7 +494,7 @@ export function verifyTag(reference, annotation, release) {
   assert.equal(annotation.sha, reference.object.sha);
   assert.equal(annotation.tag, `v${release.version}`);
   assert.equal(annotation.object.type, "commit");
-  assert.equal(annotation.object.sha, release.source.commit);
+  assert.equal(annotation.object.sha, releaseCommit(release));
   assert.equal(annotation.verification?.verified, true);
   assert.equal(annotation.verification.reason, "valid");
 }
@@ -506,7 +507,7 @@ export function signedTag(release, { deadline } = {}) {
   verifyOwnerTagSignature(
     `v${release.version}`,
     annotation.sha,
-    release.source.commit,
+    releaseCommit(release),
     { deadline },
   );
   return { reference, annotation };
@@ -1116,6 +1117,14 @@ export function historyTargetDescriptors(record) {
   ];
 }
 /** Resolve only a selected digest-derived file under the already verified signed commit. */
+const historyTargetBytes = new WeakMap();
+
+/** Exact authenticated sidecar representation for lossless checkpoint renewal. */
+export function originalHistoryTargetBytes(record) {
+  const bytes = historyTargetBytes.get(record);
+  return bytes && Buffer.from(bytes);
+}
+
 export function readHistoryTarget(record, expected) {
   const source = historyTargetReaders.get(record);
   assert.ok(
@@ -1163,6 +1172,7 @@ export function readHistoryTarget(record, expected) {
   assert.equal(target.version, expected.version);
   assert.equal(target.manifestSha256, expected.manifestSha256);
   assert.equal(target.release.id, expected.releaseId);
+  historyTargetBytes.set(target, bytes);
   return target;
 }
 
@@ -1797,7 +1807,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     mkdirSync(parent, { recursive: true });
     for (const expected of historyTargetDescriptors(previous)) {
       const target = readHistoryTarget(previous, expected),
-        bytes = jsonBytes(target);
+        bytes = originalHistoryTargetBytes(target) ?? jsonBytes(target);
       const path = join(parent, `${expected.manifestSha256}.json`);
       if (existsSync(path)) assert.deepEqual(regularBytes(path), bytes);
       else save(path, bytes);

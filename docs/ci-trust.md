@@ -135,7 +135,21 @@ Missing, expired, conflicted or changed proof yields `FULL_REQUIRED`; no full su
 
 The owner explicitly dispatches **Main qualification** on `main` for fresh `FULL` assurance.
 That dispatch cannot create PR acceptance or a reusable PR proof.
-Release qualification still creates a fresh commit-bound candidate and does not reuse a PR tarball as a main release.
+Release qualification defaults to promoting the original PR archives after validating the complete tree, ordered parents and ordinary merged PR association.
+The schema-4 promoted manifest separates build, landed release and controller identities and retains the original manifest, proof and producer lock bytes.
+Missing or incompatible evidence stops; only an explicit `force-fresh: true` request launches full release qualification.
+Read-only admission never executes downloaded candidate code or gains publication credentials.
+
+### Retain the latest release candidate
+
+Release-capable producer, recipient and aggregate proof artifacts request up to 90 days of native Actions retention.
+The effective reuse deadline is the earliest expiry of any indispensable artifact or original run/check record, subject to repository and organization limits.
+The trusted `candidate-retention.yml` workflow runs after successful main qualification or an owner dispatch, authenticates the latest ordinary merged candidate, and verifies its successor before removing any predecessor artifact.
+Cleanup shares the release mutation concurrency group and rechecks consumer state before each one-shot deletion.
+Running, failed or otherwise unresolved release consumers stop cleanup conservatively; native production origins, writer evidence and published assets are outside its deletion scope.
+Temporary PR consumers and active releases can require overlap; no candidate is re-uploaded periodically to reset expiry.
+An unavailable or oversized provider inventory leaves custody intact and reports that cleanup is incomplete.
+Workflow dependency lockfile migration remains a separate compatibility change; current external action references retain reviewed full SHA pins.
 
 ### Rerun a failed job
 
@@ -203,12 +217,12 @@ Publication writes are one-shot and retain their separate release journal/reconc
 
 | Retained material                                           | Named consumer                                           | Normal retention                                                                      |
 | ----------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Qualified producer archive, including measurement data      | Frozen runtime consumers; deliberate release preparation | 1 day for same-run transfer; 30 days for release input                                |
+| Qualified producer archive, including measurement data      | Frozen runtime consumers; deliberate release preparation | 1 day for same-run transfer; up to 90 days for release-capable CI input               |
 | Compact lane proof with all performance samples             | Acceptance collector                                     | 1 day                                                                                 |
-| Compact `FULL` PR proof                                     | Main equal-input observer                                | 30 days                                                                               |
+| Compact `FULL` PR proof                                     | Main equal-input observer and release admission          | Up to 90 days; superseded unused candidate artifacts may be removed sooner            |
 | Lightweight host record                                     | Main observer in the same run                            | 1 day                                                                                 |
 | Native component payload and original rights/build identity | Explicit component staging/package assembly              | 30 days                                                                               |
-| Release consumer/security evidence                          | Deliberate release admission                             | 30 days                                                                               |
+| Release consumer/security evidence                          | Deliberate release admission                             | Up to 90 days                                                                         |
 | Admitted next-step bundle                                   | Exactly the next release writer                          | 1 day                                                                                 |
 | Effect journals and recovery records                        | One-shot release reconciliation                          | 90 days operationally; required release proof is preserved with the immutable release |
 

@@ -17,6 +17,7 @@ import {
   currentMain,
 } from "./release-provider.js";
 import { manualControl, workflows, repository } from "./release-contract.js";
+import { verifyBuildEvidence } from "./release-promotion-evidence.js";
 import {
   readWriterReservations,
   requireCurrentReservation,
@@ -150,6 +151,7 @@ export function consumeWriterAdmission(directory, phase, env, readers = {}) {
     record.release,
     readJson(join(directory, "release-manifest.json")),
   );
+  if (record.release.promotion) verifyBuildEvidence(record.release, directory);
   const read = readers.api ?? api,
     observe = readers.provider ?? provider;
   const artifact = read(`actions/artifacts/${env.ADMISSION_ARTIFACT_ID}`);

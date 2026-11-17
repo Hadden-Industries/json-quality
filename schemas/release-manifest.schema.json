@@ -19,7 +19,8 @@
     "schemaVersion": {
       "enum": [
         2,
-        3
+        3,
+        4
       ]
     },
     "distribution": {
@@ -232,6 +233,75 @@
         "additionalProperties": false
       },
       "type": "array"
+    },
+    "promotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "repository",
+        "workflow",
+        "repositoryId",
+        "buildCommit",
+        "releaseCommit",
+        "tree",
+        "parents",
+        "buildManifestSha256",
+        "proofSha256",
+        "run",
+        "attempt",
+        "pullRequest"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "repository": {
+          "const": "Hadden-Industries/json-quality"
+        },
+        "workflow": {
+          "const": ".github/workflows/ci.yml"
+        },
+        "repositoryId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "buildCommit": {
+          "$ref": "#/$defs/oid"
+        },
+        "releaseCommit": {
+          "$ref": "#/$defs/oid"
+        },
+        "tree": {
+          "$ref": "#/$defs/oid"
+        },
+        "parents": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/oid"
+          }
+        },
+        "buildManifestSha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "proofSha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "run": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "pullRequest": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     }
   },
   "allOf": [
@@ -239,7 +309,10 @@
       "if": {
         "properties": {
           "schemaVersion": {
-            "const": 3
+            "enum": [
+              3,
+              4
+            ]
           }
         }
       },
@@ -252,6 +325,35 @@
         "required": [
           "distribution"
         ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 4
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "promotion"
+        ],
+        "properties": {
+          "promotion": {
+            "$ref": "#/properties/promotion"
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "promotion"
+          ],
+          "properties": {
+            "promotion": {}
+          }
+        }
       }
     }
   ],

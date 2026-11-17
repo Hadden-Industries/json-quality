@@ -43,6 +43,7 @@ import {
 } from "./release-provider.js";
 import { isolatedNpmEnvironment } from "./release-inventory.js";
 import { native, npmCommand } from "./qualification-process.js";
+import { releaseCommit } from "./release-promotion-evidence.js";
 import { verifyNativeAssets } from "./release-asset-verification.js";
 import { verifyReleaseAttestation } from "./release-attestation-readiness.js";
 import { bundleReleaseAssets, verifyDraftAssets } from "./release-assets.js";
@@ -520,12 +521,12 @@ function archiveAssets(directory, release, scratch, manifestSha256) {
     "archive",
     "--format=tar.gz",
     `--output=${source}`,
-    release.source.commit,
+    releaseCommit(release),
   ]);
   for (const name of ["LICENSE", "THIRD-PARTY-NOTICES.md"])
     save(
       join(directory, name),
-      native("git", ["show", `${release.source.commit}:${name}`], {
+      native("git", ["show", `${releaseCommit(release)}:${name}`], {
         encoding: null,
       }),
     );

@@ -164,7 +164,12 @@ import {
   evidenceIndex,
   download,
 } from "../scripts/release-provider.js";
-import { verifyCodeql, verifySarif } from "../scripts/release-security.js";
+import {
+  verifyCodeql,
+  verifySarif,
+  captureCiAssurance,
+  verifyOriginalAssurance,
+} from "../scripts/release-security.js";
 import {
   verifyAudit,
   isolatedNpmEnvironment,
@@ -2794,6 +2799,63 @@ test("CodeQL gate uses exact-source native analyses and query inventories, inclu
     ],
   };
   assert.equal(verifySarif(sarif, analyses[0]).findings, 0);
+  const original = {
+    pullRequest: 17,
+    snapshot: { commit: source },
+    executions: [
+      "actions",
+      "javascript-typescript",
+      "python",
+      "cpp-linux",
+      "cpp-windows",
+    ].map((key) => ({
+      job: {
+        name: `CodeQL / Scan ${key}`,
+        started_at: "2026-11-17T00:00:00Z",
+        completed_at: "2026-11-17T00:10:00Z",
+      },
+    })),
+  };
+  const prAnalyses = analyses.map((analysis) => ({
+    ...analysis,
+    ref: "refs/pull/17/merge",
+    analysis_key: ".github/workflows/ci.yml:codeql",
+    created_at: "2026-11-17T00:05:00Z",
+  }));
+  const captured = captureCiAssurance(original, undefined, {
+    list: () => prAnalyses,
+    sarif: (id) => {
+      const value = structuredClone(sarif);
+      value.runs[0].automationDetails.id = `${prAnalyses.find((analysis) => analysis.id === id).category}/`;
+      return value;
+    },
+  });
+  assert.equal(captured.scans.length, 5);
+  verifyOriginalAssurance(captured, captured);
+  for (const change of [
+    (value) => {
+      value.scans[0].queryPacks[0].version = "3.0.0";
+    },
+    (value) => {
+      value.scans[0].rules = ["new-rule"];
+    },
+  ]) {
+    const changed = structuredClone(captured);
+    change(changed);
+    assert.throws(
+      () => verifyOriginalAssurance(captured, changed),
+      /inventory changed/u,
+    );
+  }
+  const late = structuredClone(prAnalyses);
+  late[0].created_at = "2026-11-18T00:00:00Z";
+  assert.throws(
+    () => verifyCodeql(late, source, undefined, original),
+    /producing interval/u,
+  );
+  const wrongRef = structuredClone(prAnalyses);
+  wrongRef[0].ref = "refs/pull/18/merge";
+  assert.throws(() => verifyCodeql(wrongRef, source, undefined, original));
   sarif.runs[0].results.push({ message: { text: "finding" } });
   assert.throws(() => verifySarif(sarif, analyses[0]));
 });

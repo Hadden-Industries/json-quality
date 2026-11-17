@@ -22,6 +22,44 @@ import { mkdirSync } from "node:fs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 
+test("ordinary dependency-free staging preserves a promoted build and verifies its landed signed tag", (t) => {
+  const world = writerWorld(t, "stage", { promoted: true, npmTag: "latest" });
+  const before = readFileSync(
+    join(world.directory, "build-qualification.json"),
+  );
+  const result = world.run("stage");
+  assert.equal(result.status, 0, result.stderr);
+  const state = world.state();
+  assert.equal(state.mutations.length, 2);
+  assert.ok(
+    state.mutations.every(
+      (mutation) =>
+        mutation.service === "stage" &&
+        mutation.package !== world.release.package,
+    ),
+  );
+  assert.deepEqual(
+    readFileSync(join(world.directory, "build-qualification.json")),
+    before,
+  );
+  assert.equal(world.release.source.commit, "b".repeat(40));
+  assert.notEqual(
+    world.release.promotion.releaseCommit,
+    world.release.source.commit,
+  );
+  assert.ok(state.calls.some((call) => call.args.includes("verify-tag")));
+  const substituted = writerWorld(t, "stage", {
+    promoted: true,
+    npmTag: "latest",
+  });
+  writeFileSync(
+    join(substituted.directory, "build-qualification.json"),
+    "substituted original proof",
+  );
+  assert.notEqual(substituted.run("stage").status, 0);
+  assert.deepEqual(substituted.state().mutations, []);
+});
+
 test("native writer admits upload and reconciled SHA256 forms but refuses changed or malformed digests before requests", async (t) => {
   for (const form of [
     "bare",

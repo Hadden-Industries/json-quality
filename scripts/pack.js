@@ -20,6 +20,7 @@ import { assertNativeExecutableModes } from "./release-contract.js";
 import { stageCore } from "./package-stage.js";
 import { nativePackages } from "../src/native-packages.js";
 import { producerToolchain } from "./qualification-process.js";
+import { synchronizePackageVersion } from "./project-package-version.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -84,6 +85,10 @@ export function packCandidate(destination) {
     throw new Error("Pack destination must be outside the producer checkout.");
   if (git(["status", "--porcelain", "--untracked-files=normal"]))
     throw new Error("Adoption archives require clean committed source.");
+  if (synchronizePackageVersion(root).length)
+    throw new Error(
+      "Stale version/documentation projection; run npm run sync:version.",
+    );
   const npm = producerToolchain().cli;
   mkdirSync(destination, { recursive: true });
   const sourceCommit = git(["rev-parse", "HEAD"]);

@@ -343,6 +343,25 @@ test("workflow contracts reject broken metadata, callers and shared deadline dri
     );
   for (const [name, path, change, expected] of [
     [
+      "explicit false release setup",
+      ".github/workflows/stage-release.yml",
+      (data) => {
+        data.jobs.stage.steps.find(
+          (step) => step.uses === "./.github/actions/setup-writer",
+        ).if = false;
+      },
+      /release dependency setup/u,
+    ],
+    [
+      "uploader before dependencies",
+      qualification,
+      (data) => {
+        const steps = data.jobs.producer.steps;
+        steps.unshift(...steps.splice(steps.indexOf(transfer(data)), 1));
+      },
+      /SDK upload requires/u,
+    ],
+    [
       "skipped source admission",
       ci,
       (data) => {

@@ -176,9 +176,16 @@ export function verifySecurity(
     }
   } else
     assert.deepEqual(
-      verifyCodeql(record.analyses, release.source.commit, release.policy),
+      verifyCodeql(
+        record.analyses,
+        release.source.commit,
+        release.policy,
+        release.promotion ? record.original : null,
+      ),
       record.analyses,
     );
+  if (release.promotion)
+    assert.equal(record.original?.proofSha256, release.promotion.proofSha256);
   assert.deepEqual(
     record.scans.map(({ analysis }) => analysis).sort((a, b) => a - b),
     record.analyses.map(({ id }) => id).sort((a, b) => a - b),

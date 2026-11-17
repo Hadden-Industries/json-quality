@@ -124,6 +124,7 @@
     "install:consumer-npm": "node scripts/qualification-process.js consumer-npm",
     "freeze:release-manifest": "node scripts/release-prepare.js freeze-manifest",
     "emit:release-matrix": "node scripts/release-prepare.js resolve-matrix",
+    "preflight:release-dispatch": "node scripts/release-dispatch-preflight.js",
     "generate:source-dependency-evidence": "node scripts/release-inventory.js",
     "verify:release-codeql": "node scripts/release-security.js",
     "admit:release-evidence": "node scripts/admit-release-evidence.js",

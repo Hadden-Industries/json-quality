@@ -7,6 +7,11 @@ import { isDeepStrictEqual } from "node:util";
 import { nativePackages } from "../src/native-packages.js";
 import { packageName, validVersion } from "./release-contract.js";
 import { nativePackageMetadata } from "./project-native-packages.js";
+import {
+  releaseDocumentationInputs,
+  releaseDocumentationProjection,
+  releaseDocuments,
+} from "./release-documentation.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 export const VERSION_PROJECTION_PATHS = Object.freeze([
@@ -52,14 +57,21 @@ export function synchronizePackageVersion(
   { write = false } = {},
 ) {
   const metadata = JSON.parse(readFileSync(join(directory, "package.json")));
-  const paths = VERSION_PROJECTION_PATHS;
+  const paths = [...VERSION_PROJECTION_PATHS, ...releaseDocuments];
   const files = Object.fromEntries(
-    paths.map((path) => [path, readFileSync(join(directory, path), "utf8")]),
+    [...new Set([...paths, ...releaseDocumentationInputs])].map((path) => [
+      path,
+      readFileSync(join(directory, path), "utf8"),
+    ]),
   );
-  const output = projectPackageVersion(files, metadata);
-  const changed = paths.filter(
-    (path) =>
-      !isDeepStrictEqual(JSON.parse(files[path]), JSON.parse(output[path])),
+  const output = {
+    ...projectPackageVersion(files, metadata),
+    ...releaseDocumentationProjection(metadata.version, (path) => files[path]),
+  };
+  const changed = paths.filter((path) =>
+    releaseDocuments.includes(path)
+      ? files[path] !== output[path]
+      : !isDeepStrictEqual(JSON.parse(files[path]), JSON.parse(output[path])),
   );
   if (write)
     for (const path of changed)

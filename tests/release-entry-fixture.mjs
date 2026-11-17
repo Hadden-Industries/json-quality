@@ -21,6 +21,7 @@ import {
 } from "../scripts/release-contract.js";
 import { prepareWriterAdmission } from "../scripts/release-writer-admission.js";
 import { verifyOperationDecision } from "../scripts/release-availability-contract.js";
+import { verifyBuildEvidence } from "../scripts/release-promotion-evidence.js";
 import writerBaseline from "../assets/release-writer-baseline.json" with { type: "json" };
 
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -33,8 +34,9 @@ const repository = "Hadden-Industries/json-quality";
 export function writerWorld(
   t,
   phase,
-  { npmTag, schema3 = false, pilotRetirement = false } = {},
+  { npmTag, schema3 = false, promoted = false, pilotRetirement = false } = {},
 ) {
+  schema3 ||= promoted;
   const root = mkdtempSync(join(tmpdir(), "json-writer-entry-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const directory = join(root, "admitted"),
@@ -43,7 +45,7 @@ export function writerWorld(
   mkdirSync(scratch);
   const release = JSON.parse(Buffer.from(legacy.manifest, "base64")),
     packages = releasePackages(release);
-  if (schema3) {
+  if (schema3 || promoted) {
     const origins = JSON.parse(
       readFileSync(join(repositoryRoot, "native/production-origins.json")),
     );
@@ -85,9 +87,62 @@ export function writerWorld(
     };
     verifyManifest(release);
   }
-  const manifest = schema3
-    ? jsonBytes(release)
-    : Buffer.from(legacy.manifest, "base64");
+  if (promoted) {
+    const landed = release.source.commit;
+    release.source.commit = "b".repeat(40);
+    release.distribution.packing.source = release.source.commit;
+    const lock = Buffer.from('{"lockfileVersion":3,"packages":{}}\n');
+    release.source.lockSha256 = sha256(lock);
+    const build = jsonBytes(release);
+    const proof = jsonBytes({
+      schemaVersion: 3,
+      mode: "FULL",
+      repository,
+      repositoryId: 11,
+      runId: 71,
+      runAttempt: 1,
+      pullRequest: 17,
+      snapshot: {
+        commit: release.source.commit,
+        tree: release.source.tree,
+        parents: ["1".repeat(40), "2".repeat(40)],
+      },
+      matrix: release.matrix,
+      assurance: { policySha256: "c".repeat(64), scans: [{ analysis: 1 }] },
+      lanes: release.matrix.os.flatMap((os) =>
+        release.matrix.node.map((node) => ({
+          lane: { os, node },
+          releaseEvidence: { manifestSha256: sha256(build) },
+          consumers: { root: { archiveSha256: release.archive.sha256 } },
+        })),
+      ),
+    });
+    release.schemaVersion = 4;
+    release.promotion = {
+      schemaVersion: 1,
+      repository,
+      workflow: ".github/workflows/ci.yml",
+      repositoryId: 11,
+      buildCommit: release.source.commit,
+      releaseCommit: landed,
+      tree: release.source.tree,
+      parents: ["1".repeat(40), "2".repeat(40)],
+      buildManifestSha256: sha256(build),
+      proofSha256: sha256(proof),
+      run: 71,
+      attempt: 1,
+      pullRequest: 17,
+    };
+    writeFileSync(join(directory, "build-manifest.json"), build);
+    writeFileSync(join(directory, "build-qualification.json"), proof);
+    writeFileSync(join(directory, "build-package-lock.json"), lock);
+    verifyManifest(release);
+    verifyBuildEvidence(release, directory);
+  }
+  const manifest =
+    schema3 || promoted
+      ? jsonBytes(release)
+      : Buffer.from(legacy.manifest, "base64");
   writeFileSync(join(directory, "release-manifest.json"), manifest);
   writeFileSync(join(directory, "signed-tag.json"), jsonBytes(legacy.tag));
   const controller = "a".repeat(40),

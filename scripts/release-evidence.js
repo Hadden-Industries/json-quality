@@ -63,6 +63,10 @@ import {
   restoreOriginalPromotion,
 } from "./archived-release-evidence.js";
 import { verifyQualifiedTarget } from "./qualified-release-contract.js";
+import {
+  releaseCommit,
+  verifyBuildEvidence,
+} from "./release-promotion-evidence.js";
 import { admitPendingDecisions } from "./release-decision-state.js";
 import {
   observeStagePredecessor,
@@ -72,6 +76,10 @@ import {
 function copyEvidence(from, to) {
   mkdirSync(to, { recursive: true });
   for (const entry of readdirSync(from, { withFileTypes: true })) {
+    if (entry.isDirectory() && !entry.isSymbolicLink()) {
+      copyEvidence(join(from, entry.name), join(to, entry.name));
+      continue;
+    }
     assert.ok(entry.isFile(), "Artifact includes an unexpected nested payload");
     save(join(to, entry.name), releaseArtifactBytes(join(from, entry.name)));
   }
@@ -84,6 +92,7 @@ export function verifyBundle(
   const bytes = regularBytes(join(directory, "release-manifest.json"));
   assert.equal(sha256(bytes), manifestSha);
   const release = verifyManifest(JSON.parse(bytes));
+  if (release.promotion) verifyBuildEvidence(release, directory);
   verifyArchive(
     releaseArtifactBytes(join(directory, release.archive.filename)),
     release.archive,
@@ -141,7 +150,7 @@ export function verifyBundle(
 }
 /** Controller changes need explicit review of the actual control delta, not artifact rewriting. */
 export function verifyController(release, decision, env) {
-  if (env.GITHUB_SHA === release.source.commit) return;
+  if (env.GITHUB_SHA === releaseCommit(release)) return;
   assert.equal(
     decision.controllerSource,
     env.GITHUB_SHA,
@@ -151,7 +160,7 @@ export function verifyController(release, decision, env) {
     "git",
     [
       "diff",
-      release.source.commit,
+      releaseCommit(release),
       env.GITHUB_SHA,
       "--",
       "scripts",
@@ -341,7 +350,13 @@ export function refreshAdmission(
     "An abandoned package version cannot advance; select and qualify a new version",
   );
   const qualified = readProvider("qualification", context.qualification);
-  verifyRun(qualified, "qualification", release.source.commit, release.matrix);
+  verifyRun(
+    qualified,
+    "qualification",
+    releaseCommit(release),
+    release.matrix,
+    { reusedQualification: !!release.promotion },
+  );
   retainProvider(directory, "qualification", qualified);
   const reviewBytes = regularBytes(join(directory, "release-review.json"));
   const decision = verifyDecision(
@@ -898,10 +913,13 @@ export function assembleQualification(
   env = process.env,
 ) {
   const origin = provider(run, attempt);
+  const reused = origin.jobs.jobs.some(
+    (job) => job.name === "product" && job.conclusion === "skipped",
+  );
   const producerCache = new Map();
   const originalProducer = producingAttempt(
     origin,
-    "product / Reference producer",
+    reused ? "resolve" : "product / Reference producer",
     provider,
     producerCache,
   );
@@ -916,11 +934,24 @@ export function assembleQualification(
   );
   assert.equal(sha256(manifestBytes), env.MANIFEST_SHA);
   const release = verifyManifest(JSON.parse(manifestBytes));
-  verifyRun(origin, "qualification", release.source.commit, release.matrix);
+  assert.equal(!!release.promotion, reused);
+  verifyRun(origin, "qualification", releaseCommit(release), release.matrix, {
+    reusedQualification: reused,
+  });
+  if (reused) verifyBuildEvidence(release, downloaded.directory);
   copyEvidence(downloaded.directory, output);
   save(join(output, "qualification-provider.json"), origin);
   const artifacts = [downloaded.identity];
   for (const lane of lanes(release.matrix)) {
+    if (reused) {
+      verifyLane(
+        join(output, `candidate-${lane.os}-${lane.node}`),
+        release,
+        lane,
+        "transported archive",
+      );
+      continue;
+    }
     const original = producingAttempt(
       origin,
       `product / Qualify ${lane.os} / Node ${lane.node}`,

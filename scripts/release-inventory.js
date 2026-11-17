@@ -11,6 +11,7 @@ import {
   mkdtempSync,
   readFileSync,
   writeFileSync,
+  rmSync,
 } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -496,45 +497,56 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [directory, output] = process.argv.slice(2).map((p) => resolve(p));
   mkdirSync(output, { recursive: true });
   const workspace = sourceInventoryWorkspace(output);
-  const install = join(workspace, "source-install");
-  mkdirSync(install);
-  const environment = isolatedNpmEnvironment(workspace);
-  const originalLock = installSourceProduction(directory, install, environment);
-  save(
-    join(output, "source-production-lock.json"),
-    readFileSync(join(directory, "package-lock.json")),
-  );
-  const raw = npmCommand(["sbom", "--omit=dev", "--sbom-format=cyclonedx"], {
-    cwd: install,
-    env: environment,
-    phase: "source-production-sbom",
-  });
-  const bom = JSON.parse(raw);
-  const inventory = await installedInventory(install, process.env.npm_execpath);
-  verifySbom(bom, JSON.parse(originalLock), install, inventory);
-  save(join(output, "source-locations.json"), inventory);
-  const graph = npmCommand(["ls", "--omit=dev", "--all", "--json"], {
-    cwd: install,
-    env: environment,
-    phase: "source-dependency-validity",
-  });
-  save(join(output, "source-dependencies.json"), Buffer.from(graph));
-  const auditRaw = npmCommand(["audit", "--omit=dev", "--json"], {
-    cwd: install,
-    env: environment,
-    phase: "source-production-audit",
-  });
-  save(join(output, "source-audit.json"), Buffer.from(auditRaw));
-  verifyAudit(JSON.parse(auditRaw));
-  save(join(output, "source-production.cdx.json"), Buffer.from(raw));
-  native(acquireValidator(workspace), [
-    "validate",
-    "--input-file",
-    join(output, "source-production.cdx.json"),
-    "--input-version",
-    `v${bom.specVersion.replace(".", "_")}`,
-    "--fail-on-errors",
-  ]);
+  try {
+    const install = join(workspace, "source-install");
+    mkdirSync(install);
+    const environment = isolatedNpmEnvironment(workspace);
+    const originalLock = installSourceProduction(
+      directory,
+      install,
+      environment,
+    );
+    save(
+      join(output, "source-production-lock.json"),
+      readFileSync(join(directory, "package-lock.json")),
+    );
+    const raw = npmCommand(["sbom", "--omit=dev", "--sbom-format=cyclonedx"], {
+      cwd: install,
+      env: environment,
+      phase: "source-production-sbom",
+    });
+    const bom = JSON.parse(raw);
+    const inventory = await installedInventory(
+      install,
+      process.env.npm_execpath,
+    );
+    verifySbom(bom, JSON.parse(originalLock), install, inventory);
+    save(join(output, "source-locations.json"), inventory);
+    const graph = npmCommand(["ls", "--omit=dev", "--all", "--json"], {
+      cwd: install,
+      env: environment,
+      phase: "source-dependency-validity",
+    });
+    save(join(output, "source-dependencies.json"), Buffer.from(graph));
+    const auditRaw = npmCommand(["audit", "--omit=dev", "--json"], {
+      cwd: install,
+      env: environment,
+      phase: "source-production-audit",
+    });
+    save(join(output, "source-audit.json"), Buffer.from(auditRaw));
+    verifyAudit(JSON.parse(auditRaw));
+    save(join(output, "source-production.cdx.json"), Buffer.from(raw));
+    native(acquireValidator(workspace), [
+      "validate",
+      "--input-file",
+      join(output, "source-production.cdx.json"),
+      "--input-version",
+      `v${bom.specVersion.replace(".", "_")}`,
+      "--fail-on-errors",
+    ]);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
 }
 /** Preserve the producer's checked-in development links in a disposable install. */
 export function stageSourceNativePackages(directory, install) {

@@ -29,6 +29,22 @@ function reader(fetchImpl, limit = 120000) {
   });
 }
 
+test("release collection has bounded scoped request capacity while ordinary readers retain their limit", async () => {
+  const make = (maximumRequests) =>
+    createRepositoryReader({
+      repository: "Hadden-Industries/json-quality",
+      token: "fixture",
+      maximumRequests,
+      fetchImpl: async () => new Response("{}", { status: 200 }),
+    });
+  const ordinary = make(undefined);
+  for (let count = 0; count < 64; count++) await ordinary("/metadata");
+  await assert.rejects(ordinary("/metadata"), /budget exhausted/u);
+  const collection = make(96);
+  for (let count = 0; count < 96; count++) await collection("/metadata");
+  await assert.rejects(collection("/metadata"), /budget exhausted/u);
+});
+
 test("real fetch admits only the validated artifact redirect without forwarding credentials", async (t) => {
   const requests = [];
   const server = createServer((request, response) => {

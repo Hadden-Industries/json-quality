@@ -13,6 +13,10 @@ import {
 } from "../scripts/project-package-version.js";
 import { projectNativePackages } from "../scripts/project-native-packages.js";
 import {
+  releaseDocumentationInputs,
+  releaseDocuments,
+} from "../scripts/release-documentation.js";
+import {
   readPolicyInputInventory,
   policyResolverFingerprint,
 } from "../src/policy-inputs.js";
@@ -89,6 +93,7 @@ function fixture(t) {
   const paths = [
     ...new Set([
       ...VERSION_PROJECTION_PATHS,
+      ...releaseDocumentationInputs,
       ...policyPaths,
       "package.json",
       "assets/json-quality-policy-inputs.json",
@@ -156,7 +161,7 @@ test("one package version edit synchronizes companions and lock identities while
     JSON.stringify({ ...metadata, version: "7.8.9-rc.12" }, null, 2) + "\n",
   );
   const before = snapshot();
-  const expected = [...VERSION_PROJECTION_PATHS];
+  const expected = [...VERSION_PROJECTION_PATHS, ...releaseDocuments];
   assert.equal(policyResolverFingerprint(directory), fingerprint);
   assert.deepEqual(synchronizePackageVersion(directory), expected);
   assert.deepEqual(
@@ -260,4 +265,54 @@ test("version CLI and native metadata imports remain read-only outside the check
     { cwd, encoding: "utf8", windowsHide: true },
   );
   assert.deepEqual(sources(), before);
+});
+
+test("current documentation follows one version edit while historical closeout remains literal", (t) => {
+  const { directory } = fixture(t);
+  const documents = [
+    "README.md",
+    "docs/consumer-guide.md",
+    "docs/release-operations.md",
+  ];
+  for (const path of documents) {
+    for (const input of [
+      path,
+      `docs/release-templates/${path.split("/").at(-1)}.in`,
+    ]) {
+      mkdirSync(dirname(join(directory, input)), { recursive: true });
+      copyFileSync(join(root, input), join(directory, input));
+    }
+  }
+  writeFileSync(
+    join(directory, "package.json"),
+    JSON.stringify({ ...metadata, version: "7.8.9" }),
+  );
+  synchronizePackageVersion(directory, { write: true });
+  assert.match(
+    readFileSync(join(directory, "README.md"), "utf8"),
+    /JSON Quality 7\.8\.9/u,
+  );
+  const runbook = readFileSync(
+    join(directory, "docs/release-operations.md"),
+    "utf8",
+  );
+  assert.match(runbook, /7\.8\.9 release notes.*#789/u);
+  assert.match(runbook, /For the 1\.0\.1 closeout/u);
+  const before = readFileSync(join(directory, "package-lock.json"), "utf8");
+  writeFileSync(
+    join(directory, "docs/release-templates/README.md.in"),
+    "{{release.unknown}}\n",
+  );
+  writeFileSync(
+    join(directory, "package.json"),
+    JSON.stringify({ ...metadata, version: "8.0.0" }),
+  );
+  assert.throws(
+    () => synchronizePackageVersion(directory, { write: true }),
+    /Unknown release variable/u,
+  );
+  assert.equal(
+    readFileSync(join(directory, "package-lock.json"), "utf8"),
+    before,
+  );
 });

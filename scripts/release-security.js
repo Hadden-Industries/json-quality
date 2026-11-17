@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { verifyBuildEvidence } from "./release-promotion-evidence.js";
 import {
   readJson,
   regularBytes,
@@ -15,7 +17,7 @@ import { api, pages } from "./release-provider.js";
 import { securityScans } from "./security-scans.js";
 import { ubuntuRunner, windowsRunner } from "./runner-policy.js";
 
-export function verifyCodeql(analyses, source, policy) {
+export function verifyCodeql(analyses, source, policy, original = null) {
   assert.match(source, /^[a-f0-9]{40}$/u);
   const linux = ubuntuRunner(policy);
   const windows = windowsRunner(policy);
@@ -23,14 +25,20 @@ export function verifyCodeql(analyses, source, policy) {
     const matches = analyses.filter(
       (analysis) =>
         analysis.commit_sha === source &&
-        analysis.ref === "refs/heads/main" &&
+        analysis.ref ===
+          (original
+            ? `refs/pull/${original.pullRequest}/merge`
+            : "refs/heads/main") &&
         analysis.category === category &&
-        [
-          "security.yml",
-          "release-qualification.yml",
-          "release-registry.yml",
-          "main-qualification.yml",
-        ].some(
+        (original
+          ? ["ci.yml"]
+          : [
+              "security.yml",
+              "release-qualification.yml",
+              "release-registry.yml",
+              "main-qualification.yml",
+            ]
+        ).some(
           (workflow) =>
             analysis.analysis_key === `.github/workflows/${workflow}:codeql`,
         ) &&
@@ -41,6 +49,22 @@ export function verifyCodeql(analyses, source, policy) {
       matches.every((value) => Number.isSafeInteger(value.id) && value.id > 0),
     );
     const analysis = [...matches].sort((a, b) => b.id - a.id)[0];
+    if (original) {
+      const producing = original.executions.filter(
+        (execution) => execution.job.name === `CodeQL / Scan ${key}`,
+      );
+      assert.equal(
+        producing.length,
+        1,
+        `Missing original CodeQL ${key} execution`,
+      );
+      const created = Date.parse(analysis.created_at);
+      assert.ok(
+        created >= Date.parse(producing[0].job.started_at) &&
+          created <= Date.parse(producing[0].job.completed_at),
+        "CodeQL analysis is outside the original producing interval",
+      );
+    }
     for (const duplicate of matches.filter((value) => value.id === analysis.id))
       assert.deepEqual(
         duplicate,
@@ -65,6 +89,66 @@ export function verifyCodeql(analyses, source, policy) {
     }
     return analysis;
   });
+}
+
+/** Policy inputs are source-owned; changing them invalidates original analysis reuse. */
+export function assurancePolicySha256() {
+  return sha256(
+    Buffer.concat(
+      ["../.github/workflows/security.yml", "./security-scans.js"].map((path) =>
+        readFileSync(new URL(path, import.meta.url)),
+      ),
+    ),
+  );
+}
+
+/** Capture existing provider analyses after CI; this performs no source scan. */
+export function captureCiAssurance(
+  receipt,
+  policy,
+  {
+    list = pages,
+    sarif = (id) =>
+      api(`code-scanning/analyses/${id}`, [
+        "-H",
+        "Accept: application/sarif+json",
+      ]),
+  } = {},
+) {
+  const ref = `refs/pull/${receipt.pullRequest}/merge`;
+  const analyses = verifyCodeql(
+    list(
+      `code-scanning/analyses?ref=${encodeURIComponent(ref)}&tool_name=CodeQL&per_page=100`,
+    ),
+    receipt.snapshot.commit,
+    policy,
+    receipt,
+  );
+  return {
+    policySha256: assurancePolicySha256(),
+    analyses,
+    scans: analyses.map((analysis) =>
+      verifySarif(sarif(analysis.id), analysis),
+    ),
+  };
+}
+
+/** Looking up alerts cannot renew a different scanner or query inventory. */
+export function verifyOriginalAssurance(original, current) {
+  assert.equal(
+    original.policySha256,
+    assurancePolicySha256(),
+    "Required scanner/query configuration changed",
+  );
+  assert.deepEqual(
+    current.scans,
+    original.scans,
+    "Original scanner, query-pack or rule inventory changed",
+  );
+  assert.deepEqual(
+    current.analyses.map(({ id }) => id),
+    original.analyses.map(({ id }) => id),
+  );
 }
 export function verifySarif(sarif, analysis) {
   assert.equal(sarif.version, "2.1.0");
@@ -97,18 +181,31 @@ export function verifySarif(sarif, analysis) {
 export function qualifySecurity(
   release,
   manifestBytes,
-  { historical = false } = {},
+  { historical = false, directory } = {},
 ) {
   verifyManifest(release, { historical });
+  const original = release.promotion
+    ? verifyBuildEvidence(release, directory)
+    : null;
+  if (original)
+    assert.equal(
+      original.assurance.policySha256,
+      assurancePolicySha256(),
+      "Required scanner/query configuration changed",
+    );
+  const ref = original
+    ? `refs/pull/${original.pullRequest}/merge`
+    : "refs/heads/main";
   const analyses = pages(
-    "code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=100",
+    `code-scanning/analyses?ref=${encodeURIComponent(ref)}&tool_name=CodeQL&per_page=100`,
   );
   const selected = verifyCodeql(
     analyses,
     release.source.commit,
     release.policy,
+    original,
   );
-  return {
+  const result = {
     schemaVersion: 2,
     source: release.source.commit,
     manifestSha256: sha256(manifestBytes),
@@ -126,6 +223,16 @@ export function qualifySecurity(
       ),
     ),
   };
+  if (original) {
+    verifyOriginalAssurance(original.assurance, result);
+    result.original = {
+      proofSha256: release.promotion.proofSha256,
+      policySha256: original.assurance.policySha256,
+      pullRequest: original.pullRequest,
+      executions: original.executions,
+    };
+  }
+  return result;
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   assert.equal(process.argv.length, 4);
@@ -134,6 +241,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const bytes = regularBytes(join(directory, "release-manifest.json"));
   save(
     join(output, "security.json"),
-    qualifySecurity(readJson(join(directory, "release-manifest.json")), bytes),
+    qualifySecurity(readJson(join(directory, "release-manifest.json")), bytes, {
+      directory,
+    }),
   );
 }
