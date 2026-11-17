@@ -1,22 +1,33 @@
 {
   "schemaVersion": 1,
   "originalOperation": {
-    "run": "43550162672",
+    "run": "44105042092",
     "attempt": "1"
   },
-  "originalWriter": "npm",
+  "originalWriter": "github",
   "originalConclusion": "success",
   "publicationVerification": "public-qualification-and-original-operation-verified",
   "recoveryEligibility": "awaiting-owner-signature",
   "note": "Unknown writer effects remain unknown. Sign the entire prepared directory in one commit under a fresh release-history tag only after reviewing readiness.",
   "writerHistory": "retained-original-outcomes",
-  "signatureDueBy": "2026-12-13T19:47:28Z",
-  "sha256": "7ff88e489e8ba3040f1dab495ee5a6461878d2039b49471ef4cbdbfebe5c3a0f",
+  "sha256": "81ec721f5fb7da7b9c7deb94a710231531d7cb640ff070662a7f4e3ebe794701",
   "targetVersions": [
     "1.0.0",
     "1.0.0-rc.1",
     "1.0.0-rc.2",
-    "1.0.1"
+    "1.0.1",
+    "1.0.2"
   ],
-  "state": "prepared"
+  "state": "prepared",
+  "signatureDueBy": "2026-12-17T12:49:33Z",
+  "preparationRecovery": {
+    "method": "owner-read-only-capture-with-verified-original-local-artifacts",
+    "controller": "1ed6479b69ca3142a753b9a11e916bda75455368",
+    "originalTargetCollection": {
+      "state": "incomplete",
+      "reason": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    {\n      digest: 'sha256:2b8b2f4d6260e1273fac54e7d6058401b06c0e7cfb89a327b2a4e46ab941a3b6',\n-     id: 759097125,\n      name: 'hadden-industries-json-quality-1.0.2-c869611ccf8decccba8d63c84b48b6ecfc7fd985.tgz',\n      size: 297373\n    },\n    {\n      digest: 'sha256:3384b4d443cc8c617b6f681435a5cbb37d04f7a7704e7d90fe07a2944e084e8b',\n-     id: 759097256,\n      name: 'hadden-industries-json-quality-linux-x64-1.0.2-c869611ccf8decccba8d63c84b48b6ecfc7fd985.tgz',\n      size: 30368393\n    },\n    {\n      digest: 'sha256:01e8f15706273ed3a6b144954fe707118abb1a1f54283c65e13126c6df0ac449',\n-     id: 759097556,\n      name: 'hadden-industries-json-quality-win32-x64-1.0.2-c869611ccf8decccba8d63c84b48b6ecfc7fd985.tgz',\n      size: 29627400\n    },\n    {\n      digest: 'sha256:bb5382c5104e931bf1ba1b01c5de6ba1133919bfcc0f40ee55ee3aa2f75077f6',\n-     id: 759079644,\n      name: 'release-acceptance.json',\n      size: 5816\n    },\n    {\n      digest: 'sha256:d4273c1754d539738f44367207dc38a96d1e453de0905dd29087ac942cdbd6c4',\n-     id: 759098526,\n      name: 'release-assets.json',\n      size: 77636\n    },\n    {\n      digest: 'sha256:0fa10eacc60011776b3b761c3f3615d57324a6eb45b0d7d86f5c7615655ce0b4',\n-     id: 759098346,\n      name: 'release-evidence.zip',\n      size: 6303872\n    },\n    {\n      digest: 'sha256:0708a2a7935f1cf12dc7ba821ed643b6a45bb08f48df1c46333b7b7a6b4f6c4e',\n-     id: 759097811,\n      name: 'release-manifest.json',\n      size: 89343\n    },\n    {\n      digest: 'sha256:cb8ea213f0be5614c53f88e19fce8d7425a89512feddfb3d6699a02ee86c325f',\n-     id: 758964758,\n      name: 'release-review.json',\n      size: 5859\n    },\n    {\n      digest: 'sha256:9caa161cf641cc24674564828e2420aa03132ea0a1829ebf1fe59e71f64a5411',\n-     id: 759097959,\n      name: 'source.tar.gz',\n      size: 60253421\n    },\n    {\n      digest: 'sha256:acc3263d6a296d480d1290356386c6cb70d3343ac5c2753a83789716e9c14b2b',\n-     id: 759096992,\n      name: 'THIRD-PARTY-NOTICES.md',\n      size: 3400\n    }\n  ]\n"
+    },
+    "registryArtifacts": 9,
+    "originalWriterHistorySha256": "ff62119a87e921d2b384df3ea77537ba93db714c65e6dd660f4b59e3e0800dc7"
+  }
 }
