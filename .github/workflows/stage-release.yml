@@ -144,7 +144,7 @@ jobs:
           retention-days: 90
   stage:
     needs: [admit, native-public]
-    if: always() && needs.admit.result == 'success' && ((inputs.stage_phase || 'natives') == 'natives' && needs.native-public.result == 'skipped' || inputs.stage_phase == 'core' && needs.native-public.result == 'success')
+    if: ${{ !cancelled() && needs.admit.result == 'success' && ((inputs.stage_phase || 'natives') == 'natives' && needs.native-public.result == 'skipped' || inputs.stage_phase == 'core' && needs.native-public.result == 'success') }}
     runs-on: ubuntu-26.04
     timeout-minutes: 120
     environment: npm-publication

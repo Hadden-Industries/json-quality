@@ -89,6 +89,7 @@ jobs:
           retention-days: 1
   archive:
     needs: admit
+    if: ${{ !cancelled() && needs.admit.result == 'success' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 120
     environment: github-archival

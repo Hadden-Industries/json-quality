@@ -16,6 +16,51 @@ const transferBudgets = new Map([
   ["./.github/actions/upload-writer-evidence", budgets.uploadStep],
   ["./.github/actions/download-evidence", budgets.collection],
 ]);
+const producerNpmSelection = `npm exec --global --call 'node scripts/qualification-process.js producer-npm'
+npm_prefix="$(npm prefix --global)"
+if [[ "$RUNNER_OS" == "Windows" ]]; then
+  echo "$npm_prefix" >> "$GITHUB_PATH"
+else
+  echo "$npm_prefix/bin" >> "$GITHUB_PATH"
+fi`;
+const admittedWriterCondition =
+  "${{ !cancelled() && needs.admit.result == 'success' }}";
+const githubWriterCondition =
+  "${{ !cancelled() && needs.admit.result == 'success' && needs.npm.result == 'success' && needs.npm.outputs.availability == 'npm-and-github' }}";
+const stagingWriterCondition =
+  "${{ !cancelled() && needs.admit.result == 'success' && ((inputs.stage_phase || 'natives') == 'natives' && needs.native-public.result == 'skipped' || inputs.stage_phase == 'core' && needs.native-public.result == 'success') }}";
+const availabilityCompletionGate = `node --input-type=module -e 'import assert from "node:assert/strict"; const n=JSON.parse(process.env.NEEDS_JSON); assert.equal(n.admit.result,"success"); assert.equal(n.npm.result,"success","npm writer did not succeed"); const a=n.npm.outputs.availability; assert.ok(["npm-only","npm-and-github"].includes(a),"Missing admitted availability"); assert.equal(n.github.result,a==="npm-only"?"skipped":"success","Selected GitHub writer did not succeed");'`;
+
+/** Narrow writers and full producers must select the same pinned tools before npm reads. */
+function checkProducerToolchain(action, path) {
+  const steps = action?.runs?.steps ?? [];
+  const message = `${path}: pinned producer toolchain must precede every npm consumer`;
+  const required = (step) =>
+    step && !Object.hasOwn(step, "if") && !step["continue-on-error"];
+  for (const [name, pin] of [
+    ["node", ".node-version"],
+    ["python", ".python-version"],
+  ]) {
+    const selections = steps.filter((step) =>
+      step.uses?.startsWith(`actions/setup-${name}@`),
+    );
+    assert.equal(selections.length, 1, message);
+    assert.ok(required(selections[0]), message);
+    assert.equal(selections[0].with?.[`${name}-version-file`], pin, message);
+    assert.equal(selections[0].with?.[`${name}-version`], undefined, message);
+  }
+  const node = steps.findIndex((step) =>
+    step.uses?.startsWith("actions/setup-node@"),
+  );
+  const select = steps.findIndex(
+    (step) => step.run?.trim() === producerNpmSelection,
+  );
+  assert.ok(select > node && required(steps[select]), message);
+  assert.ok(
+    !steps.slice(0, select).some((step) => /\bnpm\b/u.test(step.run ?? "")),
+    message,
+  );
+}
 
 /** Caller repositories supply Git objects, never executable qualification code. */
 function checkSharedQualification(workflow) {
@@ -55,13 +100,6 @@ function checkSharedQualification(workflow) {
   const validate = String.raw`node --input-type=module -e 'if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(process.env.PRODUCER_REPOSITORY ?? "")) throw new Error("Producer repository is required"); for (const key of ["PRODUCER_SHA", "TRUSTED_COMMIT_ID", "CANDIDATE_COMMIT_ID"]) if (!/^[a-f0-9]{40}$/u.test(process.env[key] ?? "")) throw new Error("Full immutable commits are required")'
 git config --global core.autocrlf false`;
   const verify = `node --input-type=module -e 'import { execFileSync } from "node:child_process"; import { readFileSync } from "node:fs"; if (execFileSync("git", ["-C", "producer", "rev-parse", "HEAD"], { encoding: "utf8" }).trim() !== process.env.PRODUCER_SHA || JSON.parse(readFileSync("producer/package.json", "utf8")).name !== "@hadden-industries/json-quality") throw new Error("Producer identity mismatch")'`;
-  const select = `npm exec --global --call 'node scripts/qualification-process.js producer-npm'
-npm_prefix="$(npm prefix --global)"
-if [[ "$RUNNER_OS" == "Windows" ]]; then
-  echo "$npm_prefix" >> "$GITHUB_PATH"
-else
-  echo "$npm_prefix/bin" >> "$GITHUB_PATH"
-fi`;
   const checkout = (kind) => ({
     repository:
       kind === "producer"
@@ -93,7 +131,7 @@ fi`;
         "package-manager-cache": false,
       },
     },
-    { run: select, "working-directory": "producer" },
+    { run: producerNpmSelection, "working-directory": "producer" },
     {
       run: "npm run install:producer-dependencies",
       "working-directory": "producer",
@@ -270,11 +308,24 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     wrapper: workflows.get("./.github/workflows/native.yml"),
   });
   function inputs(path, supplied, declared = {}) {
-    for (const key of Object.keys(supplied ?? {}))
+    for (const [key, value] of Object.entries(supplied ?? {})) {
       assert.ok(
         Object.hasOwn(declared, key),
         `${path}: undeclared input ${key}`,
       );
+      const type = declared[key].type;
+      // GitHub evaluates expressions at dispatch. Literal workflow_call inputs
+      // already have a YAML type and must match the called workflow's contract.
+      if (
+        type &&
+        !(typeof value === "string" && /^\s*\$\{\{[\s\S]*\}\}\s*$/u.test(value))
+      )
+        assert.ok(
+          typeof value === type &&
+            (type !== "number" || Number.isFinite(value)),
+          `${path}: input type ${key} must be ${type}`,
+        );
+    }
     for (const [key, value] of Object.entries(declared))
       if (value.required && !Object.hasOwn(value, "default"))
         assert.ok(
@@ -282,6 +333,26 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           `${path}: missing required input ${key}`,
         );
   }
+  const checkedActions = new Set();
+  const checkLocalAction = (path, trail = []) => {
+    const action = actions.get(path);
+    assert.ok(action, `${path}: unresolved local action`);
+    assert.ok(!trail.includes(path), `${path}: recursive local action`);
+    if (checkedActions.has(path)) return;
+    for (const step of action.runs.steps ?? []) {
+      if (!step.uses?.startsWith("./")) continue;
+      checkLocalAction(step.uses, [...trail, path]);
+      inputs(path, step.with, actions.get(step.uses).inputs);
+      // Composite steps cannot declare timeout-minutes. Keep bounded transfers
+      // visible to the owning workflow, which enforces their step deadlines.
+      assert.ok(
+        !transferBudgets.has(step.uses),
+        `${path}: bounded transfer requires a workflow step`,
+      );
+    }
+    checkedActions.add(path);
+  };
+  for (const path of actions.keys()) checkLocalAction(path);
   const scans = workflows.get("./.github/workflows/security.yml").jobs.codeql;
   assert.deepEqual(
     scans.strategy.matrix.include,
@@ -318,10 +389,17 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
   assert.ok(
     producerSteps?.some(
       (step) =>
-        step.run === "npm run install:producer-dependencies" && !step.if,
+        step.run === "npm run install:producer-dependencies" &&
+        !Object.hasOwn(step, "if") &&
+        !step["continue-on-error"],
     ),
     "Release producer must install its frozen dependencies unconditionally",
   );
+  for (const name of ["setup-producer", "setup-writer"])
+    checkProducerToolchain(
+      actions.get(`./.github/actions/${name}`),
+      `.github/actions/${name}/action.yml`,
+    );
   const writerSetup = actions.get("./.github/actions/setup-writer");
   assert.ok(
     writerSetup?.runs?.steps?.length > 0,
@@ -340,6 +418,52 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     "node scripts/release-command.js",
     "Release effects must retain startup failures",
   );
+  // A stdlib-only result assertion can run before expensive setup, but no npm,
+  // acquisition or downloaded code may use this exception.
+  const isCompletionGate = (path, name, step) =>
+    path === "promote-release.yml" &&
+    name === "complete" &&
+    step.name === "Require successful selected availability writers" &&
+    step.run?.trim() === availabilityCompletionGate &&
+    step.env?.NEEDS_JSON === "${{ toJSON(needs) }}" &&
+    !Object.hasOwn(step, "if") &&
+    !step["continue-on-error"];
+  const requireDependencySetup = (path, name, job, requiredSetup) => {
+    const steps = job.steps ?? [];
+    const setup = steps.findIndex((step) => step.uses === requiredSetup);
+    assert.ok(
+      setup >= 0 &&
+        !Object.hasOwn(steps[setup], "if") &&
+        !steps[setup]["continue-on-error"],
+      `${path}/${name}: release dependency setup is required for its authority`,
+    );
+    assert.ok(
+      !steps
+        .slice(0, setup)
+        .some(
+          (step) =>
+            (step.run || step.uses?.startsWith("./.github/actions/")) &&
+            !isCompletionGate(path, name, step),
+        ),
+      `${path}/${name}: release commands must follow dependency setup`,
+    );
+    return setup;
+  };
+  for (const [path, name, action] of [
+    ["release-qualification.yml", "resolve", "setup-producer"],
+    ["release-qualification.yml", "security", "setup-producer"],
+    ["release-registry.yml", "admit", "setup-producer"],
+    ["release-registry.yml", "registry", "setup-producer"],
+    ["release-registry.yml", "security", "setup-producer"],
+    ["prepare-release-history.yml", "prepare", "setup-producer"],
+    ["verify-release-completion.yml", "observe", "setup-writer"],
+  ])
+    requireDependencySetup(
+      path,
+      name,
+      workflows.get(`./.github/workflows/${path}`).jobs[name],
+      `./.github/actions/${action}`,
+    );
   for (const [path, writer, environment] of [
     ["stage-release.yml", "stage", "npm-publication"],
     ["github-release.yml", "archive", "github-archival"],
@@ -362,7 +486,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         requiredSetup = privileged
           ? "./.github/actions/setup-writer"
           : "./.github/actions/setup-producer",
-        setup = steps.findIndex((step) => step.uses === requiredSetup);
+        setup = requireDependencySetup(path, name, job, requiredSetup);
       if (name === "admit" || privileged)
         assert.equal(
           steps.find((step) => step.uses?.startsWith("actions/checkout@"))
@@ -370,22 +494,10 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           0,
           `${path}/${name}: signed release admission requires Git history`,
         );
-      assert.ok(
-        setup >= 0 && !Object.hasOwn(steps[setup], "if"),
-        `${path}/${name}: release dependency setup is required for its authority`,
-      );
       assert.equal(
         job.permissions.contents,
         name === writer && writer !== "stage" ? "write" : "read",
         `${path}/${name}: draft visibility belongs to the GitHub writer`,
-      );
-      assert.ok(
-        !steps
-          .slice(0, setup)
-          .some(
-            (step) => step.run || step.uses?.startsWith("./.github/actions/"),
-          ),
-        `${path}/${name}: release commands must follow dependency setup`,
       );
       assert.ok(
         !steps
@@ -397,6 +509,24 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         (step) => step.name === "Apply admitted release effect",
       );
       if (effect < 0) continue;
+      assert.ok(
+        !job["continue-on-error"],
+        `${path}/${name}: writer failures must block the workflow`,
+      );
+      assert.equal(
+        job.if,
+        path === "stage-release.yml"
+          ? stagingWriterCondition
+          : path === "promote-release.yml" && name === "github"
+            ? githubWriterCondition
+            : admittedWriterCondition,
+        `${path}/${name}: writer requires cancellation-aware admitted prerequisites`,
+      );
+      assert.ok(
+        !Object.hasOwn(steps[effect], "if") &&
+          !steps[effect]["continue-on-error"],
+        `${path}/${name}: admitted effect cannot be disabled or softened`,
+      );
       if (writer !== "github")
         assert.ok(
           steps[effect].run.startsWith(
@@ -410,7 +540,8 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           .some(
             (step) =>
               step.uses === "./.github/actions/upload-writer-evidence" &&
-              step.if === "always()",
+              step.if === "always()" &&
+              !step["continue-on-error"],
           ),
         `${path}/${name}: failed publisher evidence must be retained`,
       );
@@ -482,9 +613,20 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       );
     }
   }
+  assert.equal(promotion.jobs.github.if, githubWriterCondition);
   assert.equal(
-    promotion.jobs.github.if,
-    "needs.npm.result == 'success' && needs.npm.outputs.availability == 'npm-and-github'",
+    promotion.jobs.complete.if,
+    admittedWriterCondition,
+    "Completion must inspect skipped or failed writers without starting on cancellation",
+  );
+  assert.ok(
+    !promotion.jobs.complete["continue-on-error"],
+    "Completion failure must block the workflow",
+  );
+  const completionSteps = promotion.jobs.complete.steps;
+  assert.ok(
+    isCompletionGate("promote-release.yml", "complete", completionSteps[0]),
+    "Availability completion gate must be unconditional and precede dependency setup",
   );
   assert.deepEqual(promotion.jobs.complete.needs, ["admit", "npm", "github"]);
   assert.deepEqual(promotion.jobs.github.needs, ["admit", "npm"]);
@@ -575,7 +717,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       );
     for (const job of Object.values(workflow.jobs ?? {})) {
       pinned(path, job.uses);
-      if (job.uses?.startsWith("./.github/workflows/")) {
+      if (job.uses?.startsWith("./")) {
         const called = workflows.get(job.uses);
         assert.ok(
           called?.on?.workflow_call !== undefined,
@@ -595,7 +737,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           ),
           `${path}: shell SDK upload lacks action credentials`,
         );
-        if (!step.uses?.startsWith("./.github/actions/")) continue;
+        if (!step.uses?.startsWith("./")) continue;
         const action = actions.get(step.uses);
         assert.ok(action, `${path}: unresolved local action ${step.uses}`);
         inputs(path, step.with, action.inputs);
@@ -607,6 +749,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
                 (path === "./.github/workflows/json-quality.yml" &&
                   prior["working-directory"] === "producer" &&
                   prior.run === "npm run install:producer-dependencies")) &&
+              !prior["continue-on-error"] &&
               (!Object.hasOwn(prior, "if") ||
                 (typeof prior.if === "string" &&
                   !["false", "${{ false }}"].includes(prior.if) &&

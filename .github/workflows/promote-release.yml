@@ -114,6 +114,7 @@ jobs:
           retention-days: 90
   npm:
     needs: admit
+    if: ${{ !cancelled() && needs.admit.result == 'success' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 120
     environment: npm-promotion
@@ -155,7 +156,7 @@ jobs:
 
   github:
     needs: [admit, npm]
-    if: needs.npm.result == 'success' && needs.npm.outputs.availability == 'npm-and-github'
+    if: ${{ !cancelled() && needs.admit.result == 'success' && needs.npm.result == 'success' && needs.npm.outputs.availability == 'npm-and-github' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 120
     environment: github-release
@@ -195,7 +196,7 @@ jobs:
 
   complete:
     needs: [admit, npm, github]
-    if: always() && needs.npm.result == 'success' && (needs.github.result == 'success' || needs.github.result == 'skipped')
+    if: ${{ !cancelled() && needs.admit.result == 'success' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
@@ -207,6 +208,12 @@ jobs:
       ADMISSION_ARTIFACT_DIGEST: ${{ needs.admit.outputs.artifact-digest }}
       ADMISSION_RECEIPT_SHA: ${{ needs.admit.outputs.receipt-sha256 }}
     steps:
+      # Only Node builtins: reject incomplete writers before checkout or acquisition.
+      - name: Require successful selected availability writers
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          node --input-type=module -e 'import assert from "node:assert/strict"; const n=JSON.parse(process.env.NEEDS_JSON); assert.equal(n.admit.result,"success"); assert.equal(n.npm.result,"success","npm writer did not succeed"); const a=n.npm.outputs.availability; assert.ok(["npm-only","npm-and-github"].includes(a),"Missing admitted availability"); assert.equal(n.github.result,a==="npm-only"?"skipped":"success","Selected GitHub writer did not succeed");'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

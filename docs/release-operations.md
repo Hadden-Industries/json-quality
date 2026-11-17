@@ -263,7 +263,9 @@ JSON Quality keeps these boundaries explicit:
 
 - Read-only admission and qualification jobs install the frozen producer dependencies.
   Privileged writers use `setup-writer` with pinned Node/npm/Python and no project dependency installation; their raw artifact ZIP upload uses native Actions transport and exact readback reconciliation.
-  The workflow checker rejects missing or conditional setup, later runtime replacement, incorrect draft permissions and lost failure uploads.
+  The workflow checker follows local composite references and rejects missing, disabled, softened or late setup, later runtime replacement, mistyped literal reusable-workflow inputs, incorrect draft permissions and lost failure uploads.
+  Read-only registry and recovery commands need the same pinned producer tools as publishers; hosted npm defaults are not a qualified toolchain.
+  Bounded transfers remain explicit workflow steps so their owning jobs can enforce transfer deadlines.
   Producer npm commands, archive packing and signature verification retain the paired producer Node executable even inside consumer lanes.
   The frozen manifest records that producer's actual Node and npm versions; a partial retained identity refuses execution.
 - Stage, archive and promotion workflows enter through `scripts/release-command.js`.
@@ -441,6 +443,9 @@ Once the owner settles and reconciles the original operation, an explicit contin
 Open the diagram for a full-size view.
 
 All mutating workflows share `json-quality-release-mutation` with cancellation disabled.
+Writer job conditions explicitly require successful admission and honor cancellation, including when another prerequisite is deliberately skipped.
+Availability completion checks the owner-selected npm/GitHub writer results before checkout, dependency installation or evidence acquisition.
+A skipped required writer fails completion; an npm-only decision deliberately skips the unselected GitHub writer.
 Native run history still inspects every attempt of every writer; concurrency alone is not an effect ledger.
 Request journals are append-only and flush intent before each effect.
 `outcome-unknown`, an absent journal or truncated history blocks another effect when the original request may concern the candidate version or shared labels.
@@ -633,6 +638,9 @@ Each descriptor binds the target identity, size and SHA-256; recovery fetches on
 Legacy inline `qualifiedTargets` remain readable.
 Sign the exact output under a fresh `release-history-*` tag before the reported expiry deadline.
 Prepared bytes are not recovery-eligible until owner signed.
+Checkpoint readiness reports `prepared` only when the original operation and selected writer succeeded; availability also requires its independent `complete` job to have succeeded.
+Failed, cancelled or skipped completion remains `prepared-with-unresolved-effects`, even if a writer succeeded and the qualified target bytes were retained.
+The readiness record preserves the original operation and completion conclusions; preparing or signing recovery custody does not rewrite those outcomes.
 Renewed checkpoints retain richer archive continuations.
 A writer-only schema-1 checkpoint cannot qualify an expired public target.
 

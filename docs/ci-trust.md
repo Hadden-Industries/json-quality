@@ -161,6 +161,7 @@ Workflow dependency lockfile migration remains a separate compatibility change; 
 ### Rehearse the next release runs locally
 
 The maintained workflow contracts inspect nested reusable-workflow permission ceilings, required source/tooling setup and the actual terminal gate programs.
+They also resolve local composite-action references, reject dependency cycles and validate literal reusable-workflow input types.
 An explicit YAML `if: false` cannot stand in for an omitted condition on a required admission step.
 Recovery uploads remain eligible only when their original producing interval and digest agree; conflicting copies stop admission.
 Fresh advisory collection uses disposable input storage and retains only the compact audit observations, not downloaded recipient ZIPs or duplicate graphs.
@@ -176,6 +177,8 @@ Fresh advisory collection uses disposable input storage and retains only the com
 
 `tests/release-reuse.test.js`, `tests/release-assurance.test.js`, `tests/candidate-retention.test.js`, `tests/release-dispatch.test.js` and `tests/release-startup.test.js` exercise these boundaries with external provider/process fixtures.
 They cover retained partial reruns, recovery names, changed final producer identity, interrupted input collection, active consumers, concurrent main movement and cold promoted writers.
+`tests/release-workflow-contracts.test.js` executes the actual availability result gate for successful, failed and skipped writers and mutates the maintained YAML to test bootstrap ordering, disabled steps and lost evidence.
+`tests/release-history-preparation.test.js` runs the checkpoint CLI with collected provider fixtures and checks that failed or skipped completion retains the original outcomes without reporting completed publication.
 The donor's [cancelled fallback run](https://github.com/Hadden-Industries/markdown-quality/actions/runs/43900658316), [successful reused qualification](https://github.com/Hadden-Industries/markdown-quality/actions/runs/43917797156) and [completed archival graph](https://github.com/Hadden-Industries/markdown-quality/actions/runs/43980861855) provide operational reference points.
 Local rehearsal verifies the controller contracts; it does not establish hosted scheduling, OIDC permissions, registry propagation or owner 2FA.
 

@@ -54,12 +54,30 @@ export function prepareReleaseHistory(
         ? "github"
         : "npm";
   const readinessPath = join(output, "checkpoint-readiness.json");
+  const completions = observed.jobs.jobs.filter(
+    (value) => value.name === "complete",
+  );
+  // A successful writer does not certify a failed or skipped independent observer.
+  // Archive jobs perform their own verification; availability has a separate gate.
+  const completedOperation =
+    observed.run.conclusion === "success" &&
+    (phase === "archive" ||
+      (completions.length === 1 &&
+        completions[0].status === "completed" &&
+        completions[0].conclusion === "success"));
   const readiness = {
     schemaVersion: 1,
     originalOperation: { run, attempt },
     originalWriter: job,
     originalConclusion: observed.jobs.jobs.find((value) => value.name === job)
       ?.conclusion,
+    originalOperationConclusion: observed.run.conclusion,
+    ...(phase === "promote"
+      ? {
+          originalCompletionConclusion:
+            completions[0]?.conclusion ?? "unavailable",
+        }
+      : {}),
     publicationVerification: "unresolved",
     recoveryEligibility: "incomplete",
     note: "Unknown writer effects remain unknown. Sign the entire prepared directory in one commit under a fresh release-history tag only after reviewing readiness.",
@@ -140,10 +158,9 @@ export function prepareReleaseHistory(
         });
         additions.push(current.record);
         readiness.signatureDueBy = current.signatureDueBy;
-        readiness.publicationVerification =
-          observed.run.conclusion === "success"
-            ? "public-qualification-and-original-operation-verified"
-            : "qualified-target-verified-writer-outcome-unresolved";
+        readiness.publicationVerification = completedOperation
+          ? "public-qualification-and-original-operation-verified"
+          : "qualified-target-verified-writer-outcome-unresolved";
       }
     } catch (error) {
       readiness.targetCollection = {
@@ -183,7 +200,9 @@ export function prepareReleaseHistory(
       ? "awaiting-owner-signature"
       : "writer-history-only-awaiting-owner-signature";
     readiness.state =
-      readiness.originalConclusion === "success" && !readiness.targetCollection
+      completedOperation &&
+      readiness.originalConclusion === "success" &&
+      !readiness.targetCollection
         ? "prepared"
         : "prepared-with-unresolved-effects";
     persist();
