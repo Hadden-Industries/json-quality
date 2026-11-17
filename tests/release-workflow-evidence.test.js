@@ -19,6 +19,7 @@ import {
   materializeStageZip,
   writeStageParts,
   stagePartPath,
+  verifyStagePredecessors,
 } from "../scripts/release-stage-payload.js";
 import { pilotDeleteRefusal } from "../scripts/rejected-pilot-request.js";
 import { verifyMatrixRunner } from "../scripts/runner-policy.js";
@@ -286,6 +287,45 @@ test("pending npm observations cover exact family, effect identity, freshness an
       }),
     /changed after/u,
   );
+});
+
+test("retained staging accepts only exact original and bounded recovery names", () => {
+  const ref = {
+    run: "7",
+    attempt: "1",
+    stagePhase: "natives",
+    controller,
+    manifestSha256: digest,
+    reviewSha256: digest,
+    sha256: digest,
+    size: 1,
+    parts: [{ size: 1, sha256: digest }],
+    artifact: { id: 1, jobId: 2, digest: `sha256:${digest}` },
+    provider: {
+      run: { id: 7, run_attempt: 1, head_sha: controller },
+      jobs: { total_count: 1, jobs: [{ id: 2, name: "stage" }] },
+    },
+  };
+  const verify = (name) =>
+    verifyStagePredecessors(
+      [{ ...ref, artifact: { ...ref.artifact, name } }],
+      1,
+    );
+  for (const name of [
+    "effect-stage-1",
+    "effect-stage-1-recovery-2",
+    "effect-stage-1-recovery-3",
+  ])
+    verify(name);
+  for (const name of [
+    "effect-stage-11",
+    "effect-stage-1-recovery-1",
+    "effect-stage-1-recovery-4",
+    "effect-stage-1-recovery-2-extra",
+    "other-effect-stage-1",
+    "effect-stage-1\n",
+  ])
+    assert.throws(() => verify(name));
 });
 
 test("retained staging transport checks both each part and the whole original", (t) => {

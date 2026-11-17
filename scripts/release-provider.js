@@ -6,6 +6,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { native, budgets } from "./qualification-process.js";
 import { releaseCommit } from "./release-promotion-evidence.js";
+import { recoveryArtifactNames } from "./release-records.js";
 import { sameJobExecution } from "./github-job-execution.js";
 import { nativePackages } from "../src/native-packages.js";
 import { verifyOwnerTagSignature } from "./release-signing.js";
@@ -302,13 +303,8 @@ export function download(runId, attempt, name, root, readers = {}) {
     ? [read(`actions/artifacts/${bound.receipt.id}`, [], { deadline })]
     : (readers.listedArtifacts ??
       list(`actions/runs/${id(runId)}/artifacts?per_page=100`, "artifacts"));
-  const recovered = new RegExp(
-    `^${name.replaceAll(".", "\\.")}-recovery-[23]$`,
-    "u",
-  );
-  const matches = artifacts.filter(
-    (item) => item.name === name || recovered.test(item.name),
-  );
+  const names = recoveryArtifactNames(name);
+  const matches = artifacts.filter((item) => names.includes(item.name));
   if (!matches.length && !bound) unavailableArtifact("Missing native artifact");
   assert.ok(
     matches.length > 0 && matches.length <= 3,
@@ -1576,12 +1572,9 @@ export function readEffectHistory(
                   `actions/runs/${id(run.id)}/artifacts?per_page=100`,
                   "artifacts",
                 );
-                const candidate = new RegExp(
-                  `^${name}(?:-recovery-[23])?$`,
-                  "u",
-                );
+                const names = recoveryArtifactNames(name);
                 const matches = listedArtifacts.filter((item) =>
-                  candidate.test(item.name),
+                  names.includes(item.name),
                 );
                 assert.ok(matches.length <= 3, "Ambiguous historical artifact");
                 assert.ok(

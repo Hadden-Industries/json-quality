@@ -29,6 +29,12 @@ export const sha512 = (bytes) =>
   "sha512-" + createHash("sha512").update(bytes).digest("base64");
 export const jsonBytes = (value) =>
   Buffer.from(JSON.stringify(value, null, 2) + "\n");
+/** Native evidence has exactly one original name and two recovery names. */
+export const recoveryArtifactNames = (name) => [
+  name,
+  `${name}-recovery-2`,
+  `${name}-recovery-3`,
+];
 /** Separate durable intents from proved unsent requests without inventing an outcome. */
 export function requestedIntents(records) {
   const result = [];

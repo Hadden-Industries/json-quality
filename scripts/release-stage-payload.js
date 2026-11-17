@@ -11,7 +11,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { sha256, regularBytes } from "./release-records.js";
+import {
+  sha256,
+  regularBytes,
+  recoveryArtifactNames,
+} from "./release-records.js";
 
 export const stagePartBytes = 16 * 1024 * 1024;
 const sha = /^[a-f0-9]{64}$/u;
@@ -50,7 +54,7 @@ export function verifyStagePredecessors(refs, maximum) {
     assert.ok(positive(artifact.id) && positive(artifact.jobId));
     assert.equal(artifact.digest, `sha256:${ref.sha256}`);
     assert.ok(
-      new RegExp(`^effect-stage-${ref.attempt}(?:-recovery-[23])?$`, "u").test(
+      recoveryArtifactNames(`effect-stage-${ref.attempt}`).includes(
         artifact.name,
       ),
     );
