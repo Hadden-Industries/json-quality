@@ -438,6 +438,113 @@ test("a reconciled original failed stage retains complete qualification after pr
   );
 });
 
+test("a reconciled archive retains native asset IDs while comparing approved content", () => {
+  const target = structuredClone(qualifiedLegacy);
+  const setFile = (name, value) => {
+    const bytes = Buffer.isBuffer(value)
+      ? value
+      : Buffer.from(JSON.stringify(value));
+    target.qualification.files = target.qualification.files.filter(
+      (file) => file.name !== name,
+    );
+    target.qualification.files.push({
+      name,
+      size: bytes.length,
+      sha256: sha256(bytes),
+      bytes: bytes.toString("base64"),
+    });
+  };
+  const context = JSON.parse(
+    Buffer.from(
+      target.qualification.files.find((file) => file.name === "context.json")
+        .bytes,
+      "base64",
+    ),
+  );
+  const archive = structuredClone(
+    target.qualification.providers.find((item) => item.phase === "stage"),
+  );
+  archive.phase = "archive";
+  archive.provider.run.path = ".github/workflows/github-release.yml";
+  archive.provider.run.conclusion = "failure";
+  const writer = archive.provider.jobs.jobs.find((job) => job.name === "stage");
+  writer.name = "archive";
+  writer.conclusion = "failure";
+  context.archive = archive.origin;
+  target.qualification.providers.push(archive);
+  setFile("context.json", context);
+  const intent = {
+    state: "intent",
+    package: "@hadden-industries/json-quality",
+    version: target.version,
+    source: target.source,
+    manifestSha256: target.manifestSha256,
+    integrity: JSON.parse(Buffer.from(target.manifest, "base64")).archive
+      .integrity,
+    operation: "archive",
+    ...archive.origin,
+    before: null,
+    requestedAt: "2026-11-09T01:39:24Z",
+  };
+  const journal = Buffer.from(
+    JSON.stringify(intent) +
+      "\n" +
+      JSON.stringify({
+        state: "outcome-unknown",
+        intentSha256: sha256(Buffer.from(JSON.stringify(intent) + "\n")),
+      }) +
+      "\n",
+  );
+  const assetsIntent = Buffer.from(
+    JSON.stringify({ assets: target.release.assets }),
+  );
+  const decision = {
+    schemaVersion: 1,
+    owner: "maksymshostak",
+    phase: "archive",
+    ...archive.origin,
+    version: target.version,
+    manifestSha256: target.manifestSha256,
+    journalSha256: sha256(journal),
+    assetsIntentSha256: sha256(assetsIntent),
+    disposition: "complete-read-only",
+  };
+  const observed = {
+    immutableRelease: target.release.id,
+    assets: target.release.assets.map(({ name, digest, size }) => ({
+      name,
+      sha256: digest.slice("sha256:".length),
+      size,
+    })),
+  };
+  target.release.assets.forEach((asset, index) => {
+    asset.id = index + 1;
+  });
+  setFile(effectJournal("archive", archive.origin), journal);
+  setFile("archive-assets-intent.json", assetsIntent);
+  setFile("recovery-records.json", [decision]);
+  setFile("recovery-observations.json", [{ record: decision, observed }]);
+  verifyQualifiedTarget(target, qualifiedLegacyTarget);
+  assert.equal(target.release.assets[0].id, 1);
+  for (const change of [
+    (assets) => assets.pop(),
+    (assets) => (assets[0].sha256 = "0".repeat(64)),
+    (assets) => assets[0].size++,
+    (assets) => (assets[0].name += "-changed"),
+    (assets) => assets.push({ ...assets[0] }),
+  ]) {
+    const changed = structuredClone(observed);
+    change(changed.assets);
+    setFile("recovery-observations.json", [
+      { record: decision, observed: changed },
+    ]);
+    assert.throws(
+      () => verifyQualifiedTarget(target, qualifiedLegacyTarget),
+      /release asset/u,
+    );
+  }
+});
+
 test("signed original promotion custody restores exact operation and journal while keeping archive origin independent", (t) => {
   const root = mkdtempSync(join(tmpdir(), "json-original-operation-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
