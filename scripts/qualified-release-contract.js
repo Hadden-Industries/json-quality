@@ -6,6 +6,7 @@ import {
   verifyBuildEvidence,
 } from "./release-promotion-evidence.js";
 import { isDeepStrictEqual } from "node:util";
+import { verifyStableAssets } from "./release-asset-identity.js";
 import { requestedIntents } from "./release-records.js";
 import {
   verifyLane,
@@ -196,17 +197,13 @@ export function verifyQualifiedTarget(record, expected) {
             decision.assetsIntentSha256,
           );
           assert.equal(observed.immutableRelease, record.release.id);
-          assert.deepEqual(
-            observed.assets
-              .map(({ name, sha256: digest, size }) => ({
-                name,
-                digest: `sha256:${digest}`,
-                size,
-              }))
-              .sort((a, b) => a.name.localeCompare(b.name)),
-            [...record.release.assets].sort((a, b) =>
-              a.name.localeCompare(b.name),
-            ),
+          verifyStableAssets(
+            observed.assets.map(({ name, sha256: digest, size }) => ({
+              name,
+              digest: `sha256:${digest}`,
+              size,
+            })),
+            record.release.assets,
           );
         }
         if (
