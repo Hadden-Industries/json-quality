@@ -10,6 +10,7 @@ import { budgets } from "../scripts/qualification-budgets.js";
 import {
   verifyReleaseAttestation,
   observeReleaseAttestation,
+  releaseAttestationRequest,
 } from "../scripts/release-attestation-readiness.js";
 
 test("publication waits for attestation readiness before its one native verification", (t) => {
@@ -178,6 +179,56 @@ function fixture(
   };
   return { request, state, calls, options };
 }
+
+function promotedFixture() {
+  const f = fixture([200]);
+  f.request.release = {
+    schemaVersion: 4,
+    version: f.request.release.version,
+    source: { commit: "b".repeat(40), tree: "f".repeat(40) },
+    promotion: {
+      schemaVersion: 1,
+      repository: "Hadden-Industries/json-quality",
+      workflow: ".github/workflows/ci.yml",
+      repositoryId: 1417928678,
+      buildCommit: "b".repeat(40),
+      releaseCommit: "e".repeat(40),
+      tree: "f".repeat(40),
+      parents: ["c".repeat(40), "d".repeat(40)],
+      buildManifestSha256: "a".repeat(64),
+      proofSha256: "c".repeat(64),
+      run: 123,
+      attempt: 1,
+      pullRequest: 31,
+    },
+  };
+  f.state.annotation.object.sha = f.request.release.promotion.releaseCommit;
+  return f;
+}
+
+test("native readiness transport preserves the landed tag identity of a promoted build", async () => {
+  const f = promotedFixture();
+  const request = JSON.parse(releaseAttestationRequest(f.request));
+  const observed = await observeReleaseAttestation(request, f.options);
+  assert.equal(observed.releaseId, f.request.releaseId);
+  assert.equal(f.calls.targets, 1);
+  assert.deepEqual(f.calls.sleeps, []);
+});
+
+test("native readiness transport refuses a promoted tag moved to the original build", async () => {
+  const f = promotedFixture();
+  f.state.annotation.object.sha = f.request.release.source.commit;
+  const request = JSON.parse(releaseAttestationRequest(f.request));
+  await assert.rejects(observeReleaseAttestation(request, f.options));
+  assert.equal(f.calls.targets, 0);
+});
+
+test("native readiness transport retains legacy release identity", async () => {
+  const f = fixture([200]);
+  const request = JSON.parse(releaseAttestationRequest(f.request));
+  const observed = await observeReleaseAttestation(request, f.options);
+  assert.equal(observed.releaseId, f.request.releaseId);
+});
 
 test("empty and typed absent inventories wait only with a positive same-token attestation control", async () => {
   const f = fixture([404, "empty", 200]);

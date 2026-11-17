@@ -148,12 +148,14 @@ export async function observeReleaseAttestation(
   }
 }
 
-function observeNative(request) {
+export function releaseAttestationRequest(request) {
   const input = jsonBytes({
     ...request,
     release: {
+      schemaVersion: request.release.schemaVersion,
       version: request.release.version,
-      source: { commit: request.release.source.commit },
+      source: request.release.source,
+      promotion: request.release.promotion,
     },
     deadline: Date.now() + budgets.read,
   });
@@ -161,6 +163,11 @@ function observeNative(request) {
     input.length <= artifactLimits.proofBytes,
     "Attestation request exceeds bound",
   );
+  return input;
+}
+
+function observeNative(request) {
+  const input = releaseAttestationRequest(request);
   const observed = JSON.parse(
     native(process.execPath, [fileURLToPath(import.meta.url)], {
       input,
