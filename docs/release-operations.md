@@ -35,9 +35,10 @@ The local `.provenance.json` records all three byte identities; authenticated re
 
 ### Select the candidate
 
-The release version is **1.0.1**, selected by [`package.json.version`](../package.json).
-See the [1.0.1 release notes](../CHANGELOG.md#101) for its changes.
-The public CLI, library API, contract cohort and Node.js minimum remain unchanged from 1.0.0.
+The release version is **1.0.2**, selected by [`package.json.version`](../package.json).
+See the [1.0.2 release notes](../CHANGELOG.md#102) for its changes.
+The public CLI, library API, contract cohort and Node.js minimum remain unchanged from 1.0.1.
+Use [support and release](support-and-release.md) for the change summary and [migration guidance](migration-guide.md#from-101-to-102) for consumer upgrades.
 
 To prepare the package family, edit that manifest, run `npm run sync:version`, then run `npm run check:version`.
 The projector updates the lockfile and both native package declarations without installing dependencies or rebuilding payloads.
@@ -88,6 +89,8 @@ See [npm staged publishing](https://docs.npmjs.com/staged-publishing/) and [GitH
 Select the exact version and compatibility intent with the owner.
 Edit only `package.json.version`, then run `npm run sync:version` to project companion manifests, owned lockfile version fields and current documentation references.
 Edit current release prose in `docs/release-templates/*.in`; the generated README, consumer guide and this runbook are checked before packing.
+The documentation index, release overview and migration guide use the same projection.
+`docs/release-versions.json.previousVersion` owns their comparison baseline; update it when selecting a new baseline, rather than repeating that version in templates.
 Historical changelog entries, closeout records and the contract cohort retain their original values.
 
 Policy provenance independently fingerprints current input bytes and selected dependency declarations; version-only changes leave its readable input inventory and fingerprint unchanged.

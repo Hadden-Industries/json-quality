@@ -3,6 +3,7 @@
 Use this guide to [read a value from its original bytes](#stream-a-source-and-read-lossless-values), [check a complete repository](#complete-repository-checks-and-trusted-adapters), or [apply a guarded repair](#explicit-transformations-and-replacements).
 The examples use JSON Quality {{release.version}} and the Node.js ESM API from contract cohort 6.
 For individual signatures and return types, see the [API reference](api.md).
+For an existing installation, follow the [upgrade from {{release.previousVersion}}](migration-guide.md#{{release.migrationAnchor}}).
 
 ## Acquisition and public exports
 

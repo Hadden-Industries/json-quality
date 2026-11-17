@@ -6,19 +6,20 @@ JSON Quality checks strict JSON, JSONL and NDJSON directly from the source bytes
 It catches duplicate keys such as `{"a":1,"\u0061":2}` and unsafe integers such as `9007199254740992`.
 Use the Node.js CLI or typed library to check files, format a document or normalize Unicode.
 
-This guide covers **JSON Quality 1.0.1**.
-Read the [release notes](CHANGELOG.md#101).
+This guide covers **JSON Quality 1.0.2**.
+Read the [release notes](CHANGELOG.md#102).
+Upgrading from 1.0.1 keeps the CLI, SDK and configuration contracts; follow the [upgrade guide](docs/migration-guide.md#from-101-to-102).
 
 ## Install and first check
 
 Use Node.js on **Windows x64** or **Linux x64 with glibc**.
 [Supported Node and npm versions](docs/node-runtime-compatibility.md)
 
-From an existing Git repository, install version 1.0.1 (contract cohort 6).
+From an existing Git repository, install version 1.0.2 (contract cohort 6).
 Keep npm optional dependencies enabled for the native companion.
 
 ```sh
-npm install --save-dev --save-exact @hadden-industries/json-quality@1.0.1
+npm install --save-dev --save-exact @hadden-industries/json-quality@1.0.2
 npm exec -- json-quality check --root .
 ```
 

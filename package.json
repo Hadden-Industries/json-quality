@@ -1,6 +1,6 @@
 {
   "name": "@hadden-industries/json-quality",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Zero-config strict JSON/JSONL checking and single-document formatting for Node.js, with duplicate-key detection, numeric safety and Unicode NFC repair",
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -72,6 +72,8 @@
     "CODE_OF_CONDUCT.md",
     "SECURITY.md",
     "docs/consumer-guide.md",
+    "docs/migration-guide.md",
+    "docs/support-and-release.md",
     "docs/centralized-contracts.md",
     "docs/node-runtime-compatibility.md",
     "docs/architecture.md",

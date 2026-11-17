@@ -316,3 +316,72 @@ test("current documentation follows one version edit while historical closeout r
     before,
   );
 });
+
+test("one current version synchronizes the documentation index and upgrade guides with one explicit comparison baseline", (t) => {
+  for (const path of [
+    "docs/README.md",
+    "docs/support-and-release.md",
+    "docs/migration-guide.md",
+  ])
+    assert.ok(
+      releaseDocuments.includes(path),
+      `Missing current version projection: ${path}`,
+    );
+  const { directory } = fixture(t);
+  const baseline = JSON.parse(
+    readFileSync(join(directory, "docs/release-versions.json")),
+  );
+  writeFileSync(
+    join(directory, "package.json"),
+    JSON.stringify({ ...metadata, version: "7.8.9" }),
+  );
+  synchronizePackageVersion(directory, { write: true });
+  for (const path of [
+    "docs/README.md",
+    "docs/support-and-release.md",
+    "docs/migration-guide.md",
+  ])
+    assert.match(readFileSync(join(directory, path), "utf8"), /7\.8\.9/u, path);
+  assert.match(
+    readFileSync(join(directory, "docs/support-and-release.md"), "utf8"),
+    new RegExp(
+      `Changes since ${baseline.previousVersion.replaceAll(".", "\\.")}`,
+      "u",
+    ),
+  );
+  assert.match(
+    readFileSync(join(directory, "docs/migration-guide.md"), "utf8"),
+    /#789|to 7\.8\.9/u,
+  );
+  assert.ok(
+    readFileSync(join(directory, "docs/migration-guide.md"), "utf8").includes(
+      `#changes-since-${baseline.previousVersion.replace(/[.+]/gu, "")}`,
+    ),
+  );
+  assert.deepEqual(synchronizePackageVersion(directory), []);
+  const before = readFileSync(join(directory, "package-lock.json"));
+  writeFileSync(
+    join(directory, "docs/release-versions.json"),
+    JSON.stringify({ previousVersion: "7.8.9" }),
+  );
+  assert.throws(
+    () => synchronizePackageVersion(directory, { write: true }),
+    /Release versions must differ/u,
+  );
+  assert.deepEqual(readFileSync(join(directory, "package-lock.json")), before);
+  for (const invalid of [
+    { previousVersion: "v1.0.1" },
+    { previousVersion: "1.0.1+build.1" },
+    { previousVersion: baseline.previousVersion, version: "8.0.0" },
+  ]) {
+    writeFileSync(
+      join(directory, "docs/release-versions.json"),
+      JSON.stringify(invalid),
+    );
+    assert.throws(() => synchronizePackageVersion(directory, { write: true }));
+    assert.deepEqual(
+      readFileSync(join(directory, "package-lock.json")),
+      before,
+    );
+  }
+});

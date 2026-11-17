@@ -2,22 +2,39 @@
 /** Adapted from Markdown Quality: render only current release references, never history. */
 import assert from "node:assert/strict";
 import { basename } from "node:path";
+import { validVersion } from "./release-contract.js";
 
 export const releaseDocuments = Object.freeze([
   "README.md",
+  "docs/README.md",
   "docs/consumer-guide.md",
+  "docs/migration-guide.md",
+  "docs/support-and-release.md",
   "docs/release-operations.md",
 ]);
-const templatePath = (path) => `docs/release-templates/${basename(path)}.in`;
-export const releaseDocumentationInputs = Object.freeze(
-  releaseDocuments.flatMap((path) => [path, templatePath(path)]),
-);
+// The root README and documentation index have distinct authored templates.
+const templatePath = (path) =>
+  `docs/release-templates/${path === "docs/README.md" ? "docs-index.md" : basename(path)}.in`;
+const metadataPath = "docs/release-versions.json";
+export const releaseDocumentationInputs = Object.freeze([
+  metadataPath,
+  ...releaseDocuments.flatMap((path) => [path, templatePath(path)]),
+]);
 
 /** Read and validate the whole batch before the version owner writes any file. */
 export function releaseDocumentationProjection(version, read) {
+  validVersion(version);
+  const metadata = JSON.parse(read(metadataPath));
+  assert.deepEqual(Object.keys(metadata), ["previousVersion"]);
+  const previousVersion = validVersion(metadata.previousVersion);
+  assert.notEqual(previousVersion, version, "Release versions must differ");
+  const anchorVersion = (value) => value.toLowerCase().replace(/[.+]/gu, "");
   const variables = {
     version,
-    versionAnchor: version.toLowerCase().replace(/[.+]/gu, ""),
+    previousVersion,
+    versionAnchor: anchorVersion(version),
+    previousVersionAnchor: anchorVersion(previousVersion),
+    migrationAnchor: `from-${anchorVersion(previousVersion)}-to-${anchorVersion(version)}`,
   };
   return Object.fromEntries(
     releaseDocuments.map((path) => {

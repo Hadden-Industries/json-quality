@@ -3,15 +3,16 @@
 # JSON Quality consumer guide
 
 Use this guide to [read a value from its original bytes](#stream-a-source-and-read-lossless-values), [check a complete repository](#complete-repository-checks-and-trusted-adapters), or [apply a guarded repair](#explicit-transformations-and-replacements).
-The examples use JSON Quality 1.0.1 and the Node.js ESM API from contract cohort 6.
+The examples use JSON Quality 1.0.2 and the Node.js ESM API from contract cohort 6.
 For individual signatures and return types, see the [API reference](api.md).
+For an existing installation, follow the [upgrade from 1.0.1](migration-guide.md#from-101-to-102).
 
 ## Acquisition and public exports
 
-Install version 1.0.1 as a development dependency and invoke its public binary:
+Install version 1.0.2 as a development dependency and invoke its public binary:
 
 ```sh
-npm install --save-dev --save-exact @hadden-industries/json-quality@1.0.1
+npm install --save-dev --save-exact @hadden-industries/json-quality@1.0.2
 npm exec -- json-quality check
 ```
 

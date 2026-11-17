@@ -6,6 +6,7 @@ Use the Node.js CLI or typed library to check files, format a document or normal
 
 This guide covers **JSON Quality {{release.version}}**.
 Read the [release notes](CHANGELOG.md#{{release.versionAnchor}}).
+Upgrading from {{release.previousVersion}} keeps the CLI, SDK and configuration contracts; follow the [upgrade guide](docs/migration-guide.md#{{release.migrationAnchor}}).
 
 ## Install and first check
 
