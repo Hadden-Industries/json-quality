@@ -150,6 +150,8 @@ export function writerWorld(
     attempt = "1";
   const env = {
     ...process.env,
+    // Provider fixtures run without hosted effects, even when the test host is Actions.
+    GITHUB_ACTIONS: "false",
     GITHUB_REPOSITORY: repository,
     GITHUB_REPOSITORY_ID: "11",
     GITHUB_EVENT_NAME: "workflow_dispatch",

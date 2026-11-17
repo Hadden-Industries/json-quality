@@ -22,6 +22,35 @@ import { mkdirSync } from "node:fs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 
+test("release writer fixture isolates hosted Actions mode before admission", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "--eval",
+      `import assert from "node:assert/strict";
+import { writerWorld } from "./tests/release-entry-fixture.mjs";
+let cleanup;
+try {
+  const world = writerWorld({ after: (dispose) => { cleanup = dispose; } }, "stage");
+  assert.equal(world.env.GITHUB_ACTIONS, "false");
+  const result = world.run("stage");
+  assert.equal(result.status, 0, result.stderr);
+} finally {
+  cleanup?.();
+}`,
+    ],
+    {
+      cwd: root,
+      windowsHide: true,
+      timeout: 30_000,
+      encoding: "utf8",
+      env: { ...process.env, GITHUB_ACTIONS: "true" },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+});
+
 test("ordinary dependency-free staging preserves a promoted build and verifies its landed signed tag", (t) => {
   const world = writerWorld(t, "stage", { promoted: true, npmTag: "latest" });
   const before = readFileSync(
