@@ -453,10 +453,7 @@ export function preparePromotion(
       });
     }
   const security = {
-    codeql: qualifySecurity(
-      auditRelease,
-      regularBytes(join(auditDirectory, "release-manifest.json")),
-    ),
+    codeql: qualifySecurity(auditDirectory),
     recipient: refreshedAudits,
     checkedAt: new Date().toISOString(),
   };
