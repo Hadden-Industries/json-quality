@@ -125,82 +125,92 @@ test("ordinary native staging dispatch loads without project packages and preser
     });
 });
 
-test("ordinary family writers and read-only completion run without project packages or repeated npm writes", (t) => {
-  const world = writerWorld(t, "promote");
-  world.retainNativeArtifact(50, "admitted-promote-1");
-  const npm = world.run("promote-npm");
-  assert.equal(npm.status, 0, npm.stderr);
-  world.retainNativeArtifact(60, "effect-promote-npm-1");
-  const expected = [
-    world.release.package + "-win32-x64",
-    world.release.package + "-linux-x64",
-    world.release.package,
-  ];
-  assert.deepEqual(
-    world.state().mutations.map((value) => value.package),
-    expected,
-  );
-  world.update((state) => {
-    const job = state.routes[
-      "actions/runs/17/attempts/1/jobs?per_page=100"
-    ].jobs.find((value) => value.name === "npm");
-    job.status = "completed";
-    job.conclusion = "success";
-    job.completed_at = "2026-11-13T00:02:00Z";
-  });
-  const github = world.run("promote-github", {
-    ACTIONS_ID_TOKEN_REQUEST_URL: "",
-    ACTIONS_ID_TOKEN_REQUEST_TOKEN: "",
-    NPM_CONTINUATION_ID: "60",
-  });
-  assert.equal(github.status, 0, github.stderr);
-  world.retainNativeArtifact(61, "effect-promote-github-1");
-  assert.deepEqual(
-    world.state().mutations.map((value) => value.service),
-    ["npm", "npm", "npm", "github"],
-  );
-  world.update((state) => {
-    const job = state.routes[
-      "actions/runs/17/attempts/1/jobs?per_page=100"
-    ].jobs.find((value) => value.name === "github");
-    job.status = "completed";
-    job.conclusion = "success";
-    job.completed_at = "2026-11-13T00:03:00Z";
-  });
-  const completed = world.run("complete", {
-    ACTIONS_ID_TOKEN_REQUEST_URL: "",
-    ACTIONS_ID_TOKEN_REQUEST_TOKEN: "",
-    NPM_CONTINUATION_ID: "60",
-    GITHUB_CONTINUATION_ID: "61",
-    NPM_RESULT: "success",
-    GITHUB_RESULT: "success",
-  });
-  assert.equal(completed.status, 0, completed.stderr);
-  const state = world.state();
-  assert.equal(state.mutations.length, 4);
-  assert.equal(state.github.latest.id, 437217191);
-  assert.equal(state.github.latest.prerelease, false);
-  assert.equal(
-    JSON.parse(
-      readFileSync(join(world.directory, "promotion-completion-17-1.json")),
-    ).state,
-    "completed",
-  );
-  world.update((state) => {
-    const { artifacts } =
-      state.routes["actions/runs/17/artifacts?per_page=100"];
-    artifacts[1] = { ...artifacts[1], id: 160 };
-    artifacts[2] = { ...artifacts[2], id: 161 };
-  });
-  const independent = world.independent();
-  assert.equal(independent.status, 0, independent.stderr);
-  assert.equal(
-    JSON.parse(
-      readFileSync(join(independent.output, "promotion-completion-18-1.json")),
-    ).state,
-    "completed",
-  );
-  assert.equal(world.state().mutations.length, 4);
+test("ordinary family writers and read-only completion run without project packages or repeated npm writes", async (t) => {
+  for (const promoted of [false, true])
+    await t.test(
+      promoted ? "promoted original CI build" : "historical qualification",
+      (subtest) => {
+        const world = writerWorld(subtest, "promote", { promoted });
+        world.retainNativeArtifact(50, "admitted-promote-1");
+        const npm = world.run("promote-npm");
+        assert.equal(npm.status, 0, npm.stderr);
+        world.retainNativeArtifact(60, "effect-promote-npm-1");
+        const expected = [
+          world.release.package + "-win32-x64",
+          world.release.package + "-linux-x64",
+          world.release.package,
+        ];
+        assert.deepEqual(
+          world.state().mutations.map((value) => value.package),
+          expected,
+        );
+        world.update((state) => {
+          const job = state.routes[
+            "actions/runs/17/attempts/1/jobs?per_page=100"
+          ].jobs.find((value) => value.name === "npm");
+          job.status = "completed";
+          job.conclusion = "success";
+          job.completed_at = "2026-11-13T00:02:00Z";
+        });
+        const github = world.run("promote-github", {
+          ACTIONS_ID_TOKEN_REQUEST_URL: "",
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: "",
+          NPM_CONTINUATION_ID: "60",
+        });
+        assert.equal(github.status, 0, github.stderr);
+        world.retainNativeArtifact(61, "effect-promote-github-1");
+        assert.deepEqual(
+          world.state().mutations.map((value) => value.service),
+          ["npm", "npm", "npm", "github"],
+        );
+        world.update((state) => {
+          const job = state.routes[
+            "actions/runs/17/attempts/1/jobs?per_page=100"
+          ].jobs.find((value) => value.name === "github");
+          job.status = "completed";
+          job.conclusion = "success";
+          job.completed_at = "2026-11-13T00:03:00Z";
+        });
+        const completed = world.run("complete", {
+          ACTIONS_ID_TOKEN_REQUEST_URL: "",
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: "",
+          NPM_CONTINUATION_ID: "60",
+          GITHUB_CONTINUATION_ID: "61",
+          NPM_RESULT: "success",
+          GITHUB_RESULT: "success",
+        });
+        assert.equal(completed.status, 0, completed.stderr);
+        const state = world.state();
+        assert.equal(state.mutations.length, 4);
+        assert.equal(state.github.latest.id, 437217191);
+        assert.equal(state.github.latest.prerelease, false);
+        assert.equal(
+          JSON.parse(
+            readFileSync(
+              join(world.directory, "promotion-completion-17-1.json"),
+            ),
+          ).state,
+          "completed",
+        );
+        world.update((state) => {
+          const { artifacts } =
+            state.routes["actions/runs/17/artifacts?per_page=100"];
+          artifacts[1] = { ...artifacts[1], id: 160 };
+          artifacts[2] = { ...artifacts[2], id: 161 };
+        });
+        const independent = world.independent();
+        assert.equal(independent.status, 0, independent.stderr);
+        assert.equal(
+          JSON.parse(
+            readFileSync(
+              join(independent.output, "promotion-completion-18-1.json"),
+            ),
+          ).state,
+          "completed",
+        );
+        assert.equal(world.state().mutations.length, 4);
+      },
+    );
 });
 
 test("independent observer preserves a failed writer as unresolved without propagation reads or requests", (t) => {

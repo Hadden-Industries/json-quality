@@ -11,6 +11,7 @@ import {
   promoteManifest,
   mergeQualificationContext,
   reuseQualification,
+  selectQualificationArtifact,
 } from "../scripts/release-reuse.js";
 import {
   releaseCommit,
@@ -24,12 +25,68 @@ import {
 } from "../scripts/release-contract.js";
 import {
   auditFrozenLock,
-  qualifyFrozenGraphs,
+  qualifyReleaseAssurance,
 } from "../scripts/release-assurance.js";
 import { qualifiedCiFixture } from "./ci-proof-fixture.js";
 import { createReceipt } from "../scripts/ci-proof.js";
 import { mkdirSync } from "node:fs";
 import { sha512 } from "../scripts/release-contract.js";
+
+test("retained consumers admit native recovery names only with one original digest and interval", () => {
+  const name = "consumer-ubuntu-26.04-26.13.1-1";
+  const execution = {
+    job: {
+      started_at: "2026-11-17T00:00:00Z",
+      completed_at: "2026-11-17T00:10:00Z",
+    },
+  };
+  const artifact = {
+    id: 1,
+    name: `${name}-recovery-2`,
+    expired: false,
+    digest: `sha256:${"a".repeat(64)}`,
+    created_at: "2026-11-17T00:05:00Z",
+  };
+  assert.equal(selectQualificationArtifact([artifact], name, execution).id, 1);
+  assert.equal(
+    selectQualificationArtifact(
+      [{ ...artifact, id: 2, name, expired: true }, artifact],
+      name,
+      execution,
+    ).id,
+    1,
+  );
+  assert.throws(
+    () =>
+      selectQualificationArtifact(
+        [
+          artifact,
+          { ...artifact, id: 2, name, digest: `sha256:${"b".repeat(64)}` },
+        ],
+        name,
+        execution,
+      ),
+    /Conflicting/u,
+  );
+  assert.throws(
+    () =>
+      selectQualificationArtifact(
+        [{ ...artifact, created_at: "2026-11-18T00:05:00Z" }],
+        name,
+        execution,
+      ),
+    /producing interval/u,
+  );
+  assert.throws(
+    () =>
+      selectQualificationArtifact(
+        [{ ...artifact, expired: true }],
+        name,
+        execution,
+      ),
+    /Expired/u,
+  );
+});
 
 test("complete reuse admits all original attempts and layouts without invoking a producer", async (t) => {
   const f = qualifiedCiFixture(2);
@@ -140,7 +197,7 @@ test("complete reuse admits all original attempts and layouts without invoking a
   };
   let transfers = 0;
   const destination = join(world.root, "reused");
-  const result = await reuseQualification({
+  const options = {
     matrix: f.matrix,
     read,
     snapshot: f.main.snapshot,
@@ -193,13 +250,18 @@ test("complete reuse admits all original attempts and layouts without invoking a
         }
       }
     },
-  });
+  };
+  const result = await reuseQualification(options);
   assert.equal(result.reused, "true");
   let audits = 0;
-  const current = qualifyFrozenGraphs(
+  const current = qualifyReleaseAssurance(
     destination,
     join(world.root, "current-audits"),
     {
+      observe: () =>
+        assert.fail(
+          "Retained promoted recipients must not be downloaded again",
+        ),
       run: (args) => {
         audits++;
         assert.equal(args[0], "audit");
@@ -228,6 +290,25 @@ test("complete reuse admits all original attempts and layouts without invoking a
   );
   assert.ok(nativeRequestEstimate > 64);
   assert.ok(nativeRequestEstimate < 96);
+  transfers = 0;
+  const rejected = join(world.root, "changed-producer");
+  await assert.rejects(
+    reuseQualification({
+      ...options,
+      destination: rejected,
+      read: async (path, settings) => {
+        const value = await read(path, settings);
+        return path === "/actions/artifacts/502" && transfers > 1
+          ? { ...value, digest: `sha256:${"0".repeat(64)}` }
+          : value;
+      },
+    }),
+  );
+  assert.equal(
+    existsSync(rejected),
+    false,
+    "A changed original producer cannot be exported after collection",
+  );
 });
 
 test("promotion preserves original subjects and exact proof/lock bytes while authorizing the landed commit", (t) => {

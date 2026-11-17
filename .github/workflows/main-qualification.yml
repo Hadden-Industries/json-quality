@@ -71,6 +71,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       security-events: write
   installed-only:
     name: Explicit installed-only package qualification

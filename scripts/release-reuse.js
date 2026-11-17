@@ -33,7 +33,7 @@ import {
 import { verifyLane } from "./release-qualification-contract.js";
 import { verifyBuildEvidence } from "./release-promotion-evidence.js";
 
-/** Eight lanes plus partial reruns need 65 normal requests including storage
+/** Eight lanes plus partial reruns need 66 normal requests including storage
  * redirects. Keep bounded retry headroom within the same collection deadline. */
 export function createReleaseReuseReader(token, options = {}) {
   return createRepositoryReader({
@@ -83,17 +83,36 @@ export function mergeQualificationContext(environment, snapshot) {
 
 /** A retained bundle belongs to one authenticated original producing interval. */
 export function selectQualificationArtifact(inventory, name, execution) {
-  const matches = inventory.filter((artifact) => artifact.name === name);
-  assert.equal(matches.length, 1, `Missing or ambiguous retained ${name}`);
-  const artifact = matches[0];
-  assert.equal(artifact.expired, false);
-  assert.match(artifact.digest, /^sha256:[a-f0-9]{64}$/u);
-  const created = Date.parse(artifact.created_at);
+  const names = new Set([name, `${name}-recovery-2`, `${name}-recovery-3`]);
+  const matches = inventory.filter((artifact) => names.has(artifact.name));
   assert.ok(
-    created >= Date.parse(execution.job.started_at) &&
-      created <= Date.parse(execution.job.completed_at),
-    `Retained ${name} differs from its producing interval`,
+    matches.length > 0 && matches.length <= 3,
+    `Missing or ambiguous retained ${name}`,
   );
+  assert.equal(
+    new Set(matches.map((artifact) => artifact.name)).size,
+    matches.length,
+    "Duplicate retained artifact name",
+  );
+  assert.equal(
+    new Set(matches.map((artifact) => artifact.digest)).size,
+    1,
+    `Conflicting retained ${name}`,
+  );
+  for (const artifact of matches) {
+    assert.match(artifact.digest, /^sha256:[a-f0-9]{64}$/u);
+    const created = Date.parse(artifact.created_at);
+    assert.ok(
+      created >= Date.parse(execution.job.started_at) &&
+        created <= Date.parse(execution.job.completed_at),
+      `Retained ${name} differs from its producing interval`,
+    );
+  }
+  const artifact = matches
+    .filter((item) => !item.expired)
+    .sort((a, b) => a.id - b.id)[0];
+  assert.ok(artifact, `Expired retained ${name}`);
+  assert.equal(artifact.expired, false);
   return artifact;
 }
 
@@ -260,7 +279,11 @@ export async function reuseQualification({
     const final = await read(`/actions/runs/${selection.run.id}`);
     assert.equal(final.run_attempt, selection.run.run_attempt);
     assert.equal(final.conclusion, "success");
-    for (const original of [selection.artifact, ...artifacts]) {
+    for (const original of [
+      selection.artifact,
+      receipt.lanes[0].transport,
+      ...artifacts,
+    ]) {
       const observed = await read(`/actions/artifacts/${original.id}`);
       assert.equal(observed.expired, false);
       for (const key of ["id", "name", "digest", "size_in_bytes"])

@@ -2,6 +2,7 @@
 /** Refresh advisories for frozen graphs without installing or executing their packages. */
 import assert from "node:assert/strict";
 import {
+  renameSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -23,6 +24,7 @@ import {
   lanes,
 } from "./release-contract.js";
 import { verifyBuildEvidence } from "./release-promotion-evidence.js";
+import { provider, producingAttempt, download } from "./release-provider.js";
 
 /** Exact lock bytes are the audit subject; npm audit fix is never used. */
 export function auditFrozenLock(
@@ -111,9 +113,17 @@ export function qualifyFrozenGraphs(
   return policy;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  assert.equal(process.argv.length, 4);
-  const [directory, output] = process.argv.slice(2);
+/** Collect original fresh-path recipients before refreshing their frozen graphs. */
+export function qualifyReleaseAssurance(
+  directory,
+  output,
+  {
+    run = npmCommand,
+    environment = process.env,
+    observe = provider,
+    acquire = download,
+  } = {},
+) {
   const release = readJson(join(directory, "release-manifest.json"));
   const firstLane = lanes(release.matrix)[0];
   if (
@@ -121,37 +131,51 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     !existsSync(join(directory, `candidate-${firstLane.os}-${firstLane.node}`))
   ) {
     // Current-run recipient artifacts can originate in older attempts on a rerun.
-    const { provider, producingAttempt, download } =
-      await import("./release-provider.js");
-    const observed = provider(
-      process.env.GITHUB_RUN_ID,
-      process.env.GITHUB_RUN_ATTEMPT,
+    const observed = observe(
+      environment.GITHUB_RUN_ID,
+      environment.GITHUB_RUN_ATTEMPT,
     );
     const cache = new Map();
     assert.equal(
       observed.run.path,
       ".github/workflows/release-qualification.yml",
     );
-    for (const lane of lanes(release.matrix)) {
-      const attempt = producingAttempt(
-        observed,
-        `product / Qualify ${lane.os} / Node ${lane.node}`,
-        provider,
-        cache,
-      );
-      const artifact = download(
-        process.env.GITHUB_RUN_ID,
-        attempt,
-        `consumer-${lane.os}-${lane.node}-${attempt}`,
-        output,
-      );
-      const { cpSync } = await import("node:fs");
-      cpSync(
-        artifact.directory,
-        join(directory, `candidate-${lane.os}-${lane.node}`),
-        { recursive: true, force: false, errorOnExist: true },
-      );
+    // Transport and extracted recipients are inputs, not retained observations.
+    // Keep them outside both the admitted bundle and the uploaded output.
+    const scratch = mkdtempSync(
+      join(tmpdir(), "json-quality-assurance-inputs-"),
+    );
+    try {
+      for (const lane of lanes(release.matrix)) {
+        const attempt = producingAttempt(
+          observed,
+          `product / Qualify ${lane.os} / Node ${lane.node}`,
+          observe,
+          cache,
+        );
+        const artifact = acquire(
+          environment.GITHUB_RUN_ID,
+          attempt,
+          `consumer-${lane.os}-${lane.node}-${attempt}`,
+          scratch,
+        );
+        renameSync(
+          artifact.directory,
+          join(scratch, `candidate-${lane.os}-${lane.node}`),
+        );
+      }
+      return qualifyFrozenGraphs(directory, output, {
+        run,
+        recipients: scratch,
+      });
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
     }
   }
-  qualifyFrozenGraphs(directory, output);
+  return qualifyFrozenGraphs(directory, output, { run });
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  assert.equal(process.argv.length, 4);
+  qualifyReleaseAssurance(...process.argv.slice(2));
 }

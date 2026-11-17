@@ -151,6 +151,27 @@ Temporary PR consumers and active releases can require overlap; no candidate is 
 An unavailable or oversized provider inventory leaves custody intact and reports that cleanup is incomplete.
 Workflow dependency lockfile migration remains a separate compatibility change; current external action references retain reviewed full SHA pins.
 
+### Rehearse the next release runs locally
+
+The maintained workflow contracts inspect nested reusable-workflow permission ceilings, required source/tooling setup and the actual terminal gate programs.
+An explicit YAML `if: false` cannot stand in for an omitted condition on a required admission step.
+Recovery uploads remain eligible only when their original producing interval and digest agree; conflicting copies stop admission.
+Fresh advisory collection uses disposable input storage and retains only the compact audit observations, not downloaded recipient ZIPs or duplicate graphs.
+
+| Request or event                                 | Expected execution                                                                                                                                                |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ready PR                                         | Full CI produces the single archive family, complete runtime/layout proof and original scanner identities.                                                        |
+| Ordinary merge to main                           | The observer verifies equal-input PR proof; candidate retention independently protects active consumers before removing unused predecessors.                      |
+| Default release qualification                    | Resolve admits original bytes; fresh product and scanner jobs are skipped; current assurance and the substantive final gate must succeed.                         |
+| Explicit `force-fresh`                           | Source admission, complete product qualification, scanner jobs and current assurance must all succeed.                                                            |
+| Missing, expired or contradictory reuse evidence | Stop without automatically launching a matrix or spending a writer attempt.                                                                                       |
+| Staging, public qualification and promotion      | Original producing attempts and owner decisions remain bound; public recipients run after approval, and read-only completion cannot repeat a publication request. |
+
+`tests/release-reuse.test.js`, `tests/release-assurance.test.js`, `tests/candidate-retention.test.js`, `tests/release-dispatch.test.js` and `tests/release-startup.test.js` exercise these boundaries with external provider/process fixtures.
+They cover retained partial reruns, recovery names, changed final producer identity, interrupted input collection, active consumers, concurrent main movement and cold promoted writers.
+The donor's [cancelled fallback run](https://github.com/Hadden-Industries/markdown-quality/actions/runs/43900658316), [successful reused qualification](https://github.com/Hadden-Industries/markdown-quality/actions/runs/43917797156) and [completed archival graph](https://github.com/Hadden-Industries/markdown-quality/actions/runs/43980861855) provide operational reference points.
+Local rehearsal verifies the controller contracts; it does not establish hosted scheduling, OIDC permissions, registry propagation or owner 2FA.
+
 ### Rerun a failed job
 
 Partial reruns authenticate each retained job's original producing attempt by name, run, head SHA, runner and start/completion times.

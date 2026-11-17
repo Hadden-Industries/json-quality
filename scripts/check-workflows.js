@@ -238,7 +238,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         );
         return (
           checks?.length === 1 &&
-          !checks[0].if &&
+          !Object.hasOwn(checks[0], "if") &&
           !checks[0]["continue-on-error"] &&
           !gate["continue-on-error"]
         );
@@ -258,7 +258,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     .jobs.producer.steps.filter((step) => step.run === "npm run check:product");
   assert.ok(
     productChecks.length === 1 &&
-      !productChecks[0].if &&
+      !Object.hasOwn(productChecks[0], "if") &&
       !productChecks[0]["continue-on-error"],
     "Reusable producer must run the complete remaining qualification phase",
   );
@@ -538,6 +538,35 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     "PR producer retention must cover the compact reuse-proof horizon",
   );
   let callers = 0;
+  // A called workflow may override its own defaults, but cannot exceed the
+  // caller's token ceiling. Check nested calls even when their job is skipped.
+  const access = (permissions, scope) =>
+    permissions === "write-all"
+      ? 2
+      : permissions === "read-all"
+        ? 1
+        : ({ none: 0, read: 1, write: 2 }[permissions?.[scope]] ?? 0);
+  const checkCalledPermissions = (path, ceiling, trail = []) => {
+    assert.ok(!trail.includes(path), `${path}: recursive reusable workflow`);
+    const called = workflows.get(path);
+    for (const job of Object.values(called.jobs ?? {})) {
+      const requested = job.permissions ?? called.permissions ?? ceiling;
+      // The sentinel represents every unspecified scope for read-all/write-all;
+      // named scopes come from the documents, so newly added scopes are covered.
+      const scopes = new Set([
+        ...Object.keys(typeof requested === "object" ? requested : {}),
+        ...Object.keys(typeof ceiling === "object" ? ceiling : {}),
+        "*",
+      ]);
+      for (const scope of scopes)
+        assert.ok(
+          access(requested, scope) <= access(ceiling, scope),
+          `${path}: reusable workflow permission ${scope} exceeds caller ceiling`,
+        );
+      if (job.uses?.startsWith("./.github/workflows/"))
+        checkCalledPermissions(job.uses, requested, [...trail, path]);
+    }
+  };
   for (const [path, workflow] of workflows) {
     for (const name of workflow.on?.workflow_run?.workflows ?? [])
       assert.ok(
@@ -553,6 +582,8 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           `${path}: unknown reusable workflow ${job.uses}`,
         );
         inputs(path, job.with, called.on.workflow_call?.inputs);
+        const ceiling = job.permissions ?? workflow.permissions;
+        if (ceiling !== undefined) checkCalledPermissions(job.uses, ceiling);
       }
       for (const [index, step] of (job.steps ?? []).entries()) {
         if (step.run) scriptReferences(path, step.run);

@@ -74,7 +74,7 @@ export function selectSupersededArtifacts({
       run.path === ".github/workflows/ci.yml" &&
       run.event === "pull_request" &&
       run.status === "completed" &&
-      /^(?:qualified-producer-\d+|consumer-[a-z0-9.-]+-\d+\.\d+\.\d+-\d+|ci-proof-\d+-\d+\.json)$/u.test(
+      /^(?:(?:qualified-producer-\d+|consumer-[a-z0-9.-]+-\d+\.\d+\.\d+-\d+)(?:-recovery-[23])?|ci-proof-\d+-\d+(?:-recovery-[23])?\.json)$/u.test(
         artifact.name,
       )
     );
