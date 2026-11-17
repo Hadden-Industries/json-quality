@@ -2,6 +2,18 @@ name: Stage an approved release
 on:
   workflow_dispatch:
     inputs:
+      stage_checkpoint_json:
+        description: Owner-selected signed history reference for an unavailable original stage
+        required: false
+        type: string
+      stage_inventory_json:
+        description: Fresh owner-captured pending stage observation for the exact decision
+        required: true
+        type: string
+      stage_inventory_sha:
+        description: SHA256 of the exact stage inventory bytes
+        required: true
+        type: string
       stage_phase:
         description: Request natives first; dispatch core only after owner native approvals
         type: choice
@@ -52,6 +64,9 @@ defaults:
   run:
     shell: bash
 env:
+  STAGE_CHECKPOINT_JSON: ${{ inputs.stage_checkpoint_json }}
+  STAGE_INVENTORY_JSON: ${{ inputs.stage_inventory_json }}
+  STAGE_INVENTORY_SHA: ${{ inputs.stage_inventory_sha }}
   CONTINUATION_REVIEW_JSON: ${{ inputs.continuation_review_json }}
   CONTINUATION_REVIEW_SHA: ${{ inputs.continuation_review_sha }}
   STAGE_PHASE: ${{ inputs.stage_phase || 'natives' }}

@@ -13,6 +13,7 @@ import {
 import { currentMain, sealBundle } from "./release-provider.js";
 import { preparePromotionWriter } from "./promotion-writer-preparation.js";
 import { recordNoRequest } from "./release-effects.js";
+import { requireHostedStageInventory } from "./release-stage-inventory.js";
 
 export function runPromotionService(
   service,
@@ -56,6 +57,7 @@ export function runPromotionService(
     writeFileSync(journal, "", { flag: "wx", flush: true });
     const operations = {
       assertCurrent: () => currentMain(env),
+      assertStageInventory: () => requireHostedStageInventory("promote", env),
       readNpmTags: prepared.tags,
       readPackageTags: prepared.tags,
       readGithubState: prepared.currentGithubState,

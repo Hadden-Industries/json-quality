@@ -203,7 +203,7 @@ export function retainedQualifiedTarget(checkpoint, expected, readers = {}) {
     readers.bytes,
     readers.verifySignature,
   );
-  assert.equal(history.schemaVersion, 2);
+  assert.ok(history.schemaVersion >= 2);
   const target = readHistoryTarget(history, expected);
   verifyQualifiedTarget(target, expected);
   return target;

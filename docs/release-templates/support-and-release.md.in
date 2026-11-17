@@ -1,0 +1,69 @@
+# Support and release
+
+JSON Quality {{release.version}} is a compatible patch of {{release.previousVersion}}.
+Start with [upgrade instructions](migration-guide.md#{{release.migrationAnchor}}) for an existing installation, or [install and run a first check](../README.md#install-and-first-check).
+Release maintainers should follow the [release runbook](release-operations.md).
+
+## Compatibility
+
+The CLI, SDK, configuration and public schemas need no migration from {{release.previousVersion}}.
+Contract cohort 6, event schema 5, configuration/source-contract schema 4, native protocol 5 and Node-API 9 remain unchanged.
+The consumer minimum remains Node.js 22.13.0.
+Supported native packages target Windows x64 and Linux x64 with glibc.
+
+The core and both native companions share version {{release.version}}.
+Keep npm optional dependencies enabled so npm can install the matching companion.
+Use the [runtime compatibility policy](node-runtime-compatibility.md) to distinguish consumer minima, maintained-family qualification and producer tooling.
+For vulnerability reports and support expectations, see the [security policy](../SECURITY.md).
+
+## Changes since {{release.previousVersion}}
+
+The `v{{release.previousVersion}}` Git tag defines the source baseline.
+The [{{release.version}} changelog entry](../CHANGELOG.md#{{release.versionAnchor}}) records the complete dependency comparison, including bundled and transitive packages, and historical details.
+
+- **Publish the archives CI tested.**
+  An eligible ordinary merge promotes the original package family after checking its tree, ordered parents, runtime lanes and producing attempts.
+  Original build provenance stays separate from the landed release commit and any later controller.
+- **Stop when evidence is missing.**
+  Release qualification requires reuse by default.
+  Missing, expired or contradictory proof stops before a matrix starts; `force-fresh` explicitly selects complete requalification.
+- **Refresh the qualified graphs.**
+  Advisory checks use the original producer and recipient locks without reinstalling packages or running lifecycle scripts.
+  Reused analyses retain their scanner/query identities and must match required policy.
+  Public registry installation, signatures and provenance are still checked after publication approval.
+- **Recover without repeating a write.**
+  Native upload receipts, original job attempts, signed writer reservations and fresh private stage inventories bind each effect.
+  Interrupted staging can retain separately approved recovery custody; an unknown request outcome stays unresolved until native evidence settles it.
+  Temporary readback failures wait for the acknowledged artifact's exact ID.
+  Completed native requests survive an upload-only failure without changing the original failed outcome or repeating staging.
+- **Retain the evidence each consumer needs.**
+  Candidates request up to 90 days of native Actions custody, with safe replacement after the successor is admitted.
+  Active or unresolved consumers prevent cleanup.
+  Signed history keeps original authenticated subjects and stable asset identities; fresh assurance retains compact observations rather than duplicate downloads.
+- **Keep operator decisions explicit.**
+  Complete-request preflight, prerequisite and permission checks, skip-resistant gates and cold writer rehearsals catch failures before hosted execution.
+  Pilot alias retirement remains a separately authorized family operation.
+  Read-only completion observes an acknowledged prefix, and an authenticated rejected removal needs a fresh decision before another request.
+- **Preserve the original execution context.**
+  Signed history accounts for retained and deleted writer attempts, including their reservations and original upload representations.
+  Windows and Ubuntu checks follow the same frozen runner policy; archived evidence retains its historical platform identity.
+  Private npm output stays out of logs and uncaught errors while exact structured rejection evidence remains available for admission.
+
+These changes affect release and development tooling.
+Existing JSON checks, source repairs and configuration keep their documented behavior; development dependency updates can change repository tooling diagnostics.
+
+## Upgrade and verify
+
+Follow the [consumer upgrade](migration-guide.md#{{release.migrationAnchor}}), commit npm's updated lockfile and run the project's normal checks.
+Use explicit filenames for a limited repair: a filesystem `format --write` command without a selection targets all eligible writable files.
+See [CLI selection and repair behavior](../README.md#preview-and-apply-a-repair).
+
+## Release operations
+
+Choose the version in `package.json`, synchronize its projections and qualify clean committed source.
+Keep current documentation in the maintained templates and the comparison baseline in `docs/release-versions.json`.
+Historical changelog entries, approvals, source identities and native build evidence retain their original versions.
+
+Follow [qualification and owner review](release-operations.md#qualification-and-owner-review), then stage the native companions before the core package.
+Owner approval, real registry qualification, immutable archival and availability promotion remain separate operations.
+Local tests and documentation preparation do not establish hosted acceptance or authorize publication.

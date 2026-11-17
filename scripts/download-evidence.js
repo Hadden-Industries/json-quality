@@ -2,7 +2,14 @@
 /** Download once, verify exact native metadata/digest, then bounded extraction. */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRepositoryReader } from "./github-evidence.js";
@@ -17,12 +24,26 @@ export async function downloadEvidence({
   repositoryId,
   headRepositoryId = repositoryId,
   headSha,
+  expectedArtifact,
   maximum = artifactLimits.payloadBytes,
   now = Date.now,
   deadline = now() + budgets.collection,
 }) {
   assert.ok(Number.isSafeInteger(id) && id > 0);
   const admit = (metadata) => {
+    if (expectedArtifact)
+      for (const key of [
+        "id",
+        "name",
+        "digest",
+        "size_in_bytes",
+        "workflow_run",
+      ])
+        assert.deepEqual(
+          metadata[key],
+          expectedArtifact[key],
+          "Selected original artifact identity changed",
+        );
     assert.equal(metadata.id, id);
     assert.equal(metadata.expired, false);
     assert.match(metadata.digest, /^sha256:[a-f0-9]{64}$/u);
@@ -59,26 +80,30 @@ export async function downloadEvidence({
     "Artifact transfer budget exhausted before extraction",
   );
   const scratch = mkdtempSync(
-      join(process.env.RUNNER_TEMP, "artifact-download-"),
+      join(process.env.RUNNER_TEMP || tmpdir(), "artifact-download-"),
     ),
     archive = join(scratch, "payload.zip");
-  writeFileSync(archive, bytes, { flag: "wx" });
-  mkdirSync(destination, { recursive: true });
-  const remaining = deadline - now();
-  assert.ok(
-    remaining > 0 && remaining <= budgets.collection,
-    "Artifact transfer budget exhausted before extraction",
-  );
-  native(
-    process.platform === "win32" ? "python" : "python3",
-    [
-      fileURLToPath(new URL("./extract-artifact.py", import.meta.url)),
-      archive,
-      destination,
-      String(maximum),
-    ],
-    { timeout: remaining, phase: "artifact-extract" },
-  );
+  try {
+    writeFileSync(archive, bytes, { flag: "wx" });
+    mkdirSync(destination, { recursive: true });
+    const remaining = deadline - now();
+    assert.ok(
+      remaining > 0 && remaining <= budgets.collection,
+      "Artifact transfer budget exhausted before extraction",
+    );
+    native(
+      process.platform === "win32" ? "python" : "python3",
+      [
+        fileURLToPath(new URL("./extract-artifact.py", import.meta.url)),
+        archive,
+        destination,
+        String(maximum),
+      ],
+      { timeout: remaining, phase: "artifact-extract" },
+    );
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const deadline = Date.now() + budgets.collection - 2000;

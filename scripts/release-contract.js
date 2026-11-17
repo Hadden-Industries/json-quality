@@ -11,6 +11,7 @@ import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { join, posix } from "node:path";
 import { npmCli } from "./qualification-process.js";
+import { verifyPromotion } from "./release-promotion-evidence.js";
 import {
   DEFAULT_PACKAGE_VERIFICATION_LIMITS as packageCapabilities,
   packageTarSink,
@@ -18,6 +19,11 @@ import {
 import { nativePackages } from "../src/native-packages.js";
 import { securityScans } from "./security-scans.js";
 import { verifyDistributionInventory } from "./release-distribution.js";
+import {
+  verifyMatrixRunner,
+  ubuntuRunner,
+  windowsRunner,
+} from "./runner-policy.js";
 import {
   effectJournal,
   sha256,
@@ -167,6 +173,7 @@ export function verifyManifest(release, { historical = false } = {}) {
   );
   if (release.schemaVersion >= 3 || release.distribution)
     verifyDistributionInventory(release);
+  verifyPromotion(release);
   validVersion(release.version);
   assert.deepEqual(
     release.platformArchives.map((entry) => entry.platform).sort(),
@@ -690,6 +697,7 @@ export function verifyRun(
     historical = false,
     availability = "npm-and-github",
     stagePhase,
+    reusedQualification = false,
   } = {},
 ) {
   const { run, jobs } = provider;
@@ -718,7 +726,13 @@ export function verifyRun(
     jobs.jobs.some((job) => job.name === "promote");
   let names = legacyPromotion
     ? ["admit", "promote"]
-    : expectedJobs(phase, matrix);
+    : reusedQualification
+      ? []
+      : expectedJobs(phase, matrix);
+  if (reusedQualification) {
+    assert.equal(phase, "qualification");
+    names = ["resolve", "product", "codeql", "security", "qualified"];
+  }
   if (historical && phase === "qualification") {
     const scans = jobs.jobs.filter((job) => job.name.startsWith("codeql /"));
     if (scans.length === 0)
@@ -766,6 +780,26 @@ export function verifyRun(
   assert.deepEqual(jobs.jobs.map(({ name }) => name).sort(), names.sort());
   for (const job of jobs.jobs) {
     assert.equal(job.status, "completed");
+    if (reusedQualification && ["product", "codeql"].includes(job.name)) {
+      assert.equal(job.conclusion, "skipped");
+      assert.equal(job.head_sha, run.head_sha);
+      assert.equal(job.run_id, run.id);
+      assert.equal(job.run_attempt, run.run_attempt);
+      continue;
+    }
+    if (matrix?.os?.length) {
+      const label = job.name
+        .split(/[\s(),/]+/u)
+        .find((token) => matrix.os.includes(token));
+      const expected =
+        label ??
+        (job.name.endsWith("Scan cpp-windows")
+          ? windowsRunner({ platforms: matrix.os })
+          : job.name.endsWith("Scan cpp-linux")
+            ? ubuntuRunner({ platforms: matrix.os })
+            : undefined);
+      verifyMatrixRunner(job, expected, Boolean(run.run_number && !historical));
+    }
     if (completedNativeStage && job.name === "stage")
       assert.equal(job.conclusion, "failure");
     else if (reconciled && job.name === phase)

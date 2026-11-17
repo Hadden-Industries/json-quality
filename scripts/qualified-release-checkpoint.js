@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Signed history retains public qualification independently of writer settlements. */
 import assert from "node:assert/strict";
+import { verifyStableAssets } from "./release-asset-identity.js";
+import { releaseCommit } from "./release-promotion-evidence.js";
 import { mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
@@ -16,6 +18,7 @@ import { verifyQualifiedTarget } from "./qualified-release-contract.js";
 import { verifyLane, verifySecurity } from "./release-evidence.js";
 import {
   api,
+  artifactUnavailable,
   provider,
   producingAttempt,
   download,
@@ -24,6 +27,10 @@ import {
   readHistoryRecord,
   readHistoryTarget,
 } from "./release-provider.js";
+import {
+  observeStagePredecessor,
+  selectedStageCheckpoint,
+} from "./stage-predecessor.js";
 
 /** Refresh native identities and compare original provider bytes with archived public evidence. */
 export function collectQualifiedTarget(
@@ -34,16 +41,7 @@ export function collectQualifiedTarget(
   try {
     return collectOriginalQualifiedTarget(directory, scratch);
   } catch (error) {
-    if (
-      !checkpoint ||
-      !(
-        error.httpStatus === 404 ||
-        /^(?:Expired native artifact|Missing or ambiguous native artifact)$/u.test(
-          error.message,
-        )
-      )
-    )
-      throw error;
+    if (!checkpoint || !artifactUnavailable(error)) throw error;
     const release = verifyManifest(
         readJson(join(directory, "release-manifest.json")),
         { historical: true },
@@ -75,11 +73,7 @@ export function collectQualifiedTarget(
       manifestSha256,
       releaseId: live.id,
     });
-    const assets = (values) =>
-      values
-        .map(({ name, digest, size }) => ({ name, digest, size }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-    assert.deepEqual(assets(record.release.assets), assets(live.assets));
+    verifyStableAssets(record.release.assets, live.assets);
     for (const [name, bytes] of checked.files)
       if (name.startsWith("public-"))
         assert.deepEqual(regularBytes(join(directory, name)), bytes);
@@ -158,6 +152,16 @@ function collectOriginalQualifiedTarget(directory, scratch) {
   const providers = [
     { phase: "registry", origin: context.registry, provider: observed },
   ];
+  const stageCheckpoint = selectedStageCheckpoint(directory, {});
+  const stageHistory = stageCheckpoint
+    ? readHistoryRecord(stageCheckpoint)
+    : null;
+  const reviewSha256 = sha256(
+    regularBytes(join(directory, "release-review.json")),
+  );
+  const manifestSha256 = sha256(
+    regularBytes(join(directory, "release-manifest.json")),
+  );
   for (const attempt of new Set(artifacts.map((artifact) => artifact.attempt)))
     if (attempt !== Number(context.registry.attempt))
       providers.push({
@@ -174,7 +178,19 @@ function collectOriginalQualifiedTarget(directory, scratch) {
     providers.push({
       phase,
       origin,
-      provider: provider(origin.run, origin.attempt),
+      provider:
+        phase === "stage" && stageHistory
+          ? observeStagePredecessor(
+              {
+                run: origin.run,
+                attempt: origin.attempt,
+                controller: origin.controller,
+                manifestSha256,
+                reviewSha256,
+              },
+              stageHistory,
+            )
+          : provider(origin.run, origin.attempt),
     });
   }
   const record = captureQualifiedTarget(directory, {
@@ -205,7 +221,7 @@ export function captureQualifiedTarget(
   assert.equal(liveRelease.immutable, true);
   assert.equal(liveRelease.draft, false);
   assert.equal(liveRelease.tag_name, `v${release.version}`);
-  assert.equal(tag.annotation.object.sha, release.source.commit);
+  assert.equal(tag.annotation.object.sha, releaseCommit(release));
   const files = readdirSync(directory, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())
     .map((entry) => ({
@@ -217,7 +233,7 @@ export function captureQualifiedTarget(
     .filter(
       ({ name }) =>
         (name.startsWith("public-") && name.endsWith(".json")) ||
-        /^(?:context|release-manifest|release-review|release-acceptance|signed-tag|recovery-records|recovery-observations|stage-outcome|native-stage-outcome|registry-reconciliation|archive-outcome|archive-assets-intent|public-security|qualification-provider)\.json$/u.test(
+        /^(?:context|release-manifest|build-manifest|build-qualification|build-package-lock|release-review|release-acceptance|signed-tag|recovery-records|recovery-observations|stage-outcome|native-stage-outcome|registry-reconciliation|archive-outcome|archive-assets-intent|public-security|qualification-provider)\.json$/u.test(
           name,
         ) ||
         /^(?:stage|archive|promote(?:-npm|-github)?)-[1-9]\d*-[1-9]\d*\.jsonl(?:\.[a-f0-9]{64}\.ack\.json)?$/u.test(
@@ -244,7 +260,8 @@ export function captureQualifiedTarget(
       id: liveRelease.id,
       tag_name: liveRelease.tag_name,
       immutable: true,
-      assets: liveRelease.assets.map(({ name, digest, size }) => ({
+      assets: liveRelease.assets.map(({ id, name, digest, size }) => ({
+        id,
         name,
         digest,
         size,

@@ -164,7 +164,12 @@ import {
   evidenceIndex,
   download,
 } from "../scripts/release-provider.js";
-import { verifyCodeql, verifySarif } from "../scripts/release-security.js";
+import {
+  verifyCodeql,
+  verifySarif,
+  captureCiAssurance,
+  verifyOriginalAssurance,
+} from "../scripts/release-security.js";
 import {
   verifyAudit,
   isolatedNpmEnvironment,
@@ -2384,6 +2389,55 @@ test("successive npm-only recoveries retain original labels and observe only the
     /GitHub latest changed/,
   );
 });
+test("native artifact lookup matches literal names and only two recovery suffixes", (t) => {
+  const root = temp(t);
+  const zip = Buffer.from("exact original archive");
+  const name = "candidate.v1-1";
+  const artifact = (artifactName) => ({
+    id: 501,
+    name: artifactName,
+    expired: false,
+    digest: `sha256:${sha256(zip)}`,
+    workflow_run: { id: 17, head_sha: source },
+  });
+  const transport = (artifactName) => ({
+    pages: () => [artifact(artifactName)],
+    api: (path) =>
+      path.startsWith("actions/artifacts/")
+        ? artifact(artifactName)
+        : { head_sha: source },
+    bytes: () => zip,
+    extract: (archive, destination) => {
+      assert.deepEqual(readFileSync(archive), zip);
+      writeFileSync(join(destination, "observed"), "verified bytes");
+    },
+  });
+  for (const artifactName of [
+    name,
+    `${name}-recovery-2`,
+    `${name}-recovery-3`,
+  ]) {
+    const result = download(17, 1, name, temp(t), transport(artifactName));
+    assert.equal(result.identity.name, artifactName);
+    assert.equal(
+      readFileSync(join(result.directory, "observed"), "utf8"),
+      "verified bytes",
+    );
+  }
+  for (const artifactName of [
+    "candidateXv1-1-recovery-2",
+    `${name}-recovery-1`,
+    `${name}-recovery-4`,
+    `${name}-recovery-2-extra`,
+    `other-${name}`,
+    `${name}-recovery-2\n`,
+  ])
+    assert.throws(
+      () => download(17, 1, name, root, transport(artifactName)),
+      /Missing native artifact/u,
+    );
+});
+
 test("native predecessor download and writer-history acquisition have disjoint filesystem roots", (t) => {
   const root = temp(t),
     release = fixture(),
@@ -2738,15 +2792,17 @@ test("CodeQL gate uses exact-source native analyses and query inventories, inclu
   const archivedPolicy = {
     ...runtimePolicy,
     platforms: runtimePolicy.platforms.map((lane) =>
-      lane === linux ? archivedRunner : lane,
+      lane === linux ? archivedRunner : "windows-2025-vs2026",
     ),
   };
   const archived = analyses.map((analysis) => {
     const environment = JSON.parse(analysis.environment);
-    if (environment.os !== linux) return analysis;
     return {
       ...analysis,
-      environment: JSON.stringify({ ...environment, os: archivedRunner }),
+      environment: JSON.stringify({
+        ...environment,
+        os: environment.os === linux ? archivedRunner : "windows-2025-vs2026",
+      }),
     };
   });
   assert.throws(() => verifyCodeql(archived, source));
@@ -2792,6 +2848,63 @@ test("CodeQL gate uses exact-source native analyses and query inventories, inclu
     ],
   };
   assert.equal(verifySarif(sarif, analyses[0]).findings, 0);
+  const original = {
+    pullRequest: 17,
+    snapshot: { commit: source },
+    executions: [
+      "actions",
+      "javascript-typescript",
+      "python",
+      "cpp-linux",
+      "cpp-windows",
+    ].map((key) => ({
+      job: {
+        name: `CodeQL / Scan ${key}`,
+        started_at: "2026-11-17T00:00:00Z",
+        completed_at: "2026-11-17T00:10:00Z",
+      },
+    })),
+  };
+  const prAnalyses = analyses.map((analysis) => ({
+    ...analysis,
+    ref: "refs/pull/17/merge",
+    analysis_key: ".github/workflows/ci.yml:codeql",
+    created_at: "2026-11-17T00:05:00Z",
+  }));
+  const captured = captureCiAssurance(original, undefined, {
+    list: () => prAnalyses,
+    sarif: (id) => {
+      const value = structuredClone(sarif);
+      value.runs[0].automationDetails.id = `${prAnalyses.find((analysis) => analysis.id === id).category}/`;
+      return value;
+    },
+  });
+  assert.equal(captured.scans.length, 5);
+  verifyOriginalAssurance(captured, captured);
+  for (const change of [
+    (value) => {
+      value.scans[0].queryPacks[0].version = "3.0.0";
+    },
+    (value) => {
+      value.scans[0].rules = ["new-rule"];
+    },
+  ]) {
+    const changed = structuredClone(captured);
+    change(changed);
+    assert.throws(
+      () => verifyOriginalAssurance(captured, changed),
+      /inventory changed/u,
+    );
+  }
+  const late = structuredClone(prAnalyses);
+  late[0].created_at = "2026-11-18T00:00:00Z";
+  assert.throws(
+    () => verifyCodeql(late, source, undefined, original),
+    /producing interval/u,
+  );
+  const wrongRef = structuredClone(prAnalyses);
+  wrongRef[0].ref = "refs/pull/18/merge";
+  assert.throws(() => verifyCodeql(wrongRef, source, undefined, original));
   sarif.runs[0].results.push({ message: { text: "finding" } });
   assert.throws(() => verifySarif(sarif, analyses[0]));
 });

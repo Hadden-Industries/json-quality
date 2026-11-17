@@ -1995,8 +1995,11 @@ test("native writer history retains both service journals and refuses a missing 
   ]);
   assert.deepEqual(
     rerunHistory.map((entry) => `${entry.service}/${entry.run.run_attempt}`),
-    ["npm/1", "github/1", "github/2"],
+    ["npm/1", "github/1", "npm/2", "github/2"],
   );
+  const retained = rerunHistory[2];
+  assert.equal(retained.originalAttempt, 1);
+  assert.equal(retained.journal, undefined);
   artifacts.pop();
   assert.throws(
     () =>

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { ubuntuRunner } from "./runner-policy.js";
+import { ubuntuRunner, windowsRunner } from "./runner-policy.js";
 
 const linux = ubuntuRunner();
 
@@ -37,7 +37,7 @@ export const securityScans = Object.freeze(
     {
       key: "cpp-windows",
       language: "c-cpp",
-      os: "windows-2025",
+      os: windowsRunner(),
       "build-mode": "manual",
       category: "/language:c-cpp/platform:windows",
     },

@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Two transports, one checking core | JSON Quality</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #ffffff;
+        color: #1d2733;
+        font:
+          1rem/1.6 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 960px;
+        margin: auto;
+        min-width: 0;
+      }
+      h1 {
+        font-size: 1.5rem;
+        line-height: 1.3;
+      }
+      figure {
+        margin: 0;
+      }
+      .diagram-container {
+        width: 100%;
+        overflow-x: auto;
+      }
+      svg {
+        display: block;
+        width: 100%;
+        min-width: 960px;
+      }
+      figcaption {
+        margin-top: 16px;
+      }
+      @media print {
+        svg {
+          min-width: 0;
+        }
+        .diagram-container {
+          overflow: visible;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Two transports, one checking core</h1>
+      <figure>
+        <div
+          class="diagram-container"
+          role="region"
+          aria-label="Scrollable diagram"
+          tabindex="0"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 960 720"
+            role="img"
+            aria-labelledby="checking-paths-title checking-paths-desc"
+          >
+            <title id="checking-paths-title">
+              Two transports, one checking core
+            </title>
+            <desc id="checking-paths-desc">
+              The Node.js CLI, SDK and trusted repository adapters use Node-API.
+              Other hosts use the framed standalone executable. Both transports
+              reach the same C++20 grammar and Unicode checking core, backed by
+              the managed value store. The store starts in memory and can
+              transition once to owned disk. Boost, ICU and SQLite are
+              implementation details described in the architecture text.
+            </desc>
+            <defs>
+              <marker
+                id="checking-paths-arrow"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+              >
+                <path d="M 0 0 L 8 4 L 0 8 Z" fill="#465568" />
+              </marker>
+            </defs>
+            <rect width="960" height="720" fill="#ffffff" />
+            <text
+              x="40"
+              y="48"
+              text-anchor="start"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="30"
+              fill="#1d2733"
+            >
+              <tspan x="40" dy="0">Two transports, one checking core</tspan>
+            </text>
+            <path
+              data-edge="true"
+              d="M 256 192 V 248"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#checking-paths-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 704 192 V 248"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#checking-paths-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 256 336 V 376 Q 256 384 264 384 H 424 Q 432 384 432 392 V 432"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#checking-paths-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 704 336 V 376 Q 704 384 696 384 H 536 Q 528 384 528 392 V 432"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#checking-paths-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 480 520 V 576"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#checking-paths-arrow)"
+            />
+            <g data-node="true">
+              <rect
+                x="80"
+                y="104"
+                width="352"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="256.0"
+                y="141.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="256.0" dy="0">Node.js CLI, SDK</tspan>
+                <tspan x="256.0" dy="30">and trusted adapters</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="528"
+                y="104"
+                width="352"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="704.0"
+                y="156.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="704.0" dy="0">Non-Node host</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="80"
+                y="248"
+                width="352"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="256.0"
+                y="300.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="256.0" dy="0">Node-API transport</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="528"
+                y="248"
+                width="352"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="704.0"
+                y="300.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="704.0" dy="0">Framed executable</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="304"
+                y="432"
+                width="352"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#0755a6"
+                stroke-width="3"
+              />
+              <text
+                x="480.0"
+                y="469.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="480.0" dy="0">Shared native core</tspan>
+                <tspan x="480.0" dy="30">Grammar and Unicode</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="304"
+                y="576"
+                width="352"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="480.0"
+                y="613.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="480.0" dy="0">Managed value store</tspan>
+                <tspan x="480.0" dy="30">Memory or owned disk</tspan>
+              </text>
+            </g>
+          </svg>
+        </div>
+        <figcaption>
+          The Node.js CLI, SDK and trusted repository adapters use Node-API.
+          Other hosts use the framed standalone executable. Both transports
+          reach the same C++20 grammar and Unicode checking core, backed by the
+          managed value store. The store starts in memory and can transition
+          once to owned disk. Boost, ICU and SQLite are implementation details
+          described in the architecture text.
+        </figcaption>
+      </figure>
+    </main>
+  </body>
+</html>

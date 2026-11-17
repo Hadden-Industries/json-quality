@@ -5,10 +5,31 @@ import { existsSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { native, budgets } from "./qualification-process.js";
+import { releaseCommit } from "./release-promotion-evidence.js";
+import { recoveryArtifactNames } from "./release-records.js";
 import { sameJobExecution } from "./github-job-execution.js";
 import { nativePackages } from "../src/native-packages.js";
 import { verifyOwnerTagSignature } from "./release-signing.js";
 import { npmLabelOperation } from "./npm-availability.js";
+import {
+  currentWriterRun,
+  readWriterArtifactReceipt,
+  verifyWriterArtifactReceipt,
+} from "./writer-artifact-receipt.js";
+import {
+  legacyClosure,
+  readWriterReservations,
+  verifyWriterReservations,
+} from "./release-writer-reservations.js";
+import {
+  stagePartPath,
+  verifyStagePredecessors,
+} from "./release-stage-payload.js";
+import {
+  ubuntuRunner,
+  windowsRunner,
+  verifyMatrixRunner,
+} from "./runner-policy.js";
 import {
   repository,
   regularBytes,
@@ -206,60 +227,124 @@ function originalJobAttempt(
   }
   throw new Error("Original artifact-producing execution unavailable");
 }
+export const artifactUnavailable = (error) =>
+  error?.code === "RELEASE_ARTIFACT_UNAVAILABLE" ||
+  [404, 410].includes(error?.httpStatus);
+
+function unavailableArtifact(message) {
+  throw Object.assign(new Error(message), {
+    code: "RELEASE_ARTIFACT_UNAVAILABLE",
+  });
+}
+
+function writerReceipt(observed, name, retained, readLog) {
+  const [, phase, service] =
+    /^effect-(stage|archive|promote)(?:-(npm|github))?-\d+$/u.exec(name) ?? [];
+  if (!phase || !currentWriterRun(phase, observed.run)) return null;
+  writerInventory({ ...observed, phase });
+  const { run } = observed;
+  assert.equal(run.head_branch, "main");
+  assert.equal(run.head_repository.full_name, repository);
+  const job = observed.jobs.jobs.find(
+    (entry) => entry.name === (service ?? phase),
+  );
+  assert.ok(job, "Original writer job is absent");
+  if (retained) {
+    assert.equal(retained.jobId, job.id);
+    verifyWriterArtifactReceipt(retained.receipt, run, job, name);
+  }
+  let receipt;
+  try {
+    receipt = readWriterArtifactReceipt(readLog(job.id), run, job, name);
+  } catch (error) {
+    if (!retained || !artifactUnavailable(error)) throw error;
+    return retained;
+  }
+  const bound = { jobId: job.id, receipt };
+  if (retained)
+    assert.deepEqual(
+      bound,
+      retained,
+      "Signed upload receipt conflicts with original log",
+    );
+  return bound;
+}
+
 export function download(runId, attempt, name, root, readers = {}) {
   const list = readers.pages ?? pages,
     read = readers.api ?? api;
+  const deadline = performance.now() + budgets.collection;
   assert.match(name, /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,200}$/u);
-  const artifacts = list(
-    `actions/runs/${id(runId)}/artifacts?per_page=100`,
-    "artifacts",
-  );
-  const recovered = new RegExp(
-    `^${name.replaceAll(".", "\\.")}-recovery-[23]$`,
-    "u",
-  );
-  const matches = artifacts.filter(
-    (item) => item.name === name || recovered.test(item.name),
-  );
+  const run =
+    readers.observed?.run ??
+    read(`actions/runs/${id(runId)}`, [], { deadline });
+  const observe = readers.provider ?? provider;
+  const writer =
+    /^effect-(stage|archive|promote)(?:-(?:npm|github))?-\d+$/u.exec(name);
+  const bound =
+    writer && (!readers.api || run.workflow_id)
+      ? writerReceipt(
+          readers.observed ??
+            (currentWriterRun(writer[1], run)
+              ? observe(runId, attempt)
+              : { run }),
+          name,
+          readers.writerReceipt,
+          readers.jobLog ??
+            ((jobId) =>
+              readArtifactBinary(
+                `actions/jobs/${id(jobId)}/logs`,
+                16 * 1024 * 1024,
+                deadline,
+              )),
+        )
+      : null;
+  const artifacts = bound
+    ? [read(`actions/artifacts/${bound.receipt.id}`, [], { deadline })]
+    : (readers.listedArtifacts ??
+      list(`actions/runs/${id(runId)}/artifacts?per_page=100`, "artifacts"));
+  const names = recoveryArtifactNames(name);
+  const matches = artifacts.filter((item) => names.includes(item.name));
+  if (!matches.length && !bound) unavailableArtifact("Missing native artifact");
   assert.ok(
     matches.length > 0 && matches.length <= 3,
-    "Missing or ambiguous native artifact",
+    "Ambiguous or substituted native artifact",
   );
   assert.equal(
     new Set(matches.map((item) => item.digest)).size,
     1,
     "Conflicting native artifact candidates",
   );
+  const assertReceipt = (artifact) => {
+    if (!bound) return;
+    const receipt = bound.receipt;
+    assert.equal(artifact.id, receipt.id);
+    assert.equal(artifact.name, receipt.name);
+    assert.equal(artifact.digest, receipt.digest);
+    assert.equal(artifact.size_in_bytes, receipt.size);
+    assert.equal(artifact.workflow_run.id, receipt.run);
+    assert.equal(artifact.workflow_run.repository_id, receipt.repositoryId);
+    assert.equal(
+      artifact.workflow_run.head_repository_id,
+      receipt.headRepositoryId,
+    );
+    assert.equal(artifact.workflow_run.head_sha, receipt.controller);
+  };
+  if (bound) assertReceipt(matches[0]);
   const artifact = matches
     .filter((item) => !item.expired)
     .sort((a, b) => a.id - b.id)[0];
-  assert.ok(artifact, "Expired native artifact");
+  if (!artifact) unavailableArtifact("Expired native artifact");
   assert.equal(artifact.expired, false);
   assert.match(artifact.digest, /^sha256:[a-f0-9]{64}$/u);
   assert.equal(artifact.workflow_run.id, Number(runId));
-  const run = read(`actions/runs/${id(runId)}`);
   assert.equal(artifact.workflow_run.head_sha, run.head_sha);
   const zip = readers.bytes
     ? readers.bytes(artifact.id)
-    : native(
-        process.execPath,
-        [
-          fileURLToPath(new URL("./github-evidence.js", import.meta.url)),
-          `/actions/artifacts/${id(artifact.id)}/zip`,
-          "--binary",
-        ],
-        {
-          encoding: null,
-          maxBuffer: releaseTransportMaximumBytes,
-          timeout: budgets.collection,
-          phase: "artifact-read",
-          env: {
-            ...process.env,
-            JSON_QUALITY_ARTIFACT_MAXIMUM_BYTES: String(
-              releaseTransportMaximumBytes,
-            ),
-          },
-        },
+    : readArtifactBinary(
+        `actions/artifacts/${id(artifact.id)}/zip`,
+        releaseTransportMaximumBytes,
+        deadline,
       );
   assert.ok(
     zip.length <= releaseTransportMaximumBytes,
@@ -270,14 +355,40 @@ export function download(runId, attempt, name, root, readers = {}) {
     artifact.digest,
     "Native artifact transport digest differs",
   );
+  if (bound)
+    assert.equal(zip.length, bound.receipt.size, "Native upload size differs");
+  const retained = read(`actions/artifacts/${id(artifact.id)}`, [], {
+    deadline,
+  });
+  assert.equal(retained.name, artifact.name);
+  assert.equal(retained.digest, artifact.digest);
+  assertReceipt(retained);
+  if (retained.expired === true) unavailableArtifact("Expired native artifact");
+  assert.equal(retained.expired, false);
+  readers.retainZip?.(zip, { artifact, writerReceipt: bound });
   // Every machine-consumed artifact includes its attempt in its name.
   assert.ok(name.endsWith(`-${id(attempt)}`), "Unbound artifact attempt");
   const directory = join(root, `${runId}-${name}`);
-  mkdirSync(directory);
   const archivePath = join(root, `${artifact.id}.zip`);
   writeFileSync(archivePath, zip, { flag: "wx" });
+  extractReleaseArtifact(archivePath, directory, readers.extract);
+  return {
+    directory,
+    ...(bound ? { writerReceipt: bound } : {}),
+    identity: {
+      id: artifact.id,
+      name: artifact.name,
+      digest: artifact.digest,
+      run: Number(runId),
+      attempt: Number(attempt),
+    },
+  };
+}
+
+export function extractReleaseArtifact(archivePath, directory, extract) {
+  mkdirSync(directory);
   (
-    readers.extract ??
+    extract ??
     ((archivePath, directory, maximum) =>
       native(
         process.platform === "win32" ? "python" : "python3",
@@ -290,20 +401,53 @@ export function download(runId, attempt, name, root, readers = {}) {
         { timeout: budgets.collection, phase: "verified-artifact-extraction" },
       ))
   )(archivePath, directory, releaseTransportMaximumBytes);
-  const retained = read(`actions/artifacts/${id(artifact.id)}`);
-  assert.equal(retained.name, artifact.name);
-  assert.equal(retained.digest, artifact.digest);
-  assert.equal(retained.expired, false);
-  return {
-    directory,
-    identity: {
-      id: artifact.id,
-      name: artifact.name,
-      digest: artifact.digest,
-      run: Number(runId),
-      attempt: Number(attempt),
-    },
-  };
+}
+
+export function readArtifactBinary(path, limit, deadline) {
+  const remaining =
+    deadline === undefined
+      ? budgets.collection
+      : Math.floor(deadline - performance.now());
+  if (remaining <= 0)
+    throw Object.assign(new Error("GitHub artifact read deadline exhausted"), {
+      code: "ETIMEDOUT",
+    });
+  try {
+    return native(
+      process.execPath,
+      [
+        fileURLToPath(new URL("./github-evidence.js", import.meta.url)),
+        `/${path}`,
+        "--binary",
+      ],
+      {
+        encoding: null,
+        maxBuffer: limit,
+        timeout: Math.min(budgets.collection, remaining),
+        phase: "artifact-read",
+        env: {
+          ...process.env,
+          JSON_QUALITY_ARTIFACT_MAXIMUM_BYTES: String(limit),
+          ...(deadline === undefined
+            ? {}
+            : {
+                JSON_QUALITY_READ_DEADLINE_MS: String(Date.now() + remaining),
+              }),
+        },
+      },
+    );
+  } catch (error) {
+    try {
+      Object.assign(
+        error,
+        JSON.parse(String(error.stderr).trim().split("\n").at(-1))
+          .githubEvidenceError,
+      );
+    } catch {
+      /* Native execution errors keep their original classification. */
+    }
+    throw error;
+  }
 }
 export function currentMain(env) {
   const ref = api("git/ref/heads/main");
@@ -346,7 +490,7 @@ export function verifyTag(reference, annotation, release) {
   assert.equal(annotation.sha, reference.object.sha);
   assert.equal(annotation.tag, `v${release.version}`);
   assert.equal(annotation.object.type, "commit");
-  assert.equal(annotation.object.sha, release.source.commit);
+  assert.equal(annotation.object.sha, releaseCommit(release));
   assert.equal(annotation.verification?.verified, true);
   assert.equal(annotation.verification.reason, "valid");
 }
@@ -359,7 +503,7 @@ export function signedTag(release, { deadline } = {}) {
   verifyOwnerTagSignature(
     `v${release.version}`,
     annotation.sha,
-    release.source.commit,
+    releaseCommit(release),
     { deadline },
   );
   return { reference, annotation };
@@ -436,8 +580,9 @@ function writerInventory(entry) {
           ? [
               "native-public",
               skippedNativePublicJobName,
-              "native-public (ubuntu-26.04)",
-              "native-public (windows-2025)",
+              ...writerNativeLanes(run).map(
+                (lane) => `native-public (${lane})`,
+              ),
             ]
           : []),
       ];
@@ -446,12 +591,36 @@ function writerInventory(entry) {
     assert.ok(allowed.includes(job.name), "Unexpected writer job");
     if (job.name === skippedNativePublicJobName)
       assert.equal(job.conclusion, "skipped");
+    if (phase === "stage" && job.name.startsWith("native-public ("))
+      verifyMatrixRunner(
+        job,
+        writerNativeLanes(run).find(
+          (os) => job.name === `native-public (${os})`,
+        ),
+        Boolean(run.workflow_id && currentWriterRun("stage", run)),
+      );
     assert.equal(job.run_id, run.id);
     assert.equal(job.run_attempt, run.run_attempt);
     assert.equal(job.head_sha, run.head_sha);
     assert.equal(job.status, "completed", "Writer execution is unresolved");
   }
   return { phase, services };
+}
+
+const stageRunnerPolicies = new Map();
+function writerNativeLanes(run) {
+  if (!run.workflow_id) return ["ubuntu-26.04", "windows-2025"];
+  if (!stageRunnerPolicies.has(run.head_sha)) {
+    const source = api(`contents/assets/node-support.json?ref=${run.head_sha}`);
+    assert.equal(source.path, "assets/node-support.json");
+    assert.equal(source.encoding, "base64");
+    const policy = JSON.parse(Buffer.from(source.content, "base64"));
+    stageRunnerPolicies.set(run.head_sha, [
+      ubuntuRunner(policy),
+      windowsRunner(policy),
+    ]);
+  }
+  return stageRunnerPolicies.get(run.head_sha);
 }
 export function writerEffect(entry) {
   const { phase, services } = writerInventory(entry);
@@ -505,6 +674,38 @@ export function writerEffect(entry) {
   );
   return { job, step };
 }
+
+/** A complete job list alone cannot account for both original promotion writers. */
+export function verifyDeletedWriterRoles(phase, runId, retained) {
+  const rows = retained.filter(
+    (record) => record.phase === phase && String(record.run) === String(runId),
+  );
+  const attempts = new Map(
+    rows.map(({ provider }) => [provider.run.run_attempt, provider]),
+  );
+  for (const observed of attempts.values()) {
+    const { services } = writerInventory({ ...observed, phase });
+    for (const service of services) {
+      if (!writerEffect({ ...observed, phase, service: service ?? undefined }))
+        continue;
+      const origin = originalJobAttempt(
+        observed,
+        service ?? phase,
+        () => assert.fail("Signed inventory omits an original writer attempt"),
+        attempts,
+        { requireSuccess: false, maximumAttempts: 100 },
+      );
+      assert.ok(
+        rows.some(
+          (record) =>
+            Number(record.attempt) === origin &&
+            record.service === (service ?? undefined),
+        ),
+        "Signed inventory omits an original writer role",
+      );
+    }
+  }
+}
 // Serialized version claims never authorize omission. Bind derived subjects to
 // the original bytes and exact live entry admitted by this native collector.
 const historySubjects = new WeakMap();
@@ -525,6 +726,9 @@ function restoreHistory(entry, record) {
   if (record.operationEvidence)
     entry.operationEvidence = record.operationEvidence;
   if (record.settlements) entry.settlements = record.settlements;
+  if (record.writerReceipt) entry.writerReceipt = record.writerReceipt;
+  if (record.originalAttempt !== undefined)
+    entry.originalAttempt = record.originalAttempt;
   return entry;
 }
 
@@ -767,7 +971,33 @@ export function verifyEffectHistory(
     ...authenticatedHistoricalSettlements(history),
   ];
   for (const entry of scoped) {
-    if (!writerEffect(entry)) continue;
+    const effect = writerEffect(entry);
+    if (!effect) continue;
+    if (entry.originalAttempt !== undefined) {
+      assert.ok(
+        Number.isSafeInteger(entry.originalAttempt) &&
+          entry.originalAttempt > 0 &&
+          entry.originalAttempt < entry.run.run_attempt,
+      );
+      const originals = history.filter(
+        (record) =>
+          record.phase === entry.phase &&
+          record.service === entry.service &&
+          record.run.id === entry.run.id &&
+          record.run.run_attempt === entry.originalAttempt,
+      );
+      assert.equal(originals.length, 1, "Missing original retained writer");
+      const [original] = originals;
+      assert.equal(original.originalAttempt, undefined);
+      const originalEffect = writerEffect(original);
+      assert.ok(
+        originalEffect && sameJobExecution(originalEffect.job, effect.job),
+        "Retained writer execution differs from its claimed origin",
+      );
+      assert.deepEqual(originalEffect.step, effect.step);
+      assert.ok(!entry.journal && !entry.noEffect && !entry.writerReceipt);
+      continue;
+    }
     if (entry.noEffect) {
       assert.equal(entry.noEffect.schemaVersion, 1);
       assert.equal(entry.noEffect.state, "no-request");
@@ -871,6 +1101,7 @@ export function verifyEffectHistory(
 }
 /** Inspect every prior attempt of all writers, not merely the latest successful run. */
 const historyTargetReaders = new WeakMap();
+const historyWriterClosures = new WeakMap();
 export function historyTargetDescriptors(record) {
   return [
     ...(record.qualifiedTargets ?? []).map((target) => ({
@@ -882,6 +1113,14 @@ export function historyTargetDescriptors(record) {
   ];
 }
 /** Resolve only a selected digest-derived file under the already verified signed commit. */
+const historyTargetBytes = new WeakMap();
+
+/** Exact authenticated sidecar representation for lossless checkpoint renewal. */
+export function originalHistoryTargetBytes(record) {
+  const bytes = historyTargetBytes.get(record);
+  return bytes && Buffer.from(bytes);
+}
+
 export function readHistoryTarget(record, expected) {
   const source = historyTargetReaders.get(record);
   assert.ok(
@@ -929,7 +1168,131 @@ export function readHistoryTarget(record, expected) {
   assert.equal(target.version, expected.version);
   assert.equal(target.manifestSha256, expected.manifestSha256);
   assert.equal(target.release.id, expected.releaseId);
+  historyTargetBytes.set(target, bytes);
   return target;
+}
+
+/** Reuse the exact signed commit and the validated record that owns its sidecar paths. */
+export function readHistoryStagePart(record, part) {
+  const source = historyTargetReaders.get(record);
+  assert.ok(source, "Stage recovery needs an authenticated signed history");
+  assert.ok(
+    source.stageParts.get(part.sha256) === part.size,
+    "Undeclared signed stage part",
+  );
+  const bytes = source.readBytes(
+    `contents/${stagePartPath(part.sha256)}?ref=${source.commit}`,
+  );
+  assert.ok(Buffer.isBuffer(bytes));
+  assert.equal(bytes.length, part.size);
+  assert.equal(
+    sha256(bytes),
+    part.sha256,
+    "Retained stage part digest differs",
+  );
+  return bytes;
+}
+
+export function carryHistoryStages(previous, output, selected) {
+  const stages = new Map();
+  for (const history of [previous, selected]) {
+    for (const ref of history?.stagePredecessors ?? []) {
+      const key = `${ref.run}/${ref.attempt}`;
+      if (stages.has(key)) {
+        assert.deepEqual(
+          stages.get(key),
+          ref,
+          "Conflicting signed stage predecessors",
+        );
+        continue;
+      }
+      stages.set(key, ref);
+      mkdirSync(join(output, "release-stage-parts"), { recursive: true });
+      for (const part of ref.parts) {
+        const path = join(output, stagePartPath(part.sha256));
+        if (existsSync(path))
+          assert.equal(sha256(regularBytes(path)), part.sha256);
+        else
+          writeFileSync(path, readHistoryStagePart(history, part), {
+            flag: "wx",
+          });
+      }
+    }
+  }
+  return stages.size
+    ? { schemaVersion: 3, stagePredecessors: [...stages.values()] }
+    : {};
+}
+
+export function selectHistoryStage(record, expected) {
+  const source = historyTargetReaders.get(record);
+  assert.ok(source, "Stage recovery needs an authenticated signed history");
+  const selected = source.stages.find((ref) =>
+    Object.entries(expected).every(([key, value]) => ref[key] === value),
+  );
+  assert.ok(
+    selected,
+    "No complete signed original staging predecessor for this decision",
+  );
+  writerInventory({ ...selected.provider, phase: "stage" });
+  assert.equal(selected.provider.run.head_branch, "main");
+  assert.equal(selected.provider.run.head_repository.full_name, repository);
+  return structuredClone(selected);
+}
+
+/** A new signed stage checkpoint can add custody to an already approved history. */
+export function mergeStageWriterHistory(previous, stage) {
+  assert.ok(
+    historyTargetReaders.has(previous) && historyTargetReaders.has(stage),
+  );
+  const combined = new Map(
+    stage.entries.map((record) => [
+      effectJournal(record.phase, record),
+      record,
+    ]),
+  );
+  for (const record of previous.entries) {
+    const key = effectJournal(record.phase, record);
+    const newer = combined.get(key);
+    if (!newer) {
+      combined.set(key, record);
+      continue;
+    }
+    for (const field of [
+      "controller",
+      "journal",
+      "noEffect",
+      "acknowledgements",
+      "operationEvidence",
+      "settlements",
+      "availability",
+      "writerReceipt",
+      "originalAttempt",
+    ])
+      if (record[field] !== undefined)
+        assert.deepEqual(
+          newer[field],
+          record[field],
+          `Signed stage checkpoint changed retained ${field}`,
+        );
+    if (record.provider) {
+      for (const field of [
+        "id",
+        "workflow_id",
+        "run_number",
+        "run_attempt",
+        "head_sha",
+        "path",
+        "head_branch",
+        "event",
+        "status",
+        "conclusion",
+      ])
+        assert.equal(newer.provider.run[field], record.provider.run[field]);
+      assert.deepEqual(newer.provider.jobs, record.provider.jobs);
+    }
+  }
+  return [...combined.values()];
 }
 export function readHistoryRecord(
   checkpoint,
@@ -938,6 +1301,7 @@ export function readHistoryRecord(
     gh(
       [
         "api",
+        "--allow-escape-sequences",
         `repos/${repository}/${path}`,
         "-H",
         "Accept: application/vnd.github.raw+json",
@@ -967,15 +1331,14 @@ export function readHistoryRecord(
   assert.ok(Buffer.isBuffer(bytes) && bytes.length <= 20000000);
   assert.equal(sha256(bytes), checkpoint.sha256);
   const record = JSON.parse(bytes);
-  assert.ok([1, 2].includes(record.schemaVersion));
+  assert.ok([1, 2, 3].includes(record.schemaVersion));
   assert.equal(record.repository, repository);
   assert.ok(Array.isArray(record.entries) && record.entries.length <= 10000);
   const keys = record.entries.map((entry) => effectJournal(entry.phase, entry));
   assert.equal(new Set(keys).size, keys.length, "Ambiguous retained history");
   if (record.qualifiedTargets !== undefined) {
-    assert.equal(
-      record.schemaVersion,
-      2,
+    assert.ok(
+      record.schemaVersion >= 2,
       "Legacy history cannot acquire target qualification scope",
     );
     assert.ok(
@@ -984,7 +1347,7 @@ export function readHistoryRecord(
     );
   }
   if (record.qualifiedTargetRefs !== undefined) {
-    assert.equal(record.schemaVersion, 2);
+    assert.ok(record.schemaVersion >= 2);
     assert.ok(
       Array.isArray(record.qualifiedTargetRefs) &&
         record.qualifiedTargetRefs.length <= 10000,
@@ -1025,6 +1388,17 @@ export function readHistoryRecord(
       }
     }
   }
+  if (record.stagePredecessors !== undefined) {
+    assert.equal(record.schemaVersion, 3);
+    verifyStagePredecessors(
+      record.stagePredecessors,
+      releaseTransportMaximumBytes,
+    );
+  }
+  if (record.writerRunClosures !== undefined) {
+    assert.equal(record.schemaVersion, 3);
+    assert.ok(Array.isArray(record.writerRunClosures));
+  }
   const descriptors = historyTargetDescriptors(record);
   for (const key of ["version", "manifestSha256", "releaseId"])
     assert.equal(
@@ -1036,6 +1410,12 @@ export function readHistoryRecord(
     commit: tag.object.sha,
     readBytes,
     descriptors: structuredClone(descriptors),
+    stages: structuredClone(record.stagePredecessors ?? []),
+    stageParts: new Map(
+      (record.stagePredecessors ?? []).flatMap((ref) =>
+        ref.parts.map((part) => [part.sha256, part.size]),
+      ),
+    ),
     inlineDigests: new Map(
       (record.qualifiedTargets ?? []).map((target) => [
         target.manifestSha256,
@@ -1063,18 +1443,50 @@ export function readEffectHistory(
   const list = readers.pages ?? pages;
   const observe = readers.provider ?? provider;
   const acquire = readers.download ?? download;
+  const signed =
+    checkpoint && !readers.checkpoint ? readHistoryRecord(checkpoint) : null;
   let retained = checkpoint
-    ? (readers.checkpoint ?? readHistoryCheckpoint)(checkpoint)
+    ? (signed?.entries ?? readers.checkpoint(checkpoint))
     : undefined;
+  const closures = new Map(
+    (signed?.writerRunClosures ?? readers.writerRunClosures ?? []).map(
+      (closure) => [`${closure.phase}/${closure.run.id}`, closure],
+    ),
+  );
   const acquisition = join(root, "writer-history");
   mkdirSync(acquisition, { recursive: true });
   const history = [];
+  const protectedWriter =
+    env.GITHUB_ACTIONS === "true" &&
+    ["stage", "archive", "promote"].some(
+      (phase) =>
+        env.GITHUB_WORKFLOW_REF ===
+        `${repository}/.github/workflows/${workflows[phase]}@refs/heads/main`,
+    );
   for (const phase of ["stage", "archive", "promote"]) {
     const runs = list(
       `actions/workflows/${workflows[phase]}/runs?per_page=100`,
       "workflow_runs",
     );
+    if (protectedWriter) {
+      const deleted = verifyWriterReservations(
+        phase,
+        runs,
+        retained ?? [],
+        [...closures.values()],
+        readWriterReservations(phase, api),
+      );
+      for (const runId of deleted)
+        verifyDeletedWriterRoles(phase, runId, retained ?? []);
+    }
     for (const run of runs) {
+      const observedAt = new Date().toISOString();
+      if (
+        run.workflow_id &&
+        !currentWriterRun(phase, run) &&
+        legacyClosure(run, observedAt)
+      )
+        closures.set(`${phase}/${run.id}`, { phase, run, observedAt });
       const attempts = new Map();
       const readAttempt = (runId, attempt) => {
         assert.equal(runId, run.id);
@@ -1126,6 +1538,8 @@ export function readEffectHistory(
                   original?.step,
                   "Retained writer effect observation changed",
                 );
+                entry.originalAttempt = origin;
+                history.push(entry);
                 continue;
               }
             }
@@ -1150,21 +1564,35 @@ export function readEffectHistory(
               }
             }
             const name = `effect-${phase}${service ? `-${service}` : ""}-${attempt}`;
-            const artifacts = list(
-              `actions/runs/${id(run.id)}/artifacts?per_page=100`,
-              "artifacts",
-            );
-            const matches = artifacts.filter(
-              (item) =>
-                item.name === name ||
-                new RegExp(`^${name}-recovery-[23]$`, "u").test(item.name),
-            );
-            assert.ok(matches.length <= 3, "Ambiguous historical artifact");
-            assert.ok(
-              new Set(matches.map((item) => item.digest)).size <= 1,
-              "Conflicting historical artifact candidates",
-            );
-            if (!matches.some((item) => !item.expired)) {
+            let acquired;
+            try {
+              let listedArtifacts;
+              if (!run.workflow_id || !currentWriterRun(phase, run)) {
+                listedArtifacts = list(
+                  `actions/runs/${id(run.id)}/artifacts?per_page=100`,
+                  "artifacts",
+                );
+                const names = recoveryArtifactNames(name);
+                const matches = listedArtifacts.filter((item) =>
+                  names.includes(item.name),
+                );
+                assert.ok(matches.length <= 3, "Ambiguous historical artifact");
+                assert.ok(
+                  new Set(matches.map((item) => item.digest)).size <= 1,
+                  "Conflicting historical artifact candidates",
+                );
+                if (!matches.some((item) => !item.expired))
+                  unavailableArtifact("Historical effect artifact unavailable");
+              }
+              acquired = acquire(run.id, attempt, name, acquisition, {
+                observed,
+                pages: list,
+                api,
+                writerReceipt: retainedRecord?.writerReceipt,
+                listedArtifacts,
+              });
+            } catch (error) {
+              if (!artifactUnavailable(error)) throw error;
               assert.ok(
                 checkpoint,
                 "Historical effect artifact unavailable; admit a signed history checkpoint",
@@ -1190,7 +1618,9 @@ export function readEffectHistory(
               history.push(entry);
               continue;
             }
-            const { directory } = acquire(run.id, attempt, name, acquisition);
+            const { directory } = acquired;
+            if (acquired.writerReceipt)
+              entry.writerReceipt = acquired.writerReceipt;
             const journal = join(
               directory,
               effectJournal(phase, {
@@ -1305,13 +1735,15 @@ export function readEffectHistory(
     history.push(entry);
     seen.add(key);
   }
+  historyWriterClosures.set(history, [...closures.values()]);
   return history;
 }
 /** Read-only export before expiration; only an owner-admitted signed tag is reusable. */
 /** Export original writer bytes and inventories without inferring settlement from labels. */
 export function exportHistoryRecord(history, qualifiedTargets = []) {
+  const writerRunClosures = historyWriterClosures.get(history) ?? [];
   return {
-    schemaVersion: 2,
+    schemaVersion: writerRunClosures.length ? 3 : 2,
     repository,
     entries: history.map((entry) => ({
       phase: entry.phase,
@@ -1321,6 +1753,10 @@ export function exportHistoryRecord(history, qualifiedTargets = []) {
       attempt: String(entry.run.run_attempt),
       controller: entry.run.head_sha,
       provider: { run: entry.run, jobs: entry.jobs },
+      ...(entry.originalAttempt !== undefined
+        ? { originalAttempt: entry.originalAttempt }
+        : {}),
+      ...(entry.writerReceipt ? { writerReceipt: entry.writerReceipt } : {}),
       ...(entry.journal ? { journal: entry.journal.toString("base64") } : {}),
       ...(entry.acknowledgements
         ? { acknowledgements: entry.acknowledgements }
@@ -1332,6 +1768,7 @@ export function exportHistoryRecord(history, qualifiedTargets = []) {
         : {}),
     })),
     ...(qualifiedTargets.length ? { qualifiedTargets } : {}),
+    ...(writerRunClosures.length ? { writerRunClosures } : {}),
   };
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -1349,7 +1786,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     {},
     scratch,
     priorCheckpoint ? readJson(priorCheckpoint) : undefined,
-    previous ? { checkpoint: () => previous.entries } : {},
+    previous
+      ? {
+          checkpoint: () => previous.entries,
+          writerRunClosures: previous.writerRunClosures,
+        }
+      : {},
   );
   // Keep unknown and incomplete records verbatim. Export never declares them resolved.
   const refs = [];
@@ -1358,7 +1800,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     mkdirSync(parent, { recursive: true });
     for (const expected of historyTargetDescriptors(previous)) {
       const target = readHistoryTarget(previous, expected),
-        bytes = jsonBytes(target);
+        bytes = originalHistoryTargetBytes(target) ?? jsonBytes(target);
       const path = join(parent, `${expected.manifestSha256}.json`);
       if (existsSync(path)) assert.deepEqual(regularBytes(path), bytes);
       else save(path, bytes);
@@ -1376,6 +1818,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   save(output, {
     ...exportHistoryRecord(history),
+    ...carryHistoryStages(previous, dirname(output)),
     ...(previous?.stageCancellations
       ? { stageCancellations: previous.stageCancellations }
       : {}),

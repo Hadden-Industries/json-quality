@@ -6,9 +6,16 @@ on:
         description: Exact owner-selected version already committed on main
         required: true
         type: string
+      force-fresh:
+        description: Explicitly rebuild and rerun the full qualification graph
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
+concurrency:
+  group: json-quality-release-mutation
+  cancel-in-progress: false
 defaults:
   run:
     shell: bash
@@ -19,9 +26,16 @@ jobs:
     timeout-minutes: 120
     outputs:
       matrix: ${{ steps.resolve.outputs.matrix }}
+      reused: ${{ steps.reuse.outputs.reused }}
+      archive-id: ${{ steps.archive.outputs.artifact-id }}
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-producer
       - name: Check source quality before fan-out
@@ -30,8 +44,26 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version }}
         run: npm run emit:release-matrix
+      - name: Admit the original release-capable CI candidate
+        id: reuse
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_MATRIX: ${{ steps.resolve.outputs.matrix }}
+          FORCE_FRESH: ${{ inputs.force-fresh }}
+        run: node scripts/release-reuse.js reused-release
+      - name: Retain admitted promotion evidence
+        id: archive
+        if: steps.reuse.outputs.reused == 'true'
+        uses: ./.github/actions/upload-evidence
+        timeout-minutes: 5
+        with:
+          name: qualified-producer-${{ github.run_attempt }}
+          path: reused-release
+          retention-days: 90
   product:
     needs: resolve
+    if: inputs.force-fresh && needs.resolve.outputs.reused == 'false'
     uses: ./.github/workflows/qualification.yml
     permissions:
       contents: read
@@ -42,12 +74,14 @@ jobs:
       version: ${{ inputs.version }}
   codeql:
     needs: resolve
+    if: inputs.force-fresh && needs.resolve.outputs.reused == 'false'
     uses: ./.github/workflows/security.yml
     permissions:
       contents: read
       security-events: write
   security:
-    needs: [product, codeql]
+    needs: [resolve, product, codeql]
+    if: ${{ !cancelled() && needs.resolve.result == 'success' && (needs.resolve.outputs.reused == 'true' || (needs.product.result == 'success' && needs.codeql.result == 'success')) }}
     runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
@@ -62,12 +96,12 @@ jobs:
       - uses: ./.github/actions/download-evidence
         timeout-minutes: 15
         with:
-          artifact-id: ${{ needs.product.outputs.archive-id }}
+          artifact-id: ${{ needs.resolve.outputs.archive-id || needs.product.outputs.archive-id }}
           path: ${{ runner.temp }}/frozen
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          npm run audit:dependencies -- "${{ runner.temp }}/security"
+          node scripts/release-assurance.js "${{ runner.temp }}/frozen" "${{ runner.temp }}/security"
           npm run verify:release-codeql -- "${{ runner.temp }}/frozen" "${{ runner.temp }}/security"
       - uses: ./.github/actions/upload-evidence
         timeout-minutes: 5
@@ -75,7 +109,7 @@ jobs:
         with:
           name: "release-security-${{ github.run_attempt }}"
           path: "${{ runner.temp }}/security"
-          retention-days: 30
+          retention-days: 90
   qualified:
     if: always()
     needs: [resolve, product, codeql, security]
@@ -85,5 +119,5 @@ jobs:
       - env:
           NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
-          node --input-type=module -e 'import assert from "node:assert/strict"; const needs=JSON.parse(process.env.NEEDS_JSON); assert.deepEqual(Object.keys(needs).sort(),["codeql","product","resolve","security"]); for(const job of Object.values(needs)) assert.equal(job.result,"success");'
+          node --input-type=module -e 'import assert from "node:assert/strict"; const n=JSON.parse(process.env.NEEDS_JSON); assert.deepEqual(Object.keys(n).sort(),["codeql","product","resolve","security"]); for(const k of ["resolve","security"]) assert.equal(n[k].result,"success"); assert.ok(["true","false"].includes(n.resolve.outputs.reused)); for(const k of ["product","codeql"]) assert.equal(n[k].result,n.resolve.outputs.reused==="true"?"skipped":"success");'
           echo 'Nonpublishing qualification completed. Review the manifest digest and complete provider graph before creating the signed tag and staging.' >> "$GITHUB_STEP_SUMMARY"

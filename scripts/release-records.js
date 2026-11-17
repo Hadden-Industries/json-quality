@@ -29,6 +29,12 @@ export const sha512 = (bytes) =>
   "sha512-" + createHash("sha512").update(bytes).digest("base64");
 export const jsonBytes = (value) =>
   Buffer.from(JSON.stringify(value, null, 2) + "\n");
+/** Native evidence has exactly one original name and two recovery names. */
+export const recoveryArtifactNames = (name) => [
+  name,
+  `${name}-recovery-2`,
+  `${name}-recovery-3`,
+];
 /** Separate durable intents from proved unsent requests without inventing an outcome. */
 export function requestedIntents(records) {
   const result = [];
@@ -153,6 +159,7 @@ export function journalEffect(
     guard,
     verify = (value) => value,
     preRequest,
+    diagnoseRefusal,
   } = {},
 ) {
   if (existsSync(path)) {
@@ -224,12 +231,17 @@ export function journalEffect(
     appendFileSync(path, JSON.stringify(outcome) + "\n", { flush: true });
     return outcome;
   } catch (error) {
+    const refusal =
+      requestStarted && !acknowledgement && !error.requestAcknowledged
+        ? diagnoseRefusal?.(error)
+        : null;
     appendFileSync(
       path,
       JSON.stringify({
         state: requestStarted ? "outcome-unknown" : "request-not-sent",
         requestStarted,
         intentSha256: sha256(line),
+        ...(refusal ? { refusal } : {}),
         nextAction: requestStarted
           ? "Inspect native state and retained request/response; do not repeat this request."
           : "Guard refused before the provider request; a new owner decision must bind current preimages.",

@@ -21,6 +21,8 @@ import {
 } from "../scripts/release-contract.js";
 import { prepareWriterAdmission } from "../scripts/release-writer-admission.js";
 import { verifyOperationDecision } from "../scripts/release-availability-contract.js";
+import { verifyBuildEvidence } from "../scripts/release-promotion-evidence.js";
+import writerBaseline from "../assets/release-writer-baseline.json" with { type: "json" };
 
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const legacy = JSON.parse(
@@ -32,8 +34,9 @@ const repository = "Hadden-Industries/json-quality";
 export function writerWorld(
   t,
   phase,
-  { npmTag, schema3 = false, pilotRetirement = false } = {},
+  { npmTag, schema3 = false, promoted = false, pilotRetirement = false } = {},
 ) {
+  schema3 ||= promoted;
   const root = mkdtempSync(join(tmpdir(), "json-writer-entry-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const directory = join(root, "admitted"),
@@ -42,7 +45,7 @@ export function writerWorld(
   mkdirSync(scratch);
   const release = JSON.parse(Buffer.from(legacy.manifest, "base64")),
     packages = releasePackages(release);
-  if (schema3) {
+  if (schema3 || promoted) {
     const origins = JSON.parse(
       readFileSync(join(repositoryRoot, "native/production-origins.json")),
     );
@@ -84,9 +87,62 @@ export function writerWorld(
     };
     verifyManifest(release);
   }
-  const manifest = schema3
-    ? jsonBytes(release)
-    : Buffer.from(legacy.manifest, "base64");
+  if (promoted) {
+    const landed = release.source.commit;
+    release.source.commit = "b".repeat(40);
+    release.distribution.packing.source = release.source.commit;
+    const lock = Buffer.from('{"lockfileVersion":3,"packages":{}}\n');
+    release.source.lockSha256 = sha256(lock);
+    const build = jsonBytes(release);
+    const proof = jsonBytes({
+      schemaVersion: 3,
+      mode: "FULL",
+      repository,
+      repositoryId: 11,
+      runId: 71,
+      runAttempt: 1,
+      pullRequest: 17,
+      snapshot: {
+        commit: release.source.commit,
+        tree: release.source.tree,
+        parents: ["1".repeat(40), "2".repeat(40)],
+      },
+      matrix: release.matrix,
+      assurance: { policySha256: "c".repeat(64), scans: [{ analysis: 1 }] },
+      lanes: release.matrix.os.flatMap((os) =>
+        release.matrix.node.map((node) => ({
+          lane: { os, node },
+          releaseEvidence: { manifestSha256: sha256(build) },
+          consumers: { root: { archiveSha256: release.archive.sha256 } },
+        })),
+      ),
+    });
+    release.schemaVersion = 4;
+    release.promotion = {
+      schemaVersion: 1,
+      repository,
+      workflow: ".github/workflows/ci.yml",
+      repositoryId: 11,
+      buildCommit: release.source.commit,
+      releaseCommit: landed,
+      tree: release.source.tree,
+      parents: ["1".repeat(40), "2".repeat(40)],
+      buildManifestSha256: sha256(build),
+      proofSha256: sha256(proof),
+      run: 71,
+      attempt: 1,
+      pullRequest: 17,
+    };
+    writeFileSync(join(directory, "build-manifest.json"), build);
+    writeFileSync(join(directory, "build-qualification.json"), proof);
+    writeFileSync(join(directory, "build-package-lock.json"), lock);
+    verifyManifest(release);
+    verifyBuildEvidence(release, directory);
+  }
+  const manifest =
+    schema3 || promoted
+      ? jsonBytes(release)
+      : Buffer.from(legacy.manifest, "base64");
   writeFileSync(join(directory, "release-manifest.json"), manifest);
   writeFileSync(join(directory, "signed-tag.json"), jsonBytes(legacy.tag));
   const controller = "a".repeat(40),
@@ -94,6 +150,8 @@ export function writerWorld(
     attempt = "1";
   const env = {
     ...process.env,
+    // Provider fixtures run without hosted effects, even when the test host is Actions.
+    GITHUB_ACTIONS: "false",
     GITHUB_REPOSITORY: repository,
     GITHUB_REPOSITORY_ID: "11",
     GITHUB_EVENT_NAME: "workflow_dispatch",
@@ -222,14 +280,18 @@ export function writerWorld(
   const runRecord = {
     id: 17,
     run_attempt: 1,
-    repository: { full_name: repository },
-    head_repository: { full_name: repository },
+    repository: { id: 11, full_name: repository },
+    head_repository: { id: 11, full_name: repository },
     head_branch: "main",
     head_sha: controller,
     event: "workflow_dispatch",
     path: `.github/workflows/${phase === "stage" ? "stage-release" : "promote-release"}.yml`,
     status: "in_progress",
     conclusion: null,
+    ...(phase === "promote" && {
+      workflow_id: writerBaseline.workflows.promote.id,
+      run_number: writerBaseline.workflows.promote.runs.length + 1,
+    }),
   };
   const artifact = (id, name, digest = "sha256:" + "c".repeat(64)) => ({
     id,
@@ -430,10 +492,64 @@ export function writerWorld(
       inventory.total_count++;
       current.binary ??= {};
       current.binary[`actions/artifacts/${id}/zip`] = bytes.toString("base64");
+      const writer = /^effect-promote-(npm|github)-1$/u.exec(name);
+      if (writer) {
+        const provider = current.routes[
+          `actions/runs/${env.GITHUB_RUN_ID}/attempts/1/jobs?per_page=100`
+        ].jobs.find((job) => job.name === writer[1]);
+        provider.steps.push({
+          name: "Run ./.github/actions/upload-writer-evidence",
+          status: "completed",
+          conclusion: "success",
+          started_at: "2026-11-13T00:01:01Z",
+          completed_at: "2026-11-13T00:01:02Z",
+        });
+        const receipt = {
+          phase: "release-writer-artifact",
+          schemaVersion: 1,
+          repositoryId: 11,
+          headRepositoryId: 11,
+          workflow: env.GITHUB_WORKFLOW_REF,
+          controller,
+          run: Number(env.GITHUB_RUN_ID),
+          attempt: 1,
+          job: writer[1],
+          step: 1,
+          id,
+          name,
+          digest: identity.digest,
+          size: identity.size_in_bytes,
+        };
+        current.binary[`actions/jobs/${provider.id}/logs`] = Buffer.from(
+          [
+            "##[start-action display=Reconcile writer evidence upload 1;id=__self_3.first]",
+            JSON.stringify(receipt),
+            "##[end-action id=__self_3.first;outcome=success;conclusion=success;duration_ms=100]",
+          ]
+            .map((line) => `2026-11-13T00:01:01.1Z ${line}\n`)
+            .join(""),
+        ).toString("base64");
+      }
       writeFileSync(env.RELEASE_PROVIDER_FIXTURE, JSON.stringify(current));
       return identity;
     },
     independent: (extra = {}) => {
+      const current = JSON.parse(readFileSync(env.RELEASE_PROVIDER_FIXTURE));
+      const observed = current.routes[`actions/runs/${run}/attempts/1`];
+      const jobs =
+        current.routes[`actions/runs/${run}/attempts/1/jobs?per_page=100`].jobs;
+      observed.status = "completed";
+      observed.conclusion = jobs.some((job) => job.conclusion === "failure")
+        ? "failure"
+        : "success";
+      current.routes[`actions/runs/${run}`] = observed;
+      const completion = jobs.find((job) => job.name === "complete");
+      if (completion.status !== "completed") {
+        completion.status = "completed";
+        completion.conclusion = "skipped";
+        completion.completed_at = "2026-11-13T00:03:00Z";
+      }
+      writeFileSync(env.RELEASE_PROVIDER_FIXTURE, JSON.stringify(current));
       const output = mkdtempSync(join(root, "observer-")),
         work = mkdtempSync(join(root, "observer-work-"));
       const result = spawnSync(

@@ -109,7 +109,14 @@ export function applyNpmAvailability(input, operations) {
       if (!recovered) operations.writeNpmLatest(target);
       return readback();
     },
-    { env, before: plan.before, guard },
+    {
+      env,
+      before: plan.before,
+      guard,
+      preRequest: () => {
+        if (!recovered) operations.assertStageInventory?.();
+      },
+    },
   );
   return outcome.result;
 }
@@ -165,6 +172,9 @@ export function applyGithubAvailability(input, operations) {
     {
       env,
       before,
+      preRequest: () => {
+        if (!recovered) operations.assertStageInventory?.();
+      },
       guard: {
         availability: "npm-and-github",
         targetVersion: target,

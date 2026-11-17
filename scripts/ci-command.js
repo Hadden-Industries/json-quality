@@ -110,7 +110,11 @@ async function artifacts(read, runId, repositoryId) {
   }
   return inventory.artifacts;
 }
-export async function readRawProof(artifact, read) {
+export async function readRawProof(
+  artifact,
+  read,
+  { originalBytes = false } = {},
+) {
   assert.equal(artifact.expired, false);
   assert.match(artifact.digest, /^sha256:[a-f0-9]{64}$/u);
   assert.ok(
@@ -123,7 +127,10 @@ export async function readRawProof(artifact, read) {
   });
   assert.equal(bytes.length, artifact.size_in_bytes);
   assert.equal(hash(bytes), artifact.digest, "Artifact digest mismatch");
-  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  const receipt = JSON.parse(
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+  );
+  return originalBytes ? { receipt, bytes } : receipt;
 }
 function newestRecords(records, key) {
   const groups = new Map();
@@ -216,7 +223,7 @@ async function main(mode) {
     assert.equal(transport.expired, false);
     assert.equal(transport.workflow_run.id, ctx.runId);
     const record = {
-      schemaVersion: 2,
+      schemaVersion: process.env.CI_RELEASE_EVIDENCE === "true" ? 3 : 2,
       status: "passed",
       repositoryId: ctx.repositoryId,
       runId: ctx.runId,
@@ -229,6 +236,22 @@ async function main(mode) {
         npm: consumers.root.npm,
       },
       consumers,
+      ...(process.env.CI_RELEASE_EVIDENCE === "true"
+        ? {
+            releaseEvidence: {
+              manifestSha256: createHash("sha256")
+                .update(
+                  readFileSync(
+                    join(
+                      process.env.JSON_QUALITY_ARCHIVE_DIRECTORY,
+                      "release-manifest.json",
+                    ),
+                  ),
+                )
+                .digest("hex"),
+            },
+          }
+        : {}),
       transport: Object.fromEntries(
         ["id", "name", "digest", "size_in_bytes", "workflow_run"].map((key) => [
           key,
@@ -285,6 +308,10 @@ async function main(mode) {
       needs: JSON.parse(process.env.NEEDS_JSON),
       read,
     });
+    if (receipt.schemaVersion === 3) {
+      const { captureCiAssurance } = await import("./release-security.js");
+      receipt.assurance = captureCiAssurance(receipt, nodeSupport);
+    }
     if (ctx.event.pull_request.head.repo.id !== ctx.repositoryId) {
       publishCiResult(
         { mode: "FULL", reuse: "INELIGIBLE_FORK" },

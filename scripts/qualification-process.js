@@ -26,7 +26,12 @@ export function acquisitionResources(
 export function native(
   executable,
   args,
-  { phase = "native", timeout = budgets.read, ...options } = {},
+  {
+    phase = "native",
+    timeout = budgets.read,
+    logFailureOutput = true,
+    ...options
+  } = {},
 ) {
   if (timeout !== Infinity && (!Number.isSafeInteger(timeout) || timeout <= 0))
     throw new Error("Invalid command deadline");
@@ -75,19 +80,20 @@ export function native(
     const error = new Error(`Native phase ${phase} failed`, {
       cause: result.error,
     });
-    Object.assign(error, {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      facts,
+    error.facts = facts;
+    Object.defineProperties(error, {
+      stdout: { value: result.stdout, enumerable: logFailureOutput },
+      stderr: { value: result.stderr, enumerable: logFailureOutput },
     });
     // JSON encoding prevents service output from becoming workflow commands.
-    process.stderr.write(
-      JSON.stringify({
-        phase,
-        stdout: String(result.stdout ?? "").slice(-8192),
-        stderr: String(result.stderr ?? "").slice(-8192),
-      }) + "\n",
-    );
+    if (logFailureOutput)
+      process.stderr.write(
+        JSON.stringify({
+          phase,
+          stdout: String(result.stdout ?? "").slice(-8192),
+          stderr: String(result.stderr ?? "").slice(-8192),
+        }) + "\n",
+      );
     throw error;
   }
   return result.stdout;

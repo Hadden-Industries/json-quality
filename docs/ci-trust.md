@@ -19,6 +19,13 @@ The scope is explicitly `immutable-git-json`: checkout/HEAD cleanliness is not a
 
 ### Policy and source boundaries
 
+[![Trusted producer and policy govern checking; candidate Git blobs enter as data and cannot select policy.](diagrams/trusted-ci.svg)](diagrams/trusted-ci.svg)
+
+The trusted producer and local schemas admit policy from the selected trusted commit, or defaults after verified absence.
+Candidate blobs cross the boundary as data only; candidate policy cannot govern checking and candidate code is not executed.
+Read the final `execution-terminal` for the complete `immutable-git-json` verdict, which makes no application-domain claim.
+Open the diagram for a full-size view.
+
 The producer's installed component and local schemas own admission.
 A bounded native/Ajv bootstrap reads a present trusted `.json-quality.json` from its Git blob, verifies exact bytes and transfers the resolved frozen policy charge into the main core.
 Verified absence has its own immutable Git origin and still owns the resolved-policy reservation.
@@ -135,7 +142,42 @@ Missing, expired, conflicted or changed proof yields `FULL_REQUIRED`; no full su
 
 The owner explicitly dispatches **Main qualification** on `main` for fresh `FULL` assurance.
 That dispatch cannot create PR acceptance or a reusable PR proof.
-Release qualification still creates a fresh commit-bound candidate and does not reuse a PR tarball as a main release.
+Release qualification defaults to promoting the original PR archives after validating the complete tree, ordered parents and ordinary merged PR association.
+The schema-4 promoted manifest separates build, landed release and controller identities and retains the original manifest, proof and producer lock bytes.
+Missing or incompatible evidence stops; only an explicit `force-fresh: true` request launches full release qualification.
+Read-only admission never executes downloaded candidate code or gains publication credentials.
+
+### Retain the latest release candidate
+
+Release-capable producer, recipient and aggregate proof artifacts request up to 90 days of native Actions retention.
+The effective reuse deadline is the earliest expiry of any indispensable artifact or original run/check record, subject to repository and organization limits.
+The trusted `candidate-retention.yml` workflow runs after successful main qualification or an owner dispatch, authenticates the latest ordinary merged candidate, and verifies its successor before removing any predecessor artifact.
+Cleanup shares the release mutation concurrency group and rechecks consumer state before each one-shot deletion.
+Running, failed or otherwise unresolved release consumers stop cleanup conservatively; native production origins, writer evidence and published assets are outside its deletion scope.
+Temporary PR consumers and active releases can require overlap; no candidate is re-uploaded periodically to reset expiry.
+An unavailable or oversized provider inventory leaves custody intact and reports that cleanup is incomplete.
+Workflow dependency lockfile migration remains a separate compatibility change; current external action references retain reviewed full SHA pins.
+
+### Rehearse the next release runs locally
+
+The maintained workflow contracts inspect nested reusable-workflow permission ceilings, required source/tooling setup and the actual terminal gate programs.
+An explicit YAML `if: false` cannot stand in for an omitted condition on a required admission step.
+Recovery uploads remain eligible only when their original producing interval and digest agree; conflicting copies stop admission.
+Fresh advisory collection uses disposable input storage and retains only the compact audit observations, not downloaded recipient ZIPs or duplicate graphs.
+
+| Request or event                                 | Expected execution                                                                                                                                                |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ready PR                                         | Full CI produces the single archive family, complete runtime/layout proof and original scanner identities.                                                        |
+| Ordinary merge to main                           | The observer verifies equal-input PR proof; candidate retention independently protects active consumers before removing unused predecessors.                      |
+| Default release qualification                    | Resolve admits original bytes; fresh product and scanner jobs are skipped; current assurance and the substantive final gate must succeed.                         |
+| Explicit `force-fresh`                           | Source admission, complete product qualification, scanner jobs and current assurance must all succeed.                                                            |
+| Missing, expired or contradictory reuse evidence | Stop without automatically launching a matrix or spending a writer attempt.                                                                                       |
+| Staging, public qualification and promotion      | Original producing attempts and owner decisions remain bound; public recipients run after approval, and read-only completion cannot repeat a publication request. |
+
+`tests/release-reuse.test.js`, `tests/release-assurance.test.js`, `tests/candidate-retention.test.js`, `tests/release-dispatch.test.js` and `tests/release-startup.test.js` exercise these boundaries with external provider/process fixtures.
+They cover retained partial reruns, recovery names, changed final producer identity, interrupted input collection, active consumers, concurrent main movement and cold promoted writers.
+The donor's [cancelled fallback run](https://github.com/Hadden-Industries/markdown-quality/actions/runs/43900658316), [successful reused qualification](https://github.com/Hadden-Industries/markdown-quality/actions/runs/43917797156) and [completed archival graph](https://github.com/Hadden-Industries/markdown-quality/actions/runs/43980861855) provide operational reference points.
+Local rehearsal verifies the controller contracts; it does not establish hosted scheduling, OIDC permissions, registry propagation or owner 2FA.
 
 ### Rerun a failed job
 
@@ -203,12 +245,12 @@ Publication writes are one-shot and retain their separate release journal/reconc
 
 | Retained material                                           | Named consumer                                           | Normal retention                                                                      |
 | ----------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Qualified producer archive, including measurement data      | Frozen runtime consumers; deliberate release preparation | 1 day for same-run transfer; 30 days for release input                                |
+| Qualified producer archive, including measurement data      | Frozen runtime consumers; deliberate release preparation | 1 day for same-run transfer; up to 90 days for release-capable CI input               |
 | Compact lane proof with all performance samples             | Acceptance collector                                     | 1 day                                                                                 |
-| Compact `FULL` PR proof                                     | Main equal-input observer                                | 30 days                                                                               |
+| Compact `FULL` PR proof                                     | Main equal-input observer and release admission          | Up to 90 days; superseded unused candidate artifacts may be removed sooner            |
 | Lightweight host record                                     | Main observer in the same run                            | 1 day                                                                                 |
 | Native component payload and original rights/build identity | Explicit component staging/package assembly              | 30 days                                                                               |
-| Release consumer/security evidence                          | Deliberate release admission                             | 30 days                                                                               |
+| Release consumer/security evidence                          | Deliberate release admission                             | Up to 90 days                                                                         |
 | Admitted next-step bundle                                   | Exactly the next release writer                          | 1 day                                                                                 |
 | Effect journals and recovery records                        | One-shot release reconciliation                          | 90 days operationally; required release proof is preserved with the immutable release |
 

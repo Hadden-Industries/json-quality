@@ -6,21 +6,11 @@ Other hosts use binary frames.
 Both paths reach the same grammar and Unicode checks, and the same store retains values in memory or spills them to disk.
 Installed resolution verifies a fixed platform artifact for every source size.
 
-```mermaid
-flowchart TD
-  accTitle: JSON Quality checking paths
-  accDescr: Node and standalone clients send bytes to one native core, which parses JSON, checks Unicode and stores retained values in memory or owned scratch.
-  CLI[CLI and trusted repository adapters] --> SDK[Scoped session and event API]
-  SDK --> NAPI[Node-API transport]
-  Host[Non-Node host] --> Frames[Framed executable]
-  NAPI --> Core[Shared core session]
-  Frames --> Core
-  Core --> Reader[Boost grammar and quality consumers]
-  Reader --> ICU[ICU Unicode operations]
-  Core --> Store[Adaptive payload and metadata store]
-  Store --> SQLite[Private SQLite indexes and backup]
-  Store --> Scratch[Owned spill storage]
-```
+[![Node-API and the framed executable converge on one native checking core and managed value store.](diagrams/checking-paths.svg)](diagrams/checking-paths.svg)
+
+The managed store starts in memory and can transition once to owned disk.
+Boost, ICU and SQLite details follow below.
+Open the diagram for a full-size view.
 
 ## Ownership and lifecycle
 

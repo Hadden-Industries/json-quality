@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Public qualification checkpoint validation has no provider or command dependencies. */
 import assert from "node:assert/strict";
+import {
+  releaseCommit,
+  verifyBuildEvidence,
+} from "./release-promotion-evidence.js";
 import { isDeepStrictEqual } from "node:util";
 import { requestedIntents } from "./release-records.js";
 import {
@@ -36,7 +40,7 @@ export function verifyQualifiedTarget(record, expected) {
   assert.equal(record.release.tag_name, `v${release.version}`);
   assert.equal(record.release.immutable, true);
   assert.equal(record.tag.reference.object.sha, record.tag.annotation.sha);
-  assert.equal(record.tag.annotation.object.sha, release.source.commit);
+  assert.equal(record.tag.annotation.object.sha, releaseCommit(release));
   const proof = record.qualification;
   assert.ok(
     proof && Array.isArray(proof.providers) && Array.isArray(proof.files),
@@ -56,6 +60,13 @@ export function verifyQualifiedTarget(record, expected) {
     }),
   );
   const context = JSON.parse(files.get("context.json"));
+  if (release.promotion)
+    verifyBuildEvidence(release, "", {
+      read: (path) => {
+        assert.ok(files.has(path), `Missing original build evidence ${path}`);
+        return files.get(path);
+      },
+    });
   if (files.has("signed-tag.json"))
     assert.equal(
       JSON.parse(files.get("signed-tag.json")).reference.object.sha,
@@ -243,12 +254,13 @@ export function verifyQualifiedTarget(record, expected) {
       verifyRun(
         item.provider,
         phase,
-        origin.controller ?? release.source.commit,
+        origin.controller ?? releaseCommit(release),
         release.matrix,
         {
           stagePhase: phase === "stage" ? origin.phase : undefined,
           reconciled,
           historical: isLegacyReleaseManifest(release),
+          reusedQualification: phase === "qualification" && !!release.promotion,
         },
       );
     }

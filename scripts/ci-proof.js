@@ -12,10 +12,25 @@ import { budgets } from "./qualification-budgets.js";
 import { validateConsumers } from "./consumer-layouts.js";
 import { securityScans } from "./security-scans.js";
 import { validatePerformance } from "./performance-contract.js";
+import {
+  ubuntuRunner,
+  verifyMatrixRunner,
+  windowsRunner,
+} from "./runner-policy.js";
 
 export const repository = "Hadden-Industries/json-quality";
 export const workflow = ".github/workflows/ci.yml";
 export const acceptance = "CI / acceptance";
+/** Share only completed original job inventories within one admission. */
+export function originalAttemptReader(read) {
+  const attempts = new Map();
+  return (path, options) => {
+    if (!/\/attempts\/\d+\/jobs\?/u.test(path) || options?.refresh)
+      return read(path, options);
+    if (!attempts.has(path)) attempts.set(path, read(path, options));
+    return attempts.get(path);
+  };
+}
 const positive = (value) => Number.isSafeInteger(value) && value > 0;
 const sha = (value) =>
   typeof value === "string" && /^[a-f0-9]{40}$/u.test(value);
@@ -125,6 +140,17 @@ function inventory(value, run, matrix, complete = true, registering = false) {
       "success",
       `${job.name} did not execute successfully`,
     );
+    const policy = { platforms: matrix.os };
+    const expectedRunner =
+      matrix.os.find((label) =>
+        job.name.startsWith(`Product / Qualify ${label} /`),
+      ) ??
+      (/(?:Scan cpp-windows|Native \/ win32-x64)$/u.test(job.name)
+        ? windowsRunner(policy)
+        : /(?:Scan cpp-linux|Native \/ linux-x64)$/u.test(job.name)
+          ? ubuntuRunner(policy)
+          : undefined);
+    verifyMatrixRunner(job, expectedRunner, Boolean(run.run_number));
   }
   return value.jobs;
 }
@@ -193,6 +219,7 @@ export async function verifyProducingAttempt(job, attempt, run, read) {
     sameJobExecution(first, job),
     "Claimed producer differs from latest authenticated execution",
   );
+  assert.deepEqual(first.labels, job.labels, "Original runner labels changed");
   if (attempt > 1) {
     const previous = await read(
       `/actions/runs/${run.id}/attempts/${attempt - 1}/jobs?per_page=100`,
@@ -238,6 +265,11 @@ async function originalExecution(job, run, read) {
     if (sameJobExecution(original, job)) {
       assert.equal(original.status, "completed");
       assert.equal(original.conclusion, "success");
+      assert.deepEqual(
+        original.labels,
+        job.labels,
+        "Original runner labels changed",
+      );
       return {
         runAttempt: attempt,
         job: Object.fromEntries(
@@ -267,7 +299,9 @@ function lanes(records, ctx, matrix) {
     );
     assert.equal(matches.length, 1, "Missing or duplicate consumer receipt");
     const record = matches[0];
-    assert.equal(record.schemaVersion, 2, "Obsolete lane contract");
+    assert.ok([2, 3].includes(record.schemaVersion), "Obsolete lane contract");
+    if (record.schemaVersion === 3)
+      assert.match(record.releaseEvidence?.manifestSha256, /^[a-f0-9]{64}$/u);
     assert.equal(record.status, "passed");
     assert.equal(record.repositoryId, ctx.repositoryId);
     assert.equal(record.runId, ctx.runId);
@@ -333,6 +367,7 @@ export async function createReceipt({
   now = Date.now(),
   sleep = delay,
 }) {
+  read = originalAttemptReader(read);
   context(ctx);
   assert.equal(ctx.eventName, "pull_request");
   pull(ctx.event.pull_request, ctx, false);
@@ -366,7 +401,7 @@ export async function createReceipt({
     await verifyProducingAttempt(job, record.runAttempt, run, read);
   }
   return {
-    schemaVersion: 2,
+    schemaVersion: executed.every((lane) => lane.schemaVersion === 3) ? 3 : 2,
     mode: "FULL",
     repository,
     repositoryId: ctx.repositoryId,
@@ -473,11 +508,20 @@ export async function verifyProof({
   read,
   now = Date.now(),
 }) {
+  read = originalAttemptReader(read);
   context(ctx);
   const selected = await selectProof({ ctx, read, now });
   equal(selected, selection, "Provider selection changed during admission");
   const { run, pr } = selected;
-  assert.equal(receipt.schemaVersion, 2, "Obsolete aggregate proof contract");
+  assert.ok(
+    [2, 3].includes(receipt.schemaVersion),
+    "Obsolete aggregate proof contract",
+  );
+  if (receipt.schemaVersion === 3)
+    assert.ok(
+      receipt.lanes.every((lane) => lane.schemaVersion === 3),
+      "Incomplete release-capable lanes",
+    );
   assert.equal(receipt.mode, "FULL");
   assert.ok(
     Date.parse(receipt.recordedAt) >= Date.parse(run.run_started_at) &&

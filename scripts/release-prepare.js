@@ -168,6 +168,9 @@ export async function freezeRelease(directory, matrix, version) {
   };
   verifyManifest(release);
   verifyArchive(bytes, release.archive);
+  const producerLock = regularBytes("package-lock.json");
+  assert.equal(sha256(producerLock), release.source.lockSha256);
+  save(join(directory, "build-package-lock.json"), producerLock);
   save(join(directory, "release-manifest.json"), release);
   return release;
 }
@@ -191,7 +194,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     await freezeRelease(
       arguments_[0],
       JSON.parse(process.env.RELEASE_MATRIX),
-      process.env.RELEASE_VERSION,
+      process.env.RELEASE_VERSION || readJson("package.json").version,
     );
   }
 }

@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 960 984"
+            role="img"
+            aria-labelledby="release-handoffs-title release-handoffs-desc"
+          >
+            <title id="release-handoffs-title">
+              Release automation and owner handoffs
+            </title>
+            <desc id="release-handoffs-desc">
+              Resolve reusable qualification evidence and original archives,
+              then have the owner review identities, sign the tag and choose the
+              npm channel. Automation stages the native packages; the owner
+              approves both with npm 2FA. After their public checks, automation
+              stages core and the owner approves it. Qualify the public family
+              and archive the immutable GitHub release. Verify availability
+              against the reviewed decision. Direct latest publication does not
+              require a pilot-to-latest promotion.
+            </desc>
+            <defs>
+              <marker
+                id="release-handoffs-arrow"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+              >
+                <path d="M 0 0 L 8 4 L 0 8 Z" fill="#465568" />
+              </marker>
+            </defs>
+            <rect width="960" height="984" fill="#ffffff" />
+            <text
+              x="40"
+              y="48"
+              text-anchor="start"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="30"
+              fill="#1d2733"
+            >
+              <tspan x="40" dy="0">Release automation and owner handoffs</tspan>
+            </text>
+            <path
+              d="M 480 100 V 864"
+              stroke="#465568"
+              stroke-width="2"
+              stroke-dasharray="6 5"
+            />
+            <text
+              x="240"
+              y="104"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="24"
+              fill="#1d2733"
+            >
+              <tspan x="240" dy="0">Automation</tspan>
+            </text>
+            <text
+              x="720"
+              y="104"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="24"
+              fill="#1d2733"
+            >
+              <tspan x="720" dy="0">Release owner</tspan>
+            </text>
+            <path
+              data-edge="true"
+              d="M 256 224 V 260 Q 256 268 264 268 H 696 Q 704 268 704 276 V 300"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#release-handoffs-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 528 344 H 376 Q 368 344 368 352 V 424"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#release-handoffs-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 432 468 H 528"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#release-handoffs-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 704 512 V 548 Q 704 556 696 556 H 264 Q 256 556 256 564 V 588"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#release-handoffs-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 432 632 H 528"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#release-handoffs-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 704 676 V 712 Q 704 720 696 720 H 264 Q 256 720 256 728 V 752"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#release-handoffs-arrow)"
+            />
+            <g data-node="true">
+              <rect
+                x="80"
+                y="136"
+                width="352"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#0755a6"
+                stroke-width="3"
+              />
+              <text
+                x="256.0"
+                y="173.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="256.0" dy="0">Resolve qualified</tspan>
+                <tspan x="256.0" dy="30">candidate and archives</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="528"
+                y="300"
+                width="352"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="704.0"
+                y="337.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="704.0" dy="0">Review identity, sign tag</tspan>
+                <tspan x="704.0" dy="30">and choose npm channel</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="80"
+                y="424"
+                width="352"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="256.0"
+                y="476.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="256.0" dy="0">Stage native packages</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="528"
+                y="424"
+                width="352"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="704.0"
+                y="461.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="704.0" dy="0">Approve both native</tspan>
+                <tspan x="704.0" dy="30">stages with npm 2FA</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="80"
+                y="588"
+                width="352"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="256.0"
+                y="625.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="256.0" dy="0">Verify public natives;</tspan>
+                <tspan x="256.0" dy="30">stage core</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="528"
+                y="588"
+                width="352"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="704.0"
+                y="625.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="704.0" dy="0">Approve core stage</tspan>
+                <tspan x="704.0" dy="30">with npm 2FA</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="80"
+                y="752"
+                width="352"
+                height="112"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="256.0"
+                y="801.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="256.0" dy="0">Verify public family;</tspan>
+                <tspan x="256.0" dy="30">archive immutable release</tspan>
+              </text>
+            </g>
+            <text
+              x="480"
+              y="912"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="480" dy="0">
+                Verify the reviewed channel; promote or restore only if needed.
+              </tspan>
+            </text>
+            <text
+              x="480"
+              y="948"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="480" dy="0">
+                Reuse qualified bytes. Fresh qualification is an explicit
+                choice.
+              </tspan>
+            </text>
+          </svg>

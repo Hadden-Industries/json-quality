@@ -53,6 +53,14 @@ Where package contents or public contracts change, include real installed CLI, l
 Record commands, results and remaining gaps in the issue, PR or task.
 Local tests, hosted platform qualification and downstream acceptance are separate evidence.
 
+For current release references, edit the maintained files in `docs/release-templates/` and run `npm run sync:version`.
+`package.json.version` owns the current package and documentation version; historical changelog entries, plans and the contract cohort remain literal.
+`docs/release-versions.json.previousVersion` owns the comparison baseline for current release and migration guides.
+When preparing a release, update that baseline once, write its dated changes in `CHANGELOG.md`, then synchronize the current guides.
+Packing and `check:version` reject stale generated documents.
+Release-capable PR CI retains original artifacts and complete recipient evidence so an ordinary merged candidate can be promoted without repeating its qualification.
+The release resolver requires reuse by default; fresh qualification needs an explicit `force-fresh` request.
+
 ### Choose the formatter for the file type
 
 | File type                                       | Read-only check                 | Write changes             |

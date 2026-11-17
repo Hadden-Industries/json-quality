@@ -39,6 +39,39 @@ test("complete workflow contracts cover every local action and transfer caller",
   );
 });
 
+test("main full qualification grants the permissions required by nested CI acceptance", () => {
+  const path = ".github/workflows/main-qualification.yml";
+  const main = parse(
+    readFileSync(new URL(`../${path}`, import.meta.url), "utf8"),
+  );
+  assert.equal(main.jobs.full.permissions["pull-requests"], "read");
+  delete main.jobs.full.permissions["security-events"];
+  assert.throws(
+    () => checkWorkflows({ overrides: { [path]: stringify(main) } }),
+    /reusable workflow permission/u,
+  );
+});
+
+test("source and product admission reject explicit YAML false rather than treating it as omission", () => {
+  for (const [path, job, command] of [
+    [".github/workflows/ci.yml", "policy", "npm run check:source"],
+    [
+      ".github/workflows/qualification.yml",
+      "producer",
+      "npm run check:product",
+    ],
+  ]) {
+    const workflow = parse(
+      readFileSync(new URL(`../${path}`, import.meta.url), "utf8"),
+    );
+    workflow.jobs[job].steps.find((step) => step.run === command).if = false;
+    assert.throws(
+      () => checkWorkflows({ overrides: { [path]: stringify(workflow) } }),
+      /source gate|remaining qualification/u,
+    );
+  }
+});
+
 test("native workflow keeps source-bound production and focused checks distinct from full qualification", () => {
   const load = (name) =>
     parse(
@@ -342,6 +375,25 @@ test("workflow contracts reject broken metadata, callers and shared deadline dri
       (step) => step.uses === "./.github/actions/upload-evidence",
     );
   for (const [name, path, change, expected] of [
+    [
+      "explicit false release setup",
+      ".github/workflows/stage-release.yml",
+      (data) => {
+        data.jobs.stage.steps.find(
+          (step) => step.uses === "./.github/actions/setup-writer",
+        ).if = false;
+      },
+      /release dependency setup/u,
+    ],
+    [
+      "uploader before dependencies",
+      qualification,
+      (data) => {
+        const steps = data.jobs.producer.steps;
+        steps.unshift(...steps.splice(steps.indexOf(transfer(data)), 1));
+      },
+      /SDK upload requires/u,
+    ],
     [
       "skipped source admission",
       ci,

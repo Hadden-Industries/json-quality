@@ -3,6 +3,51 @@
 import assert from "node:assert/strict";
 import { repository, sha256 } from "./release-contract.js";
 import { familyOrder } from "./promotion-family.js";
+import { currentWriterRun } from "./writer-artifact-receipt.js";
+
+/** A native one-shot DELETE can prove its own 401 refusal, without provider prose. */
+export function pilotDeleteRefusal(error, packageName) {
+  if (
+    !Number.isSafeInteger(error.facts?.exit) ||
+    error.facts.exit <= 0 ||
+    error.facts.signal !== null ||
+    error.facts.timeout !== false ||
+    error.cause
+  )
+    return null;
+  let body;
+  try {
+    body = JSON.parse(error.stdout)?.error;
+  } catch {
+    return null;
+  }
+  if (body?.code !== "E401" || typeof body.summary !== "string") return null;
+  const match =
+    /^401 Unauthorized - DELETE (https:\/\/\S+)(?: - [\s\S]*)?$/u.exec(
+      body.summary,
+    );
+  if (!match || !isPilotDeleteUrl(match[1], packageName)) return null;
+  return {
+    method: "DELETE",
+    status: 401,
+    endpoint: `https://registry.npmjs.org/-/package/${packageName.replaceAll("/", "%2f")}/dist-tags/pilot`,
+    exit: error.facts.exit,
+  };
+}
+
+function isPilotDeleteUrl(value, packageName) {
+  try {
+    const url = new URL(value);
+    return (
+      url.origin === "https://registry.npmjs.org" &&
+      url.username + url.password + url.search + url.hash === "" &&
+      decodeURIComponent(url.pathname) ===
+        `/-/package/${packageName}/dist-tags/pilot`
+    );
+  } catch {
+    return false;
+  }
+}
 
 /** A new settlement must belong to the fresh digest-bound retirement decision. */
 export function verifyRejectedPilotDecisionBinding(record, env) {
@@ -156,33 +201,41 @@ export function verifyRejectedPilotRequest(
   assert.equal(started.attempt, String(original.run.run_attempt));
   assert.equal(started.source, intent.controller);
   assert.equal(failed.state, "failed");
-  assert.equal(failed.exit, 1);
+  assert.ok(Number.isSafeInteger(failed.exit) && failed.exit > 0);
   assert.equal(failed.signal, null);
   assert.equal(failed.timeout, false);
-  assert.equal(diagnostic.stdout, "");
-  const lines = diagnostic.stderr.split(/\r?\n/u);
-  assert.equal(
-    lines.filter((line) => line === "npm error code E401").length,
-    1,
-  );
-  const rejections = lines.flatMap((line) => {
-    const match = /^npm error 401 Unauthorized - DELETE (https:\/\/\S+)$/u.exec(
-      line,
+  if (outcome.refusal) {
+    assert.deepEqual(diagnostic.refusal, outcome.refusal);
+    assert.deepEqual(outcome.refusal, {
+      method: "DELETE",
+      status: 401,
+      endpoint: `https://registry.npmjs.org/-/package/${intent.package.replaceAll("/", "%2f")}/dist-tags/pilot`,
+      exit: failed.exit,
+    });
+  } else {
+    assert.ok(
+      !original.run.workflow_id || !currentWriterRun("promote", original.run),
+      "Current writer must retain a structured pilot refusal",
     );
-    return match ? [new URL(match[1])] : [];
-  });
-  assert.equal(
-    rejections.length,
-    1,
-    "Exact rejected DELETE response is required",
-  );
-  const url = rejections[0];
-  assert.equal(url.origin, "https://registry.npmjs.org");
-  assert.equal(url.username + url.password + url.search + url.hash, "");
-  assert.equal(
-    decodeURIComponent(url.pathname),
-    `/-/package/${intent.package}/dist-tags/pilot`,
-  );
+    assert.equal(failed.exit, 1);
+    assert.equal(diagnostic.stdout, "");
+    const lines = diagnostic.stderr.split(/\r?\n/u);
+    assert.equal(
+      lines.filter((line) => line === "npm error code E401").length,
+      1,
+    );
+    const rejections = lines.flatMap((line) => {
+      const match =
+        /^npm error 401 Unauthorized - DELETE (https:\/\/\S+)$/u.exec(line);
+      return match ? [match[1]] : [];
+    });
+    assert.equal(
+      rejections.length,
+      1,
+      "Exact rejected DELETE response is required",
+    );
+    assert.ok(isPilotDeleteUrl(rejections[0], intent.package));
+  }
   return {
     state: "family-request-rejected",
     operationId: family.operationId,

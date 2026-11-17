@@ -17,6 +17,26 @@ import {
   currentMain,
 } from "./release-provider.js";
 import { manualControl, workflows, repository } from "./release-contract.js";
+import { verifyBuildEvidence } from "./release-promotion-evidence.js";
+import {
+  readWriterReservations,
+  requireCurrentReservation,
+} from "./release-writer-reservations.js";
+import {
+  admittedStageOrigins,
+  releaseDecisionDigest,
+  requireHostedStageInventory,
+} from "./release-stage-inventory.js";
+
+function hostedReservation(phase, env, observed, reservations) {
+  return requireCurrentReservation(
+    phase,
+    env,
+    observed,
+    releaseDecisionDigest(phase, env),
+    reservations,
+  );
+}
 
 const scope = (env) => ({
   stagePhase: env.STAGE_PHASE || "natives",
@@ -28,6 +48,9 @@ const scope = (env) => ({
   expectedLabels: env.EXPECTED_LABELS || null,
   restoreVersion: env.RESTORE_VERSION || null,
   restorationSha256: env.RESTORATION_SHA || null,
+  ...(env.STAGE_CHECKPOINT_JSON
+    ? { stageCheckpointSha256: sha256(Buffer.from(env.STAGE_CHECKPOINT_JSON)) }
+    : {}),
 });
 
 /** Caller has completed full qualification, history, signatures and target/security admission. */
@@ -38,6 +61,26 @@ export function prepareWriterAdmission(
   env,
   prepared = null,
 ) {
+  let writeGuards;
+  if (env.GITHUB_ACTIONS === "true") {
+    requireHostedStageInventory(
+      phase,
+      env,
+      admittedStageOrigins(phase, env, admitted.context),
+    );
+    const run = api(
+      `actions/runs/${env.GITHUB_RUN_ID}/attempts/${env.GITHUB_RUN_ATTEMPT}`,
+    );
+    writeGuards = {
+      reservation: hostedReservation(
+        phase,
+        env,
+        run,
+        readWriterReservations(phase, api),
+      ),
+      stageInventorySha256: env.STAGE_INVENTORY_SHA,
+    };
+  }
   const record = {
     schemaVersion: 1,
     state: "admitted-read-only",
@@ -55,6 +98,7 @@ export function prepareWriterAdmission(
     securitySha256: prepared
       ? sha256(Buffer.from(JSON.stringify(prepared.security)))
       : null,
+    ...(writeGuards ? { writeGuards } : {}),
   };
   const path = join(directory, "writer-admission.json");
   // A later dispatch re-admits original evidence without mutating its original records.
@@ -107,6 +151,7 @@ export function consumeWriterAdmission(directory, phase, env, readers = {}) {
     record.release,
     readJson(join(directory, "release-manifest.json")),
   );
+  if (record.release.promotion) verifyBuildEvidence(record.release, directory);
   const read = readers.api ?? api,
     observe = readers.provider ?? provider;
   const artifact = read(`actions/artifacts/${env.ADMISSION_ARTIFACT_ID}`);
@@ -146,6 +191,29 @@ export function consumeWriterAdmission(directory, phase, env, readers = {}) {
   const admit = observed.jobs.jobs.filter((job) => job.name === "admit");
   assert.equal(admit.length, 1);
   assert.equal(admit[0].conclusion, "success");
+  if (!readers.readOnly && env.GITHUB_ACTIONS === "true") {
+    assert.equal(
+      record.writeGuards?.stageInventorySha256,
+      env.STAGE_INVENTORY_SHA,
+    );
+    const reservations = readWriterReservations(phase, read);
+    const current = hostedReservation(phase, env, observed.run, reservations);
+    const admitted =
+      record.origin.attempt === env.GITHUB_RUN_ATTEMPT
+        ? current
+        : hostedReservation(
+            phase,
+            { ...env, GITHUB_RUN_ATTEMPT: record.origin.attempt },
+            observe(record.origin.run, record.origin.attempt).run,
+            reservations,
+          );
+    assert.deepEqual(record.writeGuards.reservation, admitted);
+    requireHostedStageInventory(
+      phase,
+      env,
+      admittedStageOrigins(phase, env, record.context),
+    );
+  }
   if (!readers.readOnly) (readers.currentMain ?? currentMain)(env);
   return record;
 }

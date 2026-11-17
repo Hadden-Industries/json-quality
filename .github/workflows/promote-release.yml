@@ -2,6 +2,14 @@ name: Promote or restore exact availability labels
 on:
   workflow_dispatch:
     inputs:
+      stage_inventory_json:
+        description: Fresh owner-captured pending stage observation for the exact decision
+        required: true
+        type: string
+      stage_inventory_sha:
+        description: SHA256 of the exact stage inventory bytes
+        required: true
+        type: string
       operation_json:
         description: Exact owner-reviewed family promotion, alignment, restoration or pilot retirement scope and qualification identities
         required: true
@@ -59,6 +67,8 @@ defaults:
   run:
     shell: bash
 env:
+  STAGE_INVENTORY_JSON: ${{ inputs.stage_inventory_json }}
+  STAGE_INVENTORY_SHA: ${{ inputs.stage_inventory_sha }}
   OPERATION_JSON: ${{ inputs.operation_json }}
   OPERATION_SHA: ${{ inputs.operation_sha }}
   RECOVERY_JSON: ${{ inputs.recovery_json }}

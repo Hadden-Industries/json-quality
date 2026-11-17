@@ -1,0 +1,29 @@
+name: Retain the latest qualified main candidate
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Main qualification]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+  actions: write
+  pull-requests: read
+concurrency:
+  group: json-quality-release-mutation
+  cancel-in-progress: false
+jobs:
+  retain:
+    if: github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && github.actor == 'maksymshostak') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-producer
+      - name: Verify the successor and remove only unreferenced predecessor artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/candidate-retention.js --apply

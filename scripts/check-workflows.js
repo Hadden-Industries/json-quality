@@ -238,13 +238,18 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         );
         return (
           checks?.length === 1 &&
-          !checks[0].if &&
+          !Object.hasOwn(checks[0], "if") &&
           !checks[0]["continue-on-error"] &&
           !gate["continue-on-error"]
         );
       });
       assert.ok(
-        gates.length === 1 && !job.if && !job["continue-on-error"],
+        gates.length === 1 &&
+          (!Object.hasOwn(job, "if") ||
+            (path === "./.github/workflows/release-qualification.yml" &&
+              job.if ===
+                "inputs.force-fresh && needs.resolve.outputs.reused == 'false'")) &&
+          !job["continue-on-error"],
         `${path}: package qualification requires one blocking source gate`,
       );
     }
@@ -253,7 +258,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     .jobs.producer.steps.filter((step) => step.run === "npm run check:product");
   assert.ok(
     productChecks.length === 1 &&
-      !productChecks[0].if &&
+      !Object.hasOwn(productChecks[0], "if") &&
       !productChecks[0]["continue-on-error"],
     "Reusable producer must run the complete remaining qualification phase",
   );
@@ -342,6 +347,14 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
   ]) {
     const workflow = workflows.get(`./.github/workflows/${path}`);
     assert.equal(workflow.jobs[writer].environment, environment);
+    for (const key of ["json", "sha"]) {
+      const input = `stage_inventory_${key}`;
+      assert.equal(
+        workflow.env?.[`STAGE_INVENTORY_${key.toUpperCase()}`],
+        `\${{ inputs.${input} }}`,
+      );
+      assert.equal(workflow.on.workflow_dispatch.inputs[input].required, true);
+    }
     for (const [name, job] of Object.entries(workflow.jobs)) {
       const steps = job.steps ?? [],
         privileged =
@@ -350,8 +363,15 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           ? "./.github/actions/setup-writer"
           : "./.github/actions/setup-producer",
         setup = steps.findIndex((step) => step.uses === requiredSetup);
+      if (name === "admit" || privileged)
+        assert.equal(
+          steps.find((step) => step.uses?.startsWith("actions/checkout@"))
+            ?.with?.["fetch-depth"],
+          0,
+          `${path}/${name}: signed release admission requires Git history`,
+        );
       assert.ok(
-        setup >= 0 && !steps[setup].if,
+        setup >= 0 && !Object.hasOwn(steps[setup], "if"),
         `${path}/${name}: release dependency setup is required for its authority`,
       );
       assert.equal(
@@ -469,6 +489,15 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
   assert.deepEqual(promotion.jobs.complete.needs, ["admit", "npm", "github"]);
   assert.deepEqual(promotion.jobs.github.needs, ["admit", "npm"]);
   const staging = workflows.get("./.github/workflows/stage-release.yml");
+  assert.equal(
+    workflows
+      .get("./.github/workflows/release-registry.yml")
+      .jobs.admit.steps.find((step) =>
+        step.uses?.startsWith("actions/checkout@"),
+      )?.with?.["fetch-depth"],
+    0,
+    "Registry stage recovery requires Git history",
+  );
   assert.deepEqual(staging.on.workflow_dispatch.inputs.stage_phase.options, [
     "natives",
     "core",
@@ -509,6 +538,35 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     "PR producer retention must cover the compact reuse-proof horizon",
   );
   let callers = 0;
+  // A called workflow may override its own defaults, but cannot exceed the
+  // caller's token ceiling. Check nested calls even when their job is skipped.
+  const access = (permissions, scope) =>
+    permissions === "write-all"
+      ? 2
+      : permissions === "read-all"
+        ? 1
+        : ({ none: 0, read: 1, write: 2 }[permissions?.[scope]] ?? 0);
+  const checkCalledPermissions = (path, ceiling, trail = []) => {
+    assert.ok(!trail.includes(path), `${path}: recursive reusable workflow`);
+    const called = workflows.get(path);
+    for (const job of Object.values(called.jobs ?? {})) {
+      const requested = job.permissions ?? called.permissions ?? ceiling;
+      // The sentinel represents every unspecified scope for read-all/write-all;
+      // named scopes come from the documents, so newly added scopes are covered.
+      const scopes = new Set([
+        ...Object.keys(typeof requested === "object" ? requested : {}),
+        ...Object.keys(typeof ceiling === "object" ? ceiling : {}),
+        "*",
+      ]);
+      for (const scope of scopes)
+        assert.ok(
+          access(requested, scope) <= access(ceiling, scope),
+          `${path}: reusable workflow permission ${scope} exceeds caller ceiling`,
+        );
+      if (job.uses?.startsWith("./.github/workflows/"))
+        checkCalledPermissions(job.uses, requested, [...trail, path]);
+    }
+  };
   for (const [path, workflow] of workflows) {
     for (const name of workflow.on?.workflow_run?.workflows ?? [])
       assert.ok(
@@ -524,8 +582,10 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
           `${path}: unknown reusable workflow ${job.uses}`,
         );
         inputs(path, job.with, called.on.workflow_call?.inputs);
+        const ceiling = job.permissions ?? workflow.permissions;
+        if (ceiling !== undefined) checkCalledPermissions(job.uses, ceiling);
       }
-      for (const step of job.steps ?? []) {
+      for (const [index, step] of (job.steps ?? []).entries()) {
         if (step.run) scriptReferences(path, step.run);
         pinned(path, step.uses);
         checkoutRevision(path, step);
@@ -539,6 +599,31 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
         const action = actions.get(step.uses);
         assert.ok(action, `${path}: unresolved local action ${step.uses}`);
         inputs(path, step.with, action.inputs);
+        if (step.uses === "./.github/actions/upload-evidence") {
+          const preceding = job.steps.slice(0, index);
+          const setup = preceding.findLastIndex(
+            (prior) =>
+              (prior.uses === "./.github/actions/setup-producer" ||
+                (path === "./.github/workflows/json-quality.yml" &&
+                  prior["working-directory"] === "producer" &&
+                  prior.run === "npm run install:producer-dependencies")) &&
+              (!Object.hasOwn(prior, "if") ||
+                (typeof prior.if === "string" &&
+                  !["false", "${{ false }}"].includes(prior.if) &&
+                  prior.if === step.if)),
+          );
+          // Consumer runtime selection is safe: the native uploader retains the
+          // producer executable pair instead of invoking the replacement PATH Node.
+          assert.ok(
+            setup >= 0 &&
+              !preceding
+                .slice(setup + 1)
+                .some(
+                  (prior) => prior.uses === "./.github/actions/setup-writer",
+                ),
+            `${path}: SDK upload requires prior frozen producer dependencies on the same path`,
+          );
+        }
         if (transferBudgets.has(step.uses)) {
           callers++;
           assert.equal(

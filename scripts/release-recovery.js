@@ -527,7 +527,7 @@ function reconcileOne(
         const history = (readers.readHistoryRecord ?? readHistoryRecord)(
           record.cancellationCheckpoint,
         );
-        assert.equal(history.schemaVersion, 2);
+        assert.ok(history.schemaVersion >= 2);
         const matches = history.stageCancellations?.filter(
           (item) => item.stageId === selected[0].stageId,
         );

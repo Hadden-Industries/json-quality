@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Candidate bytes do not control policy | JSON Quality</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #ffffff;
+        color: #1d2733;
+        font:
+          1rem/1.6 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 960px;
+        margin: auto;
+        min-width: 0;
+      }
+      h1 {
+        font-size: 1.5rem;
+        line-height: 1.3;
+      }
+      figure {
+        margin: 0;
+      }
+      .diagram-container {
+        width: 100%;
+        overflow-x: auto;
+      }
+      svg {
+        display: block;
+        width: 100%;
+        min-width: 960px;
+      }
+      figcaption {
+        margin-top: 16px;
+      }
+      @media print {
+        svg {
+          min-width: 0;
+        }
+        .diagram-container {
+          overflow: visible;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Candidate bytes do not control policy</h1>
+      <figure>
+        <div
+          class="diagram-container"
+          role="region"
+          aria-label="Scrollable diagram"
+          tabindex="0"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 960 720"
+            role="img"
+            aria-labelledby="trusted-ci-title trusted-ci-desc"
+          >
+            <title id="trusted-ci-title">
+              Candidate bytes do not control policy
+            </title>
+            <desc id="trusted-ci-desc">
+              A pinned trusted producer and local schemas admit the policy from
+              a separately selected trusted commit, or package defaults after
+              proven policy absence. Raw blobs from the candidate commit enter
+              the shared native checker as data only. The candidate policy
+              cannot govern checking and candidate code is not executed. Only
+              the final execution-terminal closes the immutable-git-json scope;
+              it does not establish application-domain validity.
+            </desc>
+            <defs>
+              <marker
+                id="trusted-ci-arrow"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+              >
+                <path d="M 0 0 L 8 4 L 0 8 Z" fill="#465568" />
+              </marker>
+            </defs>
+            <rect width="960" height="720" fill="#ffffff" />
+            <text
+              x="40"
+              y="48"
+              text-anchor="start"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="30"
+              fill="#1d2733"
+            >
+              <tspan x="40" dy="0">Candidate bytes do not control policy</tspan>
+            </text>
+            <rect
+              x="40"
+              y="96"
+              width="536"
+              height="448"
+              rx="6"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              stroke-dasharray="6 5"
+            />
+            <text
+              x="64"
+              y="128"
+              text-anchor="start"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="64" dy="0">Trusted execution boundary</tspan>
+            </text>
+            <path
+              data-edge="true"
+              d="M 208 244 V 296"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#trusted-ci-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 208 380 V 432"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#trusted-ci-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 656 372 H 508 Q 500 372 500 380 V 466 Q 500 474 492 474 H 368"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              marker-end="url(#trusted-ci-arrow)"
+            />
+            <path
+              data-edge="true"
+              d="M 656 200 H 592"
+              fill="none"
+              stroke="#465568"
+              stroke-width="2"
+              stroke-dasharray="6 5"
+            />
+            <path d="M 592 188 V 212" stroke="#1d2733" stroke-width="4" />
+            <g data-label="true">
+              <rect x="568.0" y="122" width="104" height="30" fill="#ffffff" />
+              <text
+                x="620"
+                y="144"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="18"
+                fill="#465568"
+              >
+                <tspan x="620" dy="0">BLOCKED</tspan>
+              </text>
+            </g>
+            <g data-label="true">
+              <rect x="468.0" y="330" width="128" height="30" fill="#ffffff" />
+              <text
+                x="532"
+                y="352"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="18"
+                fill="#465568"
+              >
+                <tspan x="532" dy="0">DATA ONLY</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="80"
+                y="160"
+                width="288"
+                height="84"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="224.0"
+                y="195.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="224.0" dy="0">Pinned producer</tspan>
+                <tspan x="224.0" dy="30">and local schemas</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="80"
+                y="296"
+                width="288"
+                height="84"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="224.0"
+                y="331.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="224.0" dy="0">Policy from trusted</tspan>
+                <tspan x="224.0" dy="30">commit or defaults</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="80"
+                y="432"
+                width="288"
+                height="84"
+                rx="6"
+                fill="#ffffff"
+                stroke="#0755a6"
+                stroke-width="3"
+              />
+              <text
+                x="224.0"
+                y="482.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="224.0" dy="0">Shared native checker</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="656"
+                y="160"
+                width="264"
+                height="84"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="788.0"
+                y="195.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="788.0" dy="0">Candidate policy</tspan>
+                <tspan x="788.0" dy="30">cannot govern</tspan>
+              </text>
+            </g>
+            <g data-node="true">
+              <rect
+                x="656"
+                y="328"
+                width="264"
+                height="88"
+                rx="6"
+                fill="#ffffff"
+                stroke="#465568"
+                stroke-width="2"
+              />
+              <text
+                x="788.0"
+                y="365.0"
+                text-anchor="middle"
+                font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+                font-size="24"
+                fill="#1d2733"
+              >
+                <tspan x="788.0" dy="0">Candidate commit</tspan>
+                <tspan x="788.0" dy="30">raw Git blobs</tspan>
+              </text>
+            </g>
+            <text
+              x="480"
+              y="600"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="480" dy="0">
+                Only trusted policy governs the checked candidate bytes.
+              </tspan>
+            </text>
+            <text
+              x="480"
+              y="638"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#1d2733"
+            >
+              <tspan x="480" dy="0">
+                Candidate scripts, hooks and executable providers never run.
+              </tspan>
+            </text>
+            <text
+              x="480"
+              y="676"
+              text-anchor="middle"
+              font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+              font-size="22"
+              fill="#0755a6"
+            >
+              <tspan x="480" dy="0">
+                Read the final execution-terminal for the complete verdict.
+              </tspan>
+            </text>
+          </svg>
+        </div>
+        <figcaption>
+          A pinned trusted producer and local schemas admit the policy from a
+          separately selected trusted commit, or package defaults after proven
+          policy absence. Raw blobs from the candidate commit enter the shared
+          native checker as data only. The candidate policy cannot govern
+          checking and candidate code is not executed. Only the final
+          execution-terminal closes the immutable-git-json scope; it does not
+          establish application-domain validity.
+        </figcaption>
+      </figure>
+    </main>
+  </body>
+</html>
