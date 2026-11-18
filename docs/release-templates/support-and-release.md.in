@@ -7,8 +7,8 @@ Release maintainers should follow the [release runbook](release-operations.md).
 ## Compatibility
 
 The CLI, SDK, configuration and public schemas need no migration from {{release.previousVersion}}.
-Contract cohort 6, event schema 5, configuration/source-contract schema 4, native protocol 5 and Node-API 9 remain unchanged.
-The consumer minimum remains Node.js 22.13.0.
+This release uses contract cohort {{release.cohortVersion}}, event schema {{release.eventSchemaVersion}}, configuration/source-contract schema {{release.configurationSchemaVersion}}, native protocol {{release.nativeProtocolVersion}} and Node-API {{release.nodeApiVersion}}.
+The consumer minimum is Node.js {{release.nodeMinimum}}.
 Supported native packages target Windows x64 and Linux x64 with glibc.
 
 The core and both native companions share version {{release.version}}.
@@ -29,6 +29,8 @@ The [{{release.version}} changelog entry](../CHANGELOG.md#{{release.versionAncho
   Missing, expired or contradictory proof stops before a matrix starts; `force-fresh` explicitly selects complete requalification.
 - **Refresh the qualified graphs.**
   Advisory checks use the original producer and recipient locks without reinstalling packages or running lifecycle scripts.
+  The policy requires zero findings for each graph.
+  The receipt records the policy digest alongside the audited lock digests.
   Reused analyses retain their scanner/query identities and must match required policy.
   Public registry installation, signatures and provenance are still checked after publication approval.
 - **Recover without repeating a write.**

@@ -153,6 +153,60 @@ test("version synchronization ignores JSON member order and whitespace without r
   assert.deepEqual(snapshot(), before, "Equal projections must preserve bytes");
 });
 
+test("current documentation follows the repository, Node policy and contract cohort", (t) => {
+  const { directory, snapshot } = fixture(t);
+  const update = (path, changes) => {
+    const target = join(directory, path);
+    const value = JSON.parse(readFileSync(target));
+    writeFileSync(target, JSON.stringify({ ...value, ...changes }));
+  };
+  update("package.json", {
+    repository: {
+      ...metadata.repository,
+      url: "git+https://github.com/example/json-sample.git",
+    },
+  });
+  update("assets/node-support.json", { minimum: "24.0.0" });
+  update("schemas/contract-cohort.json", {
+    cohortVersion: 7,
+    configurationSchemaVersion: 5,
+    eventSchemaVersion: 6,
+    nativeProtocolVersion: 6,
+    componentSchemaVersion: 5,
+    nodeApiVersion: 10,
+  });
+  const companions = VERSION_PROJECTION_PATHS.filter(
+    (path) => path !== "package-lock.json",
+  );
+  const expected = [...companions, ...releaseDocuments];
+  const before = snapshot();
+  assert.deepEqual(synchronizePackageVersion(directory), expected);
+  assert.deepEqual(snapshot(), before);
+  assert.deepEqual(
+    synchronizePackageVersion(directory, { write: true }),
+    expected,
+  );
+  const after = snapshot();
+  assert.ok(
+    after["README.md"].includes(
+      `https://github.com/example/json-sample/blob/v${metadata.version}/docs/consumer-guide.md`,
+    ),
+  );
+  assert.ok(after["docs/migration-guide.md"].includes("Node.js 24.0.0"));
+  assert.ok(
+    after["docs/consumer-guide.md"].includes(
+      "cohort 7, events 6, configuration/source-contract 5, native protocol 6, component schema 5 and Node-API 10",
+    ),
+  );
+  assert.equal(after["package-lock.json"], before["package-lock.json"]);
+  for (const path of companions)
+    assert.deepEqual(
+      JSON.parse(after[path]).repository,
+      JSON.parse(after["package.json"]).repository,
+    );
+  assert.deepEqual(synchronizePackageVersion(directory), []);
+});
+
 test("one package version edit synchronizes companions and lock identities while preserving policy inventory and fingerprint", (t) => {
   const { directory, snapshot } = fixture(t);
   const fingerprint = policyResolverFingerprint(directory);

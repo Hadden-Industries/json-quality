@@ -15,7 +15,7 @@ Let npm update its lockfile, keep optional dependencies enabled, and commit both
 The matching Windows or Linux companion must have the same version as the core.
 Run the project's existing JSON checks and integration tests after the update.
 
-Node.js 22.13.0 remains the consumer minimum.
+Node.js 22.13.0 is the consumer minimum.
 The native platforms remain Windows x64 and Linux x64 with glibc.
 The [runtime compatibility policy](node-runtime-compatibility.md) lists qualified families and separates consumer requirements from contributor tooling.
 

@@ -5,14 +5,11 @@ import { fileURLToPath } from "node:url";
 import nodeSupport from "../assets/node-support.json" with { type: "json" };
 import { npmCommand } from "./qualification-process.js";
 import { pages } from "./release-provider.js";
-import { repository, packageName, workflows } from "./release-contract.js";
-import { nativePackages } from "../src/native-packages.js";
+import { workflows } from "./release-contract.js";
+import { releasePackageNames, repository } from "./release-identity.js";
 import { sha256, save } from "./release-records.js";
 
-const family = [
-  packageName,
-  ...Object.values(nativePackages).map(({ package: name }) => name),
-].sort();
+const family = [...releasePackageNames].sort();
 const registry = "https://registry.npmjs.org/";
 const owner = "maksymshostak";
 const command = "npm stage list";

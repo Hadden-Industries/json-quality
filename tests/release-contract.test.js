@@ -2953,6 +2953,13 @@ test("native audit and anonymous config deny findings and inherited token/config
       vulnerabilities: { low: {} },
     }),
   );
+  assert.throws(() =>
+    verifyAudit({
+      auditReportVersion: 2,
+      metadata: { vulnerabilities: { total: 0, low: 1 } },
+      vulnerabilities: {},
+    }),
+  );
   const env = isolatedNpmEnvironment(temp(t), {
     npm_config_userconfig: "secret",
     NPM_TOKEN: "secret",

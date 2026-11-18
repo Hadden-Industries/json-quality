@@ -99,7 +99,8 @@ Edit only `package.json.version`, then run `npm run sync:version` to project com
 Edit current release prose in `docs/release-templates/*.in`; the generated README, consumer guide and this runbook are checked before packing.
 The documentation index, release overview and migration guide use the same projection.
 `docs/release-versions.json.previousVersion` owns their comparison baseline; update it when selecting a new baseline, rather than repeating that version in templates.
-Historical changelog entries, closeout records and the contract cohort retain their original values.
+The projection reads tagged source links, the minimum Node version and contract versions from `package.json`, `assets/node-support.json` and `schemas/contract-cohort.json`.
+Historical changelog entries and closeout records keep their original values.
 
 Policy provenance independently fingerprints current input bytes and selected dependency declarations; version-only changes leave its readable input inventory and fingerprint unchanged.
 `npm run check:version` detects drift without writing; repository qualification and hosted native production run it before expensive work.

@@ -13,7 +13,11 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { requireCleanAudit } from "./check-security.js";
+import {
+  advisorySource,
+  auditPolicySha256,
+  requireCleanAudit,
+} from "./dependency-audit-policy.js";
 import { isolatedNpmEnvironment } from "./release-inventory.js";
 import { npmCommand, budgets } from "./qualification-process.js";
 import {
@@ -104,9 +108,8 @@ export function qualifyFrozenGraphs(
   const policy = {
     schemaVersion: 1,
     observedAt: new Date().toISOString(),
-    advisorySource:
-      "https://registry.npmjs.org/-/npm/v1/security/advisories/bulk",
-    policySha256: sha256(readFileSync(fileURLToPath(import.meta.url))),
+    advisorySource,
+    policySha256: auditPolicySha256(),
     results,
   };
   save(join(output, "audit-policy.json"), policy);

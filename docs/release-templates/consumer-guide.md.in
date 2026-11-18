@@ -1,7 +1,7 @@
 # JSON Quality consumer guide
 
 Use this guide to [read a value from its original bytes](#stream-a-source-and-read-lossless-values), [check a complete repository](#complete-repository-checks-and-trusted-adapters), or [apply a guarded repair](#explicit-transformations-and-replacements).
-The examples use JSON Quality {{release.version}} and the Node.js ESM API from contract cohort 6.
+The examples use JSON Quality {{release.version}} and the Node.js ESM API from contract cohort {{release.cohortVersion}}.
 For individual signatures and return types, see the [API reference](api.md).
 For an existing installation, follow the [upgrade from {{release.previousVersion}}](migration-guide.md#{{release.migrationAnchor}}).
 
@@ -310,7 +310,7 @@ Raw source checking cannot replace trusted repository obligations.
 ### Upgrade an existing integration
 
 Upgrade the core and platform companions together.
-The `contract-cohort` export identifies cohort 6, events 5, configuration/source-contract 4, native protocol 5, component schema 4 and Node-API 9.
+The `contract-cohort` export identifies cohort {{release.cohortVersion}}, events {{release.eventSchemaVersion}}, configuration/source-contract {{release.configurationSchemaVersion}}, native protocol {{release.nativeProtocolVersion}}, component schema {{release.componentSchemaVersion}} and Node-API {{release.nodeApiVersion}}.
 Historical artifacts retain their original versions.
 Use cohort-matched evidence for qualification and [migrate retired policy fields](configuration.md#provenance-and-migration).
 

@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import {
+  packageName,
+  repository as releaseRepository,
+} from "./release-identity.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ubuntuRunner, windowsRunner } from "./runner-policy.js";
@@ -89,7 +93,7 @@ export function checkNativeWorkflowContract({ producer, wrapper }) {
     );
     assert.equal(
       admission.run.trim(),
-      `[[ "$PRODUCER_REPOSITORY" == "Hadden-Industries/json-quality" && "$CALLER_REPOSITORY" == "$PRODUCER_REPOSITORY" ]]
+      `[[ "$PRODUCER_REPOSITORY" == "${releaseRepository}" && "$CALLER_REPOSITORY" == "$PRODUCER_REPOSITORY" ]]
 [[ "$PRODUCER_SHA" =~ ^[a-f0-9]{40}$ && "$CALLER_SHA" == "$PRODUCER_SHA" ]]
 case "$VERIFICATION_PROFILE" in full|cli-community|resource-controls) ;; *) echo 'Unknown verification profile' >&2; exit 2;; esac
 [[ "$RUN_CHECKS" == "true" || "$RUN_CHECKS" == "false" ]]
@@ -116,7 +120,7 @@ case "$VERIFICATION_PROFILE" in full|cli-community|resource-controls) ;; *) echo
     );
     assert.equal(
       verify.run,
-      `node --input-type=module -e 'import assert from "node:assert/strict"; import {execFileSync} from "node:child_process"; import {readFileSync} from "node:fs"; assert.equal(execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim(),process.env.PRODUCER_SHA); assert.equal(JSON.parse(readFileSync("package.json","utf8")).name,"@hadden-industries/json-quality");'`,
+      `node --input-type=module -e 'import assert from "node:assert/strict"; import {execFileSync} from "node:child_process"; import {readFileSync} from "node:fs"; assert.equal(execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim(),process.env.PRODUCER_SHA); assert.equal(JSON.parse(readFileSync("package.json","utf8")).name,"${packageName}");'`,
       message,
     );
   }

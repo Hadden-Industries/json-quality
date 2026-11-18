@@ -88,6 +88,14 @@ test("fresh assurance uses original producing attempts and retains only compact 
   };
   const result = qualifyReleaseAssurance(directory, output, options);
   assert.equal(result.results.length, 1 + 2 * f.records.length);
+  assert.equal(
+    result.policySha256,
+    sha256(
+      readFileSync(
+        new URL("../scripts/dependency-audit-policy.js", import.meta.url),
+      ),
+    ),
+  );
   assert.ok(
     readdirSync(output).every(
       (name) => name === "audit-policy.json" || name.endsWith("-audit.json"),

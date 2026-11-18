@@ -438,6 +438,13 @@ test("skipped mandatory work and incomplete audit data remain blocking", () => {
   assert.throws(() =>
     requireCleanAudit({
       auditReportVersion: 2,
+      vulnerabilities: {},
+      metadata: { vulnerabilities: { low: 0 } },
+    }),
+  );
+  assert.throws(() =>
+    requireCleanAudit({
+      auditReportVersion: 2,
       vulnerabilities: { package: { severity: "low" } },
       metadata: { vulnerabilities: { total: 1 } },
     }),

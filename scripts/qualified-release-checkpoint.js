@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Signed history retains public qualification independently of writer settlements. */
+import { repository as releaseRepository } from "./release-identity.js";
 import assert from "node:assert/strict";
 import { verifyStableAssets } from "./release-asset-identity.js";
 import { releaseCommit } from "./release-promotion-evidence.js";
@@ -55,7 +56,7 @@ export function collectQualifiedTarget(
       "verify",
       `v${release.version}`,
       "--repo",
-      "Hadden-Industries/json-quality",
+      releaseRepository,
       "--format",
       "json",
     ]);
@@ -95,7 +96,7 @@ function collectOriginalQualifiedTarget(directory, scratch) {
     "verify",
     `v${release.version}`,
     "--repo",
-    "Hadden-Industries/json-quality",
+    releaseRepository,
     "--format",
     "json",
   ]);
@@ -105,7 +106,7 @@ function collectOriginalQualifiedTarget(directory, scratch) {
     `v${release.version}`,
     join(directory, "release-manifest.json"),
     "--repo",
-    "Hadden-Industries/json-quality",
+    releaseRepository,
     "--format",
     "json",
   ]);

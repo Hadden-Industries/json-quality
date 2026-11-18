@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Public qualification checkpoint validation has no provider or command dependencies. */
+import { repository as releaseRepository } from "./release-identity.js";
 import assert from "node:assert/strict";
 import {
   releaseCommit,
@@ -291,10 +292,7 @@ export function verifyQualifiedTarget(record, expected) {
       "Original public artifact attempt inventory is missing",
     );
     assert.equal(producer.run.head_sha, proof.origin.controller);
-    assert.equal(
-      producer.run.repository.full_name,
-      "Hadden-Industries/json-quality",
-    );
+    assert.equal(producer.run.repository.full_name, releaseRepository);
     const jobName = artifact.name.startsWith("public-security-")
       ? "security"
       : artifact.name.replace(

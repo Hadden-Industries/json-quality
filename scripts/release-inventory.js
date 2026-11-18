@@ -38,6 +38,8 @@ import {
 } from "./release-contract.js";
 import { nativePackages } from "../src/native-packages.js";
 import { gh } from "./release-provider.js";
+import { requireCleanAudit as verifyAudit } from "./dependency-audit-policy.js";
+export { verifyAudit };
 export {
   reconcileNativeDistribution,
   verifyDistributionInventory,
@@ -62,16 +64,6 @@ export function isolatedNpmEnvironment(root, env = process.env) {
     NPM_CONFIG_FETCH_RETRIES: "2",
     NPM_CONFIG_FETCH_TIMEOUT: String(budgets.read),
   };
-}
-export function verifyAudit(audit) {
-  assert.equal(audit.auditReportVersion, 2);
-  assert.ok(!audit.error);
-  assert.equal(
-    audit.metadata?.vulnerabilities?.total,
-    0,
-    "Recipient vulnerabilities require disposition",
-  );
-  assert.deepEqual(audit.vulnerabilities, {});
 }
 /** Keep lock location and license identity; never collapse by name/version. */
 export function verifySbom(bom, lock, directory, inventory) {

@@ -18,6 +18,9 @@ const templatePath = (path) =>
 const metadataPath = "docs/release-versions.json";
 export const releaseDocumentationInputs = Object.freeze([
   metadataPath,
+  "package.json",
+  "assets/node-support.json",
+  "schemas/contract-cohort.json",
   ...releaseDocuments.flatMap((path) => [path, templatePath(path)]),
 ]);
 
@@ -28,6 +31,17 @@ export function releaseDocumentationProjection(version, read) {
   assert.deepEqual(Object.keys(metadata), ["previousVersion"]);
   const previousVersion = validVersion(metadata.previousVersion);
   assert.notEqual(previousVersion, version, "Release versions must differ");
+  const core = JSON.parse(read("package.json"));
+  const repository = new URL(core.repository.url.replace(/^git\+/u, ""));
+  assert.equal(repository.origin, "https://github.com");
+  assert.match(repository.pathname, /^\/[\w.-]+\/[\w.-]+\/?$/u);
+  const repositoryPath = repository.pathname
+    .replace(/\/$/u, "")
+    .replace(/\.git$/u, "");
+  const nodeMinimum = validVersion(
+    JSON.parse(read("assets/node-support.json")).minimum,
+  );
+  const cohort = JSON.parse(read("schemas/contract-cohort.json"));
   const anchorVersion = (value) => value.toLowerCase().replace(/[.+]/gu, "");
   const variables = {
     version,
@@ -35,6 +49,14 @@ export function releaseDocumentationProjection(version, read) {
     versionAnchor: anchorVersion(version),
     previousVersionAnchor: anchorVersion(previousVersion),
     migrationAnchor: `from-${anchorVersion(previousVersion)}-to-${anchorVersion(version)}`,
+    sourceUrl: `${repository.origin}${repositoryPath}/blob/v${encodeURIComponent(version)}`,
+    nodeMinimum,
+    cohortVersion: cohort.cohortVersion,
+    configurationSchemaVersion: cohort.configurationSchemaVersion,
+    eventSchemaVersion: cohort.eventSchemaVersion,
+    nativeProtocolVersion: cohort.nativeProtocolVersion,
+    componentSchemaVersion: cohort.componentSchemaVersion,
+    nodeApiVersion: cohort.nodeApiVersion,
   };
   return Object.fromEntries(
     releaseDocuments.map((path) => {
@@ -48,7 +70,13 @@ export function releaseDocumentationProjection(version, read) {
             Object.hasOwn(variables, name),
             `Unknown release variable: ${name}`,
           );
-          return variables[name];
+          const value = variables[name];
+          assert.ok(
+            typeof value === "string" ||
+              (Number.isSafeInteger(value) && value > 0),
+            `Invalid release variable: ${name}`,
+          );
+          return String(value);
         },
       );
       assert.ok(

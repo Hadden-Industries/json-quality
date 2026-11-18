@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { repository as releaseRepository } from "./release-identity.js";
 import assert from "node:assert/strict";
 import { cpSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -33,10 +34,7 @@ function acquireOriginalOperation(directory, scratch, env) {
   for (const value of [run, attempt]) assert.match(value, /^[1-9]\d{0,15}$/u);
   const observed = provider(run, attempt);
   assert.equal(observed.run.path, ".github/workflows/promote-release.yml");
-  assert.equal(
-    observed.run.repository.full_name,
-    "Hadden-Industries/json-quality",
-  );
+  assert.equal(observed.run.repository.full_name, releaseRepository);
   assert.equal(observed.run.event, "workflow_dispatch");
   assert.equal(observed.run.head_branch, "main");
   const admitAttempt = producingAttempt(observed, "admit");

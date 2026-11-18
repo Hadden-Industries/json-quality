@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 import { publint } from "publint";
 import { stageCore } from "./package-stage.js";
 import { projectPolicyInputs } from "./project-policy-inputs.js";
+import nodeSupport from "../assets/node-support.json" with { type: "json" };
+import { packageName, repositoryUrl } from "./release-identity.js";
 
 export async function checkPackage(
   directory,
@@ -21,11 +23,11 @@ export async function checkPackage(
   } = {},
 ) {
   const metadata = JSON.parse(readFileSync(join(directory, "package.json")));
-  assert.equal(metadata.name, "@hadden-industries/json-quality");
+  assert.equal(metadata.name, packageName);
   assert.match(metadata.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u);
   assert.equal(metadata.license, "AGPL-3.0-only");
   assert.equal(metadata.type, "module");
-  assert.equal(metadata.engines.node, ">=22.13.0");
+  assert.equal(metadata.engines.node, `>=${nodeSupport.minimum}`);
   assert.deepEqual(metadata.bin, {
     "json-quality": "src/cli.js",
     "json-quality-qualify-git": "src/qualification-cli.js",
@@ -52,10 +54,7 @@ export async function checkPackage(
     assert.ok(readFileSync(join(directory, entry.node.types)).length);
     assert.ok(readFileSync(join(directory, entry.node.import)).length);
   }
-  assert.equal(
-    metadata.repository.url,
-    "https://github.com/Hadden-Industries/json-quality.git",
-  );
+  assert.equal(metadata.repository.url, `${repositoryUrl}.git`);
   for (const specifier of Object.values({
     ...metadata.dependencies,
     ...metadata.optionalDependencies,

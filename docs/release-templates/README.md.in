@@ -13,7 +13,7 @@ Upgrading from {{release.previousVersion}} keeps the CLI, SDK and configuration 
 Use Node.js on **Windows x64** or **Linux x64 with glibc**.
 [Supported Node and npm versions](docs/node-runtime-compatibility.md)
 
-From an existing Git repository, install version {{release.version}} (contract cohort 6).
+From an existing Git repository, install version {{release.version}} (contract cohort {{release.cohortVersion}}).
 Keep npm optional dependencies enabled for the native companion.
 
 ```sh
@@ -156,9 +156,9 @@ Use the [documentation index](docs/README.md) to find references and operator ru
 
 For visual explanations, see:
 
-- [Session lifetimes](https://github.com/Hadden-Industries/json-quality/blob/v{{release.version}}/docs/consumer-guide.md#stream-a-source-and-read-lossless-values)
-- [Guarded rewrites](https://github.com/Hadden-Industries/json-quality/blob/v{{release.version}}/docs/consumer-guide.md#preview-and-apply-a-repository-rewrite)
-- [CI trust boundaries](https://github.com/Hadden-Industries/json-quality/blob/v{{release.version}}/docs/ci-trust.md#policy-and-source-boundaries)
+- [Session lifetimes]({{release.sourceUrl}}/docs/consumer-guide.md#stream-a-source-and-read-lossless-values)
+- [Guarded rewrites]({{release.sourceUrl}}/docs/consumer-guide.md#preview-and-apply-a-repository-rewrite)
+- [CI trust boundaries]({{release.sourceUrl}}/docs/ci-trust.md#policy-and-source-boundaries)
 
 See [contributing](CONTRIBUTING.md) for development setup and PR qualification, [CI runs](https://github.com/Hadden-Industries/json-quality/actions/workflows/ci.yml) for candidate results, the [changelog](CHANGELOG.md) for release changes, and the [security policy](SECURITY.md) for private vulnerability reporting.
 

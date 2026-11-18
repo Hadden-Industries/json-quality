@@ -2,6 +2,7 @@
 /** Reconcile distributed native payloads and rights with their original production.
  * GitHub authenticates the producer; member digests establish reuse of those bytes.
  */
+import { repository as releaseRepository } from "./release-identity.js";
 import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -145,7 +146,7 @@ export function acquireNativeProduction(origin, root, { provider, download }) {
     run = observed.run;
   assert.equal(run.id, Number(origin.run));
   assert.equal(run.run_attempt, Number(origin.attempt));
-  assert.equal(run.repository.full_name, "Hadden-Industries/json-quality");
+  assert.equal(run.repository.full_name, releaseRepository);
   assert.equal(run.head_repository.full_name, run.repository.full_name);
   assert.equal(run.path, origin.workflow);
   assert.equal(run.head_sha, origin.controller);

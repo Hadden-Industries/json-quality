@@ -15,6 +15,7 @@ import {
 import { verifyAudit } from "./release-inventory.js";
 import { securityScans } from "./security-scans.js";
 import { verifyCodeql } from "./release-security.js";
+import { packageName } from "./release-identity.js";
 export function verifyReport(
   report,
   release,
@@ -66,7 +67,7 @@ export function verifyReport(
       report.installSource,
       frozenDefaultPolicyDigest(release.archive.files),
       {
-        name: "@hadden-industries/json-quality",
+        name: packageName,
         version: release.version,
         integrity: release.archive.integrity,
         sha256: release.archive.sha256,

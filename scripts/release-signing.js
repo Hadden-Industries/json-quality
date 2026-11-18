@@ -2,6 +2,7 @@
 /** Native Git verifies the exact annotated object against explicit public owner keys.
  * Keep historical keys on rotation; optional OpenSSH validity windows apply at signing time.
  */
+import { repositoryUrl } from "./release-identity.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -65,7 +66,7 @@ export function verifyOwnerTagSignature(
       "fetch",
       "--no-tags",
       "--no-write-fetch-head",
-      "https://github.com/Hadden-Industries/json-quality.git",
+      `${repositoryUrl}.git`,
       oid,
     );
   }

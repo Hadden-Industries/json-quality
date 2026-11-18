@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { nativePackages } from "../src/native-packages.js";
-import { packageName, validVersion } from "./release-contract.js";
+import { validVersion } from "./release-contract.js";
+import { packageName } from "./release-identity.js";
 import { nativePackageMetadata } from "./project-native-packages.js";
 import {
   releaseDocumentationInputs,

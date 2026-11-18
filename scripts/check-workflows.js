@@ -9,6 +9,7 @@ import { budgets } from "./qualification-budgets.js";
 import { securityScans } from "./security-scans.js";
 import { checkNativeWorkflowContract } from "./native-workflow-contract.js";
 import { checkMinimalCliCommands } from "./consumer-cli-probe.js";
+import { packageName } from "./release-identity.js";
 
 const repository = fileURLToPath(new URL("../", import.meta.url));
 const transferBudgets = new Map([
@@ -99,7 +100,7 @@ function checkSharedQualification(workflow) {
   // Keep their reviewed semantics exact; step names and YAML formatting are free.
   const validate = String.raw`node --input-type=module -e 'if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(process.env.PRODUCER_REPOSITORY ?? "")) throw new Error("Producer repository is required"); for (const key of ["PRODUCER_SHA", "TRUSTED_COMMIT_ID", "CANDIDATE_COMMIT_ID"]) if (!/^[a-f0-9]{40}$/u.test(process.env[key] ?? "")) throw new Error("Full immutable commits are required")'
 git config --global core.autocrlf false`;
-  const verify = `node --input-type=module -e 'import { execFileSync } from "node:child_process"; import { readFileSync } from "node:fs"; if (execFileSync("git", ["-C", "producer", "rev-parse", "HEAD"], { encoding: "utf8" }).trim() !== process.env.PRODUCER_SHA || JSON.parse(readFileSync("producer/package.json", "utf8")).name !== "@hadden-industries/json-quality") throw new Error("Producer identity mismatch")'`;
+  const verify = `node --input-type=module -e 'import { execFileSync } from "node:child_process"; import { readFileSync } from "node:fs"; if (execFileSync("git", ["-C", "producer", "rev-parse", "HEAD"], { encoding: "utf8" }).trim() !== process.env.PRODUCER_SHA || JSON.parse(readFileSync("producer/package.json", "utf8")).name !== "${packageName}") throw new Error("Producer identity mismatch")'`;
   const checkout = (kind) => ({
     repository:
       kind === "producer"

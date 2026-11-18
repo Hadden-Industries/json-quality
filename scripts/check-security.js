@@ -1,26 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { npmCommand, budgets } from "./qualification-process.js";
+import {
+  advisorySource,
+  auditPolicySha256,
+  requireCleanAudit,
+} from "./dependency-audit-policy.js";
 
-/** No advisory is silently waived. A future exception needs a reviewed policy. */
-export function requireCleanAudit(report) {
-  assert.equal(report.auditReportVersion, 2);
-  assert.ok(
-    report.vulnerabilities && report.metadata?.vulnerabilities,
-    "Incomplete advisory response",
-  );
-  assert.equal(
-    Object.keys(report.vulnerabilities).length,
-    0,
-    "Unresolved dependency advisory",
-  );
-  for (const count of Object.values(report.metadata.vulnerabilities))
-    assert.equal(count, 0, "Unresolved dependency vulnerability");
-}
+export { requireCleanAudit };
+
 export function checkSecurity(output) {
   const root = fileURLToPath(new URL("../", import.meta.url)),
     observedAt = new Date().toISOString();
@@ -52,11 +43,8 @@ export function checkSecurity(output) {
   const result = {
     schemaVersion: 1,
     observedAt,
-    advisorySource:
-      "https://registry.npmjs.org/-/npm/v1/security/advisories/bulk",
-    policySha256: createHash("sha256")
-      .update(readFileSync(fileURLToPath(import.meta.url)))
-      .digest("hex"),
+    advisorySource,
+    policySha256: auditPolicySha256(),
     results: [{ name: "root", graphLockSha256, status: "passed" }],
   };
   if (output)

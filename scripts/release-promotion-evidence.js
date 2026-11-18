@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Preserve the tested build while binding promotion to its equal-tree landed merge. */
+import { repository as releaseRepository } from "./release-identity.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -18,7 +19,7 @@ export function verifyPromotion(release) {
   }
   const p = release.promotion;
   assert.equal(p.schemaVersion, 1);
-  assert.equal(p.repository, "Hadden-Industries/json-quality");
+  assert.equal(p.repository, releaseRepository);
   assert.equal(p.workflow, ".github/workflows/ci.yml");
   assert.equal(p.buildCommit, release.source.commit);
   assert.equal(p.tree, release.source.tree);

@@ -54,7 +54,7 @@ Qualify and publish that final coordinate through the existing `pilot` route, th
 Do not qualify an RC and relabel its metadata to produce different final-version bytes.
 Once publication consumes a version, a pilot defect requires a new version and fresh qualification; published archives cannot be replaced.
 
-Its contracts use cohort 6, events 5, configuration/source-contract 4, native protocol 5, component schema 4 and Node-API 9.
+Its contracts use cohort {{release.cohortVersion}}, events {{release.eventSchemaVersion}}, configuration/source-contract {{release.configurationSchemaVersion}}, native protocol {{release.nativeProtocolVersion}}, component schema {{release.componentSchemaVersion}} and Node-API {{release.nodeApiVersion}}.
 The historical `1.0.0-rc.1` release uses configuration/event/native cohort 2.
 Zero-configuration policy resolution remains supported; preparing source does not publish it or select it in consumers.
 Matching new native artifacts and candidate qualification remain required before claiming installed or release acceptance.
@@ -97,7 +97,8 @@ Edit only `package.json.version`, then run `npm run sync:version` to project com
 Edit current release prose in `docs/release-templates/*.in`; the generated README, consumer guide and this runbook are checked before packing.
 The documentation index, release overview and migration guide use the same projection.
 `docs/release-versions.json.previousVersion` owns their comparison baseline; update it when selecting a new baseline, rather than repeating that version in templates.
-Historical changelog entries, closeout records and the contract cohort retain their original values.
+The projection reads tagged source links, the minimum Node version and contract versions from `package.json`, `assets/node-support.json` and `schemas/contract-cohort.json`.
+Historical changelog entries and closeout records keep their original values.
 
 Policy provenance independently fingerprints current input bytes and selected dependency declarations; version-only changes leave its readable input inventory and fingerprint unchanged.
 `npm run check:version` detects drift without writing; repository qualification and hosted native production run it before expensive work.

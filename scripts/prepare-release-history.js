@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Prepare complete recovery evidence; publication and owner signing remain separate actions. */
+import { repository as releaseRepository } from "./release-identity.js";
 import assert from "node:assert/strict";
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -30,10 +31,7 @@ export function prepareReleaseHistory(
   mkdirSync(output, { recursive: true });
   mkdirSync(scratch, { recursive: true });
   const observed = provider(run, attempt);
-  assert.equal(
-    observed.run.repository.full_name,
-    "Hadden-Industries/json-quality",
-  );
+  assert.equal(observed.run.repository.full_name, releaseRepository);
   assert.equal(observed.run.head_branch, "main");
   assert.equal(observed.run.status, "completed");
   const phase =

@@ -8,7 +8,11 @@ import { native, budgets } from "./qualification-process.js";
 import { releaseCommit } from "./release-promotion-evidence.js";
 import { recoveryArtifactNames } from "./release-records.js";
 import { sameJobExecution } from "./github-job-execution.js";
-import { nativePackages } from "../src/native-packages.js";
+import {
+  packageName,
+  releasePackageNames,
+  repository,
+} from "./release-identity.js";
 import { verifyOwnerTagSignature } from "./release-signing.js";
 import { npmLabelOperation } from "./npm-availability.js";
 import {
@@ -31,7 +35,6 @@ import {
   verifyMatrixRunner,
 } from "./runner-policy.js";
 import {
-  repository,
   regularBytes,
   save,
   jsonBytes,
@@ -43,7 +46,6 @@ import {
   skippedNativePublicJobName,
   retainedRecoveries,
   releaseTransportMaximumBytes,
-  packageName,
   validVersion,
 } from "./release-contract.js";
 export { evidenceIndex, sealBundle } from "./release-records.js";
@@ -787,10 +789,7 @@ function admitHistorySubject(entry, retainedRecord) {
       "Retained writer step changed",
     );
   }
-  const packages = new Set([
-    packageName,
-    ...Object.values(nativePackages).map((spec) => spec.package),
-  ]);
+  const packages = new Set(releasePackageNames);
   let subject;
   for (const [index, intent] of intents.entries()) {
     assert.equal(intent.state, "intent");

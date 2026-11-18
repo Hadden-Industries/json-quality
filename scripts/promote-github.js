@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
 import { gh } from "./release-provider.js";
-import { repository } from "./release-contract.js";
+import { repository } from "./release-identity.js";
 import { runPromotionService } from "./promotion-entry.js";
 import { applyGithubAvailability } from "./promotion-service.js";
 import { fileURLToPath } from "node:url";

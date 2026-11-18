@@ -1,6 +1,6 @@
 # JSON Quality documentation
 
-These guides describe JSON Quality {{release.version}} and contract cohort 6.
+These guides describe JSON Quality {{release.version}} and contract cohort {{release.cohortVersion}}.
 Start with [installation and the first check](../README.md#install-and-first-check), or [upgrade from {{release.previousVersion}}](migration-guide.md#{{release.migrationAnchor}}).
 Read [support and release](support-and-release.md) for compatibility and the complete change summary.
 

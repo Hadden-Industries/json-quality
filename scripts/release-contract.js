@@ -18,6 +18,7 @@ import {
 } from "../src/package-payload.js";
 import { nativePackages } from "../src/native-packages.js";
 import { securityScans } from "./security-scans.js";
+import { packageName, repository } from "./release-identity.js";
 import { verifyDistributionInventory } from "./release-distribution.js";
 import {
   verifyMatrixRunner,
@@ -45,8 +46,7 @@ export {
   readJson,
 };
 
-export const repository = "Hadden-Industries/json-quality";
-export const packageName = "@hadden-industries/json-quality";
+export { packageName, repository };
 // Three bounded package archives plus retained qualification evidence in one ZIP.
 export const releaseTransportMaximumBytes =
   packageCapabilities.maximumExpandedBytes;

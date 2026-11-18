@@ -12,13 +12,14 @@ import { budgets } from "./qualification-budgets.js";
 import { validateConsumers } from "./consumer-layouts.js";
 import { securityScans } from "./security-scans.js";
 import { validatePerformance } from "./performance-contract.js";
+import { repository } from "./release-identity.js";
 import {
   ubuntuRunner,
   verifyMatrixRunner,
   windowsRunner,
 } from "./runner-policy.js";
 
-export const repository = "Hadden-Industries/json-quality";
+export { repository };
 export const workflow = ".github/workflows/ci.yml";
 export const acceptance = "CI / acceptance";
 /** Share only completed original job inventories within one admission. */

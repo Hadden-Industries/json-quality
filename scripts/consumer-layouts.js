@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from "node:assert/strict";
 import contractCohort from "../schemas/contract-cohort.json" with { type: "json" };
+import { packageName } from "./release-identity.js";
 import {
   MINIMAL_CLI_CASES,
   MINIMAL_CLI_COMMANDS,
@@ -86,7 +87,7 @@ export function validateConsumers(
       consumer.installSource,
       defaultPolicySha256,
       {
-        name: "@hadden-industries/json-quality",
+        name: packageName,
         version: value.packageVersion,
         sha256: value.archiveSha256,
       },
@@ -115,7 +116,7 @@ export function validateMinimalCli(
   assert.equal(value.cohortVersion, contractCohort.cohortVersion);
   assert.equal(value.policy, "package-defaults");
   assert.equal(value.command, "npm exec -- json-quality");
-  assert.equal(value.packageName, "@hadden-industries/json-quality");
+  assert.equal(value.packageName, packageName);
   assert.deepEqual(value.nativePackage, expectedNativePackage);
   assert.match(value.corePackage.integrity, /^sha512-[A-Za-z0-9+/]+={0,2}$/u);
   assert.deepEqual(
