@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { native, budgets } from "./qualification-process.js";
 import { artifactLimits } from "./artifact-policy.js";
 import { evidenceIndex, gh } from "./release-provider.js";
+import { listEvidenceFiles } from "./release-records.js";
 import {
   jsonBytes,
   releaseArtifactBytes,
@@ -259,7 +260,7 @@ export function acquireArchiveEvidence(
       "Inner and outer evidence inventories differ",
     );
     assert.deepEqual(
-      evidenceIndex(proofRoot)
+      listEvidenceFiles(proofRoot)
         .map((entry) => entry.name)
         .sort(),
       [...names, "evidence-index.json"].sort(),

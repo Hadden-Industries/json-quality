@@ -1123,6 +1123,38 @@ function bundleFixture(directory, version = "0.1.0-dev.0") {
   return { release, digest };
 }
 
+test("bundle admission binds the manifest and archives to the evidence index", (t) => {
+  const directory = join(temp(t), "admitted");
+  const { release, digest } = bundleFixture(directory);
+  assert.deepEqual(verifyBundle(directory, digest), release);
+  const path = join(directory, "evidence-index.json");
+  const index = JSON.parse(readFileSync(path, "utf8"));
+  for (const name of [
+    "release-manifest.json",
+    ...releasePackages(release).map(({ archive }) => archive.filename),
+  ]) {
+    const changed = structuredClone(index);
+    changed.files.find((entry) => entry.name === name).sha256 = "0".repeat(64);
+    writeFileSync(path, jsonBytes(changed));
+    assert.throws(
+      () => verifyBundle(directory, digest),
+      (error) =>
+        error.code === "ERR_ASSERTION" &&
+        error.message.startsWith(`Indexed SHA256 differs: ${name}`),
+    );
+  }
+
+  writeFileSync(
+    join(directory, release.archive.filename),
+    Buffer.alloc(bytes.length),
+  );
+  sealBundle(directory, digest);
+  assert.throws(
+    () => verifyBundle(directory, digest),
+    /Tarball SHA256 differs/u,
+  );
+});
+
 test("interrupted archival imports only owner-bound intent and journal without resealing original evidence", (t) => {
   const root = temp(t),
     directory = join(root, "admitted"),

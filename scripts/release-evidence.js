@@ -72,6 +72,7 @@ import {
   observeStagePredecessor,
   selectedStageCheckpoint,
 } from "./stage-predecessor.js";
+import { listEvidenceFiles } from "./release-records.js";
 
 function copyEvidence(from, to) {
   mkdirSync(to, { recursive: true });
@@ -93,15 +94,16 @@ export function verifyBundle(
   assert.equal(sha256(bytes), manifestSha);
   const release = verifyManifest(JSON.parse(bytes));
   if (release.promotion) verifyBuildEvidence(release, directory);
-  verifyArchive(
-    releaseArtifactBytes(join(directory, release.archive.filename)),
-    release.archive,
-  );
-  for (const entry of release.platformArchives)
+  const verified = new Map([
+    ["release-manifest.json", { size: bytes.length, sha256: manifestSha }],
+  ]);
+  for (const { archive } of releasePackages(release)) {
     verifyArchive(
-      releaseArtifactBytes(join(directory, entry.archive.filename)),
-      entry.archive,
+      releaseArtifactBytes(join(directory, archive.filename)),
+      archive,
     );
+    verified.set(archive.filename, archive);
+  }
   const index = readJson(join(directory, "evidence-index.json"));
   assert.equal(index.manifestSha256, manifestSha);
   const names = new Set();
@@ -111,14 +113,27 @@ export function verifyBundle(
     const full = resolve(directory, entry.name),
       rel = relative(directory, full);
     assert.ok(rel && !rel.startsWith("..") && !rel.includes(":"));
-    const contents = releaseArtifactBytes(full);
-    assert.equal(contents.length, entry.size);
-    assert.equal(sha256(contents), entry.sha256);
+    let actual = verified.get(entry.name);
+    if (!actual) {
+      const contents = releaseArtifactBytes(full);
+      actual = { size: contents.length, sha256: sha256(contents) };
+    }
+    assert.equal(
+      actual.size,
+      entry.size,
+      `Indexed size differs: ${entry.name}`,
+    );
+    assert.equal(
+      actual.sha256,
+      entry.sha256,
+      `Indexed SHA256 differs: ${entry.name}`,
+    );
   }
-  const observed = evidenceIndex(directory)
-    .map(({ name }) => name)
-    .filter((name) => name !== "evidence-index.json");
-  const extra = observed.filter((name) => !names.has(name));
+  const observed = new Map(
+    listEvidenceFiles(directory).map(({ name, path }) => [name, path]),
+  );
+  observed.delete("evidence-index.json");
+  const extra = [...observed.keys()].filter((name) => !names.has(name));
   if (interruptedArchive) {
     assert.equal(interruptedArchive.phase, "archive");
     assert.equal(interruptedArchive.disposition, "complete-read-only");
@@ -144,8 +159,9 @@ export function verifyBundle(
       extra.every((name) => allowed.has(name)),
       "Unexpected interrupted archive output",
     );
+    for (const name of extra) releaseArtifactBytes(observed.get(name));
   } else assert.equal(extra.length, 0, "Unindexed evidence payload");
-  assert.ok([...names].every((name) => observed.includes(name)));
+  assert.ok([...names].every((name) => observed.has(name)));
   return release;
 }
 /** Controller changes need explicit review of the actual control delta, not artifact rewriting. */

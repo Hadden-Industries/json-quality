@@ -74,7 +74,6 @@ export async function freezeRelease(directory, matrix, version) {
       integrity: entry.integrity,
     });
     assert.equal(manifest.optionalDependencies[entry.name], version);
-    assert.equal(sha256(bytes), entry.sha256);
     assert.deepEqual(
       inventory.files.map(({ path, size }) => ({ path, size })),
       entry.files

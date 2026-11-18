@@ -11,7 +11,6 @@ import {
   regularBytes,
   save,
   verifyArchive,
-  verifyManifest,
   releasePackages,
 } from "./release-contract.js";
 import { nativePlatformSpec, nativePackages } from "../src/native-packages.js";
@@ -126,9 +125,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   assert.equal(process.argv.length, 4);
   const [directory, output] = process.argv.slice(2).map((p) => resolve(p));
   mkdirSync(output, { recursive: true });
-  const release = verifyManifest(
-    verifyBundle(directory, process.env.MANIFEST_SHA),
-  );
+  const release = verifyBundle(directory, process.env.MANIFEST_SHA);
   const context = JSON.parse(regularBytes(join(directory, "context.json")));
   const platform = nativePlatformSpec().platform;
   const observation = {

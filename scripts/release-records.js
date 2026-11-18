@@ -10,7 +10,7 @@ import {
   readdirSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { DEFAULT_PACKAGE_VERIFICATION_LIMITS as packageCapabilities } from "../src/package-payload.js";
 
 export function effectJournal(phase, origin) {
@@ -90,8 +90,8 @@ export function releaseArtifactBytes(path) {
 }
 export const readJson = (path) => JSON.parse(regularBytes(path));
 
-/** Index only bounded ordinary files; artifact consumers name each retained member. */
-export function evidenceIndex(directory) {
+/** Enumerate ordinary files so membership checks need only directory metadata. */
+export function listEvidenceFiles(directory) {
   const entries = readdirSync(directory, {
     recursive: true,
     withFileTypes: true,
@@ -103,13 +103,19 @@ export function evidenceIndex(directory) {
   const files = entries
     .filter((entry) => entry.isFile())
     .map((entry) => {
-      const full = join(entry.parentPath, entry.name),
-        name = full.slice(directory.length + 1).replaceAll("\\", "/");
-      const bytes = releaseArtifactBytes(full);
-      return { name, sha256: sha256(bytes), size: bytes.length };
+      const path = join(entry.parentPath, entry.name);
+      return { name: relative(directory, path).replaceAll(sep, "/"), path };
     });
   assert.ok(files.length <= 4096);
   return files;
+}
+
+/** Keep digests and sizes in the index created by the producer. */
+export function evidenceIndex(directory) {
+  return listEvidenceFiles(directory).map(({ name, path }) => {
+    const bytes = releaseArtifactBytes(path);
+    return { name, sha256: sha256(bytes), size: bytes.length };
+  });
 }
 export function sealBundle(directory, manifestSha) {
   const files = evidenceIndex(directory).filter(

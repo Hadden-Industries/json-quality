@@ -10,7 +10,6 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, sep, dirname } from "node:path";
-import { createHash } from "node:crypto";
 import { parseArgs } from "node:util";
 import { packCandidate } from "./pack.js";
 import {
@@ -74,10 +73,7 @@ try {
         provenance: JSON.parse(readFileSync(values.provenance, "utf8")),
       }
     : packCandidate(join(directory, "archives"));
-  if (
-    createHash("sha256").update(readFileSync(archive)).digest("hex") !==
-    provenance.sha256
-  )
+  if (sha256(readFileSync(archive)) !== provenance.sha256)
     throw new Error(
       "Transported archive hash differs from producer provenance.",
     );
@@ -113,37 +109,35 @@ try {
     platformArchive.version !== provenance.version
   )
     throw new Error("Missing or mismatched frozen platform package");
-  const nativeArchive = join(dirname(archive), platformArchive.archive);
-  verifyArchive(readFileSync(nativeArchive), {
-    size: readFileSync(nativeArchive).length,
-    sha256: platformArchive.sha256,
-    integrity: platformArchive.integrity,
-  });
+  const archiveDirectory = dirname(archive);
+  const nativeArchive = join(archiveDirectory, platformArchive.archive);
+  const platformArchives = values.registry
+    ? [platformArchive]
+    : provenance.platformPackages;
   const transportedPlatforms = {};
-  if (!values.registry) {
-    for (const entry of provenance.platformPackages) {
-      const spec = nativePackages[entry.platform];
-      if (
-        !spec ||
-        spec.package !== entry.name ||
-        entry.version !== provenance.version
-      )
-        throw new Error("Invalid transported platform identity");
-      const path = join(dirname(archive), entry.archive),
-        bytes = readFileSync(path);
-      verifyArchive(bytes, {
-        size: bytes.length,
-        sha256: entry.sha256,
-        integrity: entry.integrity,
-      });
-      transportedPlatforms[entry.name] = `file:${path}`;
-    }
+  for (const entry of platformArchives) {
+    const spec = nativePackages[entry.platform];
     if (
-      Object.keys(transportedPlatforms).length !==
-      Object.keys(nativePackages).length
+      !spec ||
+      spec.package !== entry.name ||
+      entry.version !== provenance.version
     )
-      throw new Error("Incomplete transported platform family");
+      throw new Error("Invalid transported platform identity");
+    const path = join(archiveDirectory, entry.archive);
+    const bytes = readFileSync(path);
+    verifyArchive(bytes, {
+      size: bytes.length,
+      sha256: entry.sha256,
+      integrity: entry.integrity,
+    });
+    if (!values.registry) transportedPlatforms[entry.name] = `file:${path}`;
   }
+  if (
+    !values.registry &&
+    Object.keys(transportedPlatforms).length !==
+      Object.keys(nativePackages).length
+  )
+    throw new Error("Incomplete transported platform family");
   mkdirSync(consumer, { recursive: true });
   mkdirSync(fixture);
   writeFileSync(
