@@ -188,6 +188,9 @@
     "@hadden-industries/json-quality-win32-x64": "file:native/prebuilt/win32-x64"
   },
   "overrides": {
+    "micromark-extension-math@3.1.0": {
+      "katex": "0.19.1"
+    },
     "fast-xml-parser": ">=5.12.1",
     "ajv": {
       "fast-uri": "4.2.3"
@@ -196,13 +199,13 @@
       "prettier": "$prettier"
     },
     "eslint": {
-      "minimatch": "11.0.8"
+      "minimatch": "11.0.9"
     },
     "@eslint/config-array": {
-      "minimatch": "11.0.8"
+      "minimatch": "11.0.9"
     },
     "readdir-glob": {
-      "minimatch": "11.0.8"
+      "minimatch": "11.0.9"
     },
     "archiver-utils": {
       "glob": "14.0.6"
@@ -212,7 +215,7 @@
     "@actions/artifact": ">=6.3.1",
     "@eslint/js": ">=10.0.1",
     "@eslint/json": ">=2.1.1",
-    "@hadden-industries/markdown-quality": ">=3.0.3",
+    "@hadden-industries/markdown-quality": ">=3.0.4",
     "@humanwhocodes/momoa": ">=3.3.13",
     "@types/node": ">=26.6.6",
     "dependency-cruiser": ">=18.8.0",
