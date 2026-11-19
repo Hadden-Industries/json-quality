@@ -25,6 +25,11 @@ test("tag policy overlap admits proven disjoint namespaces and retains uncertain
 import { readFileSync } from "node:fs";
 import { parse, stringify } from "yaml";
 import { checkWorkflows } from "../scripts/check-workflows.js";
+import {
+  checkActionProjections,
+  projectActionVersions,
+  readActionCatalog,
+} from "../scripts/project-action-versions.mjs";
 import { checkNativeWorkflowContract } from "../scripts/native-workflow-contract.js";
 import { budgets } from "../scripts/qualification-budgets.js";
 import { spawnSync } from "node:child_process";
@@ -768,4 +773,40 @@ test("deliberate triggers and skip-resistant acceptance remain explicit", () => 
     { context: "CI / acceptance", integration_id: 15368 },
   ]);
   assert.deepEqual(governance.ruleset.bypass_actors, []);
+});
+
+test("workflow contracts reject a well-formed Action SHA outside the catalog", () => {
+  const path = ".github/workflows/ci.yml";
+  const sha = readActionCatalog().actions["actions/checkout"].revision;
+  const source = readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const changed = source.replace(
+    `actions/checkout@${sha}`,
+    `actions/checkout@${"0".repeat(40)}`,
+  );
+  assert.notEqual(changed, source);
+  assert.throws(
+    () => checkWorkflows({ overrides: { [path]: changed } }),
+    /actions\/checkout drifts from docs\/release\/action-versions\.json/u,
+  );
+});
+
+test("Action projections keep subpaths and release comments on CRLF files", () => {
+  const { actions } = readActionCatalog();
+  const { revision, tag } = actions["github/codeql-action"];
+  const stale = `steps:\r\n  - uses: github/codeql-action/init@${"0".repeat(40)} # v1\r\n  - uses: ./.github/actions/setup-producer\r\n`;
+  const file = "fixture.yml";
+  const projected = projectActionVersions(stale, {
+    file,
+    actions,
+    write: true,
+  });
+  assert.equal(
+    projected.source,
+    stale.replace(`${"0".repeat(40)} # v1`, `${revision} # ${tag}`),
+  );
+  assert.deepEqual(
+    projectActionVersions(projected.source, { file, actions }).violations,
+    [],
+  );
+  assert.deepEqual(checkActionProjections(), []);
 });

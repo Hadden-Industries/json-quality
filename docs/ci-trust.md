@@ -3,6 +3,12 @@
 Use `json-quality-qualify-git` to check JSON at one Git commit under the policy from a separately selected trusted commit.
 For the project’s own PR and main workflows, see [deliberate repository acceptance](#deliberate-repository-acceptance).
 
+## Update GitHub Action pins
+
+In a source checkout, `docs/release/action-versions.json` declares each external action's release tag and full commit SHA.
+After changing a catalog entry, run `node scripts/project-action-versions.mjs --write` to update the literal references and tag comments in workflows and composite actions.
+The source checks run the same drift validation as `node scripts/project-action-versions.mjs --check`.
+
 ## Check immutable Git inputs
 
 Pin the [reusable qualification workflow](https://github.com/Hadden-Industries/json-quality/blob/main/.github/workflows/json-quality.yml) to a reviewed full producer commit.

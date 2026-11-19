@@ -5,6 +5,11 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDocument } from "yaml";
+import {
+  ACTION_CATALOG_PATH,
+  checkActionProjections,
+  readActionCatalog,
+} from "./project-action-versions.mjs";
 import { budgets } from "./qualification-budgets.js";
 import { securityScans } from "./security-scans.js";
 import { checkNativeWorkflowContract } from "./native-workflow-contract.js";
@@ -179,6 +184,7 @@ git config --global core.autocrlf false`;
 
 /** Check every local caller before expensive hosted fan-out, including dormant release paths. */
 export function checkWorkflows({ root = repository, overrides = {} } = {}) {
+  const actionVersions = readActionCatalog(root).actions;
   checkMinimalCliCommands();
   const read = (path) => {
     const document = parseDocument(
@@ -200,12 +206,19 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
     scriptReferences(`package.json/scripts/${name}`, command);
   const actions = new Map();
   const pinned = (path, uses) => {
-    if (uses && !uses.startsWith("./"))
-      assert.match(
-        uses,
-        /^[\w.-]+\/[\w./-]+@[a-f0-9]{40}$/u,
-        `${path}: external action needs a full reviewed SHA`,
-      );
+    if (!uses || uses.startsWith("./")) return;
+    assert.match(
+      uses,
+      /^[\w.-]+\/[\w./-]+@[a-f0-9]{40}$/u,
+      `${path}: external action needs a full reviewed SHA`,
+    );
+    const [action, revision] = uses.split("@");
+    const name = action.split("/").slice(0, 2).join("/");
+    assert.equal(
+      actionVersions[name]?.revision,
+      revision,
+      `${path}: ${name} drifts from ${ACTION_CATALOG_PATH}`,
+    );
   };
   const checkoutRevision = (path, step) => {
     if (!step.uses?.startsWith("actions/checkout@")) return;
@@ -787,5 +800,9 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
   };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url))
-  console.log(JSON.stringify(checkWorkflows()));
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const summary = checkWorkflows();
+  const violations = checkActionProjections();
+  if (violations.length) throw new Error(violations.join("\n"));
+  console.log(JSON.stringify(summary));
+}
