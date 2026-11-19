@@ -578,6 +578,7 @@ function writerInventory(entry) {
     : [
         "admit",
         phase,
+        ...(phase === "archive" ? ["writer-result"] : []),
         ...(phase === "stage"
           ? [
               "native-public",

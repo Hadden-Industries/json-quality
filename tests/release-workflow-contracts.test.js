@@ -194,6 +194,11 @@ test("release writers and their effect steps cannot be disabled or softened", ()
     for (const change of [
       (job) => (job.if = false),
       (job) => (job["continue-on-error"] = true),
+      (job) => {
+        job.steps = job.steps.filter(
+          (step) => step.name !== "Apply admitted release effect",
+        );
+      },
       (job) =>
         (job.steps.find(
           (step) => step.name === "Apply admitted release effect",
@@ -212,6 +217,100 @@ test("release writers and their effect steps cannot be disabled or softened", ()
         `${workflow}/${name}`,
       );
     }
+});
+
+test("every staging job must check out the exact dispatch SHA", () => {
+  const path = ".github/workflows/stage-release.yml";
+  for (const name of ["admit", "native-public", "stage"]) {
+    for (const change of [
+      (step) => {
+        delete step.with.ref;
+      },
+      (step) => {
+        step.with.ref = "main";
+      },
+      (step) => {
+        step.if = false;
+      },
+    ]) {
+      const document = read(path);
+      const checkout = document.jobs[name].steps.find((step) =>
+        step.uses?.startsWith("actions/checkout@"),
+      );
+      change(checkout);
+      assert.throws(
+        () => checkWorkflows({ overrides: { [path]: stringify(document) } }),
+        /must check out the exact dispatch SHA/u,
+        name,
+      );
+    }
+  }
+});
+
+test("protected writers require unsoftened read-only history admission", () => {
+  const path = ".github/workflows/stage-release.yml";
+  for (const change of [
+    (admit) => {
+      admit.permissions["id-token"] = "write";
+    },
+    (admit) => {
+      admit.steps = admit.steps.filter((step) => step.id !== "admission");
+    },
+    (admit) => {
+      admit.steps.find((step) => step.id === "admission").if = false;
+    },
+    (admit) => {
+      admit.steps.find((step) => step.id === "admission")["continue-on-error"] =
+        true;
+    },
+  ]) {
+    const document = read(path);
+    change(document.jobs.admit);
+    assert.throws(
+      () => checkWorkflows({ overrides: { [path]: stringify(document) } }),
+      /read-only release admission/u,
+    );
+  }
+});
+
+test("archival fails when its required writer is skipped or unsuccessful", () => {
+  const path = ".github/workflows/github-release.yml";
+  const document = read(path);
+  const gate = document.jobs["writer-result"];
+  const command = /^node --input-type=module -e '(.+)'$/u.exec(
+    gate.steps[0].run.trim(),
+  )[1];
+  for (const result of ["success", "skipped", "failure", "cancelled"]) {
+    const observed = spawnSync(
+      process.execPath,
+      ["--input-type=module", "-e", command],
+      {
+        env: {
+          ...process.env,
+          NEEDS_JSON: JSON.stringify({ archive: { result } }),
+        },
+      },
+    );
+    assert.equal(observed.status, result === "success" ? 0 : 1);
+  }
+  for (const change of [
+    (job) => {
+      job.if = false;
+    },
+    (job) => {
+      job.steps[0].if = false;
+    },
+    (job) => {
+      job.steps[0]["continue-on-error"] = true;
+    },
+  ]) {
+    const modified = read(path);
+    change(modified.jobs["writer-result"]);
+    assert.throws(
+      () => checkWorkflows({ overrides: { [path]: stringify(modified) } }),
+      /Archive result/u,
+    );
+  }
 });
 
 test("availability completion executes its actual result gate before acquiring evidence", () => {

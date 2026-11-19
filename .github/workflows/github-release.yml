@@ -132,3 +132,15 @@ jobs:
           name: "effect-archive-${{ github.run_attempt }}"
           path: "${{ runner.temp }}/admitted"
           retention-days: 90
+  writer-result:
+    needs: [admit, archive]
+    if: ${{ !cancelled() && needs.admit.result == 'success' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require a successful archival writer
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: >-
+          node --input-type=module -e 'import assert from "node:assert/strict"; const needs=JSON.parse(process.env.NEEDS_JSON); assert.equal(needs.archive?.result,"success","Archival writer did not succeed");'

@@ -747,6 +747,12 @@ export function verifyRun(
           ].includes(name),
       );
   }
+  // Earlier authenticated archive attempts have only the admission and writer.
+  if (
+    phase === "archive" &&
+    jobs.jobs.some((job) => job.name === "writer-result")
+  )
+    names = [...names, "writer-result"];
   if (phase === "stage" && stagePhase) {
     assert.ok(["natives", "core"].includes(stagePhase));
     const nativeNames = jobs.jobs
@@ -802,11 +808,18 @@ export function verifyRun(
     }
     if (completedNativeStage && job.name === "stage")
       assert.equal(job.conclusion, "failure");
-    else if (reconciled && job.name === phase)
+    else if (
+      reconciled &&
+      (job.name === phase ||
+        (phase === "archive" && job.name === "writer-result"))
+    )
       assert.ok(
         ["success", "failure", "cancelled", "timed_out"].includes(
           job.conclusion,
-        ),
+        ) ||
+          (job.name === "writer-result" &&
+            run.conclusion === "cancelled" &&
+            job.conclusion === "skipped"),
       );
     else if (
       phase === "stage" &&

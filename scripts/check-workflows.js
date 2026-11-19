@@ -36,6 +36,7 @@ const githubWriterCondition =
 const stagingWriterCondition =
   "${{ !cancelled() && needs.admit.result == 'success' && ((inputs.stage_phase || 'natives') == 'natives' && needs.native-public.result == 'skipped' || inputs.stage_phase == 'core' && needs.native-public.result == 'success') }}";
 const availabilityCompletionGate = `node --input-type=module -e 'import assert from "node:assert/strict"; const n=JSON.parse(process.env.NEEDS_JSON); assert.equal(n.admit.result,"success"); assert.equal(n.npm.result,"success","npm writer did not succeed"); const a=n.npm.outputs.availability; assert.ok(["npm-only","npm-and-github"].includes(a),"Missing admitted availability"); assert.equal(n.github.result,a==="npm-only"?"skipped":"success","Selected GitHub writer did not succeed");'`;
+const archiveCompletionGate = `node --input-type=module -e 'import assert from "node:assert/strict"; const needs=JSON.parse(process.env.NEEDS_JSON); assert.equal(needs.archive?.result,"success","Archival writer did not succeed");'`;
 
 /** Narrow writers and full producers must select the same pinned tools before npm reads. */
 function checkProducerToolchain(action, path) {
@@ -485,6 +486,75 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
   ]) {
     const workflow = workflows.get(`./.github/workflows/${path}`);
     assert.equal(workflow.jobs[writer].environment, environment);
+    const admit = workflow.jobs.admit;
+    const admission = admit.steps.filter((step) => step.id === "admission");
+    const phase = writer === "github" ? "promote" : writer;
+    const admissionMessage = `${path}: read-only release admission must authenticate predecessor and writer history`;
+    assert.equal(
+      admit.if,
+      "github.repository == 'Hadden-Industries/json-quality' && github.ref == 'refs/heads/main'",
+      admissionMessage,
+    );
+    assert.equal(admit.environment, undefined, admissionMessage);
+    assert.ok(!admit["continue-on-error"], admissionMessage);
+    assert.deepEqual(
+      admit.permissions,
+      {
+        contents: "read",
+        actions: "read",
+        ...(phase === "promote" ? { "security-events": "read" } : {}),
+      },
+      `${path}: read-only release admission reserves draft visibility for the GitHub writer`,
+    );
+    assert.equal(admission.length, 1, admissionMessage);
+    const [preflight] = admission;
+    assert.ok(
+      !Object.hasOwn(preflight, "if") && !preflight["continue-on-error"],
+      admissionMessage,
+    );
+    assert.deepEqual(
+      preflight.env,
+      { GH_TOKEN: "${{ github.token }}" },
+      admissionMessage,
+    );
+    assert.equal(
+      preflight.run,
+      "npm run admit:release-evidence -- " +
+        phase +
+        ' "${{ runner.temp }}/admitted" "${{ runner.temp }}/admission"',
+      admissionMessage,
+    );
+    assert.ok(
+      admit.steps.findIndex(
+        (step) =>
+          step.id === "admitted" &&
+          step.uses === "./.github/actions/upload-evidence",
+      ) > admit.steps.indexOf(preflight),
+      admissionMessage,
+    );
+    assert.equal(
+      admit.outputs?.["receipt-sha256"],
+      "${{ steps.admission.outputs.receipt-sha256 }}",
+      admissionMessage,
+    );
+    if (phase === "archive") {
+      const gate = workflow.jobs["writer-result"];
+      const [step] = gate?.steps ?? [];
+      assert.ok(
+        gate?.if === admittedWriterCondition &&
+          !gate["continue-on-error"] &&
+          gate.environment === undefined &&
+          gate.steps.length === 1 &&
+          step?.name === "Require a successful archival writer" &&
+          !Object.hasOwn(step, "if") &&
+          !step["continue-on-error"] &&
+          step.run?.trim() === archiveCompletionGate,
+        "Archive result must reject an unsuccessful writer",
+      );
+      assert.deepEqual(gate.needs, ["admit", "archive"]);
+      assert.deepEqual(gate.permissions, {});
+      assert.deepEqual(step.env, { NEEDS_JSON: "${{ toJSON(needs) }}" });
+    }
     for (const key of ["json", "sha"]) {
       const input = `stage_inventory_${key}`;
       assert.equal(
@@ -494,6 +564,7 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       assert.equal(workflow.on.workflow_dispatch.inputs[input].required, true);
     }
     for (const [name, job] of Object.entries(workflow.jobs)) {
+      if (phase === "archive" && name === "writer-result") continue;
       const steps = job.steps ?? [],
         privileged =
           name === writer || (path === "promote-release.yml" && name === "npm"),
@@ -521,6 +592,11 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
       );
       const effect = steps.findIndex(
         (step) => step.name === "Apply admitted release effect",
+      );
+      assert.equal(
+        effect >= 0,
+        privileged,
+        `${path}/${name}: expected release writer effect`,
       );
       if (effect < 0) continue;
       assert.ok(
@@ -645,6 +721,27 @@ export function checkWorkflows({ root = repository, overrides = {} } = {}) {
   assert.deepEqual(promotion.jobs.complete.needs, ["admit", "npm", "github"]);
   assert.deepEqual(promotion.jobs.github.needs, ["admit", "npm"]);
   const staging = workflows.get("./.github/workflows/stage-release.yml");
+  for (const name of ["admit", "native-public", "stage"]) {
+    const checkouts = staging.jobs[name].steps.filter((step) =>
+      step.uses?.startsWith("actions/checkout@"),
+    );
+    const [checkout] = checkouts;
+    assert.ok(
+      checkouts.length === 1 &&
+        checkout.with?.ref === "${{ github.sha }}" &&
+        !Object.hasOwn(checkout, "if") &&
+        !checkout["continue-on-error"],
+      `stage-release.yml/${name}: must check out the exact dispatch SHA`,
+    );
+  }
+  for (const [input, key, binding] of [
+    ["review_json", "REVIEW_JSON", "${{ inputs.review_json }}"],
+    ["review_sha", "REVIEW_SHA", "${{ inputs.review_sha }}"],
+  ]) {
+    assert.equal(staging.on.workflow_dispatch.inputs[input].required, true);
+    assert.equal(staging.on.workflow_dispatch.inputs[input].type, "string");
+    assert.equal(staging.env[key], binding);
+  }
   assert.equal(
     workflows
       .get("./.github/workflows/release-registry.yml")

@@ -94,6 +94,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - uses: ./.github/actions/setup-producer
       - name: Read complete predecessor and writer history
@@ -127,6 +128,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.sha }}
       - uses: ./.github/actions/setup-producer
       - uses: ./.github/actions/download-evidence
         timeout-minutes: 15
@@ -160,6 +162,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - uses: ./.github/actions/setup-writer
       - uses: ./.github/actions/download-evidence

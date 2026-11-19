@@ -619,6 +619,25 @@ test("provider admission denies missing, duplicate, skipped, stale-attempt and w
     assert.throws(() => verifyRun(p, "stage", source, fixture().matrix));
   }
 });
+test("archive evidence admits both legacy jobs and the required writer result", () => {
+  const provider = providerFixture();
+  provider.run.path = ".github/workflows/github-release.yml";
+  provider.jobs.jobs[1].name = "archive";
+  verifyRun(provider, "archive", source, fixture().matrix);
+
+  const gate = { ...provider.jobs.jobs[0], id: 99, name: "writer-result" };
+  provider.jobs.jobs.push(gate);
+  provider.jobs.total_count++;
+  verifyRun(provider, "archive", source, fixture().matrix);
+
+  gate.conclusion = "failure";
+  assert.throws(() => verifyRun(provider, "archive", source, fixture().matrix));
+  provider.run.conclusion = "failure";
+  provider.jobs.jobs[1].conclusion = "failure";
+  verifyRun(provider, "archive", source, fixture().matrix, {
+    reconciled: true,
+  });
+});
 test("native staging admits GitHub's exact skipped matrix display name while core still requires both successful lanes", () => {
   const release = fixture(),
     observed = providerFixture(),
