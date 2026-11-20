@@ -158,10 +158,12 @@ export async function observeQualification({
     matrixLanes(matrix);
     const inventory = await artifacts(read, ctx.runId, ctx.repositoryId);
     const hosts = [];
-    for (const artifact of inventory.filter((value) =>
-      /^ci-host-[a-z0-9.-]+-\d+-\d+\.json$/u.test(value.name),
+    const suffix = `-${ctx.runId}-${ctx.runAttempt}.json`;
+    for (const artifact of inventory.filter(
+      ({ name }) => name.startsWith("ci-host-") && name.endsWith(suffix),
     )) {
       const host = await readRawProof(artifact, read);
+      assert.equal(artifact.name, `ci-host-${host.lane}${suffix}`);
       assert.equal(host.runId, ctx.runId);
       assert.equal(host.runAttempt, ctx.runAttempt);
       assert.equal(host.repositoryId, ctx.repositoryId);

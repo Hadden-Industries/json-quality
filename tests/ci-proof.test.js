@@ -78,7 +78,7 @@ async function proof(f) {
     now: f.now,
   };
 }
-async function observation(f) {
+async function observation(f, probeAttempts = [f.main.runAttempt]) {
   const { receipt } = await proof(f),
     bodies = new Map();
   function artifact(id, name, record, workflow_run) {
@@ -98,24 +98,26 @@ async function observation(f) {
     f.artifact,
     artifact(f.artifact.id, f.artifact.name, receipt, f.artifact.workflow_run),
   );
-  const hosts = f.hosts.map((host, index) =>
-    artifact(
-      600 + index,
-      `ci-host-${host.lane}-72-1.json`,
-      {
-        ...host,
-        schemaVersion: 1,
-        runId: 72,
-        runAttempt: 1,
-        repositoryId: 11,
-        commit: f.main.sha,
-      },
-      {
-        id: 72,
-        repository_id: 11,
-        head_repository_id: 11,
-        head_sha: f.main.sha,
-      },
+  const hosts = probeAttempts.flatMap((attempt) =>
+    f.hosts.map((host, index) =>
+      artifact(
+        600 + attempt * 10 + index,
+        `ci-host-${host.lane}-72-${attempt}.json`,
+        {
+          ...host,
+          schemaVersion: 1,
+          runId: 72,
+          runAttempt: attempt,
+          repositoryId: 11,
+          commit: f.main.sha,
+        },
+        {
+          id: 72,
+          repository_id: 11,
+          head_repository_id: 11,
+          head_sha: f.main.sha,
+        },
+      ),
     ),
   );
   return {
@@ -163,6 +165,27 @@ test("normal equal-tree merge reuses complete JSON and package qualification", a
   assert.equal(result.mode, "REUSED");
   assert.equal(result.json, "REUSED");
   assert.equal(result.sourceRun, 71);
+});
+
+test("an observer rerun uses its complete current probes alongside retained older probes", async () => {
+  const f = fixture();
+  f.main.runAttempt = 2;
+  const current = await observation(f, [1, 2]);
+  assert.equal((await observeQualification(current)).mode, "REUSED");
+  const incomplete = {
+    ...current,
+    read: async (path, options) => {
+      const value = await current.read(path, options);
+      if (path !== "/actions/runs/72/artifacts?per_page=100") return value;
+      const artifacts = value.artifacts.filter(
+        (artifact) => artifact.name !== `ci-host-${f.hosts[0].lane}-72-2.json`,
+      );
+      return { artifacts, total_count: artifacts.length };
+    },
+  };
+  assert.equal((await observeQualification(incomplete)).mode, "FULL_REQUIRED");
+  const stale = await observation(f, [1]);
+  assert.equal((await observeQualification(stale)).mode, "FULL_REQUIRED");
 });
 
 test("release-capable proof preserves original lane identity and reads each original attempt once per admission", async () => {
